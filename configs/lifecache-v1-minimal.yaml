@@ -1,0 +1,70 @@
+# LifeCache-v1 minimal inference overlay.
+#
+# This file is a method-side config contract for the planned Self-Forcing
+# integration. It is not consumed by upstream Self-Forcing until the LifeCache
+# hook is wired into the attention/cache path.
+
+enabled: true
+mode: minimal
+
+trace:
+  enabled: true
+  output_name: cache_trace.jsonl
+  record_kv_shapes: true
+  record_region_mass: true
+
+compression:
+  method: attention_participation_topk
+  topk_per_layer_head_group: 512
+  min_tokens: 64
+  compress_on_recent_eviction: true
+
+recall:
+  enabled: true
+  top_sets: 4
+  top_tokens: 512
+  query_weight: 0.45
+  head_group_weight: 0.25
+  quality_weight: 0.15
+  usage_weight: 0.15
+
+anchor:
+  fixed_first_tokens: 256
+  dynamic_tokens: 256
+  update_interval_chunks: 4
+
+motion:
+  enabled: true
+  top_tokens: 512
+  use_latent_delta: true
+  use_dynamic_k_change: true
+  use_boundary_score: true
+
+head_roles:
+  mode: prior
+  pyramid_labels_path: ../Pyramid-Forcing/configs/head_configs/best_labels.csv
+  fallback_role: generic
+
+active_cache:
+  region_bias_beta: 0.1
+  budgets:
+    layout:
+      anchor: 256
+      recall: 512
+      motion: 0
+      recent: null
+    motion:
+      anchor: 64
+      recall: 0
+      motion: 512
+      recent: null
+    recall:
+      anchor: 128
+      recall: 768
+      motion: 0
+      recent: null
+    generic:
+      anchor: 128
+      recall: 0
+      motion: 0
+      recent: null
