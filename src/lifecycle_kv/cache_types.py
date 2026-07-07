@@ -16,9 +16,11 @@ class SlotState(str, Enum):
 
 class HeadRole(str, Enum):
     UNKNOWN = "unknown"
+    GENERIC = "generic"
     ANCHOR = "anchor"
     LAYOUT = "layout"
     ENTITY = "entity"
+    RECALL = "recall"
     MOTION = "motion"
     WAVE = "wave"
     VEIL = "veil"
