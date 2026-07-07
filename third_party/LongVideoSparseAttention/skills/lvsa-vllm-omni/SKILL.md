@@ -1,0 +1,212 @@
+---
+name: lvsa-vllm-omni
+description: Configure and run the LVSA vllm-omni serving plugin. Use when enabling LVSA in vllm-omni, choosing per-model env vars (LVSA_WAN_HOOK / LVSA_REFERENCE_LATENT_FRAMES), debugging silent fallbacks via [LVSA-FALLBACK] warnings, setting geometry overrides for non-default resolutions, or composing with Ulysses CP.
+---
+
+# LVSA vllm-omni plugin
+
+## Overview
+
+`lvsa-vllm-omni` is a separate pip package that registers itself as a vllm-omni attention backend. Zero changes required in vllm-omni core — everything plugs in via the plugin entry-point system.
+
+Path: [`lvsa-vllm-omni/`](../../lvsa-vllm-omni/)
+
+## Install
+
+```bash
+pip install -e .                  # LVSA core
+pip install -e lvsa-vllm-omni/    # The plugin (registers entry-point)
+# vllm-omni 0.22.0 is a stable release — install it from the git tag to match
+# vllm 0.22.0. Use a separate venv (torch 2.11 / CUDA 13).
+pip install "vllm==0.22.0"
+pip install --no-build-isolation \
+  "vllm-omni @ git+https://github.com/vllm-project/vllm-omni.git@v0.22.0"
+```
+
+After install, the plugin auto-loads when vllm-omni starts. For the older
+pip-installable `0.18.0`/`0.18.0` pair, use the `release/v0.18.x` branch.
+
+## Enable for a model
+
+### HunyuanVideo 1.5
+
+```bash
+LVSA_HUNYUAN_HOOK=1 \
+LVSA_AUTO_KEYFRAMES=1 \
+LVSA_REFERENCE_LATENT_FRAMES=33 \
+LVSA_ROTATE_KEYFRAMES=1 \
+vllm serve --omni --model HunyuanVideo-1.5-Diffusers-480p_t2v \
+  --diffusion-attention-config '{"per_role": {"self": {"backend": "LVSA"}}}'
+```
+
+vllm-omni 0.22 selects the backend per role via `--diffusion-attention-config`
+(the `DIFFUSION_ATTENTION_BACKEND` env var was removed). `python -m
+lvsa_vllm_omni.serve` injects that flag for you.
+
+### Wan 2.x
+
+```bash
+LVSA_WAN_HOOK=1 \
+LVSA_AUTO_KEYFRAMES=1 \
+LVSA_REFERENCE_LATENT_FRAMES=21 \
+LVSA_ROTATE_KEYFRAMES=1 \
+vllm serve --omni --model Wan2.2-T2V-14B \
+  --diffusion-attention-config '{"per_role": {"self": {"backend": "LVSA"}}}'
+```
+
+Wan requires `LVSA_WAN_HOOK=1` explicitly. Without it, Wan's `_sp_plan` pre-shards the sequence and geometry detection fails silently.
+
+### Cosmos 3.0 (experimental — plugin offline + hook)
+
+In the **plugin**, Cosmos engages LVSA through a **cross-attention
+hook** (`LVSA_COSMOS3_HOOK=1`, patches `Cosmos3CrossAttention.forward`), not the
+attention backend. cosmos3 is included in **v0.22.0 stable**, so the same
+`@v0.22.0` install covers it (no `main` build needed). Run it through the offline runner:
+
+> **Standalone (non-serving) path also exists now.** `examples/cosmos_generate.py`
+> + `lvsa/cosmos3.py::install_cosmos3_lvsa` run Cosmos LVSA directly on the
+> diffusers `Cosmos3OmniPipeline` (single-GPU, SDPA), via a **processor swap**
+> rather than this plugin hook. It needs **diffusers main** (`>=0.39.0.dev0`). See
+> the repo `examples/README.md`. The plugin path below is for vllm-omni serving.
+
+```bash
+.venv-vllm/bin/python lvsa-vllm-omni/examples/offline_lvsa.py \
+    --family cosmos --model /data/Cosmos3-Nano \
+    --num-frames 189 --height 720 --width 1280 \
+    --steps 35 --guidance 6.0 --flow-shift 10 --backend flashinfer \
+    --output-name cosmos_1x
+```
+
+`--family cosmos` sets `LVSA_COSMOS3_HOOK=1`, `LVSA_REFERENCE_LATENT_FRAMES=48`,
+and `model_config={"guardrails": False}` for you. Cosmos specifics: **720p
+native**, single-GPU (TP=1), **~400-frame single-shot cap** (T_lat=100 ≈ 2.08×
+ref), guardrails **must** be off, and **SDPA-LVSA does not beat dense up to the
+cap — use `--backend flashinfer`** for the speedup. At 1× horizon LVSA runs dense
+(identical output). `enable_cpu_offload` is rejected (no separate text encoder) →
+use `--offload layerwise` only if VRAM-constrained (usually unnecessary on 80 GB).
+
+### Convenience wrapper
+
+A shell wrapper that sets the right env vars per model family:
+
+```bash
+examples/vllm_omni_serve.sh wan      /path/to/Wan2.1-T2V-1.3B-Diffusers
+examples/vllm_omni_serve.sh hunyuan  /path/to/HunyuanVideo-1.5-Diffusers-480p_t2v
+
+# Override port / dtype
+PORT=8200 DTYPE=float16 examples/vllm_omni_serve.sh wan ...
+```
+
+## Environment variables
+
+### Core (always set)
+
+| Var | Default | Purpose |
+|---|---|---|
+| `--diffusion-attention-config` (CLI flag, not env) | (platform default) | `'{"per_role": {"self": {"backend": "LVSA"}}}'` to engage. The serve wrapper injects it. |
+| `LVSA_REFERENCE_LATENT_FRAMES` | `21` | Per-model training horizon. **CRITICAL.** Wan2.1=21, Wan2.2-5B=31, HV=33, Cosmos=48, Cog=13. |
+| `LVSA_AUTO_KEYFRAMES` | `1` | Auto-derive keyframe interval from frame count |
+| `LVSA_WAN_HOOK` | `0` | **Required for Wan**. Off for HunyuanVideo. |
+| `LVSA_ROTATE_KEYFRAMES` | `0` | Shift keyframe grid each denoising step (recommended at extension) |
+
+### Tuning
+
+| Var | Default | Purpose |
+|---|---|---|
+| `LVSA_SPARSITY_SCALE` | `1.0` | Multiplier on attention budget. See `lvsa-tuning` skill. |
+| `LVSA_WINDOW_SIZE` | `12` | Local window half-width (video frames) |
+| `LVSA_N_FIRST_FRAMES` | `4` | Leading global frames |
+| `LVSA_KEY_FRAME_INTERVAL` | `16` | Manual keyframe interval (ignored if AUTO_KEYFRAMES) |
+| `LVSA_EXPAND_WINDOW` | `1` | Extend local window when globals overlap |
+
+### Geometry (for non-default resolutions)
+
+| Var | Default | Purpose |
+|---|---|---|
+| `LVSA_PATCHES_PER_FRAME` | `1560` (480×832) | Tokens per latent frame |
+| `LVSA_VIDEO_HEIGHT` | (unset) | Use with VAE_SPATIAL_FACTOR + PATCH_SIZE for derivation |
+| `LVSA_VIDEO_WIDTH` | (unset) | Same |
+| `LVSA_VAE_SPATIAL_FACTOR` | `8` | VAE spatial compression |
+| `LVSA_PATCH_SIZE` | `2` | Patchify factor |
+| `LVSA_VAE_TEMPORAL_FACTOR` | `4` | VAE temporal compression |
+
+For 720p or larger, set `LVSA_VIDEO_HEIGHT/WIDTH` and the plugin will derive `patches_per_frame` automatically.
+
+### Diagnostics
+
+| Var | Default | Purpose |
+|---|---|---|
+| `LVSA_BACKEND` | `sdpa` | `sdpa` or `flashinfer` |
+| `LVSA_TOTAL_LATENT_FRAMES` | (unset) | Override auto-detected T_lat (rarely needed) |
+| `LVSA_MEM_LOG` | `0` | Per-step memory log (`[LVSA-MEM] step=N alloc=… reserved=… peak=…`) |
+
+## Verifying engagement
+
+After startup + first request, look for:
+
+```
+[LVSA] Step counter: n_blocks=N (from env)
+[LVSA-hook] Installed LVSA hook on HunyuanVideo15Attention ...
+[LVSA] Geometry detected: T_lat=33 P=1560 text_tokens=512
+[LVSA] reference_latent_frames=33 target_latent_frames=33 extension_ratio=1.00x
+```
+
+If you see `[LVSA-FALLBACK] origin=forward_cuda reason=geometry_detect ...`, the plugin couldn't infer the geometry from the seq_len it received. Walk through:
+
+1. Is `seq_len = T_lat * P + enc_tokens` for any P in `candidate_patches_per_frame()`?
+2. Is `LVSA_PATCHES_PER_FRAME` set if you're at a non-default resolution?
+3. For Wan: is `LVSA_WAN_HOOK=1`?
+
+## Multi-GPU
+
+LVSA's frame-grid geometry needs the **full sequence** at the attention call, so the multi-GPU axis matters:
+
+| Axis | What it shards | LVSA |
+|---|---|---|
+| **Tensor-parallel** (`tensor_parallel_size=N`) | model weights + heads; **full sequence per rank** | **engages** — fits bigger models (Wan 2.2 14B/A14B) on N GPUs *and* keeps LVSA sparse |
+| **Ulysses SP** (`ulysses_degree`) | the **sequence** (frame grid) | **backend engages** (the framework all-to-all reconstructs the full grid before the attention op — GPU-verified, output matches TP within head-shard fp); **hooks fall back to dense** (`reason=sequence_parallel`, they intercept pre-all-to-all) |
+| **Ring SP** (`ring_degree`) | the sequence (P2P-streamed K/V) | **falls back to dense on every path** — Ring never materializes the full grid; use Ulysses instead |
+| CFG-parallel / DP / PP / HSDP | batch / CFG branches / layers / weights | transparent to LVSA (full seq + heads at attention) |
+
+**Tensor-parallel is the supported path for big models.** Verified: Wan2.1-14B at `tensor_parallel_size=2` engages sparse LVSA (21/41 attended) and generates correctly — TP shards weights+heads while each rank keeps the full frame grid (LVSA's mask is head-independent; `lvsa_sdpa`/FlashInfer handle the per-rank head count; `to_out` RowParallel reduces across ranks). The hooks gate on `forward_context.sp_active` (not total `world_size`), so **pure TP engages** and **SP falls back**.
+
+```bash
+# Offline, Wan 2.2 A14B on 4 GPUs via tensor-parallel (LVSA backend path):
+.venv-vllm-main/bin/python lvsa-vllm-omni/examples/offline_lvsa.py \
+    --family wan --model /models/Wan2.2-T2V-A14B-Diffusers \
+    --tp 4 --backend flashinfer --num-frames 161 --steps 40 \
+    --prompt "..." --output-name wan_a14b_tp4
+```
+
+`offline_lvsa.py` exposes `--tp` (tensor_parallel_size) and `--ulysses` (ulysses_degree). Wan/HunyuanVideo run through the LVSA **backend** by default (no hook), which engages under **both** TP and Ulysses; set `LVSA_WAN_HOOK=1` only if you specifically need the monkey-patch path (engages under TP, falls back under any SP). Full matrix: `docs/parallelism.md`.
+
+**Constraint**: `seq_len = T_lat × patches_per_frame` must be divisible by the SP degree (when using Ulysses/Ring).
+
+## Plugin structure
+
+```
+lvsa-vllm-omni/
+├── lvsa_vllm_omni/
+│   ├── __init__.py              # Entry-point: register_lvsa_backend()
+│   ├── backend.py               # LVSABackend (vllm attention backend)
+│   ├── attention_impl.py        # LVSAAttentionImpl → sparse_windowed_attention()
+│   ├── wan_hook.py              # Wan-specific monkey patch
+│   ├── hunyuan_hook.py          # HunyuanVideo-specific monkey patch
+│   ├── register.py              # Hook auto-install based on env vars
+│   ├── config.py                # LVSAConfig dataclass (env var parsing)
+│   ├── global_kv.py             # Global K/V gather helpers
+│   ├── step_tracker.py          # Per-step state
+│   └── _fallback.py             # Silent-fallback warnings
+└── tests/                       # CPU-only integration tests (~50 tests)
+```
+
+## Common issues
+
+| Symptom | Fix |
+|---|---|
+| No `[LVSA]` log lines | Check `--diffusion-attention-config '{"per_role": {"self": {"backend": "LVSA"}}}'` is passed (or use the serve wrapper); for Wan also `LVSA_WAN_HOOK=1` |
+| `[LVSA-FALLBACK] reason=geometry_detect` | Set `LVSA_PATCHES_PER_FRAME` (or HEIGHT/WIDTH) for your resolution |
+| Quality regression at 1× | `LVSA_REFERENCE_LATENT_FRAMES` wrong for the model |
+| No speedup despite engagement | At T_lat ≤ ref, kfi=1 → fully dense. Lower `LVSA_SPARSITY_SCALE` to see real sparsity |
+
+See [`lvsa-troubleshooting`](../lvsa-troubleshooting/SKILL.md) for the full failure-mode catalog and [`docs/VLLM_OMNI_INTEGRATION.md`](../../docs/VLLM_OMNI_INTEGRATION.md) for the architecture details.
