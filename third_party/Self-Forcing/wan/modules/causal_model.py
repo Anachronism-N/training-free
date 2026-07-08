@@ -403,25 +403,29 @@ class CausalWanSelfAttention(nn.Module):
                 hcp = getattr(self, "head_cache_policy_on", False)
                 if lifecache_manager is not None:
                     # --- LifeCache active K/V composition --------------------------
-                    # Prepend LifeCache recalled/anchor/motion tokens to the recent
-                    # sliding window. This replaces the naive sliding window with
-                    # lifecycle-aware K/V composition.
-                    recent_k = kv_cache["k"][:, attn_start:local_end_index]
-                    recent_v = kv_cache["v"][:, attn_start:local_end_index]
-                    # Get block index from a context attribute if available
                     block_index = getattr(self, "_block_index", None)
-                    if block_index is not None:
-                        extra = lifecache_manager.get_active_kv_for_attention(
-                            layer_id=block_index,
-                            roped_query=roped_query,
-                            kv_cache_k=kv_cache["k"],
-                            kv_cache_v=kv_cache["v"],
-                            attn_start=attn_start,
-                            local_end_index=local_end_index,
+                    rt = lifecache_manager.runtime
+                    if block_index is not None and rt.should_enable_layer(block_index):
+                        recent_k = kv_cache["k"][:, attn_start:local_end_index]
+                        recent_v = kv_cache["v"][:, attn_start:local_end_index]
+                        token_indices = torch.arange(
+                            attn_start, local_end_index,
+                            device=recent_k.device, dtype=torch.long,
                         )
-                        active_k, active_v = extra
+                        q_for_life = roped_query[0]  # [tokens, heads, dim]
+                        active_k, active_v, _view = rt.compose_active_cache(
+                            layer_id=block_index,
+                            q=q_for_life,
+                            native_recent_k=recent_k[0],
+                            native_recent_v=recent_v[0],
+                            token_indices=token_indices,
+                            head_group="generic",
+                        )
+                        active_k = active_k.unsqueeze(0)
+                        active_v = active_v.unsqueeze(0)
                     else:
-                        active_k, active_v = recent_k, recent_v
+                        active_k = kv_cache["k"][:, attn_start:local_end_index]
+                        active_v = kv_cache["v"][:, attn_start:local_end_index]
                     x = attention(roped_query, active_k, active_v)
                 elif hcp:
                     # --- Per-Head Cache Policy (HCP) ---------------------------------

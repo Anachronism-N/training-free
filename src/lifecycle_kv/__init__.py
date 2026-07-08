@@ -1,12 +1,27 @@
 from .cache_types import CacheEntry, HeadRole, SlotState
 from .active_cache import ActiveCacheComposer, ActiveCacheView, RegionBudget
-from .bank import BankBudget, TokenSetBank
-from .compression import CompressionConfig, attention_participation_scores, compress_attention_participation
+from .bank import BankBudget, BankStats, TokenSetBank
+from .compression import (
+    CompressionConfig,
+    HeadAwareCompressionConfig,
+    attention_participation_scores,
+    compress_attention_participation,
+    compress_head_aware_proxy,
+    compress_qk_proxy,
+    qk_proxy_scores,
+    select_topk_tokens,
+)
 from .head_profiler import HeadProfile, HeadRoleProfiler
-from .head_roles import load_head_roles, parse_head_role
+from .head_roles import get_head_role, load_head_roles, parse_head_role
 from .index import CacheIndex
-from .instrumentation import CacheTraceEvent, CacheTraceWriter, attention_region_mass
+from .instrumentation import (
+    CacheTraceEvent,
+    CacheTraceWriter,
+    attention_region_mass,
+    make_trace_extra,
+)
 from .lifecycle_cache import LifecycleKVCache
+from .motion import token_indices_to_frames
 from .recall import RecallConfig, RecallResult, recall_tokens
 from .tokenset import CacheRegion, TokenSet
 
@@ -14,12 +29,14 @@ __all__ = [
     "ActiveCacheComposer",
     "ActiveCacheView",
     "BankBudget",
+    "BankStats",
     "CacheEntry",
     "CacheIndex",
     "CacheRegion",
     "CacheTraceEvent",
     "CacheTraceWriter",
     "CompressionConfig",
+    "HeadAwareCompressionConfig",
     "HeadProfile",
     "HeadRole",
     "HeadRoleProfiler",
@@ -33,7 +50,14 @@ __all__ = [
     "attention_participation_scores",
     "attention_region_mass",
     "compress_attention_participation",
+    "compress_head_aware_proxy",
+    "compress_qk_proxy",
+    "get_head_role",
     "load_head_roles",
+    "make_trace_extra",
     "parse_head_role",
+    "qk_proxy_scores",
     "recall_tokens",
+    "select_topk_tokens",
+    "token_indices_to_frames",
 ]

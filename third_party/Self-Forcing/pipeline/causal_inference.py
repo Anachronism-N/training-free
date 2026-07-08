@@ -45,13 +45,18 @@ class CausalInferencePipeline(torch.nn.Module):
         if os.environ.get("LIFECACHE_ENABLE", "0") == "1":
             print("[LifeCache] Initializing LifeCache manager...")
             from scripts.lifecache_manager import LifecycleCacheManager
-            self.lifecache_manager = LifecycleCacheManager.from_env()
-            self.lifecache_manager.num_layers = self.num_transformer_blocks
-            self.lifecache_manager.num_heads = 12  # Wan 1.3B
-            print(f"[LifeCache] Manager initialized with {self.lifecache_manager.num_layers} layers, "
-                  f"{self.lifecache_manager.num_heads} heads")
-            # Attach to generator so it can forward to model
-            self.generator.lifecache_manager = self.lifecache_manager
+            self.lifecache_manager = LifecycleCacheManager.from_env(
+                num_layers=self.num_transformer_blocks,
+            )
+            if self.lifecache_manager is not None:
+                print(f"[LifeCache] Manager initialized: "
+                      f"enabled={self.lifecache_manager.config.enabled}, "
+                      f"trace_only={self.lifecache_manager.config.trace_only}, "
+                      f"compression={self.lifecache_manager.config.compression}, "
+                      f"recall={self.lifecache_manager.config.recall_enabled}, "
+                      f"enable_layers={self.lifecache_manager.config.enable_layers}")
+                # Attach to generator so it can forward to model
+                self.generator.lifecache_manager = self.lifecache_manager
 
         print(f"KV inference with {self.num_frame_per_block} frames per block")
 
@@ -257,6 +262,8 @@ class CausalInferencePipeline(torch.nn.Module):
                     current_start_frame + current_num_frames,
                 ))
                 for layer_id in range(self.num_transformer_blocks):
+                    if not self.lifecache_manager.runtime.should_enable_layer(layer_id):
+                        continue
                     cache = self.kv_cache1[layer_id]
                     evicted_data = cache.pop("_lifecache_evicted", None)
                     if evicted_data is None:
@@ -264,16 +271,18 @@ class CausalInferencePipeline(torch.nn.Module):
                     evicted_k, evicted_v, num_evicted = evicted_data
                     if evicted_k.numel() == 0:
                         continue
-                    # Create uniform attention proxy for AP-topk compression
-                    attn_proxy = torch.ones(1, evicted_k.shape[0], device=evicted_k.device, dtype=torch.float32)
-                    self.lifecache_manager.on_block_complete(
+                    token_indices = torch.arange(evicted_k.shape[0], device=evicted_k.device, dtype=torch.long)
+                    # Use the first head's query as proxy for compression
+                    q_proxy = evicted_k.mean(dim=0, keepdim=True)  # [1, heads, dim] — rough proxy
+                    self.lifecache_manager.runtime.on_kv_evicted(
                         layer_id=layer_id,
-                        chunk_id=chunk_id,
+                        head_group="generic",
                         evicted_k=evicted_k,
                         evicted_v=evicted_v,
-                        attn=attn_proxy,
+                        token_indices=token_indices,
+                        q_current=q_proxy,
+                        chunk_id=chunk_id,
                         frame_ids=frame_ids,
-                        head_group="all",
                     )
 
             if profile:

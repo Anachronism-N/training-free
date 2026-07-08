@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 import torch.nn.functional as F
 
-from .tokenset import CacheRegion, TokenSet
+from .tokenset import TokenSet
 
 
 @dataclass
@@ -15,6 +15,9 @@ class RecallResult:
     token_indices: torch.Tensor | None
     token_scores: torch.Tensor | None
     token_sets: list[TokenSet]
+    source_set_ids: list[str] = field(default_factory=list)
+    source_positions: torch.Tensor | None = None
+    set_scores: torch.Tensor | None = None
 
 
 @dataclass(frozen=True)
@@ -25,6 +28,9 @@ class RecallConfig:
     head_group_weight: float = 0.25
     quality_weight: float = 0.15
     usage_weight: float = 0.15
+    max_frame_distance: int | None = None
+    min_set_score: float | None = None
+    min_token_score: float | None = None
 
 
 def summarize_query(q: torch.Tensor) -> torch.Tensor:
@@ -70,11 +76,33 @@ def retrieve_token_sets(
     *,
     head_group: str,
     config: RecallConfig,
+    current_frame: int | None = None,
 ) -> list[TokenSet]:
     q_summary = summarize_query(q)
+    # Filter by max_frame_distance if applicable
+    if config.max_frame_distance is not None and current_frame is not None:
+        filtered = []
+        for token_set in token_sets:
+            if token_set.frame_ids:
+                center = sum(token_set.frame_ids) / len(token_set.frame_ids)
+                if abs(center - current_frame) <= config.max_frame_distance:
+                    filtered.append(token_set)
+            else:
+                filtered.append(token_set)
+        token_sets = filtered
+
     scores = score_token_sets(token_sets, q_summary, head_group=head_group, config=config)
     if scores.numel() == 0:
         return []
+
+    # Apply min_set_score filter
+    if config.min_set_score is not None:
+        keep_mask = scores >= config.min_set_score
+        scores = scores[keep_mask]
+        if scores.numel() == 0:
+            return []
+        token_sets = [token_sets[i] for i, m in enumerate(keep_mask.tolist()) if m]
+
     keep = min(config.top_sets, scores.numel())
     order = torch.topk(scores, keep, largest=True, sorted=True).indices.tolist()
     return [token_sets[i] for i in order]
@@ -108,11 +136,18 @@ def recall_tokens(
     *,
     head_group: str,
     config: RecallConfig | None = None,
+    step: int | None = None,
+    current_frame: int | None = None,
 ) -> RecallResult:
     config = config or RecallConfig()
-    selected_sets = retrieve_token_sets(token_sets, q, head_group=head_group, config=config)
+    selected_sets = retrieve_token_sets(
+        token_sets, q, head_group=head_group, config=config, current_frame=current_frame,
+    )
     if not selected_sets:
-        return RecallResult(None, None, None, None, [])
+        return RecallResult(
+            k=None, v=None, token_indices=None, token_scores=None,
+            token_sets=[], source_set_ids=[], source_positions=None, set_scores=None,
+        )
 
     all_k = torch.cat([s.k.to(q.device) for s in selected_sets], dim=0)
     all_v = torch.cat([s.v.to(q.device) for s in selected_sets], dim=0)
@@ -120,37 +155,49 @@ def recall_tokens(
     importance = torch.cat([s.importance_score.to(q.device).float() for s in selected_sets], dim=0)
     qk = token_qk_scores(q, all_k)
     scores = 0.7 * qk + 0.3 * importance
+
+    # Apply min_token_score filter
+    if config.min_token_score is not None:
+        keep_mask = scores >= config.min_token_score
+        if keep_mask.sum() == 0:
+            return RecallResult(
+                k=None, v=None, token_indices=None, token_scores=None,
+                token_sets=selected_sets, source_set_ids=[], source_positions=None, set_scores=None,
+            )
+        scores = scores[keep_mask]
+        all_k = all_k[keep_mask]
+        all_v = all_v[keep_mask]
+        all_indices = all_indices[keep_mask]
+        importance = importance[keep_mask]
+
     keep = min(config.top_tokens, scores.numel())
     positions = torch.topk(scores, keep, largest=True, sorted=True).indices
 
+    # Update access metadata
     for token_set in selected_sets:
         token_set.access_count += 1
+        if step is not None:
+            token_set.last_used_step = step
+
+    # Build source map: source_set_ids and source_positions per recalled token
+    source_set_ids = []
+    all_source_positions = []
+    for s in selected_sets:
+        n = s.num_tokens
+        source_set_ids.extend([s.set_id] * n)
+        all_source_positions.append(torch.arange(n, device=q.device, dtype=torch.long))
+    all_source_positions = torch.cat(all_source_positions, dim=0)
+
+    selected_source_ids = [source_set_ids[int(i)] for i in positions.tolist()]
+    selected_source_positions = all_source_positions.index_select(0, positions)
 
     return RecallResult(
         k=all_k.index_select(0, positions),
         v=all_v.index_select(0, positions),
         token_indices=all_indices.index_select(0, positions),
         token_scores=scores.index_select(0, positions),
-        token_sets=[
-            TokenSet(
-                set_id=f"recall:{s.set_id}",
-                chunk_id=s.chunk_id,
-                frame_ids=list(s.frame_ids),
-                layer_id=s.layer_id,
-                head_group=s.head_group,
-                k=s.k,
-                v=s.v,
-                token_indices=s.token_indices,
-                k_summary=s.k_summary,
-                prompt_summary=s.prompt_summary,
-                visual_summary=s.visual_summary,
-                importance_score=s.importance_score,
-                motion_score=s.motion_score,
-                quality_score=s.quality_score,
-                access_count=s.access_count,
-                last_used_step=s.last_used_step,
-                region=CacheRegion.RECALL,
-            )
-            for s in selected_sets
-        ],
+        token_sets=selected_sets,
+        source_set_ids=selected_source_ids,
+        source_positions=selected_source_positions,
+        set_scores=None,
     )

@@ -41,6 +41,9 @@ class TokenSet:
     access_count: int = 0
     last_used_step: int = -1
     region: CacheRegion = CacheRegion.COMPRESSED
+    source_set_id: Optional[str] = None
+    source_region: Optional[CacheRegion] = None
+    source_positions: Optional[torch.Tensor] = None
 
     def __post_init__(self) -> None:
         if self.k.shape != self.v.shape:
@@ -55,6 +58,11 @@ class TokenSet:
             self.importance_score = torch.ones(self.k.shape[0], device=self.k.device, dtype=torch.float32)
         if self.importance_score.numel() != self.k.shape[0]:
             raise ValueError("importance_score length must match token count")
+        if self.source_positions is not None:
+            if self.source_positions.ndim != 1:
+                raise ValueError("source_positions must be a 1D tensor")
+            if self.source_positions.numel() != self.k.shape[0]:
+                raise ValueError("source_positions length must match token count")
 
     @property
     def num_tokens(self) -> int:
@@ -72,6 +80,11 @@ class TokenSet:
         region: CacheRegion | None = None,
     ) -> "TokenSet":
         token_positions = token_positions.to(device=self.k.device, dtype=torch.long)
+
+        new_source_positions = token_positions
+        if self.source_positions is not None:
+            new_source_positions = self.source_positions.index_select(0, token_positions)
+
         return TokenSet(
             set_id=set_id or self.set_id,
             chunk_id=self.chunk_id,
@@ -90,4 +103,31 @@ class TokenSet:
             access_count=self.access_count,
             last_used_step=self.last_used_step,
             region=region or self.region,
+            source_set_id=self.source_set_id or self.set_id,
+            source_region=self.source_region or self.region,
+            source_positions=new_source_positions,
+        )
+
+    def to_device(self, device: torch.device | str) -> "TokenSet":
+        return TokenSet(
+            set_id=self.set_id,
+            chunk_id=self.chunk_id,
+            frame_ids=list(self.frame_ids),
+            layer_id=self.layer_id,
+            head_group=self.head_group,
+            k=self.k.to(device),
+            v=self.v.to(device),
+            token_indices=self.token_indices.to(device),
+            k_summary=self.k_summary.to(device),
+            prompt_summary=self.prompt_summary.to(device) if self.prompt_summary is not None else None,
+            visual_summary=self.visual_summary.to(device) if self.visual_summary is not None else None,
+            importance_score=self.importance_score.to(device),
+            motion_score=self.motion_score.to(device) if self.motion_score is not None else None,
+            quality_score=self.quality_score,
+            access_count=self.access_count,
+            last_used_step=self.last_used_step,
+            region=self.region,
+            source_set_id=self.source_set_id,
+            source_region=self.source_region,
+            source_positions=self.source_positions.to(device) if self.source_positions is not None else None,
         )

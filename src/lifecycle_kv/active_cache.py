@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
+from typing import Literal
 
 import torch
 
@@ -30,11 +32,27 @@ DEFAULT_BUDGETS = {
 
 @dataclass
 class ActiveCacheView:
+    """View of assembled K/V tokens before self-attention.
+
+    Attributes:
+        k: Concatenated key tensor [K, heads, dim].
+        v: Concatenated value tensor [K, heads, dim].
+        regions: Per-token CacheRegion labels.
+        token_sets: List of source TokenSets that contributed to this view.
+        region_bias: Per-token bias of shape [K]. When used in attention,
+            reshape to [1, 1, 1, K] for compatibility with attention logits
+            of shape [B, H, Q, K].
+        region_counts: Count of tokens per region.
+        source_set_ids: Per-token source set identifiers.
+    """
+
     k: torch.Tensor | None
     v: torch.Tensor | None
     regions: list[CacheRegion]
     token_sets: list[TokenSet]
     region_bias: torch.Tensor | None = None
+    region_counts: dict[str, int] | None = None
+    source_set_ids: list[str] | None = None
 
 
 class ActiveCacheComposer:
@@ -45,10 +63,14 @@ class ActiveCacheComposer:
         budgets: dict[HeadRole, RegionBudget] | None = None,
         recall_config: RecallConfig | None = None,
         region_bias_beta: float = 0.0,
+        compose_mode: Literal["union", "head_role"] = "union",
+        include_anchors_in_recall: bool = False,
     ) -> None:
         self.budgets = {**DEFAULT_BUDGETS, **(budgets or {})}
         self.recall_config = recall_config or RecallConfig()
         self.region_bias_beta = region_bias_beta
+        self.compose_mode = compose_mode
+        self.include_anchors_in_recall = include_anchors_in_recall
 
     def compose(
         self,
@@ -68,8 +90,12 @@ class ActiveCacheComposer:
 
         recalled: list[TokenSet] = []
         if budget.recall > 0 and role not in {HeadRole.MOTION, HeadRole.WAVE}:
+            if self.include_anchors_in_recall:
+                recall_candidates = anchors + compressed
+            else:
+                recall_candidates = compressed
             recall_result = recall_tokens(
-                anchors + compressed,
+                recall_candidates,
                 q,
                 head_group=head_group,
                 config=RecallConfig(
@@ -109,10 +135,28 @@ class ActiveCacheComposer:
         k = torch.cat([s.k.to(q.device) for s in selected], dim=0)
         v = torch.cat([s.v.to(q.device) for s in selected], dim=0)
         regions = [s.region for s in selected for _ in range(s.num_tokens)]
-        return ActiveCacheView(k, v, regions, selected, self._region_bias(regions, role, q.device))
+
+        # Build region_counts
+        region_counter = Counter(r.value for r in regions)
+
+        # Build source_set_ids
+        source_set_ids = [s.set_id for s in selected for _ in range(s.num_tokens)]
+
+        return ActiveCacheView(
+            k, v, regions, selected,
+            self._region_bias(regions, role, q.device),
+            region_counts=dict(region_counter),
+            source_set_ids=source_set_ids,
+        )
 
     @staticmethod
     def _take_tokens(token_sets: list[TokenSet], budget: int | None) -> list[TokenSet]:
+        """Take tokens up to budget, selecting top-k by importance/motion score when cropping.
+
+        When a TokenSet exceeds the remaining budget, tokens are selected by
+        importance_score (preferred) or motion_score (fallback) instead of
+        taking the first N tokens.
+        """
         if budget is None:
             return token_sets
         remaining = max(0, budget)
@@ -124,12 +168,35 @@ class ActiveCacheComposer:
                 out.append(token_set)
                 remaining -= token_set.num_tokens
             else:
-                positions = torch.arange(remaining, device=token_set.k.device)
-                out.append(token_set.clone_with_tokens(positions, set_id=f"{token_set.set_id}:budget"))
+                # Select top-k tokens by score instead of taking first N
+                if token_set.importance_score is not None:
+                    scores = token_set.importance_score
+                elif token_set.motion_score is not None:
+                    scores = token_set.motion_score
+                else:
+                    scores = torch.arange(
+                        token_set.num_tokens,
+                        device=token_set.k.device,
+                        dtype=torch.float32,
+                    )
+                positions = torch.topk(
+                    scores.float(), remaining, largest=True, sorted=True
+                ).indices
+                out.append(
+                    token_set.clone_with_tokens(
+                        positions, set_id=f"{token_set.set_id}:budget"
+                    )
+                )
                 remaining = 0
         return out
 
     def _region_bias(self, regions: list[CacheRegion], role: HeadRole, device: torch.device) -> torch.Tensor | None:
+        """Return per-token region bias of shape [K].
+
+        The returned tensor shape is [K] (number of active tokens).
+        When used in attention, reshape to [1, 1, 1, K] for compatibility
+        with attention logits of shape [B, H, Q, K].
+        """
         if self.region_bias_beta <= 0.0 or not regions:
             return None
         beta = self.region_bias_beta

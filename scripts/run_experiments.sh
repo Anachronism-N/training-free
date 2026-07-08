@@ -96,6 +96,78 @@ run_sf_lifecache() {
 }
 
 # -------------------------------------------------------------------
+# Run 4: Self-Forcing + LifeCache trace-only
+# -------------------------------------------------------------------
+run_sf_lifecache_trace() {
+    local out="$REPO_ROOT/runs/sf_lifecache_trace_${FRAMES}f"
+    echo "[Run 4] Self-Forcing + LifeCache trace-only -> $out"
+    cd "$REPO_ROOT/third_party/Self-Forcing"
+    export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+    export LIFECACHE_ENABLE=1
+    export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/lifecache_trace_only.yaml"
+    python inference.py \
+        --config_path "$SF_CONFIG" \
+        --output_folder "$out" \
+        --checkpoint_path "$SF_CHECKPOINT" \
+        --data_path "$PROMPTS" \
+        --num_output_frames "$FRAMES" \
+        --seed "$SEED" \
+        --num_samples 1 \
+        --use_ema \
+        --save_with_index
+    echo "[Run 4] Done: $out"
+    echo ""
+}
+
+# -------------------------------------------------------------------
+# Run 5: Self-Forcing + LifeCache compression-only
+# -------------------------------------------------------------------
+run_sf_lifecache_compression() {
+    local out="$REPO_ROOT/runs/sf_lifecache_compression_${FRAMES}f"
+    echo "[Run 5] Self-Forcing + LifeCache compression-only -> $out"
+    cd "$REPO_ROOT/third_party/Self-Forcing"
+    export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+    export LIFECACHE_ENABLE=1
+    export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/lifecache_compression_only.yaml"
+    python inference.py \
+        --config_path "$SF_CONFIG" \
+        --output_folder "$out" \
+        --checkpoint_path "$SF_CHECKPOINT" \
+        --data_path "$PROMPTS" \
+        --num_output_frames "$FRAMES" \
+        --seed "$SEED" \
+        --num_samples 1 \
+        --use_ema \
+        --save_with_index
+    echo "[Run 5] Done: $out"
+    echo ""
+}
+
+# -------------------------------------------------------------------
+# Run 6: Self-Forcing + LifeCache union recall
+# -------------------------------------------------------------------
+run_sf_lifecache_recall() {
+    local out="$REPO_ROOT/runs/sf_lifecache_recall_${FRAMES}f"
+    echo "[Run 6] Self-Forcing + LifeCache union recall -> $out"
+    cd "$REPO_ROOT/third_party/Self-Forcing"
+    export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+    export LIFECACHE_ENABLE=1
+    export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/lifecache_union_recall.yaml"
+    python inference.py \
+        --config_path "$SF_CONFIG" \
+        --output_folder "$out" \
+        --checkpoint_path "$SF_CHECKPOINT" \
+        --data_path "$PROMPTS" \
+        --num_output_frames "$FRAMES" \
+        --seed "$SEED" \
+        --num_samples 1 \
+        --use_ema \
+        --save_with_index
+    echo "[Run 6] Done: $out"
+    echo ""
+}
+
+# -------------------------------------------------------------------
 # Main
 # -------------------------------------------------------------------
 case "${1:-all}" in
@@ -108,13 +180,32 @@ case "${1:-all}" in
     lifecache)
         run_sf_lifecache
         ;;
+    trace)
+        run_sf_lifecache_trace
+        ;;
+    compression)
+        run_sf_lifecache_compression
+        ;;
+    recall)
+        run_sf_lifecache_recall
+        ;;
     all)
         run_native_sf
         run_sf_pyramid
-        run_sf_lifecache
+        run_sf_lifecache_trace
+        run_sf_lifecache_compression
+        run_sf_lifecache_recall
         ;;
     *)
-        echo "Usage: $0 {native|pyramid|lifecache|all}"
+        echo "Usage: $0 {native|pyramid|lifecache|trace|compression|recall|all}"
+        echo ""
+        echo "  native       — Run 1: Native Self-Forcing baseline"
+        echo "  pyramid      — Run 2: Self-Forcing + Pyramid Forcing"
+        echo "  lifecache    — Run 3: Self-Forcing + LifeCache-v1 (old)"
+        echo "  trace        — Run 4: Self-Forcing + LifeCache trace-only"
+        echo "  compression  — Run 5: Self-Forcing + LifeCache compression-only"
+        echo "  recall       — Run 6: Self-Forcing + LifeCache union recall"
+        echo "  all          — Run all six experiments"
         exit 1
         ;;
 esac

@@ -88,3 +88,13 @@ def _load_csv_roles(path: Path) -> dict[tuple[int, int], HeadRole]:
                 continue
             roles[(int(layer), int(head))] = parse_head_role(label)
     return roles
+
+
+def get_head_role(
+    roles: dict[tuple[int, int], HeadRole],
+    layer_id: int,
+    head_id: int,
+    default: HeadRole = HeadRole.GENERIC,
+) -> HeadRole:
+    """Look up a head role with a default fallback."""
+    return roles.get((layer_id, head_id), default)

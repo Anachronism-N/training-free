@@ -56,3 +56,52 @@ def attention_region_mass(attn: torch.Tensor, regions: list[CacheRegion]) -> dic
     for idx, region in enumerate(regions):
         out[region.value] = out.get(region.value, 0.0) + float(key_mass[idx] / total)
     return out
+
+
+def make_trace_extra(
+    *,
+    active_tokens: int | None = None,
+    recent_tokens: int | None = None,
+    anchor_tokens: int | None = None,
+    compressed_tokens: int | None = None,
+    motion_tokens: int | None = None,
+    recalled_tokens: int | None = None,
+    bank_total_tokens: int | None = None,
+    num_evicted_tokens: int | None = None,
+    compressed_tokens_added: int | None = None,
+    recall_top_sets: int | None = None,
+    recall_top_tokens: int | None = None,
+    fallback: bool | None = None,
+    latency_ms: float | None = None,
+    **extra_kwargs,
+) -> dict:
+    """Standardized trace extra fields for LifeCache experiments."""
+    result: dict[str, object] = {}
+    if active_tokens is not None:
+        result["active_tokens"] = active_tokens
+    if recent_tokens is not None:
+        result["recent_tokens"] = recent_tokens
+    if anchor_tokens is not None:
+        result["anchor_tokens"] = anchor_tokens
+    if compressed_tokens is not None:
+        result["compressed_tokens"] = compressed_tokens
+    if motion_tokens is not None:
+        result["motion_tokens"] = motion_tokens
+    if recalled_tokens is not None:
+        result["recalled_tokens"] = recalled_tokens
+    if bank_total_tokens is not None:
+        result["bank_total_tokens"] = bank_total_tokens
+    if num_evicted_tokens is not None:
+        result["num_evicted_tokens"] = num_evicted_tokens
+    if compressed_tokens_added is not None:
+        result["compressed_tokens_added"] = compressed_tokens_added
+    if recall_top_sets is not None:
+        result["recall_top_sets"] = recall_top_sets
+    if recall_top_tokens is not None:
+        result["recall_top_tokens"] = recall_top_tokens
+    if fallback is not None:
+        result["fallback"] = fallback
+    if latency_ms is not None:
+        result["latency_ms"] = latency_ms
+    result.update(extra_kwargs)
+    return result

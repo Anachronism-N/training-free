@@ -14,7 +14,23 @@ class MotionConfig:
     latent_delta_weight: float = 0.30
     boundary_weight: float = 0.20
     quality_weight: float = 0.10
+    flicker_weight: float = 0.20
     topk: int = 512
+
+
+def token_indices_to_frames(token_indices: torch.Tensor, frame_seq_length: int) -> torch.Tensor:
+    """Convert global token indices to frame indices.
+
+    Args:
+        token_indices: 1D tensor of global token indices.
+        frame_seq_length: Number of tokens per frame.
+
+    Returns:
+        1D tensor of frame indices (integer division).
+    """
+    if frame_seq_length <= 0:
+        raise ValueError("frame_seq_length must be positive")
+    return token_indices.long() // frame_seq_length
 
 
 def latent_delta_score(latents: torch.Tensor) -> torch.Tensor:
@@ -30,10 +46,19 @@ def latent_delta_score(latents: torch.Tensor) -> torch.Tensor:
 
 
 def dynamic_k_change(current_k: torch.Tensor, previous_k: torch.Tensor | None) -> torch.Tensor:
+    """Compute per-token dynamic K change score.
+
+    When current_k and previous_k have different token counts (e.g. due to
+    sliding window), the trailing min(n_current, n_previous) tokens of each
+    are compared.
+    """
     if previous_k is None:
         return torch.zeros(current_k.shape[0], device=current_k.device, dtype=torch.float32)
     if current_k.shape != previous_k.shape:
-        raise ValueError("current_k and previous_k must have the same shape")
+        # Safe alignment: compare the overlapping trailing tokens
+        n = min(current_k.shape[0], previous_k.shape[0])
+        current_k = current_k[-n:]
+        previous_k = previous_k[-n:]
     sim = F.cosine_similarity(current_k.float().flatten(1), previous_k.float().flatten(1), dim=-1)
     score = 1.0 - sim
     return score.clamp_min(0.0) / score.max().clamp_min(1e-8)
@@ -50,8 +75,14 @@ def combined_motion_score(
     token_frames: torch.Tensor | None = None,
     boundary_frame: int | None = None,
     quality: torch.Tensor | None = None,
+    flicker: torch.Tensor | None = None,
     config: MotionConfig | None = None,
 ) -> torch.Tensor:
+    """Combine multiple motion signals into a single per-token score.
+
+    A flicker penalty can be subtracted to reduce false motion detections
+    caused by rapid oscillation between similar states.
+    """
     config = config or MotionConfig()
     score = config.dynamic_k_weight * dynamic_k.float()
     if latent_delta is not None and token_frames is not None:
@@ -60,6 +91,8 @@ def combined_motion_score(
         score = score + config.boundary_weight * boundary_score(token_frames.to(dynamic_k.device), boundary_frame)
     if quality is not None:
         score = score + config.quality_weight * quality.float().to(dynamic_k.device)
+    if flicker is not None:
+        score = score - config.flicker_weight * flicker.float().to(dynamic_k.device)
     return score / score.max().clamp_min(1e-8)
 
 
