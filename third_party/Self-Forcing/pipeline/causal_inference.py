@@ -259,37 +259,41 @@ class CausalInferencePipeline(torch.nn.Module):
             if self.lifecache_manager is not None:
                 self.lifecache_manager.runtime.end_capture()
 
-            # LifeCache: after clean context refresh, process evicted tokens
-            # captured by the attention forward (stored in _lifecache_evicted_list)
+            # LifeCache: process ALL evicted tokens captured during this block.
+            # Only compress and store tokens from clean-context capture.
             if self.lifecache_manager is not None:
                 chunk_id = current_start_frame // self.num_frame_per_block
                 frame_ids = list(range(
                     current_start_frame,
                     current_start_frame + current_num_frames,
                 ))
+                rt = self.lifecache_manager.runtime
                 for layer_id in range(self.num_transformer_blocks):
-                    if not self.lifecache_manager.runtime.should_enable_layer(layer_id):
+                    if not rt.should_enable_layer(layer_id):
                         continue
                     cache = self.kv_cache1[layer_id]
                     evicted_list = cache.pop("_lifecache_evicted_list", [])
                     for payload in evicted_list:
-                        evicted_k = payload.get("evicted_k_pre_rope", payload.get("evicted_k_post_rope"))
+                        capture_reason = payload.get("capture_reason", "")
+                        # Only compress and store tokens from clean-context capture
+                        if rt.config.capture_clean_only and capture_reason != "clean_context":
+                            continue
+                        evicted_k = payload.get("evicted_k_pre_rope") or payload["evicted_k_post_rope"]
                         evicted_v = payload["evicted_v"]
                         if evicted_k is None or evicted_k.numel() == 0:
                             continue
                         token_indices = payload.get("token_indices",
                             torch.arange(evicted_k.shape[0], device=evicted_k.device, dtype=torch.long))
                         q_pre_rope = payload.get("q_pre_rope")
-                        frame_positions = payload.get("frame_positions")
-                        current_start_frame_val = payload.get("current_start_frame", current_start_frame)
                         # Pass real query for compression if available
-                        self.lifecache_manager.runtime.on_kv_evicted(
+                        q_for_compression = q_pre_rope if q_pre_rope is not None else evicted_k.mean(dim=0, keepdim=True)
+                        rt.on_kv_evicted(
                             layer_id=layer_id,
                             head_group="generic",
                             evicted_k=evicted_k,
                             evicted_v=evicted_v,
                             token_indices=token_indices,
-                            q_current=q_pre_rope if q_pre_rope is not None else evicted_k.mean(dim=0, keepdim=True),
+                            q_current=q_for_compression,
                             chunk_id=chunk_id,
                             frame_ids=frame_ids,
                         )
