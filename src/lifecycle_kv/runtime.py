@@ -81,6 +81,16 @@ class LifeCacheRuntimeConfig:
     # Layer selection
     enable_last_n_layers: int = 0
 
+    # RoPE safety
+    rope_safe_recall: bool = True
+    allow_post_rope_recall: bool = False
+    rope_remap_policy: Literal["none", "near_window", "relative_clamp"] = "relative_clamp"
+    max_post_rope_frame_distance: int = 21
+
+    # Capture
+    capture_clean_only: bool = True
+    use_real_query_for_compression: bool = True
+
     # Debug
     record_latency: bool = False
 
@@ -139,6 +149,10 @@ class LifeCacheRuntime:
         self.previous_k_by_layer: dict[int, torch.Tensor] = {}
         self._latencies: list[float] = []
 
+        # Capture state
+        self.capture_enabled: bool = False
+        self.capture_reason: str = ""
+
     # ---- helpers ----
 
     def should_enable_layer(self, layer_id: int) -> bool:
@@ -174,6 +188,16 @@ class LifeCacheRuntime:
     def advance_step(self) -> None:
         self.step += 1
 
+    # ---- capture ----
+
+    def begin_capture(self, reason: str = "default") -> None:
+        self.capture_enabled = True
+        self.capture_reason = reason
+
+    def end_capture(self) -> None:
+        self.capture_enabled = False
+        self.capture_reason = ""
+
     # ---- eviction & compression ----
 
     def on_kv_evicted(
@@ -187,11 +211,17 @@ class LifeCacheRuntime:
         q_current: torch.Tensor,
         chunk_id: int,
         frame_ids: list[int],
+        q_pre_rope: torch.Tensor | None = None,
+        frame_positions: torch.Tensor | None = None,
+        current_start_frame: int | None = None,
     ) -> TokenSet | None:
         """Compress evicted KV tokens and store in bank.
 
         Called when the native KV cache rolls and discards old tokens.
         Uses Q-K proxy compression to select important tokens.
+
+        When use_real_query_for_compression is True and q_pre_rope is provided,
+        uses q_pre_rope instead of q_current (the mean proxy) for compression.
         """
         if not self.config.enabled:
             return None
@@ -199,6 +229,11 @@ class LifeCacheRuntime:
             return None
 
         t0 = time.perf_counter() if self.config.record_latency else 0
+
+        # Select query for compression: prefer pre-RoPE when configured
+        q_for_compression = q_current
+        if self.config.use_real_query_for_compression and q_pre_rope is not None:
+            q_for_compression = q_pre_rope
 
         if self.config.compression == "qk_proxy":
             token_set = compress_qk_proxy(
@@ -210,7 +245,7 @@ class LifeCacheRuntime:
                 k=evicted_k,
                 v=evicted_v,
                 token_indices=token_indices,
-                q=q_current,
+                q=q_for_compression,
                 config=CompressionConfig(
                     topk=self.config.compression_topk,
                     min_tokens=self.config.compression_min_tokens,

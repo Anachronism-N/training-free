@@ -244,6 +244,9 @@ class CausalInferencePipeline(torch.nn.Module):
 
             # Step 3.3: rerun with timestep zero to update KV cache using clean context
             context_timestep = torch.ones_like(timestep) * self.args.context_noise
+            # LifeCache v2: begin clean-context capture before context refresh
+            if self.lifecache_manager is not None:
+                self.lifecache_manager.runtime.begin_capture("clean_context")
             self.generator(
                 noisy_image_or_video=denoised_pred,
                 conditional_dict=conditional_dict,
@@ -252,9 +255,12 @@ class CausalInferencePipeline(torch.nn.Module):
                 crossattn_cache=self.crossattn_cache,
                 current_start=current_start_frame * self.frame_seq_length,
             )
+            # LifeCache v2: end capture after context refresh
+            if self.lifecache_manager is not None:
+                self.lifecache_manager.runtime.end_capture()
 
             # LifeCache: after clean context refresh, process evicted tokens
-            # captured by the attention forward (stored in kv_cache["_lifecache_evicted"])
+            # captured by the attention forward (stored in _lifecache_evicted_list)
             if self.lifecache_manager is not None:
                 chunk_id = current_start_frame // self.num_frame_per_block
                 frame_ids = list(range(
@@ -265,25 +271,28 @@ class CausalInferencePipeline(torch.nn.Module):
                     if not self.lifecache_manager.runtime.should_enable_layer(layer_id):
                         continue
                     cache = self.kv_cache1[layer_id]
-                    evicted_data = cache.pop("_lifecache_evicted", None)
-                    if evicted_data is None:
-                        continue
-                    evicted_k, evicted_v, num_evicted = evicted_data
-                    if evicted_k.numel() == 0:
-                        continue
-                    token_indices = torch.arange(evicted_k.shape[0], device=evicted_k.device, dtype=torch.long)
-                    # Use the first head's query as proxy for compression
-                    q_proxy = evicted_k.mean(dim=0, keepdim=True)  # [1, heads, dim] — rough proxy
-                    self.lifecache_manager.runtime.on_kv_evicted(
-                        layer_id=layer_id,
-                        head_group="generic",
-                        evicted_k=evicted_k,
-                        evicted_v=evicted_v,
-                        token_indices=token_indices,
-                        q_current=q_proxy,
-                        chunk_id=chunk_id,
-                        frame_ids=frame_ids,
-                    )
+                    evicted_list = cache.pop("_lifecache_evicted_list", [])
+                    for payload in evicted_list:
+                        evicted_k = payload.get("evicted_k_pre_rope", payload.get("evicted_k_post_rope"))
+                        evicted_v = payload["evicted_v"]
+                        if evicted_k is None or evicted_k.numel() == 0:
+                            continue
+                        token_indices = payload.get("token_indices",
+                            torch.arange(evicted_k.shape[0], device=evicted_k.device, dtype=torch.long))
+                        q_pre_rope = payload.get("q_pre_rope")
+                        frame_positions = payload.get("frame_positions")
+                        current_start_frame_val = payload.get("current_start_frame", current_start_frame)
+                        # Pass real query for compression if available
+                        self.lifecache_manager.runtime.on_kv_evicted(
+                            layer_id=layer_id,
+                            head_group="generic",
+                            evicted_k=evicted_k,
+                            evicted_v=evicted_v,
+                            token_indices=token_indices,
+                            q_current=q_pre_rope if q_pre_rope is not None else evicted_k.mean(dim=0, keepdim=True),
+                            chunk_id=chunk_id,
+                            frame_ids=frame_ids,
+                        )
 
             if profile:
                 block_end.record()

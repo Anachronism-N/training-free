@@ -92,6 +92,14 @@ class LifecycleCacheManager:
             bank_max_anchor_sets=lc.get("bank_max_anchor_sets", 32),
             bank_max_anchor_tokens=lc.get("bank_max_anchor_tokens", 32768),
             record_latency=lc.get("record_latency", False),
+            # v2 fields
+            rope_safe_recall=lc.get("rope_safe_recall", True),
+            allow_post_rope_recall=lc.get("allow_post_rope_recall", False),
+            rope_remap_policy=lc.get("rope_remap_policy", "relative_clamp"),
+            max_post_rope_frame_distance=lc.get("max_post_rope_frame_distance", 21),
+            capture_clean_only=lc.get("capture_clean_only", True),
+            use_real_query_for_compression=lc.get("use_real_query_for_compression", True),
+            enable_last_n_layers=lc.get("enable_last_n_layers", 0),
         )
 
         runtime = LifeCacheRuntime(runtime_config)

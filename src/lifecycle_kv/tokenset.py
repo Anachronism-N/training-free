@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 import torch
 
@@ -44,6 +44,10 @@ class TokenSet:
     source_set_id: Optional[str] = None
     source_region: Optional[CacheRegion] = None
     source_positions: Optional[torch.Tensor] = None
+    rope_mode: Literal["pre_rope", "post_rope"] = "post_rope"
+    frame_positions: Optional[torch.Tensor] = None  # [T], per-token frame index
+    source_start_frame: Optional[int] = None
+    capture_step: int = -1
 
     def __post_init__(self) -> None:
         if self.k.shape != self.v.shape:
@@ -63,6 +67,11 @@ class TokenSet:
                 raise ValueError("source_positions must be a 1D tensor")
             if self.source_positions.numel() != self.k.shape[0]:
                 raise ValueError("source_positions length must match token count")
+        if self.frame_positions is not None:
+            if self.frame_positions.ndim != 1:
+                raise ValueError("frame_positions must be a 1D tensor")
+            if self.frame_positions.numel() != self.k.shape[0]:
+                raise ValueError("frame_positions length must match token count")
 
     @property
     def num_tokens(self) -> int:
@@ -106,6 +115,10 @@ class TokenSet:
             source_set_id=self.source_set_id or self.set_id,
             source_region=self.source_region or self.region,
             source_positions=new_source_positions,
+            rope_mode=self.rope_mode,
+            frame_positions=self.frame_positions.index_select(0, token_positions) if self.frame_positions is not None else None,
+            source_start_frame=self.source_start_frame,
+            capture_step=self.capture_step,
         )
 
     def to_device(self, device: torch.device | str) -> "TokenSet":
@@ -130,4 +143,8 @@ class TokenSet:
             source_set_id=self.source_set_id,
             source_region=self.source_region,
             source_positions=self.source_positions.to(device) if self.source_positions is not None else None,
+            rope_mode=self.rope_mode,
+            frame_positions=self.frame_positions.to(device) if self.frame_positions is not None else None,
+            source_start_frame=self.source_start_frame,
+            capture_step=self.capture_step,
         )

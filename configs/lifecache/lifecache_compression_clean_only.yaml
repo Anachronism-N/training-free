@@ -1,0 +1,28 @@
+# LifeCache v2 clean-only compression config — Experiment B
+# Only captures evicted tokens during clean context refresh.
+# Uses real query (q_pre_rope) for compression instead of evicted_k.mean.
+
+lifecache:
+  enabled: true
+  trace_only: true
+  mode: union
+
+  compression: qk_proxy
+  compression_topk: 512
+  compression_min_tokens: 64
+
+  recall_enabled: false
+  anchor_enabled: false
+  motion_enabled: false
+
+  region_bias_beta: 0.0
+  trace_path: cache_trace.jsonl
+  record_latency: true
+
+  # v2 settings
+  capture_clean_only: true
+  use_real_query_for_compression: true
+  enable_last_n_layers: 6
+
+  bank_max_compressed_sets: 64
+  bank_max_compressed_tokens: 65536

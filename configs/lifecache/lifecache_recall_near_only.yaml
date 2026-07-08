@@ -1,0 +1,37 @@
+# LifeCache v2 near-only recall config — Experiment A
+# Only recall tokens within training-range frame distance.
+# Tests whether RoPE-safe distance filtering prevents dark/frozen collapse.
+
+lifecache:
+  enabled: true
+  trace_only: false
+  mode: union
+
+  compression: qk_proxy
+  compression_topk: 512
+  compression_min_tokens: 64
+
+  recall_enabled: true
+  recall_top_sets: 4
+  recall_top_tokens: 128
+  max_frame_distance: 21
+
+  anchor_enabled: false
+  motion_enabled: false
+
+  region_bias_beta: 0.0
+  trace_path: cache_trace.jsonl
+  record_latency: true
+
+  # Only enable on last 6 layers
+  enable_last_n_layers: 6
+
+  # v2 RoPE safety
+  rope_safe_recall: true
+  allow_post_rope_recall: true
+  max_post_rope_frame_distance: 21
+  capture_clean_only: true
+  use_real_query_for_compression: true
+
+  bank_max_compressed_sets: 64
+  bank_max_compressed_tokens: 65536

@@ -168,6 +168,54 @@ run_sf_lifecache_recall() {
 }
 
 # -------------------------------------------------------------------
+# Run 7: Self-Forcing + LifeCache near-only recall (Experiment A)
+# -------------------------------------------------------------------
+run_sf_lifecache_near_recall() {
+    local out="$REPO_ROOT/runs/sf_lifecache_near_recall_${FRAMES}f"
+    echo "[Run 7] Self-Forcing + LifeCache near-only recall -> $out"
+    cd "$REPO_ROOT/third_party/Self-Forcing"
+    export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+    export LIFECACHE_ENABLE=1
+    export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/lifecache_recall_near_only.yaml"
+    python inference.py \
+        --config_path "$SF_CONFIG" \
+        --output_folder "$out" \
+        --checkpoint_path "$SF_CHECKPOINT" \
+        --data_path "$PROMPTS" \
+        --num_output_frames "$FRAMES" \
+        --seed "$SEED" \
+        --num_samples 1 \
+        --use_ema \
+        --save_with_index
+    echo "[Run 7] Done: $out"
+    echo ""
+}
+
+# -------------------------------------------------------------------
+# Run 8: Self-Forcing + LifeCache clean-only compression (Experiment B)
+# -------------------------------------------------------------------
+run_sf_lifecache_clean_compression() {
+    local out="$REPO_ROOT/runs/sf_lifecache_clean_compression_${FRAMES}f"
+    echo "[Run 8] Self-Forcing + LifeCache clean-only compression -> $out"
+    cd "$REPO_ROOT/third_party/Self-Forcing"
+    export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+    export LIFECACHE_ENABLE=1
+    export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/lifecache_compression_clean_only.yaml"
+    python inference.py \
+        --config_path "$SF_CONFIG" \
+        --output_folder "$out" \
+        --checkpoint_path "$SF_CHECKPOINT" \
+        --data_path "$PROMPTS" \
+        --num_output_frames "$FRAMES" \
+        --seed "$SEED" \
+        --num_samples 1 \
+        --use_ema \
+        --save_with_index
+    echo "[Run 8] Done: $out"
+    echo ""
+}
+
+# -------------------------------------------------------------------
 # Main
 # -------------------------------------------------------------------
 case "${1:-all}" in
@@ -189,6 +237,12 @@ case "${1:-all}" in
     recall)
         run_sf_lifecache_recall
         ;;
+    near_recall)
+        run_sf_lifecache_near_recall
+        ;;
+    clean_comp)
+        run_sf_lifecache_clean_compression
+        ;;
     all)
         run_native_sf
         run_sf_pyramid
@@ -205,7 +259,9 @@ case "${1:-all}" in
         echo "  trace        — Run 4: Self-Forcing + LifeCache trace-only"
         echo "  compression  — Run 5: Self-Forcing + LifeCache compression-only"
         echo "  recall       — Run 6: Self-Forcing + LifeCache union recall"
-        echo "  all          — Run all six experiments"
+        echo "  near_recall  — Run 7: Self-Forcing + LifeCache near-only recall"
+        echo "  clean_comp   — Run 8: Self-Forcing + LifeCache clean-only compression"
+        echo "  all          — Run all experiments"
         exit 1
         ;;
 esac

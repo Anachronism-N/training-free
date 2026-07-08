@@ -277,12 +277,30 @@ class CausalWanSelfAttention(nn.Module):
                 # Clone the source slice to avoid overlapping memory error
                 num_evicted_tokens = num_new_tokens + kv_cache["local_end_index"].item() - kv_cache_size
                 num_rolled_tokens = kv_cache["local_end_index"].item() - num_evicted_tokens - sink_tokens
-                # --- LifeCache: capture evicted tokens before they are overwritten ---
+                # --- LifeCache v2: capture evicted tokens (clean-context only, pre-RoPE K) ---
                 if lifecache_manager is not None and num_evicted_tokens > 0 and sink_tokens == 0:
-                    evicted_k = kv_cache["k"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
-                    evicted_v = kv_cache["v"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
-                    # Store for later processing (after the shift)
-                    kv_cache["_lifecache_evicted"] = (evicted_k.squeeze(0), evicted_v.squeeze(0), num_evicted_tokens)
+                    rt = lifecache_manager.runtime
+                    if not rt.config.capture_clean_only or rt.capture_enabled:
+                        # Capture pre-RoPE K for RoPE-safe recall
+                        evicted_k_pre_rope = k[:, :num_evicted_tokens].clone() if k.shape[1] >= num_evicted_tokens else None
+                        evicted_k_post_rope = kv_cache["k"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
+                        evicted_v = kv_cache["v"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
+                        token_indices = torch.arange(sink_tokens, sink_tokens + num_evicted_tokens,
+                                                     device=evicted_v.device, dtype=torch.long)
+                        frame_positions = token_indices // frame_seqlen
+                        payload = {
+                            "layer_id": getattr(self, "_block_index", -1),
+                            "evicted_k_pre_rope": evicted_k_pre_rope.squeeze(0) if evicted_k_pre_rope is not None else None,
+                            "evicted_k_post_rope": evicted_k_post_rope.squeeze(0),
+                            "evicted_v": evicted_v.squeeze(0),
+                            "q_pre_rope": q[0] if q.ndim == 4 else q,
+                            "q_post_rope": roped_query[0],
+                            "token_indices": token_indices,
+                            "frame_positions": frame_positions,
+                            "current_start_frame": current_start_frame,
+                            "capture_reason": rt.capture_reason if hasattr(rt, "capture_reason") else "eviction",
+                        }
+                        kv_cache.setdefault("_lifecache_evicted_list", []).append(payload)
                 # --- End LifeCache capture ---
                 kv_cache["k"][:, sink_tokens:sink_tokens + num_rolled_tokens] = \
                     kv_cache["k"][:, sink_tokens + num_evicted_tokens:sink_tokens + num_evicted_tokens + num_rolled_tokens].clone()
