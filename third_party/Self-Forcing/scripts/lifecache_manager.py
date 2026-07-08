@@ -108,3 +108,55 @@ class LifecycleCacheManager:
     @property
     def config(self) -> LifeCacheRuntimeConfig:
         return self.runtime.config
+
+
+# ---------------------------------------------------------------------------
+# Self-Forcing RoPE Adapter — model-specific RoPE remap for recalled tokens
+# ---------------------------------------------------------------------------
+
+class SelfForcingRopeAdapter:
+    """Remap recalled pre-RoPE K to legal relative positions.
+
+    Uses relative_clamp policy: recent recalled frames keep true relative
+    spacing; far frames are clamped to temporal_range-1 (oldest legal position).
+    """
+
+    def __init__(
+        self,
+        frame_seq_length: int = 1560,
+        temporal_range: int = 21,
+        split_recent: int = 4,
+    ) -> None:
+        self.frame_seq_length = frame_seq_length
+        self.temporal_range = temporal_range
+        self.split_recent = split_recent
+
+    def map_frame_positions(
+        self,
+        frame_positions: "torch.Tensor",
+        *,
+        current_start_frame: int,
+    ) -> "torch.Tensor":
+        """Map absolute frame positions to legal relative positions.
+
+        Args:
+            frame_positions: [T] tensor of absolute frame indices
+            current_start_frame: current newest frame index
+
+        Returns:
+            t_pos: [T] tensor of mapped frame positions in [0, TR-1]
+        """
+        import torch
+        newest = current_start_frame
+        rel = (newest - frame_positions.float()).clamp(0, self.temporal_range - 1)
+        if self.split_recent > 0:
+            is_recent = rel < self.split_recent
+            rel_mapped = torch.where(
+                is_recent,
+                rel,
+                torch.full_like(rel, self.temporal_range - 1),
+            )
+        else:
+            rel_mapped = rel
+        t_pos = (self.temporal_range - 1) - rel_mapped
+        return t_pos.long()

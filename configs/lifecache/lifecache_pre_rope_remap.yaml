@@ -1,0 +1,36 @@
+# LifeCache pre-RoPE remap recall — Experiment C
+# Stores raw (un-roped) K in bank, remaps to legal relative positions at recall time.
+# This is the core v2 recall path.
+
+lifecache:
+  enabled: true
+  trace_only: false
+  mode: union
+
+  compression: qk_proxy
+  compression_topk: 512
+  compression_min_tokens: 64
+
+  recall_enabled: true
+  recall_top_sets: 4
+  recall_top_tokens: 128
+  max_frame_distance: null
+
+  rope_safe_recall: true
+  allow_post_rope_recall: false
+  rope_remap_policy: relative_clamp
+  max_post_rope_frame_distance: 21
+
+  anchor_enabled: false
+  motion_enabled: false
+  region_bias_beta: 0.0
+
+  enable_last_n_layers: 6
+  trace_path: cache_trace.jsonl
+  record_latency: true
+
+  capture_clean_only: true
+  use_real_query_for_compression: true
+
+  bank_max_compressed_sets: 64
+  bank_max_compressed_tokens: 65536
