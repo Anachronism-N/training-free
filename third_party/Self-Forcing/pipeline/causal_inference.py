@@ -1,4 +1,5 @@
 from typing import List, Optional
+import os
 import torch
 
 from utils.wan_wrapper import WanDiffusionWrapper, WanTextEncoder, WanVAEWrapper
@@ -38,6 +39,19 @@ class CausalInferencePipeline(torch.nn.Module):
         self.num_frame_per_block = getattr(args, "num_frame_per_block", 1)
         self.independent_first_frame = args.independent_first_frame
         self.local_attn_size = self.generator.model.local_attn_size
+
+        # LifeCache integration
+        self.lifecache_manager = None
+        if os.environ.get("LIFECACHE_ENABLE", "0") == "1":
+            print("[LifeCache] Initializing LifeCache manager...")
+            from scripts.lifecache_manager import LifecycleCacheManager
+            self.lifecache_manager = LifecycleCacheManager.from_env()
+            self.lifecache_manager.num_layers = self.num_transformer_blocks
+            self.lifecache_manager.num_heads = 12  # Wan 1.3B
+            print(f"[LifeCache] Manager initialized with {self.lifecache_manager.num_layers} layers, "
+                  f"{self.lifecache_manager.num_heads} heads")
+            # Attach to generator so it can forward to model
+            self.generator.lifecache_manager = self.lifecache_manager
 
         print(f"KV inference with {self.num_frame_per_block} frames per block")
 
@@ -234,6 +248,34 @@ class CausalInferencePipeline(torch.nn.Module):
                 current_start=current_start_frame * self.frame_seq_length,
             )
 
+            # LifeCache: after clean context refresh, process evicted tokens
+            # captured by the attention forward (stored in kv_cache["_lifecache_evicted"])
+            if self.lifecache_manager is not None:
+                chunk_id = current_start_frame // self.num_frame_per_block
+                frame_ids = list(range(
+                    current_start_frame,
+                    current_start_frame + current_num_frames,
+                ))
+                for layer_id in range(self.num_transformer_blocks):
+                    cache = self.kv_cache1[layer_id]
+                    evicted_data = cache.pop("_lifecache_evicted", None)
+                    if evicted_data is None:
+                        continue
+                    evicted_k, evicted_v, num_evicted = evicted_data
+                    if evicted_k.numel() == 0:
+                        continue
+                    # Create uniform attention proxy for AP-topk compression
+                    attn_proxy = torch.ones(1, evicted_k.shape[0], device=evicted_k.device, dtype=torch.float32)
+                    self.lifecache_manager.on_block_complete(
+                        layer_id=layer_id,
+                        chunk_id=chunk_id,
+                        evicted_k=evicted_k,
+                        evicted_v=evicted_v,
+                        attn=attn_proxy,
+                        frame_ids=frame_ids,
+                        head_group="all",
+                    )
+
             if profile:
                 block_end.record()
                 torch.cuda.synchronize()
@@ -286,6 +328,12 @@ class CausalInferencePipeline(torch.nn.Module):
         else:
             # Use the default KV cache size
             kv_cache_size = 32760
+            # FULL-ATTENTION long video (doc 77 fix): grow cache to hold all frames
+            # so the 5s SF/CF model keeps full attention (no sliding eviction).
+            import os as _os
+            _mf = _os.environ.get("SF_FULL_ATTN_MAX_FRAMES", "")
+            if _mf.strip():
+                kv_cache_size = max(kv_cache_size, int(_mf) * self.frame_seq_length)
 
         for _ in range(self.num_transformer_blocks):
             kv_cache1.append({

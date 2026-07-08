@@ -44,10 +44,14 @@ def score_token_sets(
 ) -> torch.Tensor:
     if not token_sets:
         return torch.empty(0, device=q_summary.device)
+    # q_summary: [heads, dim], set_summary (k_summary): [heads, dim]
+    # Flatten both after averaging over heads for robust similarity
+    q_flat = q_summary.float().mean(dim=0)  # [dim]
     scores = []
     for token_set in token_sets:
         set_summary = token_set.k_summary.to(q_summary.device).float()
-        q_match = F.cosine_similarity(q_summary.flatten(), set_summary.flatten(), dim=0)
+        set_flat = set_summary.mean(dim=0)  # [dim]
+        q_match = F.cosine_similarity(q_flat, set_flat, dim=0)
         group_match = 1.0 if token_set.head_group == head_group else 0.0
         use_count = min(float(token_set.access_count) / 10.0, 1.0)
         score = (
@@ -77,14 +81,22 @@ def retrieve_token_sets(
 
 
 def token_qk_scores(q: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
-    """Return max query-key cosine score per historical token."""
+    """Return max query-key cosine score per historical token.
 
+    q: [query_tokens, heads_q, dim]
+    k: [token_tokens, heads_k, dim]
+    If heads_q != heads_k, mean over heads_k to align dimensions.
+    """
     if q.ndim != 3 or k.ndim != 3:
         raise ValueError("q and k must be [tokens, heads, dim]")
-    if q.shape[1:] != k.shape[1:]:
-        raise ValueError(f"q/k head dims must match, got {tuple(q.shape)} and {tuple(k.shape)}")
+    if q.shape[2] != k.shape[2]:
+        raise ValueError(f"q/k dim must match, got {tuple(q.shape)} and {tuple(k.shape)}")
     qn = F.normalize(q.float(), dim=-1)
     kn = F.normalize(k.float(), dim=-1)
+    if qn.shape[1] != kn.shape[1]:
+        # Mean over heads to align: qn -> [Q, 1, D], kn -> [K, 1, D]
+        qn = qn.mean(dim=1, keepdim=True)
+        kn = kn.mean(dim=1, keepdim=True)
     # [query, token, head] -> max over query, mean over heads
     sim = torch.einsum("qhd,khd->qkh", qn, kn)
     return sim.max(dim=0).values.mean(dim=-1)

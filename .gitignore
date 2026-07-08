@@ -1,10 +1,52 @@
-# third_party/
+# third_party/ — repos are cloned at setup time, not tracked in git.
+# Only track our Self-Forcing integration files.
+third_party/Causal-Forcing/
+third_party/DeepForcing/
+third_party/DiT-Extrapolation/
+third_party/Echo-Forcing/
+third_party/FlowCache/
+third_party/Forcing-KV/
+third_party/FreeLOC/
+third_party/FreePCA/
+third_party/IAMFlow/
+third_party/LongLive-RAG/
+third_party/LongVideoSparseAttention/
+third_party/MIGA/
+third_party/MemRoPE/
+third_party/MotionCache/
+third_party/Pyramid-Forcing/
+third_party/RollingForcing/
+third_party/SWIFT/
+third_party/infinity-rope/
+
+# Self-Forcing: ignore everything except our integration files
+third_party/Self-Forcing/*
+!third_party/Self-Forcing/configs/
+third_party/Self-Forcing/configs/*
+!third_party/Self-Forcing/configs/self_forcing_dmd.yaml
+!third_party/Self-Forcing/pipeline/
+third_party/Self-Forcing/pipeline/*
+!third_party/Self-Forcing/pipeline/causal_inference.py
+!third_party/Self-Forcing/scripts/
+third_party/Self-Forcing/scripts/*
+!third_party/Self-Forcing/scripts/lifecache_manager.py
+!third_party/Self-Forcing/utils/
+third_party/Self-Forcing/utils/*
+!third_party/Self-Forcing/utils/wan_wrapper.py
+!third_party/Self-Forcing/wan/
+third_party/Self-Forcing/wan/*
+!third_party/Self-Forcing/wan/modules/
+third_party/Self-Forcing/wan/modules/*
+!third_party/Self-Forcing/wan/modules/causal_model.py
+
+# Large binary files
 checkpoints/
 wan_models/
 videos/
 output/
 outputs/
 logs/
+runs/
 *.pt
 *.pth
 *.safetensors

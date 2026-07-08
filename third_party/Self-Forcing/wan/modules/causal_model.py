@@ -55,6 +55,41 @@ def causal_rope_apply(x, grid_sizes, freqs, start_frame=0):
     return torch.stack(output).type_as(x)
 
 
+def causal_rope_apply_pos(x, grid_sizes, freqs, t_pos):
+    """Like causal_rope_apply but with an EXPLICIT per-frame temporal position vector
+    `t_pos` (shape [f], long) instead of a contiguous start_frame. Enables split-window
+    RoPE (PF's rule): recent frames keep their true relative spacing while far frames are
+    relative-clamped, so motion is preserved AND absolute angles stay in the training range.
+    Spatial (h,w) bands unchanged. Applied uniformly across heads (Round-45 safe)."""
+    n, c = x.size(2), x.size(3) // 2
+    freqs = freqs.split([c - 2 * (c // 3), c // 3, c // 3], dim=1)
+    Tmax = freqs[0].shape[0] - 1
+    output = []
+    for i, (f, h, w) in enumerate(grid_sizes.tolist()):
+        seq_len = f * h * w
+        x_i = torch.view_as_complex(x[i, :seq_len].to(torch.float64).reshape(seq_len, n, -1, 2))
+        tp = t_pos.clamp(0, Tmax).to(x.device)[:f]
+        ft = freqs[0][tp].view(f, 1, 1, -1).expand(f, h, w, -1)
+        freqs_i = torch.cat([
+            ft,
+            freqs[1][:h].view(1, h, 1, -1).expand(f, h, w, -1),
+            freqs[2][:w].view(1, 1, w, -1).expand(f, h, w, -1)
+        ], dim=-1).reshape(seq_len, 1, -1)
+        x_i = torch.view_as_real(x_i * freqs_i).flatten(2)
+        x_i = torch.cat([x_i, x[i, seq_len:]])
+        output.append(x_i)
+    return torch.stack(output).type_as(x)
+
+
+def _anchor_grid(grid_sizes, sink_frames):
+    """Grid spec for the sink/anchor portion only (sink_frames temporal frames,
+    same H/W as the full grid). Used by Anchor-Adjacent RoPE to re-rope the
+    cached anchor keys to a window-adjacent position each step."""
+    g = grid_sizes.clone()
+    g[:, 0] = int(sink_frames)
+    return g
+
+
 class CausalWanSelfAttention(nn.Module):
 
     def __init__(self,
@@ -92,7 +127,8 @@ class CausalWanSelfAttention(nn.Module):
         block_mask,
         kv_cache=None,
         current_start=0,
-        cache_start=None
+        cache_start=None,
+        lifecache_manager=None,
     ):
         r"""
         Args:
@@ -200,6 +236,35 @@ class CausalWanSelfAttention(nn.Module):
 
             current_end = current_start + roped_query.shape[1]
             sink_tokens = self.sink_size * frame_seqlen
+            # --- Anchor-Adjacent RoPE (AAR) ---------------------------------
+            # BUG (doc 102/103): sink frames are stored pre-roped at absolute
+            # positions 0..sink-1 and never refreshed. As current_start_frame
+            # grows, the query<->sink relative rotation freq*(pos) periodically
+            # phase-aligns (period ~72 latent here) -> attention snaps back to
+            # the first frame ("looping" at 33s/51s). FIX: store the sink UN-roped
+            # and re-rope it each step to sit just ADJACENT to the current window
+            # (bounded, in-distribution relative distance), while the working
+            # cache keeps absolute positions (preserves long-range temporal cue;
+            # this is the key difference from the failed all-positions RelRoPE).
+            aar = getattr(self, "anchor_adjacent_rope", False) and sink_tokens > 0
+            # --- Full-Window Anchor-adjacent RoPE (FWAAR) -------------------
+            # round-41 root cause: the residual late darkening is the WHOLE rolling
+            # window's ABSOLUTE-position extrapolation (query+keys sit at RoPE angle
+            # ~100 at 30s >> 21 training range), not just the sink. FWAAR stores the
+            # window keys UN-roped and, at attention time, shifts the entire window
+            # (query included) so the newest frame lands at train_range-1, keeping the
+            # relative structure but pulling absolute angles back into [0, train_range).
+            # Mutually exclusive with AAR (requires sink_size==0, pure rolling window).
+            # Gated by an attribute -> default OFF, baseline-safe & reversible.
+            fwaar = getattr(self, "full_window_aar", False) and sink_tokens == 0
+            fwaar_tr = getattr(self, "full_window_aar_train_range", 0)
+            if fwaar_tr <= 0:
+                fwaar_tr = self.local_attn_size if self.local_attn_size and self.local_attn_size > 0 else 21
+            # store the new (working) keys: roped as usual
+            kv_key_to_store = roped_key
+            # If AAR and this step writes the very first block (the anchor), store
+            # it UN-roped so we can re-rope it relative to the window each step.
+            # ----------------------------------------------------------------
             # If we are using local attention and the current KV cache size is larger than the local attention size, we need to truncate the KV cache
             kv_cache_size = kv_cache["k"].shape[1]
             num_new_tokens = roped_query.shape[1]
@@ -210,6 +275,13 @@ class CausalWanSelfAttention(nn.Module):
                 # Clone the source slice to avoid overlapping memory error
                 num_evicted_tokens = num_new_tokens + kv_cache["local_end_index"].item() - kv_cache_size
                 num_rolled_tokens = kv_cache["local_end_index"].item() - num_evicted_tokens - sink_tokens
+                # --- LifeCache: capture evicted tokens before they are overwritten ---
+                if lifecache_manager is not None and num_evicted_tokens > 0 and sink_tokens == 0:
+                    evicted_k = kv_cache["k"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
+                    evicted_v = kv_cache["v"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
+                    # Store for later processing (after the shift)
+                    kv_cache["_lifecache_evicted"] = (evicted_k.squeeze(0), evicted_v.squeeze(0), num_evicted_tokens)
+                # --- End LifeCache capture ---
                 kv_cache["k"][:, sink_tokens:sink_tokens + num_rolled_tokens] = \
                     kv_cache["k"][:, sink_tokens + num_evicted_tokens:sink_tokens + num_evicted_tokens + num_rolled_tokens].clone()
                 kv_cache["v"][:, sink_tokens:sink_tokens + num_rolled_tokens] = \
@@ -218,19 +290,164 @@ class CausalWanSelfAttention(nn.Module):
                 local_end_index = kv_cache["local_end_index"].item() + current_end - \
                     kv_cache["global_end_index"].item() - num_evicted_tokens
                 local_start_index = local_end_index - num_new_tokens
-                kv_cache["k"][:, local_start_index:local_end_index] = roped_key
+                # FWAAR stores keys UN-roped (positions assigned fresh each step at attn time).
+                kv_cache["k"][:, local_start_index:local_end_index] = k if fwaar else roped_key
                 kv_cache["v"][:, local_start_index:local_end_index] = v
             else:
                 # Assign new keys/values directly up to current_end
                 local_end_index = kv_cache["local_end_index"].item() + current_end - kv_cache["global_end_index"].item()
                 local_start_index = local_end_index - num_new_tokens
-                kv_cache["k"][:, local_start_index:local_end_index] = roped_key
+                # AAR: if this write covers the anchor region, store it UN-roped.
+                if aar and local_start_index < sink_tokens:
+                    # un-roped key for the anchor portion; roped for the rest
+                    k_store = roped_key.clone()
+                    n_anchor = min(sink_tokens - local_start_index, num_new_tokens)
+                    k_store[:, :n_anchor] = k[:, :n_anchor]
+                    kv_cache["k"][:, local_start_index:local_end_index] = k_store
+                elif fwaar:
+                    # FWAAR: store the whole window UN-roped (re-roped at attn time).
+                    kv_cache["k"][:, local_start_index:local_end_index] = k
+                else:
+                    kv_cache["k"][:, local_start_index:local_end_index] = roped_key
                 kv_cache["v"][:, local_start_index:local_end_index] = v
-            x = attention(
-                roped_query,
-                kv_cache["k"][:, max(0, local_end_index - self.max_attention_size):local_end_index],
-                kv_cache["v"][:, max(0, local_end_index - self.max_attention_size):local_end_index]
-            )
+            # Build the attention key window. With AAR, re-rope the sink portion
+            # to sit just before the current window (bounded relative distance).
+            attn_start = max(0, local_end_index - self.max_attention_size)
+            if fwaar:
+                # Re-rope the ENTIRE window + the query into the training range.
+                # The window (post-write) spans win_frames absolute frames ending at
+                # current_start_frame. Shift the whole window left by `shift` so its
+                # newest frame lands at min(current_start_frame, tr-1); this preserves
+                # all relative gaps but pulls absolute angles back into [0, tr). The
+                # query block IS the last `num_new_frames` of the window, so it must be
+                # roped at the SAME shifted positions as those newest key frames (else
+                # query<->key rotation mismatches -> stripe-noise collapse).
+                win_tokens = local_end_index - attn_start
+                win_frames = max(1, win_tokens // frame_seqlen)
+                num_new_frames = max(1, num_new_tokens // frame_seqlen)
+                dst_newest = min(current_start_frame, fwaar_tr - 1)
+                shift = current_start_frame - dst_newest  # >=0
+                k_pos = max(0, (current_start_frame - (win_frames - 1)) - shift)
+                q_pos = k_pos + (win_frames - num_new_frames)  # query = newest frames
+                # Publish the FWAAR-shifted query position so the MRF id_sink wrapper
+                # can rope the injected identity CONSISTENTLY with the shifted window
+                # (else id_sink at ~current_start_frame vs query at ~q_pos mismatch ->
+                # the fwaar_mrf flashback/ghosting). -1 = not active.
+                self._fwaar_q_pos = int(q_pos)
+                _win_grid = grid_sizes.clone(); _win_grid[:, 0] = win_frames
+                split_recent = int(getattr(self, "fwaar_split_recent", 0))
+                if split_recent > 0:
+                    # --- Split-window RoPE (PF's actual rule, ported, motion-safe) -------
+                    # Recent `split_recent` frames keep their TRUE relative spacing (carry
+                    # motion); older frames are RELATIVE-CLAMPED to sit no farther than tr
+                    # behind the newest (stops the absolute-position extrapolation that
+                    # drives scale-drift/darkening) — instead of translating the whole
+                    # window (which froze motion). Newest frame -> tr-1. Uniform across
+                    # heads (Round-45 safe). Query = the newest num_new frames.
+                    tr = fwaar_tr
+                    Wf = win_frames
+                    newest_abs = current_start_frame
+                    # per-frame absolute index of each window frame (oldest..newest)
+                    abs_idx = torch.arange(newest_abs - (Wf - 1), newest_abs + 1, device=q.device)
+                    rel = (newest_abs - abs_idx).clamp(0, tr - 1)  # 0=newest
+                    # recent split_recent frames keep TRUE rel; older clamped to tr-1
+                    is_recent = rel < split_recent
+                    rel_mapped = torch.where(is_recent, rel, torch.full_like(rel, tr - 1))
+                    t_pos = (tr - 1) - rel_mapped  # newest -> tr-1
+                    roped_query_fw = causal_rope_apply(
+                        q, grid_sizes, freqs, start_frame=(tr - num_new_frames)).type_as(v)
+                    self._fwaar_q_pos = int(tr - 1)
+                    key_window = causal_rope_apply_pos(
+                        kv_cache["k"][:, attn_start:local_end_index], _win_grid, freqs, t_pos).type_as(v)
+                else:
+                    roped_query_fw = causal_rope_apply(
+                        q, grid_sizes, freqs, start_frame=q_pos).type_as(v)
+                    key_window = causal_rope_apply(
+                        kv_cache["k"][:, attn_start:local_end_index], _win_grid,
+                        freqs, start_frame=k_pos).type_as(v)
+                # --- Head-selective FWAAR ---------------------------------
+                # Freezing the whole window's RoPE clock for EVERY head removes the
+                # forward-time signal that motion/local heads rely on -> the late
+                # "almost static" motion the user reported (same as plain AAR). Our DiT
+                # profiling says only long/phase heads (rope_policy rescale/phase_candidate)
+                # span history and suffer absolute-position extrapolation; local/motion
+                # heads attend nearby (small in-range relative distance) and need the
+                # NATURAL clock. So if a per-head mask is set, remap ONLY the masked heads
+                # and keep the rest at natural absolute position. This is the first place
+                # the head_policy_map causally drives the method.
+                fw_mask = getattr(self, "fwaar_head_mask", None)
+                if fw_mask is not None:
+                    # natural-position query/key (what base would use this step)
+                    nat_q = roped_query  # already roped at current_start_frame above
+                    nat_k = causal_rope_apply(
+                        kv_cache["k"][:, attn_start:local_end_index], _win_grid,
+                        freqs, start_frame=max(0, current_start_frame - (win_frames - 1))).type_as(v)
+                    m = fw_mask.to(device=key_window.device).view(1, 1, -1, 1)  # [1,1,H,1]
+                    roped_query_fw = torch.where(m, roped_query_fw, nat_q)
+                    key_window = torch.where(m, key_window, nat_k)
+                x = attention(
+                    roped_query_fw, key_window,
+                    kv_cache["v"][:, attn_start:local_end_index])
+            elif aar:
+                key_window = kv_cache["k"][:, attn_start:local_end_index].clone()
+                # working-window length in frames (tokens after the sink)
+                win_frames = max(1, (local_end_index - sink_tokens) // frame_seqlen)
+                anchor_pos = max(0, current_start_frame - win_frames)  # adjacent to window
+                key_window[:, :sink_tokens] = causal_rope_apply(
+                    kv_cache["k"][:, :sink_tokens], _anchor_grid(grid_sizes, self.sink_size),
+                    freqs, start_frame=anchor_pos).type_as(v)
+                x = attention(
+                    roped_query, key_window,
+                    kv_cache["v"][:, attn_start:local_end_index])
+            else:
+                hcp = getattr(self, "head_cache_policy_on", False)
+                if lifecache_manager is not None:
+                    # --- LifeCache active K/V composition --------------------------
+                    # Prepend LifeCache recalled/anchor/motion tokens to the recent
+                    # sliding window. This replaces the naive sliding window with
+                    # lifecycle-aware K/V composition.
+                    recent_k = kv_cache["k"][:, attn_start:local_end_index]
+                    recent_v = kv_cache["v"][:, attn_start:local_end_index]
+                    # Get block index from a context attribute if available
+                    block_index = getattr(self, "_block_index", None)
+                    if block_index is not None:
+                        extra = lifecache_manager.get_active_kv_for_attention(
+                            layer_id=block_index,
+                            roped_query=roped_query,
+                            kv_cache_k=kv_cache["k"],
+                            kv_cache_v=kv_cache["v"],
+                            attn_start=attn_start,
+                            local_end_index=local_end_index,
+                        )
+                        active_k, active_v = extra
+                    else:
+                        active_k, active_v = recent_k, recent_v
+                    x = attention(roped_query, active_k, active_v)
+                elif hcp:
+                    # --- Per-Head Cache Policy (HCP) ---------------------------------
+                    # Different heads attend to different subsets of the cached window
+                    # (PF-style head-aware cache, but driven by our empirical head roles
+                    # and applied as a per-head ATTENTION MASK over frames — NOT a per-head
+                    # RoPE change, which collapses, round 45). Uses SDPA so we can pass an
+                    # arbitrary [H, q, k] additive bias.
+                    kw = kv_cache["k"][:, attn_start:local_end_index]
+                    vw = kv_cache["v"][:, attn_start:local_end_index]
+                    bias = self._build_hcp_bias(
+                        roped_query.shape[1], kw.shape[1], frame_seqlen,
+                        device=roped_query.device, dtype=roped_query.dtype)
+                    # [B,T,H,D] -> [B,H,T,D] for SDPA
+                    qh = roped_query.permute(0, 2, 1, 3)
+                    kh = kw.permute(0, 2, 1, 3)
+                    vh = vw.permute(0, 2, 1, 3)
+                    xo = torch.nn.functional.scaled_dot_product_attention(
+                        qh, kh, vh, attn_mask=bias)  # bias [H,q,k] broadcasts over B
+                    x = xo.permute(0, 2, 1, 3)
+                else:
+                    x = attention(
+                        roped_query,
+                        kv_cache["k"][:, attn_start:local_end_index],
+                        kv_cache["v"][:, attn_start:local_end_index]
+                    )
             kv_cache["global_end_index"].fill_(current_end)
             kv_cache["local_end_index"].fill_(local_end_index)
 
@@ -238,6 +455,87 @@ class CausalWanSelfAttention(nn.Module):
         x = x.flatten(2)
         x = self.o(x)
         return x
+
+    def _build_hcp_bias(self, q_len, k_len, frame_seqlen, device, dtype):
+        """Per-Head Cache Policy additive attention bias [H, q_len, k_len].
+
+        Each head, by its profiled cache_policy, attends to a subset of the W cached
+        frames in the current window; disallowed frames get -inf so they are dropped
+        from that head's softmax. Frames are contiguous blocks of `frame_seqlen` tokens;
+        the query block (the newest frame[s]) is always allowed for every head.
+        `self.head_cache_codes` is a [H] long tensor: 0=default(full) 1=keep_near
+        2=keep_far_sparse 3=keep_periodic_stride 4=inhib_gain.
+        """
+        import torch
+        H = self.num_heads
+        W = max(1, k_len // frame_seqlen)  # whole frames in the window
+        codes = getattr(self, "head_cache_codes", None)
+        if codes is None:
+            return None
+        # --- Graded recency-decay mode (HCP-decay) ----------------------------
+        # Instead of hard frame subsets (which starve heads / collapse), give each head a
+        # SMOOTH exponential recency bias whose decay rate depends on its role: Local heads
+        # decay fast (strong recency, suppress stale far history -> kills grid/ghost from
+        # old contaminated frames); Long/Phase heads decay slowly (keep long context);
+        # Inhib heads decay fastest; default = flat. This is the cache-priority 'recency'
+        # weight made role-dependent + soft (no -inf, no starvation). bias = -lambda_h * age.
+        if getattr(self, "hcp_decay_on", False):
+            age = (W - 1 - torch.arange(W, device=device)).float()  # 0=newest, W-1=oldest
+            # per-role decay rate (nats per frame of age)
+            lam_map = {0: 0.0, 1: float(getattr(self, "hcp_lam_local", 0.30)),
+                       2: float(getattr(self, "hcp_lam_long", 0.03)),
+                       3: float(getattr(self, "hcp_lam_phase", 0.06)),
+                       4: float(getattr(self, "hcp_lam_inhib", 0.45))}
+            lam = torch.tensor([lam_map.get(int(codes[h].item()), 0.0) for h in range(H)],
+                               device=device).view(H, 1)
+            fbias = (-lam * age.view(1, W))  # [H, W]
+            tok = fbias.repeat_interleave(frame_seqlen, dim=1)[:, :k_len]
+            if tok.shape[1] < k_len:
+                tok = torch.cat([tok[:, :1].expand(H, k_len - tok.shape[1]), tok], dim=1)
+            return tok.unsqueeze(1).expand(H, q_len, k_len).to(dtype)
+        R_local = int(getattr(self, "hcp_r_local", 8))
+        stride_long = int(getattr(self, "hcp_stride_long", 9))
+        stride_phase = int(getattr(self, "hcp_stride_phase", 9))
+        R_min = int(getattr(self, "hcp_r_min", 3))
+        n_qframes = max(1, q_len // frame_seqlen)
+        allow = torch.ones(H, W, dtype=torch.bool, device=device)
+        idx = torch.arange(W, device=device)
+        for h in range(H):
+            c = int(codes[h].item())
+            if c == 0:
+                continue  # default: full window
+            a = torch.zeros(W, dtype=torch.bool, device=device)
+            # always keep the most-recent R_min frames + the query frames for continuity
+            a[W - max(R_min, n_qframes):] = True
+            if c == 1:      # keep_near: dense recent only
+                a[W - R_local:] = True
+            elif c == 2:    # keep_far_sparse: strided long history + oldest
+                a[(W - 1 - idx) % stride_long == 0] = True
+                a[0] = True
+            elif c == 3:    # keep_periodic_stride: phase
+                a[(W - 1 - idx) % stride_phase == 0] = True
+            elif c == 4:    # inhib_gain: sink (oldest) + recent only (Echo-Forcing decay)
+                a[0] = True
+            allow[h] = a
+        # expand frames -> tokens on the KEY axis: [H, k_len]
+        allow_tok = allow.repeat_interleave(frame_seqlen, dim=1)[:, :k_len]
+        if allow_tok.shape[1] < k_len:  # pad the ragged oldest partial frame as allowed
+            pad = torch.ones(H, k_len - allow_tok.shape[1], dtype=torch.bool, device=device)
+            allow_tok = torch.cat([pad, allow_tok], dim=1)
+        bias = torch.zeros(H, q_len, k_len, dtype=dtype, device=device)
+        neg = torch.finfo(dtype).min
+        soft = float(getattr(self, "hcp_soft", 0.0))
+        if soft > 0.0:
+            # SOFT mode: instead of -inf dropping disallowed frames (which starves heads
+            # trained on the full window -> noise collapse), add a finite negative log-bias
+            # so disallowed frames are DOWN-WEIGHTED, not removed. bias = log(soft) on
+            # disallowed keys (soft in (0,1]; smaller = stronger suppression).
+            import math as _m
+            lb = _m.log(max(1e-4, soft))
+            bias[~allow_tok.unsqueeze(1).expand(H, q_len, k_len)] = lb
+        else:
+            bias[~allow_tok.unsqueeze(1).expand(H, q_len, k_len)] = neg
+        return bias
 
 
 class CausalWanAttentionBlock(nn.Module):
@@ -293,7 +591,8 @@ class CausalWanAttentionBlock(nn.Module):
         kv_cache=None,
         crossattn_cache=None,
         current_start=0,
-        cache_start=None
+        cache_start=None,
+        lifecache_manager=None,
     ):
         r"""
         Args:
@@ -313,7 +612,7 @@ class CausalWanAttentionBlock(nn.Module):
         y = self.self_attn(
             (self.norm1(x).unflatten(dim=1, sizes=(num_frames, frame_seqlen)) * (1 + e[1]) + e[0]).flatten(1, 2),
             seq_lens, grid_sizes,
-            freqs, block_mask, kv_cache, current_start, cache_start)
+            freqs, block_mask, kv_cache, current_start, cache_start, lifecache_manager=lifecache_manager)
 
         # with amp.autocast(dtype=torch.float32):
         x = x + (y.unflatten(dim=1, sizes=(num_frames, frame_seqlen)) * e[2]).flatten(1, 2)
@@ -720,7 +1019,8 @@ class CausalWanModel(ModelMixin, ConfigMixin):
         kv_cache: dict = None,
         crossattn_cache: dict = None,
         current_start: int = 0,
-        cache_start: int = 0
+        cache_start: int = 0,
+        lifecache_manager=None,
     ):
         r"""
         Run the diffusion model with kv caching.
@@ -815,21 +1115,26 @@ class CausalWanModel(ModelMixin, ConfigMixin):
                     {
                         "kv_cache": kv_cache[block_index],
                         "current_start": current_start,
-                        "cache_start": cache_start
+                        "cache_start": cache_start,
+                        "lifecache_manager": lifecache_manager,
                     }
                 )
+                block.self_attn._block_index = block_index
                 x = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(block),
                     x, **kwargs,
                     use_reentrant=False,
                 )
             else:
+                # Set block index on self-attention for LifeCache
+                block.self_attn._block_index = block_index
                 kwargs.update(
                     {
                         "kv_cache": kv_cache[block_index],
                         "crossattn_cache": crossattn_cache[block_index],
                         "current_start": current_start,
-                        "cache_start": cache_start
+                        "cache_start": cache_start,
+                        "lifecache_manager": lifecache_manager,
                     }
                 )
                 x = block(x, **kwargs)
