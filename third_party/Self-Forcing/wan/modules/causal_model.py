@@ -17,6 +17,8 @@ import torch
 import math
 import torch.distributed as dist
 
+from lifecycle_kv.cache_types import HeadRole
+
 # wan 1.3B model has a weird channel / head configurations and require max-autotune to work with flexattention
 # see https://github.com/pytorch/pytorch/issues/133254
 # change to default for other models
@@ -413,13 +415,17 @@ class CausalWanSelfAttention(nn.Module):
                             device=recent_k.device, dtype=torch.long,
                         )
                         q_for_life = roped_query[0]  # [tokens, heads, dim]
+                        # Union mode: use LAYOUT role which has anchor=256, recall=512
+                        # This enables actual recall + anchor composition.
+                        # TODO: route per-head based on profiled roles (Phase 4).
                         active_k, active_v, _view = rt.compose_active_cache(
                             layer_id=block_index,
                             q=q_for_life,
                             native_recent_k=recent_k[0],
                             native_recent_v=recent_v[0],
                             token_indices=token_indices,
-                            head_group="generic",
+                            head_group="layout",
+                            role=HeadRole.LAYOUT,
                         )
                         active_k = active_k.unsqueeze(0)
                         active_v = active_v.unsqueeze(0)

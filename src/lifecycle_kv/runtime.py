@@ -78,6 +78,9 @@ class LifeCacheRuntimeConfig:
     bank_max_anchor_sets: int = 32
     bank_max_anchor_tokens: int = 32768
 
+    # Layer selection
+    enable_last_n_layers: int = 0
+
     # Debug
     record_latency: bool = False
 
