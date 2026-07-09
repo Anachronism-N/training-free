@@ -361,8 +361,8 @@ class LifeCacheRuntime:
             k=native_recent_k,
             v=native_recent_v,
             token_indices=token_indices,
-            # Compute summary in native dtype to avoid OOM from float32 conversion
-            k_summary=native_recent_k.to(torch.float32).mean(dim=0).to(native_recent_k.dtype),
+            # Use native dtype to avoid float32 conversion OOM
+            k_summary=native_recent_k.mean(dim=0, dtype=torch.float32).to(native_recent_k.dtype),
             region=CacheRegion.RECENT,
         )
 

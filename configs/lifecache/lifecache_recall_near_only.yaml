@@ -23,8 +23,8 @@ lifecache:
   trace_path: cache_trace.jsonl
   record_latency: true
 
-  # Only enable on last 6 layers
-  enable_last_n_layers: 6
+  # Only enable on last 3 layers (less memory pressure)
+  enable_last_n_layers: 3
 
   # v2 RoPE safety
   rope_safe_recall: true
