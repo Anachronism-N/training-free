@@ -293,17 +293,17 @@ class CausalWanSelfAttention(nn.Module):
                                                  device=evicted_v.device, dtype=torch.long)
                     frame_positions = token_indices // frame_seqlen
                     payload = {
-                        "layer_id": getattr(self, "_block_index", -1),
-                        "evicted_k_pre_rope": None,
-                        "evicted_k_post_rope": evicted_k_post_rope.squeeze(0),
-                        "evicted_v": evicted_v.squeeze(0),
-                        "q_pre_rope": q[0] if q.ndim == 4 else q,
-                        "q_post_rope": roped_query[0],
-                        "token_indices": token_indices,
-                        "frame_positions": frame_positions,
-                        "current_start_frame": current_start_frame,
-                        "capture_reason": rt.capture_reason if rt.capture_enabled else "denoising",
-                    }
+                            "layer_id": getattr(self, "_block_index", -1),
+                            "evicted_k_pre_rope": None,
+                            "evicted_k_post_rope": evicted_k_post_rope.squeeze(0).cpu(),
+                            "evicted_v": evicted_v.squeeze(0).cpu(),
+                            "q_pre_rope": q[0].cpu() if q.ndim == 4 else q.cpu(),
+                            "q_post_rope": roped_query[0].cpu(),
+                            "token_indices": token_indices.cpu(),
+                            "frame_positions": frame_positions.cpu(),
+                            "current_start_frame": current_start_frame,
+                            "capture_reason": rt.capture_reason if rt.capture_enabled else "denoising",
+                        }
                     kv_cache.setdefault("_lifecache_evicted_list", []).append(payload)
                 # --- End LifeCache capture ---
                 kv_cache["k"][:, sink_tokens:sink_tokens + num_rolled_tokens] = \

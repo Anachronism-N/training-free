@@ -282,9 +282,15 @@ class CausalInferencePipeline(torch.nn.Module):
                         evicted_v = payload["evicted_v"]
                         if evicted_k is None or evicted_k.numel() == 0:
                             continue
+                        # Move from CPU to GPU for compression
+                        device = next(p for p in self.generator.parameters()).device
+                        evicted_k = evicted_k.to(device)
+                        evicted_v = evicted_v.to(device)
                         token_indices = payload.get("token_indices",
-                            torch.arange(evicted_k.shape[0], device=evicted_k.device, dtype=torch.long))
+                            torch.arange(evicted_k.shape[0], device=device, dtype=torch.long))
                         q_pre_rope = payload.get("q_pre_rope")
+                        if q_pre_rope is not None:
+                            q_pre_rope = q_pre_rope.to(device)
                         # Pass real query for compression if available
                         q_for_compression = q_pre_rope if q_pre_rope is not None else evicted_k.mean(dim=0, keepdim=True)
                         rt.on_kv_evicted(
