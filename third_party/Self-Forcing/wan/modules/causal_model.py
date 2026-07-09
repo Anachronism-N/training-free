@@ -279,22 +279,23 @@ class CausalWanSelfAttention(nn.Module):
                 num_evicted_tokens = num_new_tokens + kv_cache["local_end_index"].item() - kv_cache_size
                 num_rolled_tokens = kv_cache["local_end_index"].item() - num_evicted_tokens - sink_tokens
                 # --- LifeCache v2: capture evicted tokens ---
-                # Always capture when LifeCache is active — tokens are buffered
-                # and only compressed/stored during clean context refresh.
+                # Always capture when LifeCache is active.
                 if lifecache_manager is not None and num_evicted_tokens > 0 and sink_tokens == 0:
                     rt = lifecache_manager.runtime
-                    # Evicted tokens are the oldest ones being rolled out of cache
+                    # Evicted tokens: read post-RoPE from cache, pre-RoPE from k_pre_rope cache
                     evicted_k_post_rope = kv_cache["k"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
                     evicted_v = kv_cache["v"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
-                    # Pre-RoPE K is NOT directly available for evicted tokens
-                    # (only post-RoPE is stored in the cache).
-                    # We store None and rely on near-only distance filtering for safety.
+                    # Try to get pre-RoPE K if available
+                    evicted_k_pre_rope = None
+                    k_pre_cache = kv_cache.get("k_pre_rope")
+                    if k_pre_cache is not None:
+                        evicted_k_pre_rope = k_pre_cache[:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
                     token_indices = torch.arange(sink_tokens, sink_tokens + num_evicted_tokens,
                                                  device=evicted_v.device, dtype=torch.long)
                     frame_positions = token_indices // frame_seqlen
                     payload = {
                             "layer_id": getattr(self, "_block_index", -1),
-                            "evicted_k_pre_rope": None,
+                            "evicted_k_pre_rope": evicted_k_pre_rope.squeeze(0).cpu() if evicted_k_pre_rope is not None else None,
                             "evicted_k_post_rope": evicted_k_post_rope.squeeze(0).cpu(),
                             "evicted_v": evicted_v.squeeze(0).cpu(),
                             "q_pre_rope": q[0].cpu() if q.ndim == 4 else q.cpu(),
@@ -310,6 +311,11 @@ class CausalWanSelfAttention(nn.Module):
                     kv_cache["k"][:, sink_tokens + num_evicted_tokens:sink_tokens + num_evicted_tokens + num_rolled_tokens].clone()
                 kv_cache["v"][:, sink_tokens:sink_tokens + num_rolled_tokens] = \
                     kv_cache["v"][:, sink_tokens + num_evicted_tokens:sink_tokens + num_evicted_tokens + num_rolled_tokens].clone()
+                # LifeCache: also roll pre-RoPE K cache
+                k_pre = kv_cache.get("k_pre_rope")
+                if k_pre is not None:
+                    k_pre[:, sink_tokens:sink_tokens + num_rolled_tokens] = \
+                        k_pre[:, sink_tokens + num_evicted_tokens:sink_tokens + num_evicted_tokens + num_rolled_tokens].clone()
                 # Insert the new keys/values at the end
                 local_end_index = kv_cache["local_end_index"].item() + current_end - \
                     kv_cache["global_end_index"].item() - num_evicted_tokens
@@ -317,6 +323,11 @@ class CausalWanSelfAttention(nn.Module):
                 # FWAAR stores keys UN-roped (positions assigned fresh each step at attn time).
                 kv_cache["k"][:, local_start_index:local_end_index] = k if fwaar else roped_key
                 kv_cache["v"][:, local_start_index:local_end_index] = v
+                # LifeCache: also write pre-RoPE K
+                if lifecache_manager is not None:
+                    k_pre = kv_cache.setdefault("k_pre_rope",
+                        torch.zeros_like(kv_cache["k"]))
+                    k_pre[:, local_start_index:local_end_index] = k
             else:
                 # Assign new keys/values directly up to current_end
                 local_end_index = kv_cache["local_end_index"].item() + current_end - kv_cache["global_end_index"].item()
@@ -334,6 +345,11 @@ class CausalWanSelfAttention(nn.Module):
                 else:
                     kv_cache["k"][:, local_start_index:local_end_index] = roped_key
                 kv_cache["v"][:, local_start_index:local_end_index] = v
+            # LifeCache: also write pre-RoPE K in all cases
+            if lifecache_manager is not None:
+                k_pre = kv_cache.setdefault("k_pre_rope",
+                    torch.zeros_like(kv_cache["k"]))
+                k_pre[:, local_start_index:local_end_index] = k
             # Build the attention key window. With AAR, re-rope the sink portion
             # to sit just before the current window (bounded relative distance).
             attn_start = max(0, local_end_index - self.max_attention_size)
@@ -437,6 +453,7 @@ class CausalWanSelfAttention(nn.Module):
                             device=recent_k.device, dtype=torch.long,
                         )
                         q_for_life = roped_query[0]  # [tokens, heads, dim]
+                        # Use LAYOUT role for recall (anchor=256, recall=512)
                         active_k, active_v, view = rt.compose_active_cache(
                             layer_id=block_index,
                             q=q_for_life,
@@ -446,6 +463,23 @@ class CausalWanSelfAttention(nn.Module):
                             head_group="layout",
                             role=HeadRole.LAYOUT,
                         )
+                        # --- RoPE remap: re-rope recalled K at position 0 ---
+                        if view is not None and view.regions and active_k.shape[0] > 0:
+                            has_recall = any(r == CacheRegion.RECALL for r in view.regions)
+                            if has_recall:
+                                is_recall = torch.tensor(
+                                    [r == CacheRegion.RECALL for r in view.regions],
+                                    device=active_k.device, dtype=torch.bool)
+                                if is_recall.any():
+                                    idx = is_recall.nonzero(as_tuple=True)[0]
+                                    n = idx.shape[0]
+                                    n_frames = max(1, n // frame_seqlen)
+                                    g = grid_sizes.clone(); g[:, 0] = n_frames
+                                    tp = torch.zeros(n_frames, device=active_k.device, dtype=torch.long)
+                                    rk = causal_rope_apply_pos(
+                                        active_k[idx].unsqueeze(0), g, freqs, tp
+                                    ).squeeze(0).type_as(active_k)
+                                    active_k[idx] = rk
                         active_k = active_k.unsqueeze(0)
                         active_v = active_v.unsqueeze(0)
                     else:

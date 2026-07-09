@@ -79,15 +79,19 @@ def retrieve_token_sets(
     current_frame: int | None = None,
 ) -> list[TokenSet]:
     q_summary = summarize_query(q)
-    # Filter by max_frame_distance if applicable
+    # Filter by max_frame_distance using frame_positions (v2) or frame_ids (v1)
     if config.max_frame_distance is not None and current_frame is not None:
         filtered = []
         for token_set in token_sets:
-            if token_set.frame_ids:
+            # Prefer frame_positions (v2) over frame_ids (v1)
+            if token_set.frame_positions is not None and token_set.frame_positions.numel() > 0:
+                center = token_set.frame_positions.float().mean().item()
+            elif token_set.frame_ids:
                 center = sum(token_set.frame_ids) / len(token_set.frame_ids)
-                if abs(center - current_frame) <= config.max_frame_distance:
-                    filtered.append(token_set)
             else:
+                filtered.append(token_set)
+                continue
+            if abs(center - current_frame) <= config.max_frame_distance:
                 filtered.append(token_set)
         token_sets = filtered
 

@@ -214,6 +214,7 @@ class LifeCacheRuntime:
         q_pre_rope: torch.Tensor | None = None,
         frame_positions: torch.Tensor | None = None,
         current_start_frame: int | None = None,
+        is_pre_rope: bool = False,
     ) -> TokenSet | None:
         """Compress evicted KV tokens and store in bank.
 
@@ -266,6 +267,12 @@ class LifeCacheRuntime:
                 k_summary=evicted_k.float().mean(dim=0),
                 region=CacheRegion.COMPRESSED,
             )
+
+        # Set v2 metadata
+        token_set.rope_mode = "pre_rope" if is_pre_rope else "post_rope"
+        if frame_positions is not None:
+            token_set.frame_positions = frame_positions
+        token_set.capture_step = self.step
 
         self.bank.add(token_set)
 
