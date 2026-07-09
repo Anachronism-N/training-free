@@ -216,6 +216,30 @@ run_sf_lifecache_clean_compression() {
 }
 
 # -------------------------------------------------------------------
+# Run 9: Self-Forcing + LifeCache pre-RoPE remap recall (Experiment C)
+# -------------------------------------------------------------------
+run_sf_lifecache_pre_rope_remap() {
+    local out="$REPO_ROOT/runs/sf_lifecache_pre_rope_remap_${FRAMES}f"
+    echo "[Run 9] Self-Forcing + LifeCache pre-RoPE remap recall -> $out"
+    cd "$REPO_ROOT/third_party/Self-Forcing"
+    export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+    export LIFECACHE_ENABLE=1
+    export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/lifecache_pre_rope_remap.yaml"
+    python inference.py \
+        --config_path "$SF_CONFIG" \
+        --output_folder "$out" \
+        --checkpoint_path "$SF_CHECKPOINT" \
+        --data_path "$PROMPTS" \
+        --num_output_frames "$FRAMES" \
+        --seed "$SEED" \
+        --num_samples 1 \
+        --use_ema \
+        --save_with_index
+    echo "[Run 9] Done: $out"
+    echo ""
+}
+
+# -------------------------------------------------------------------
 # Main
 # -------------------------------------------------------------------
 case "${1:-all}" in
@@ -243,6 +267,9 @@ case "${1:-all}" in
     clean_comp)
         run_sf_lifecache_clean_compression
         ;;
+    pre_rope)
+        run_sf_lifecache_pre_rope_remap
+        ;;
     all)
         run_native_sf
         run_sf_pyramid
@@ -261,6 +288,7 @@ case "${1:-all}" in
         echo "  recall       — Run 6: Self-Forcing + LifeCache union recall"
         echo "  near_recall  — Run 7: Self-Forcing + LifeCache near-only recall"
         echo "  clean_comp   — Run 8: Self-Forcing + LifeCache clean-only compression"
+        echo "  pre_rope     — Run 9: Self-Forcing + LifeCache pre-RoPE remap recall"
         echo "  all          — Run all experiments"
         exit 1
         ;;
