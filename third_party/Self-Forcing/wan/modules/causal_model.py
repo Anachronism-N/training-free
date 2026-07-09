@@ -446,31 +446,6 @@ class CausalWanSelfAttention(nn.Module):
                             head_group="layout",
                             role=HeadRole.LAYOUT,
                         )
-                        # --- RoPE remap for recalled tokens ---
-                        # Recalled tokens may carry stale RoPE positions.
-                        # Remap them to position 0 (oldest legal) for safety.
-                        if view is not None and view.regions:
-                            has_recall = any(r == CacheRegion.RECALL for r in view.regions)
-                            if has_recall and active_k.shape[0] > 0:
-                                is_recall = torch.tensor(
-                                    [r == CacheRegion.RECALL for r in view.regions],
-                                    device=active_k.device, dtype=torch.bool,
-                                )
-                                if is_recall.any():
-                                    recall_idx = is_recall.nonzero(as_tuple=True)[0]
-                                    n_recall_frames = max(1, recall_idx.shape[0] // frame_seqlen)
-                                    # Simple remap: put all recalled tokens at position 0
-                                    recall_grid = grid_sizes.clone()
-                                    recall_grid[:, 0] = n_recall_frames
-                                    t_pos = torch.zeros(n_recall_frames, device=active_k.device, dtype=torch.long)
-                                    recall_k_roped = causal_rope_apply_pos(
-                                        active_k[recall_idx].unsqueeze(0),
-                                        recall_grid, freqs, t_pos,
-                                    ).squeeze(0).type_as(active_k)
-                                    active_k[recall_idx] = recall_k_roped
-                                    # Clean up intermediates
-                                    del recall_k_roped, recall_idx, is_recall, recall_grid, t_pos
-                        # --- End RoPE remap ---
                         active_k = active_k.unsqueeze(0)
                         active_v = active_v.unsqueeze(0)
                     else:
