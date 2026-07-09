@@ -386,6 +386,17 @@ class LifeCacheRuntime:
             layer_id=layer_id,
         )
 
+        # Debug: trace recall candidate count
+        if compressed:
+            self.trace_event(
+                layer_id=layer_id,
+                event="recall_candidates",
+                extra=make_trace_extra(
+                    recall_candidate_sets=len(compressed),
+                    recall_candidate_tokens=sum(s.num_tokens for s in compressed),
+                ),
+            )
+
         view = self.composer.compose(
             q=q,
             role=role,

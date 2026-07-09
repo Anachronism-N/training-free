@@ -297,7 +297,7 @@ class CausalInferencePipeline(torch.nn.Module):
                         q_for_compression = q_pre_rope if q_pre_rope is not None else evicted_k.mean(dim=0, keepdim=True)
                         rt.on_kv_evicted(
                             layer_id=layer_id,
-                            head_group="generic",
+                            head_group="layout",
                             evicted_k=evicted_k,
                             evicted_v=evicted_v,
                             token_indices=token_indices,
@@ -307,6 +307,10 @@ class CausalInferencePipeline(torch.nn.Module):
                             frame_positions=frame_positions,
                             is_pre_rope=payload.get("evicted_k_pre_rope") is not None,
                         )
+
+            # LifeCache: advance step counter after processing evicted tokens
+            if self.lifecache_manager is not None:
+                self.lifecache_manager.runtime.advance_step()
 
             if profile:
                 block_end.record()
