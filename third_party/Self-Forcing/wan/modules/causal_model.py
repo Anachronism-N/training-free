@@ -17,8 +17,12 @@ import torch
 import math
 import torch.distributed as dist
 
-from lifecycle_kv.cache_types import HeadRole
-from lifecycle_kv.tokenset import CacheRegion
+try:
+    from lifecycle_kv.cache_types import HeadRole
+    from lifecycle_kv.tokenset import CacheRegion
+except ImportError:
+    HeadRole = None  # type: ignore
+    CacheRegion = None  # type: ignore
 
 # wan 1.3B model has a weird channel / head configurations and require max-autotune to work with flexattention
 # see https://github.com/pytorch/pytorch/issues/133254
