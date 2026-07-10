@@ -478,13 +478,20 @@ class CausalWanSelfAttention(nn.Module):
                                 if is_recall.any():
                                     idx = is_recall.nonzero(as_tuple=True)[0]
                                     n = idx.shape[0]
+                                    # Sparse tokens: use start_frame=0 for all recalled tokens
+                                    # This is a coarse remap — relative_clamp would be better
+                                    # but requires frame-level grid knowledge
                                     n_frames = max(1, n // frame_seqlen)
                                     g = grid_sizes.clone(); g[:, 0] = n_frames
                                     tp = torch.zeros(n_frames, device=active_k.device, dtype=torch.long)
-                                    rk = causal_rope_apply_pos(
-                                        active_k[idx].unsqueeze(0), g, freqs, tp
-                                    ).squeeze(0).type_as(active_k)
-                                    active_k[idx] = rk
+                                    try:
+                                        rk = causal_rope_apply_pos(
+                                            active_k[idx].unsqueeze(0), g, freqs, tp
+                                        ).squeeze(0).type_as(active_k)
+                                        active_k[idx] = rk
+                                    except RuntimeError:
+                                        # Fallback: skip remap for sparse tokens
+                                        pass
                         active_k = active_k.unsqueeze(0)
                         active_v = active_v.unsqueeze(0)
                     else:
