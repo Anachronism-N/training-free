@@ -490,14 +490,18 @@ class CausalWanSelfAttention(nn.Module):
                                     idx = is_recall.nonzero(as_tuple=True)[0]
                                     n = idx.shape[0]
                                     if n > 0:
-                                        # Use causal_rope_apply with start_frame=0
-                                        # Works with arbitrary token counts (sparse or full)
-                                        recall_grid = grid_sizes.clone()
-                                        recall_grid[:, 0] = max(1, n // frame_seqlen)
-                                        rk = causal_rope_apply(
-                                            active_k[idx].unsqueeze(0), recall_grid, freqs, start_frame=0
+                                        # Pad to full frame grid for causal_rope_apply
+                                        n_frames = max(1, (n + frame_seqlen - 1) // frame_seqlen)
+                                        padded_len = n_frames * frame_seqlen
+                                        pad = padded_len - n
+                                        rk_padded = torch.zeros(padded_len, active_k.shape[1], active_k.shape[2],
+                                                               device=active_k.device, dtype=active_k.dtype)
+                                        rk_padded[:n] = active_k[idx]
+                                        g = grid_sizes.clone(); g[:, 0] = n_frames
+                                        rk_roped = causal_rope_apply(
+                                            rk_padded.unsqueeze(0), g, freqs, start_frame=0
                                         ).squeeze(0).type_as(active_k)
-                                        active_k[idx] = rk
+                                        active_k[idx] = rk_roped[:n]
                         active_k = active_k.unsqueeze(0)
                         active_v = active_v.unsqueeze(0)
                     else:
