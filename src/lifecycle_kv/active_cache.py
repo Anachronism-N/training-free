@@ -53,6 +53,7 @@ class ActiveCacheView:
     region_bias: torch.Tensor | None = None
     region_counts: dict[str, int] | None = None
     source_set_ids: list[str] | None = None
+    frame_positions: torch.Tensor | None = None  # [K], per-token frame positions
 
 
 class ActiveCacheComposer:
@@ -142,11 +143,25 @@ class ActiveCacheComposer:
         # Build source_set_ids
         source_set_ids = [s.set_id for s in selected for _ in range(s.num_tokens)]
 
+        # Build frame_positions from recalled tokens
+        frame_positions = None
+        fp_list = []
+        for s in selected:
+            if s.frame_positions is not None and s.region == CacheRegion.RECALL:
+                fp_list.append(s.frame_positions.to(q.device))
+            elif s.frame_positions is not None:
+                fp_list.append(s.frame_positions.to(q.device))
+            else:
+                fp_list.append(torch.full((s.num_tokens,), -1, device=q.device, dtype=torch.long))
+        if fp_list:
+            frame_positions = torch.cat(fp_list, dim=0)
+
         return ActiveCacheView(
             k, v, regions, selected,
             self._region_bias(regions, role, q.device),
             region_counts=dict(region_counter),
             source_set_ids=source_set_ids,
+            frame_positions=frame_positions,
         )
 
     @staticmethod

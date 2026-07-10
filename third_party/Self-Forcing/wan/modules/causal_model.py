@@ -457,7 +457,9 @@ class CausalWanSelfAttention(nn.Module):
                             attn_start, local_end_index,
                             device=recent_k.device, dtype=torch.long,
                         )
-                        q_for_life = roped_query[0]  # [tokens, heads, dim]
+                        # v2 fix: use pre-RoPE query for pre-RoPE bank retrieval
+                        q_for_life = q[0] if q.ndim == 4 else q  # pre-RoPE query
+                        q_for_attention = roped_query[0]  # post-RoPE for attention
                         # Head-aware routing: skip recall for WAVE/MOTION heads
                         # LAYOUT/ANCHOR heads get recall + anchors
                         role = HeadRole.LAYOUT
@@ -479,7 +481,7 @@ class CausalWanSelfAttention(nn.Module):
                             head_group=hg,
                             role=role,
                         )
-                        # --- RoPE remap: re-rope recalled K at position 0 ---
+                        # --- RoPE remap: relative-clamp for recalled K ---
                         if view is not None and view.regions and active_k.shape[0] > 0:
                             has_recall = any(r == CacheRegion.RECALL for r in view.regions)
                             if has_recall:
@@ -490,7 +492,7 @@ class CausalWanSelfAttention(nn.Module):
                                     idx = is_recall.nonzero(as_tuple=True)[0]
                                     n = idx.shape[0]
                                     if n > 0:
-                                        # Pad to full frame grid for causal_rope_apply
+                                        # Pad to full frame grid for causal_rope_apply_pos
                                         n_frames = max(1, (n + frame_seqlen - 1) // frame_seqlen)
                                         padded_len = n_frames * frame_seqlen
                                         pad = padded_len - n
@@ -498,8 +500,16 @@ class CausalWanSelfAttention(nn.Module):
                                                                device=active_k.device, dtype=active_k.dtype)
                                         rk_padded[:n] = active_k[idx]
                                         g = grid_sizes.clone(); g[:, 0] = n_frames
-                                        rk_roped = causal_rope_apply(
-                                            rk_padded.unsqueeze(0), g, freqs, start_frame=0
+                                        # relative_clamp: map old frame positions to legal range
+                                        TR = self.local_attn_size if self.local_attn_size > 0 else 21
+                                        if hasattr(view, 'frame_positions') and view.frame_positions is not None:
+                                            fp = view.frame_positions[:n].float()
+                                            rel = (current_start_frame - fp).clamp(0, TR - 1)
+                                            t_pos = (TR - 1 - rel).long()
+                                        else:
+                                            t_pos = torch.zeros(n_frames, device=active_k.device, dtype=torch.long)
+                                        rk_roped = causal_rope_apply_pos(
+                                            rk_padded.unsqueeze(0), g, freqs, t_pos
                                         ).squeeze(0).type_as(active_k)
                                         active_k[idx] = rk_roped[:n]
                         active_k = active_k.unsqueeze(0)
