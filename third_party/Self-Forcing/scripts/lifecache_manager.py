@@ -28,14 +28,17 @@ from typing import Optional
 import yaml
 
 from lifecycle_kv.runtime import LifeCacheRuntime, LifeCacheRuntimeConfig
+from lifecycle_kv.cache_types import HeadRole
 
 
 class LifecycleCacheManager:
     """Wrapper that creates and holds a LifeCacheRuntime from config."""
 
-    def __init__(self, runtime: LifeCacheRuntime, num_layers: int = 30) -> None:
+    def __init__(self, runtime: LifeCacheRuntime, num_layers: int = 30,
+                 head_roles: dict | None = None) -> None:
         self.runtime = runtime
         self.num_layers = num_layers
+        self._head_roles = head_roles or {}
 
         # Compute enable_layers from enable_last_n_layers if set
         if runtime.config.enable_layers is None:
@@ -103,7 +106,29 @@ class LifecycleCacheManager:
         )
 
         runtime = LifeCacheRuntime(runtime_config)
-        return cls(runtime, num_layers=num_layers)
+
+        # Load head roles from Pyramid CSV for head-aware routing
+        head_roles: dict = {}
+        pyramid_path = lc.get("head_roles_path", "")
+        if pyramid_path:
+            if not os.path.isabs(pyramid_path):
+                pyramid_path = os.path.normpath(os.path.join(
+                    os.path.dirname(os.path.abspath(config_path)), pyramid_path))
+            if os.path.exists(pyramid_path):
+                from lifecycle_kv.head_roles import parse_head_role
+                with open(pyramid_path, "r") as f:
+                    for layer_id, line in enumerate(f):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        for head_id, val in enumerate(line.split(",")):
+                            try:
+                                role = parse_head_role(val.strip())
+                            except Exception:
+                                role = HeadRole.GENERIC
+                            head_roles[(layer_id, head_id)] = role
+
+        return cls(runtime, num_layers=num_layers, head_roles=head_roles)
 
     @property
     def config(self) -> LifeCacheRuntimeConfig:

@@ -458,15 +458,26 @@ class CausalWanSelfAttention(nn.Module):
                             device=recent_k.device, dtype=torch.long,
                         )
                         q_for_life = roped_query[0]  # [tokens, heads, dim]
-                        # Use LAYOUT role for recall (anchor=256, recall=512)
+                        # Head-aware routing: skip recall for WAVE/MOTION heads
+                        # LAYOUT/ANCHOR heads get recall + anchors
+                        role = HeadRole.LAYOUT
+                        hg = "layout"
+                        if hasattr(lifecache_manager, '_head_roles'):
+                            hr = lifecache_manager._head_roles
+                            # Check if majority of heads in this layer are motion/wave
+                            n_motion = sum(1 for h in range(self.num_heads)
+                                           if hr.get((block_index, h), HeadRole.GENERIC) in {HeadRole.WAVE, HeadRole.MOTION})
+                            if n_motion > self.num_heads // 2:
+                                role = HeadRole.GENERIC  # No recall for motion-dominated layers
+                                hg = "generic"
                         active_k, active_v, view = rt.compose_active_cache(
                             layer_id=block_index,
                             q=q_for_life,
                             native_recent_k=recent_k[0],
                             native_recent_v=recent_v[0],
                             token_indices=token_indices,
-                            head_group="layout",
-                            role=HeadRole.LAYOUT,
+                            head_group=hg,
+                            role=role,
                         )
                         # --- RoPE remap: re-rope recalled K at position 0 ---
                         if view is not None and view.regions and active_k.shape[0] > 0:
@@ -478,20 +489,15 @@ class CausalWanSelfAttention(nn.Module):
                                 if is_recall.any():
                                     idx = is_recall.nonzero(as_tuple=True)[0]
                                     n = idx.shape[0]
-                                    # Sparse tokens: use start_frame=0 for all recalled tokens
-                                    # This is a coarse remap — relative_clamp would be better
-                                    # but requires frame-level grid knowledge
-                                    n_frames = max(1, n // frame_seqlen)
-                                    g = grid_sizes.clone(); g[:, 0] = n_frames
-                                    tp = torch.zeros(n_frames, device=active_k.device, dtype=torch.long)
-                                    try:
-                                        rk = causal_rope_apply_pos(
-                                            active_k[idx].unsqueeze(0), g, freqs, tp
+                                    if n > 0:
+                                        # Use causal_rope_apply with start_frame=0
+                                        # Works with arbitrary token counts (sparse or full)
+                                        recall_grid = grid_sizes.clone()
+                                        recall_grid[:, 0] = max(1, n // frame_seqlen)
+                                        rk = causal_rope_apply(
+                                            active_k[idx].unsqueeze(0), recall_grid, freqs, start_frame=0
                                         ).squeeze(0).type_as(active_k)
                                         active_k[idx] = rk
-                                    except RuntimeError:
-                                        # Fallback: skip remap for sparse tokens
-                                        pass
                         active_k = active_k.unsqueeze(0)
                         active_v = active_v.unsqueeze(0)
                     else:
