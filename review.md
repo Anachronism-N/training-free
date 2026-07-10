@@ -1288,7 +1288,8 @@ pytest tests/test_tokenset.py tests/test_bank.py tests/test_compression.py tests
 2. pipeline 初始化 LifeCacheRuntime。
 3. CausalWanSelfAttention.forward 只 trace，不改输出。
 4. 再做 compression-only。
-5. 最后只在 last 6 layers 开 union recall。
+5. 最后只在 last 6 la
+yers 开 union recall。
 ```
 
 不要跨步。现在这个项目最大的风险不是 idea 不够，而是一次性打开太多机制导致不可 debug。先让 trace 和 compression 变成稳定基础设施，再谈 recall 增益。

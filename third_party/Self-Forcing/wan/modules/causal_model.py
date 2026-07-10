@@ -285,7 +285,8 @@ class CausalWanSelfAttention(nn.Module):
                     # Debug: log first eviction
                     if not hasattr(self, '_lifecache_debug_logged'):
                         self._lifecache_debug_logged = True
-                        print(f'[LifeCache DEBUG] Layer {getattr(self, \"_block_index\", -1)}: evicting {num_evicted_tokens} tokens at current_start_frame={current_start_frame}')
+                        bi = getattr(self, '_block_index', -1)
+                        print(f'[LifeCache DEBUG] Layer {bi}: evicting {num_evicted_tokens} tokens at frame={current_start_frame}')
                     # Evicted tokens: read post-RoPE from cache, pre-RoPE from k_pre_rope cache
                     evicted_k_post_rope = kv_cache["k"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
                     evicted_v = kv_cache["v"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()

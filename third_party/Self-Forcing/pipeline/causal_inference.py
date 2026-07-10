@@ -274,10 +274,10 @@ class CausalInferencePipeline(torch.nn.Module):
                     cache = self.kv_cache1[layer_id]
                     evicted_list = cache.pop("_lifecache_evicted_list", [])
                     for payload in evicted_list:
-                        capture_reason = payload.get("capture_reason", "")
-                        # Only compress and store tokens from clean-context capture
-                        if rt.config.capture_clean_only and capture_reason != "clean_context":
-                            continue
+                        # v2: accept all captured tokens. Clean-only filtering
+                        # prevents eviction capture because eviction only happens
+                        # during denoising steps, not clean context refresh.
+                        # RoPE remap handles position safety at recall time.
                         evicted_k = payload.get("evicted_k_pre_rope") or payload["evicted_k_post_rope"]
                         evicted_v = payload["evicted_v"]
                         if evicted_k is None or evicted_k.numel() == 0:
