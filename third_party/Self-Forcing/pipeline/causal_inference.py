@@ -278,6 +278,10 @@ class CausalInferencePipeline(torch.nn.Module):
                         # prevents eviction capture because eviction only happens
                         # during denoising steps, not clean context refresh.
                         # RoPE remap handles position safety at recall time.
+                        # Only capture from the last (cleanest) denoising step
+                        capture_ts = payload.get("capture_timestep")
+                        if capture_ts is not None and capture_ts > 650:
+                            continue  # Skip noisy early steps, keep only step 625
                         evicted_k = payload.get("evicted_k_pre_rope")
                         if evicted_k is None:
                             evicted_k = payload["evicted_k_post_rope"]

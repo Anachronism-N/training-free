@@ -302,6 +302,10 @@ class CausalWanSelfAttention(nn.Module):
                     token_indices = torch.arange(sink_tokens, sink_tokens + num_evicted_tokens,
                                                  device=evicted_v.device, dtype=torch.long)
                     frame_positions = token_indices // frame_seqlen
+                    # Capture denoising step index for quality filtering
+                    timestep_val = None
+                    if hasattr(self, '_current_timestep'):
+                        timestep_val = self._current_timestep
                     payload = {
                             "layer_id": getattr(self, "_block_index", -1),
                             "evicted_k_pre_rope": evicted_k_pre_rope.squeeze(0).cpu() if evicted_k_pre_rope is not None else None,
@@ -313,6 +317,7 @@ class CausalWanSelfAttention(nn.Module):
                             "frame_positions": frame_positions.cpu(),
                             "current_start_frame": current_start_frame,
                             "capture_reason": rt.capture_reason if rt.capture_enabled else "denoising",
+                            "capture_timestep": timestep_val,
                         }
                     kv_cache.setdefault("_lifecache_evicted_list", []).append(payload)
                 # --- End LifeCache capture ---
@@ -1219,6 +1224,7 @@ class CausalWanModel(ModelMixin, ConfigMixin):
                     }
                 )
                 block.self_attn._block_index = block_index
+                block.self_attn._current_timestep = float(t.flatten()[0].item()) if hasattr(t, 'item') else 0
                 x = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(block),
                     x, **kwargs,
@@ -1227,6 +1233,7 @@ class CausalWanModel(ModelMixin, ConfigMixin):
             else:
                 # Set block index on self-attention for LifeCache
                 block.self_attn._block_index = block_index
+                block.self_attn._current_timestep = float(t.flatten()[0].item()) if hasattr(t, 'item') else 0
                 kwargs.update(
                     {
                         "kv_cache": kv_cache[block_index],
