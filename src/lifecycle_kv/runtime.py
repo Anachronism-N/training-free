@@ -94,6 +94,9 @@ class LifeCacheRuntimeConfig:
     # Debug
     record_latency: bool = False
 
+    # Random recall for ablation
+    random_recall: bool = False
+
 
 class LifeCacheRuntime:
     """Orchestrates LifeCache operations during inference.
@@ -415,6 +418,29 @@ class LifeCacheRuntime:
                 extra=make_trace_extra(fallback=True, latency_ms=latency),
             )
             return native_recent_k, native_recent_v, None
+
+        # --- Random recall ablation ---
+        # Replace recalled tokens with random tokens from the bank
+        if self.config.random_recall and view.k is not None:
+            n_recall = sum(1 for r in view.regions if r == CacheRegion.RECALL)
+            if n_recall > 0:
+                # Get all bank tokens for this layer
+                all_sets = self.bank.list_sets(
+                    regions=[CacheRegion.COMPRESSED],
+                    layer_id=layer_id,
+                )
+                if all_sets:
+                    all_k = torch.cat([s.k.to(view.k.device) for s in all_sets], dim=0)
+                    all_v = torch.cat([s.v.to(view.k.device) for s in all_sets], dim=0)
+                    n_total = all_k.shape[0]
+                    if n_total >= n_recall:
+                        rand_idx = torch.randperm(n_total, device=view.k.device)[:n_recall]
+                        is_recall = torch.tensor([r == CacheRegion.RECALL for r in view.regions],
+                                                 device=view.k.device, dtype=torch.bool)
+                        recall_pos = is_recall.nonzero(as_tuple=True)[0]
+                        view.k[recall_pos] = all_k[rand_idx]
+                        view.v[recall_pos] = all_v[rand_idx]
+        # --- End random recall ---
 
         # Track usage
         used_ids = [ts.set_id for ts in view.token_sets]

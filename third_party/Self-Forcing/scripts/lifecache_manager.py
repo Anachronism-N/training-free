@@ -103,6 +103,7 @@ class LifecycleCacheManager:
             capture_clean_only=lc.get("capture_clean_only", True),
             use_real_query_for_compression=lc.get("use_real_query_for_compression", True),
             enable_last_n_layers=lc.get("enable_last_n_layers", 0),
+            random_recall=lc.get("random_recall", False),
         )
 
         runtime = LifeCacheRuntime(runtime_config)
