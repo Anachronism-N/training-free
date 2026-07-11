@@ -11,19 +11,19 @@ lifecache:
   compression_min_tokens: 64
 
   recall_enabled: true
-  recall_top_sets: 4
-  recall_top_tokens: 256
+  recall_top_sets: 1
+  recall_top_tokens: 32
   max_frame_distance: null  # No distance filter — RoPE remap handles safety
 
   anchor_enabled: false
   motion_enabled: false
 
-  region_bias_beta: 0.0
+  region_bias_beta: 0.05
   trace_path: cache_trace.jsonl
   record_latency: true
 
   # Only enable on last 3 layers (reduce memory pressure)
-  enable_last_n_layers: 3
+  enable_last_n_layers: 1
 
   # v2 RoPE safety
   rope_safe_recall: true

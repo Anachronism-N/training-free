@@ -420,6 +420,21 @@ class LifeCacheRuntime:
         used_ids = [ts.set_id for ts in view.token_sets]
         self.bank.mark_used(used_ids, self.step)
 
+        # --- QK score diagnostic ---
+        # Compute proxy QK scores for recalled vs recent tokens
+        from lifecycle_kv.compression import qk_proxy_scores
+        qk_recent = 0.0
+        qk_recall = 0.0
+        n_recall = 0
+        for i, r in enumerate(view.regions):
+            if r == CacheRegion.RECALL:
+                n_recall += 1
+        if n_recall > 0 and view.k is not None:
+            qk_all = qk_proxy_scores(q, view.k)
+            qk_recent = float(qk_all[-native_recent_k.shape[0]:].mean()) if native_recent_k.shape[0] > 0 else 0.0
+            qk_recall = float(qk_all[:n_recall].mean()) if n_recall > 0 else 0.0
+        # --- End QK diagnostic ---
+
         latency = (time.perf_counter() - t0) * 1000 if self.config.record_latency else None
         self.trace_event(
             layer_id=layer_id,
@@ -432,6 +447,8 @@ class LifeCacheRuntime:
                 anchor_tokens=sum(1 for r in view.regions if r == CacheRegion.ANCHOR),
                 bank_total_tokens=self.bank.total_tokens(),
                 latency_ms=latency,
+                qk_score_recall=qk_recall,
+                qk_score_recent=qk_recent,
             ),
         )
 
