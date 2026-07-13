@@ -94,7 +94,7 @@ def causal_rope_apply_pos(x, grid_sizes, freqs, t_pos):
 # ---------------------------------------------------------------------------
 def causal_rope_apply_sparse_3d(
     x: "torch.Tensor",           # [T, H, D] or [B, T, H, D]
-    freqs: "torch.Tensor",
+    freqs: "torch.Tensor",       # complex freqs from rope_params
     temporal_idx: "torch.Tensor", # [T] — absolute frame index for each token
     spatial_idx: "torch.Tensor",  # [T] — spatial position within frame
     grid_h: int = 60,
@@ -103,44 +103,44 @@ def causal_rope_apply_sparse_3d(
 ) -> "torch.Tensor":
     """Apply RoPE to arbitrary sparse tokens with real t/h/w coordinates.
 
-    Unlike causal_rope_apply which requires a full [F, H, W] grid,
-    this function works with arbitrary token sets by gathering
-    per-token frequency components based on their real positions.
+    Uses Wan's native complex frequency representation (from rope_params).
+    freqs is [max_seq, D/2] complex — already in polar form.
 
     temporal_idx: absolute frame index, clamped to [0, clamp_temporal-1]
     spatial_idx: position within frame (0 to H*W-1)
     """
     import torch as _torch
-    n, c = x.shape[-2], x.shape[-1] // 2
+    n_heads = x.shape[-2]
+    head_dim = x.shape[-1]
+    c = head_dim // 2  # complex dimension
+
+    # Split freqs into temporal/height/width bands (same as native rope_apply)
     freqs_split = freqs.split([c - 2 * (c // 3), c // 3, c // 3], dim=1)
 
-    # Clamp temporal to legal range
+    # Clamp temporal to legal range, compute h/w from spatial
     t_idx = temporal_idx.clamp(0, clamp_temporal - 1).long()
-    # Compute h, w from spatial index
     h_idx = (spatial_idx // grid_w).clamp(0, grid_h - 1).long()
     w_idx = (spatial_idx % grid_w).clamp(0, grid_w - 1).long()
 
-    # Gather per-token frequencies
-    freq_t = freqs_split[0][t_idx]  # [T, D_t]
-    freq_h = freqs_split[1][h_idx]  # [T, D_h]
-    freq_w = freqs_split[2][w_idx]  # [T, D_w]
-    freq_i = _torch.cat([freq_t, freq_h, freq_w], dim=-1)  # [T, D/2]
+    # Gather per-token complex frequencies (already complex from rope_params)
+    freq_t = freqs_split[0][t_idx]  # [T, D_t] complex
+    freq_h = freqs_split[1][h_idx]  # [T, D_h] complex
+    freq_w = freqs_split[2][w_idx]  # [T, D_w] complex
+    freq_i = _torch.cat([freq_t, freq_h, freq_w], dim=-1)  # [T, D/2] complex
 
-    # Apply rotation
-    was_4d = x.ndim == 4
-    if was_4d:
-        B, T, H, D = x.shape
-        x_flat = x.reshape(B * T, H, D)
-        freq_i = freq_i.unsqueeze(0).expand(B, -1, -1).reshape(B * T, -1)
-    else:
-        x_flat = x
+    # Convert x to complex: [..., H, D] -> [..., H, D/2] complex
+    x_complex = _torch.view_as_complex(
+        x.float().reshape(-1, n_heads, head_dim // 2, 2)
+    )  # [N, H, D/2] complex
 
-    x_complex = _torch.view_as_complex(x_flat.float().reshape(-1, n, c, 2))
-    freq_complex = _torch.view_as_complex(freq_i.unsqueeze(1).expand(-1, n, -1).reshape(-1, n, c, 2))
-    x_rotated = _torch.view_as_real(x_complex * freq_complex).reshape(x_flat.shape)
+    # Apply rotation: complex multiplication
+    freq_expanded = freq_i.unsqueeze(-2)  # [T, 1, D/2] for broadcasting over heads
+    if x_complex.shape[0] != freq_expanded.shape[0]:
+        freq_expanded = freq_expanded.expand(x_complex.shape[0], -1, -1)
+    x_rotated_complex = x_complex * freq_expanded  # [N, H, D/2] complex
 
-    if was_4d:
-        x_rotated = x_rotated.reshape(B, T, H, D)
+    # Convert back to real
+    x_rotated = _torch.view_as_real(x_rotated_complex).reshape(x.shape)
 
     return x_rotated.type_as(x)
 
@@ -569,10 +569,17 @@ class CausalWanSelfAttention(nn.Module):
                                         # Get temporal and spatial positions for recalled tokens
                                         fp = getattr(view, 'frame_positions', None)
                                         sp = getattr(view, 'spatial_positions', None)
-                                        if fp is not None and sp is not None and fp[:idx.shape[0]].min() >= 0:
-                                            TR = self.local_attn_size if self.local_attn_size > 0 else 21
-                                            temporal_idx = fp[:idx.shape[0]].clamp(0, TR - 1).long()
-                                            spatial_idx = sp[:idx.shape[0]].long()
+                                        # Use index_select for correct indexing (not prefix slice)
+                                        if fp is not None and sp is not None:
+                                            recall_fp = fp.index_select(0, idx)
+                                            recall_sp = sp.index_select(0, idx)
+                                            if recall_fp.min() >= 0:
+                                                TR = self.local_attn_size if self.local_attn_size > 0 else 21
+                                                temporal_idx = recall_fp.clamp(0, TR - 1).long()
+                                                spatial_idx = recall_sp.long()
+                                            else:
+                                                temporal_idx = torch.zeros(idx.shape[0], device=active_k.device, dtype=torch.long)
+                                                spatial_idx = torch.arange(idx.shape[0], device=active_k.device, dtype=torch.long)
                                         else:
                                             temporal_idx = torch.zeros(idx.shape[0], device=active_k.device, dtype=torch.long)
                                             spatial_idx = torch.arange(idx.shape[0], device=active_k.device, dtype=torch.long)
