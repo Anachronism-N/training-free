@@ -54,6 +54,7 @@ class ActiveCacheView:
     region_counts: dict[str, int] | None = None
     source_set_ids: list[str] | None = None
     frame_positions: torch.Tensor | None = None  # [K], per-token frame positions
+    spatial_positions: torch.Tensor | None = None  # [K], per-token spatial positions
 
 
 class ActiveCacheComposer:
@@ -145,16 +146,21 @@ class ActiveCacheComposer:
 
         # Build frame_positions from recalled tokens
         frame_positions = None
+        spatial_positions = None
         fp_list = []
+        sp_list = []
         for s in selected:
-            if s.frame_positions is not None and s.region == CacheRegion.RECALL:
-                fp_list.append(s.frame_positions.to(q.device))
-            elif s.frame_positions is not None:
+            if s.frame_positions is not None:
                 fp_list.append(s.frame_positions.to(q.device))
             else:
                 fp_list.append(torch.full((s.num_tokens,), -1, device=q.device, dtype=torch.long))
+            if hasattr(s, 'spatial_positions') and s.spatial_positions is not None:
+                sp_list.append(s.spatial_positions.to(q.device))
+            else:
+                sp_list.append(torch.full((s.num_tokens,), -1, device=q.device, dtype=torch.long))
         if fp_list:
             frame_positions = torch.cat(fp_list, dim=0)
+            spatial_positions = torch.cat(sp_list, dim=0)
 
         return ActiveCacheView(
             k, v, regions, selected,
@@ -162,6 +168,7 @@ class ActiveCacheComposer:
             region_counts=dict(region_counter),
             source_set_ids=source_set_ids,
             frame_positions=frame_positions,
+            spatial_positions=spatial_positions,
         )
 
     @staticmethod

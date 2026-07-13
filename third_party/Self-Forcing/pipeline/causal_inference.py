@@ -299,6 +299,8 @@ class CausalInferencePipeline(torch.nn.Module):
                             q_pre_rope = q_pre_rope.to(device)
                         fp = payload.get("frame_positions")
                         frame_positions = fp.to(device) if fp is not None else None
+                        sp = payload.get("spatial_positions")
+                        spatial_positions = sp.to(device) if sp is not None else None
                         # Use pre-RoPE K with q_pre_rope for better compression
                         q_for_compression = q_pre_rope if q_pre_rope is not None else evicted_k.mean(dim=0, keepdim=True)
                         rt.on_kv_evicted(
@@ -311,6 +313,7 @@ class CausalInferencePipeline(torch.nn.Module):
                             chunk_id=chunk_id,
                             frame_ids=frame_ids,
                             frame_positions=frame_positions,
+                            spatial_positions=spatial_positions,
                             is_pre_rope=payload.get("evicted_k_pre_rope") is not None,
                         )
 

@@ -88,6 +88,63 @@ def causal_rope_apply_pos(x, grid_sizes, freqs, t_pos):
     return torch.stack(output).type_as(x)
 
 
+# ---------------------------------------------------------------------------
+# LifeCache v3: Sparse 3D RoPE for recalled tokens with real positions
+# Based on MemRoPE's token-wise frequency gather approach
+# ---------------------------------------------------------------------------
+def causal_rope_apply_sparse_3d(
+    x: "torch.Tensor",           # [T, H, D] or [B, T, H, D]
+    freqs: "torch.Tensor",
+    temporal_idx: "torch.Tensor", # [T] — absolute frame index for each token
+    spatial_idx: "torch.Tensor",  # [T] — spatial position within frame
+    grid_h: int = 60,
+    grid_w: int = 104,
+    clamp_temporal: int = 21,
+) -> "torch.Tensor":
+    """Apply RoPE to arbitrary sparse tokens with real t/h/w coordinates.
+
+    Unlike causal_rope_apply which requires a full [F, H, W] grid,
+    this function works with arbitrary token sets by gathering
+    per-token frequency components based on their real positions.
+
+    temporal_idx: absolute frame index, clamped to [0, clamp_temporal-1]
+    spatial_idx: position within frame (0 to H*W-1)
+    """
+    import torch as _torch
+    n, c = x.shape[-2], x.shape[-1] // 2
+    freqs_split = freqs.split([c - 2 * (c // 3), c // 3, c // 3], dim=1)
+
+    # Clamp temporal to legal range
+    t_idx = temporal_idx.clamp(0, clamp_temporal - 1).long()
+    # Compute h, w from spatial index
+    h_idx = (spatial_idx // grid_w).clamp(0, grid_h - 1).long()
+    w_idx = (spatial_idx % grid_w).clamp(0, grid_w - 1).long()
+
+    # Gather per-token frequencies
+    freq_t = freqs_split[0][t_idx]  # [T, D_t]
+    freq_h = freqs_split[1][h_idx]  # [T, D_h]
+    freq_w = freqs_split[2][w_idx]  # [T, D_w]
+    freq_i = _torch.cat([freq_t, freq_h, freq_w], dim=-1)  # [T, D/2]
+
+    # Apply rotation
+    was_4d = x.ndim == 4
+    if was_4d:
+        B, T, H, D = x.shape
+        x_flat = x.reshape(B * T, H, D)
+        freq_i = freq_i.unsqueeze(0).expand(B, -1, -1).reshape(B * T, -1)
+    else:
+        x_flat = x
+
+    x_complex = _torch.view_as_complex(x_flat.float().reshape(-1, n, c, 2))
+    freq_complex = _torch.view_as_complex(freq_i.unsqueeze(1).expand(-1, n, -1).reshape(-1, n, c, 2))
+    x_rotated = _torch.view_as_real(x_complex * freq_complex).reshape(x_flat.shape)
+
+    if was_4d:
+        x_rotated = x_rotated.reshape(B, T, H, D)
+
+    return x_rotated.type_as(x)
+
+
 def _anchor_grid(grid_sizes, sink_frames):
     """Grid spec for the sink/anchor portion only (sink_frames temporal frames,
     same H/W as the full grid). Used by Anchor-Adjacent RoPE to re-rope the
@@ -301,7 +358,15 @@ class CausalWanSelfAttention(nn.Module):
                         evicted_k_pre_rope = k_pre_cache[:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
                     token_indices = torch.arange(sink_tokens, sink_tokens + num_evicted_tokens,
                                                  device=evicted_v.device, dtype=torch.long)
-                    frame_positions = token_indices // frame_seqlen
+                    # Compute ABSOLUTE frame positions from global token counter
+                    # The evicted tokens start at (global_end - local_end + sink_tokens)
+                    # and each token is at absolute position (global token index // frame_seqlen)
+                    evict_start_token = kv_cache["global_end_index"].item() - kv_cache["local_end_index"].item() + sink_tokens
+                    abs_token_indices = torch.arange(evict_start_token, evict_start_token + num_evicted_tokens,
+                                                     device=evicted_v.device, dtype=torch.long)
+                    frame_positions = abs_token_indices // frame_seqlen
+                    # Spatial positions within each frame
+                    spatial_positions = abs_token_indices % frame_seqlen
                     # Capture denoising step index for quality filtering
                     timestep_val = None
                     if hasattr(self, '_current_timestep'):
@@ -315,6 +380,7 @@ class CausalWanSelfAttention(nn.Module):
                             "q_post_rope": roped_query[0].cpu(),
                             "token_indices": token_indices.cpu(),
                             "frame_positions": frame_positions.cpu(),
+                            "spatial_positions": spatial_positions.cpu(),
                             "current_start_frame": current_start_frame,
                             "capture_reason": rt.capture_reason if rt.capture_enabled else "denoising",
                             "capture_timestep": timestep_val,
@@ -490,7 +556,7 @@ class CausalWanSelfAttention(nn.Module):
                             head_group=hg,
                             role=role,
                         )
-                        # --- RoPE remap: relative-clamp for recalled K ---
+                        # --- RoPE remap v3: sparse 3D RoPE with real positions ---
                         if view is not None and view.regions and active_k.shape[0] > 0:
                             has_recall = any(r == CacheRegion.RECALL for r in view.regions)
                             if has_recall:
@@ -499,28 +565,23 @@ class CausalWanSelfAttention(nn.Module):
                                     device=active_k.device, dtype=torch.bool)
                                 if is_recall.any():
                                     idx = is_recall.nonzero(as_tuple=True)[0]
-                                    n = idx.shape[0]
-                                    if n > 0:
-                                        # Pad to full frame grid for causal_rope_apply_pos
-                                        n_frames = max(1, (n + frame_seqlen - 1) // frame_seqlen)
-                                        padded_len = n_frames * frame_seqlen
-                                        pad = padded_len - n
-                                        rk_padded = torch.zeros(padded_len, active_k.shape[1], active_k.shape[2],
-                                                               device=active_k.device, dtype=active_k.dtype)
-                                        rk_padded[:n] = active_k[idx]
-                                        g = grid_sizes.clone(); g[:, 0] = n_frames
-                                        # relative_clamp: map old frame positions to legal range
-                                        TR = self.local_attn_size if self.local_attn_size > 0 else 21
-                                        if hasattr(view, 'frame_positions') and view.frame_positions is not None:
-                                            fp = view.frame_positions[:n].float()
-                                            rel = (current_start_frame - fp).clamp(0, TR - 1)
-                                            t_pos = (TR - 1 - rel).long()
+                                    if idx.shape[0] > 0:
+                                        # Get temporal and spatial positions for recalled tokens
+                                        fp = getattr(view, 'frame_positions', None)
+                                        sp = getattr(view, 'spatial_positions', None)
+                                        if fp is not None and sp is not None and fp[:idx.shape[0]].min() >= 0:
+                                            TR = self.local_attn_size if self.local_attn_size > 0 else 21
+                                            temporal_idx = fp[:idx.shape[0]].clamp(0, TR - 1).long()
+                                            spatial_idx = sp[:idx.shape[0]].long()
                                         else:
-                                            t_pos = torch.zeros(n_frames, device=active_k.device, dtype=torch.long)
-                                        rk_roped = causal_rope_apply_pos(
-                                            rk_padded.unsqueeze(0), g, freqs, t_pos
-                                        ).squeeze(0).type_as(active_k)
-                                        active_k[idx] = rk_roped[:n]
+                                            temporal_idx = torch.zeros(idx.shape[0], device=active_k.device, dtype=torch.long)
+                                            spatial_idx = torch.arange(idx.shape[0], device=active_k.device, dtype=torch.long)
+                                        # Apply sparse 3D RoPE
+                                        rk = causal_rope_apply_sparse_3d(
+                                            active_k[idx], freqs, temporal_idx, spatial_idx,
+                                            grid_h=60, grid_w=104, clamp_temporal=TR,
+                                        )
+                                        active_k[idx] = rk.type_as(active_k)
                         active_k = active_k.unsqueeze(0)
                         active_v = active_v.unsqueeze(0)
                     else:

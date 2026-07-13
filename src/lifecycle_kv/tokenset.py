@@ -46,6 +46,7 @@ class TokenSet:
     source_positions: Optional[torch.Tensor] = None
     rope_mode: Literal["pre_rope", "post_rope"] = "post_rope"
     frame_positions: Optional[torch.Tensor] = None  # [T], per-token frame index
+    spatial_positions: Optional[torch.Tensor] = None  # [T], per-token spatial position
     source_start_frame: Optional[int] = None
     capture_step: int = -1
 
