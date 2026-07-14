@@ -583,10 +583,12 @@ class CausalWanSelfAttention(nn.Module):
                                         else:
                                             temporal_idx = torch.zeros(idx.shape[0], device=active_k.device, dtype=torch.long)
                                             spatial_idx = torch.arange(idx.shape[0], device=active_k.device, dtype=torch.long)
-                                        # Apply sparse 3D RoPE
+                                        # Apply sparse 3D RoPE with dynamic grid dimensions
+                                        gh = int(grid_sizes[0, 1].item())
+                                        gw = int(grid_sizes[0, 2].item())
                                         rk = causal_rope_apply_sparse_3d(
                                             active_k[idx], freqs, temporal_idx, spatial_idx,
-                                            grid_h=60, grid_w=104, clamp_temporal=TR,
+                                            grid_h=gh, grid_w=gw, clamp_temporal=TR,
                                         )
                                         active_k[idx] = rk.type_as(active_k)
                         active_k = active_k.unsqueeze(0)

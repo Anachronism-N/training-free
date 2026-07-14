@@ -106,6 +106,8 @@ class LifecycleCacheManager:
             random_recall=lc.get("random_recall", False),
         )
 
+        runtime = LifeCacheRuntime(runtime_config)
+
         # Load head roles from Pyramid CSV for head-aware routing
         head_roles: dict = {}
         pyramid_path = lc.get("head_roles_path", "")
@@ -132,7 +134,7 @@ class LifecycleCacheManager:
                 print(f"[LifeCache] WARNING: head roles file not found: {pyramid_path}")
 
         # Validate head roles
-        expected = num_layers * 12  # 30 layers x 12 heads
+        expected = num_layers * 12
         if pyramid_path and len(head_roles) != expected:
             print(f"[LifeCache] WARNING: expected {expected} head roles, loaded {len(head_roles)}. "
                   f"Head-aware routing may not work correctly.")
@@ -142,7 +144,7 @@ class LifecycleCacheManager:
             from collections import Counter
             role_counts = Counter(head_roles.values())
             print(f"[LifeCache] Loaded {len(head_roles)} head roles: "
-                  f"{', '.join(f'{k.value}={v}' for k, v in sorted(role_counts.items()))}")
+                  f"{', '.join(f'{k.value}={v}' for k, v in sorted(role_counts.items(), key=lambda x: x[0].value))}")
 
         return cls(runtime, num_layers=num_layers, head_roles=head_roles)
 
