@@ -106,15 +106,15 @@ class LifecycleCacheManager:
             random_recall=lc.get("random_recall", False),
         )
 
-        runtime = LifeCacheRuntime(runtime_config)
-
         # Load head roles from Pyramid CSV for head-aware routing
         head_roles: dict = {}
         pyramid_path = lc.get("head_roles_path", "")
         if pyramid_path:
             if not os.path.isabs(pyramid_path):
-                pyramid_path = os.path.normpath(os.path.join(
-                    os.path.dirname(os.path.abspath(config_path)), pyramid_path))
+                # Resolve relative to repo root (go up 3 levels from this file)
+                repo_root = os.path.normpath(os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+                pyramid_path = os.path.normpath(os.path.join(repo_root, pyramid_path))
             if os.path.exists(pyramid_path):
                 from lifecycle_kv.head_roles import parse_head_role
                 with open(pyramid_path, "r") as f:
@@ -128,6 +128,21 @@ class LifecycleCacheManager:
                             except Exception:
                                 role = HeadRole.GENERIC
                             head_roles[(layer_id, head_id)] = role
+            else:
+                print(f"[LifeCache] WARNING: head roles file not found: {pyramid_path}")
+
+        # Validate head roles
+        expected = num_layers * 12  # 30 layers x 12 heads
+        if pyramid_path and len(head_roles) != expected:
+            print(f"[LifeCache] WARNING: expected {expected} head roles, loaded {len(head_roles)}. "
+                  f"Head-aware routing may not work correctly.")
+
+        # Print role distribution
+        if head_roles:
+            from collections import Counter
+            role_counts = Counter(head_roles.values())
+            print(f"[LifeCache] Loaded {len(head_roles)} head roles: "
+                  f"{', '.join(f'{k.value}={v}' for k, v in sorted(role_counts.items()))}")
 
         return cls(runtime, num_layers=num_layers, head_roles=head_roles)
 

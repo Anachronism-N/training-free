@@ -256,6 +256,8 @@ class LifeCacheRuntime:
                     min_tokens=self.config.compression_min_tokens,
                     region=CacheRegion.COMPRESSED,
                 ),
+                frame_positions=frame_positions,
+                spatial_positions=spatial_positions,
             )
         else:
             # No compression — store all evicted tokens as-is
@@ -272,12 +274,8 @@ class LifeCacheRuntime:
                 region=CacheRegion.COMPRESSED,
             )
 
-        # Set v2 metadata
+        # Set rope_mode (frame/spatial positions already set in compression)
         token_set.rope_mode = "pre_rope" if is_pre_rope else "post_rope"
-        if frame_positions is not None:
-            token_set.frame_positions = frame_positions
-        if spatial_positions is not None:
-            token_set.spatial_positions = spatial_positions
         token_set.capture_step = self.step
 
         self.bank.add(token_set)

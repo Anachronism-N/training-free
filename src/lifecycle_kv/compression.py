@@ -81,6 +81,8 @@ def compress_attention_participation(
         importance_score=selected_scores.float(),
         quality_score=quality_score,
         region=config.region,
+        frame_positions=selected_fp,
+        spatial_positions=selected_sp,
     )
 
 
@@ -124,6 +126,8 @@ def compress_qk_proxy(
     prompt_summary: torch.Tensor | None = None,
     visual_summary: torch.Tensor | None = None,
     quality_score: float = 1.0,
+    frame_positions: torch.Tensor | None = None,
+    spatial_positions: torch.Tensor | None = None,
 ) -> TokenSet:
     """Compress evicted K/V using Q-K proxy scores instead of attention maps."""
 
@@ -135,6 +139,9 @@ def compress_qk_proxy(
     positions = select_topk_tokens(scores, config.topk, config.min_tokens).to(k.device)
     selected_k = k.index_select(0, positions)
     selected_scores = scores.index_select(0, positions)
+    # Sync frame/spatial metadata with the same top-k positions
+    selected_fp = frame_positions.index_select(0, positions) if frame_positions is not None else None
+    selected_sp = spatial_positions.index_select(0, positions) if spatial_positions is not None else None
     return TokenSet(
         set_id=set_id,
         chunk_id=chunk_id,
@@ -150,6 +157,8 @@ def compress_qk_proxy(
         importance_score=selected_scores.float(),
         quality_score=quality_score,
         region=config.region,
+        frame_positions=selected_fp,
+        spatial_positions=selected_sp,
     )
 
 
