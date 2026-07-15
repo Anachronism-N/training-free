@@ -1,0 +1,43 @@
+# LifeCache v3 — Full-Frame Oracle Control: Wrong Scene Memory
+# Same as oracle but injects K/V from a different scene (B instead of A1).
+# If wrong memory = correct memory, then K/V content is not scene-specific.
+
+lifecache:
+  enabled: true
+  trace_only: false
+  mode: union
+
+  compression: none
+  recall_enabled: true
+  recall_top_sets: 1
+  recall_top_tokens: 1560
+  max_frame_distance: null
+
+  anchor_enabled: false
+  motion_enabled: false
+
+  region_bias_beta: 0.0
+  trace_path: cache_trace.jsonl
+  record_latency: true
+
+  enable_last_n_layers: 1
+
+  rope_safe_recall: true
+  allow_post_rope_recall: false
+  rope_remap_policy: relative_clamp
+  max_post_rope_frame_distance: 21
+  capture_clean_only: false
+  use_real_query_for_compression: false
+
+  oracle_mode: full_frame
+  oracle_layer: 29
+  oracle_num_frames: 1
+  # Wrong scene control: capture from B phase (frame 42) instead of A1 (frame 0)
+  oracle_capture_frames: [42]
+  oracle_recall_frames: [63, 84, 105]
+  oracle_append_mode: true
+
+  head_roles_path: third_party/Pyramid-Forcing/configs/head_configs/best_labels.csv
+
+  bank_max_compressed_sets: 4
+  bank_max_compressed_tokens: 8192

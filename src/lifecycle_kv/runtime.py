@@ -97,6 +97,16 @@ class LifeCacheRuntimeConfig:
     # Random recall for ablation
     random_recall: bool = False
 
+    # Oracle mode (Stage 2: full-frame oracle)
+    oracle_mode: Literal["none", "full_frame"] = "none"
+    oracle_layer: int = 29
+    oracle_num_frames: int = 1
+    oracle_capture_frames: list[int] | None = None  # frame indices to capture
+    oracle_recall_frames: list[int] | None = None  # frame indices where oracle is active
+    oracle_append_mode: bool = True  # True=append, False=fixed-budget replace
+    oracle_shuffle_v: bool = False  # Shuffle V tokens (control: K/V alignment)
+    oracle_zero_v: bool = False  # Zero out V tokens (control: value contribution)
+
 
 class LifeCacheRuntime:
     """Orchestrates LifeCache operations during inference.
@@ -161,6 +171,16 @@ class LifeCacheRuntime:
         self.capture_enabled: bool = False
         self.capture_reason: str = ""
 
+        # Oracle storage (Stage 2: full-frame oracle)
+        # Maps source_frame_idx -> TokenSet with full-frame raw K/V
+        self._oracle_frames: dict[int, TokenSet] = {}
+        self._oracle_enabled: bool = config.oracle_mode == "full_frame"
+        if self._oracle_enabled:
+            print(f"[LifeCache ORACLE] oracle_mode=full_frame layer={config.oracle_layer} "
+                  f"capture_frames={config.oracle_capture_frames} "
+                  f"recall_frames={config.oracle_recall_frames} "
+                  f"append_mode={config.oracle_append_mode}")
+
     # ---- helpers ----
 
     def should_enable_layer(self, layer_id: int) -> bool:
@@ -205,6 +225,128 @@ class LifeCacheRuntime:
     def end_capture(self) -> None:
         self.capture_enabled = False
         self.capture_reason = ""
+
+    # ---- oracle (Stage 2: full-frame capture and injection) ----
+
+    def store_oracle_frame(
+        self,
+        *,
+        layer_id: int,
+        frame_idx: int,
+        k_pre_rope: torch.Tensor,  # [T, H, D] raw pre-RoPE key
+        v: torch.Tensor,            # [T, H, D] value
+        head_group: str = "layout",
+    ) -> TokenSet | None:
+        """Store a complete frame's raw K/V for oracle recall.
+
+        Called after clean-context forward when the pipeline wants to
+        capture a full frame's K/V for later deterministic injection.
+        Stores pre-RoPE K with correct spatial positions for 3D RoPE remap.
+        """
+        if not self._oracle_enabled:
+            return None
+        if layer_id != self.config.oracle_layer:
+            return None
+
+        T = k_pre_rope.shape[0]
+        if T == 0:
+            return None
+
+        # Create full-frame TokenSet with correct metadata
+        token_indices = torch.arange(T, device=k_pre_rope.device, dtype=torch.long)
+        frame_positions = torch.full((T,), frame_idx, device=k_pre_rope.device, dtype=torch.long)
+        spatial_positions = torch.arange(T, device=k_pre_rope.device, dtype=torch.long)
+
+        oracle_set = TokenSet(
+            set_id=f"oracle:L{layer_id}:F{frame_idx}",
+            chunk_id=-1,
+            frame_ids=[frame_idx],
+            layer_id=layer_id,
+            head_group=head_group,
+            k=k_pre_rope.clone().cpu(),  # CPU to save GPU memory
+            v=v.clone().cpu(),
+            token_indices=token_indices.cpu(),
+            k_summary=k_pre_rope.float().mean(dim=0).cpu(),
+            importance_score=torch.ones(T, device=k_pre_rope.device, dtype=torch.float32).cpu(),
+            quality_score=1.0,
+            region=CacheRegion.RECALL,
+            rope_mode="pre_rope",
+            frame_positions=frame_positions.cpu(),
+            spatial_positions=spatial_positions.cpu(),
+            source_start_frame=frame_idx,
+            capture_step=self.step,
+        )
+
+        self._oracle_frames[frame_idx] = oracle_set
+        print(f"[LifeCache ORACLE] stored full frame F{frame_idx} L{layer_id} "
+              f"tokens={T} total_oracle_frames={len(self._oracle_frames)}")
+        return oracle_set
+
+    def get_oracle_recall(
+        self,
+        *,
+        layer_id: int,
+        q: torch.Tensor,
+        current_frame: int,
+        device: torch.device,
+    ) -> TokenSet | None:
+        """Get oracle frame K/V for injection into attention.
+
+        Returns a TokenSet with full-frame K/V if the current frame is
+        in the recall schedule, None otherwise.
+        """
+        if not self._oracle_enabled:
+            return None
+        if layer_id != self.config.oracle_layer:
+            return None
+
+        recall_frames = self.config.oracle_recall_frames
+        if recall_frames is not None and current_frame not in recall_frames:
+            return None
+        if not self._oracle_frames:
+            return None
+
+        # For now, return the most recently captured oracle frame
+        # (In A-B-A benchmark, this would be A1 frame captured during A1 phase)
+        sorted_frames = sorted(self._oracle_frames.keys())
+        if not sorted_frames:
+            return None
+
+        # Find the best oracle frame: use the last captured frame that
+        # is before current_frame (oracle only makes sense for scene revisit)
+        target_frame = None
+        for f in sorted_frames:
+            if f < current_frame:
+                target_frame = f
+        if target_frame is None:
+            return None
+
+        oracle_set = self._oracle_frames[target_frame]
+        print(f"[LifeCache ORACLE] recalling frame F{target_frame} at current F{current_frame} "
+              f"L{layer_id} tokens={oracle_set.num_tokens}")
+
+        # Apply oracle controls
+        result = oracle_set.to_device(device)
+        if self.config.oracle_shuffle_v:
+            # Shuffle V tokens — tests K/V alignment requirement
+            perm = torch.randperm(result.v.shape[0], device=device)
+            result.v = result.v[perm]
+            print(f"[LifeCache ORACLE] shuffled V (K/V misalignment control)")
+        if self.config.oracle_zero_v:
+            # Zero out V — tests value contribution
+            result.v = torch.zeros_like(result.v)
+            print(f"[LifeCache ORACLE] zeroed V (value contribution control)")
+
+        return result
+
+    def is_oracle_active(self, current_frame: int) -> bool:
+        """Check if oracle recall should be active for this frame."""
+        if not self._oracle_enabled:
+            return False
+        recall_frames = self.config.oracle_recall_frames
+        if recall_frames is not None:
+            return current_frame in recall_frames
+        return bool(self._oracle_frames)
 
     # ---- eviction & compression ----
 
@@ -364,6 +506,7 @@ class LifeCacheRuntime:
         token_indices: torch.Tensor,
         head_group: str = "generic",
         role: HeadRole = HeadRole.GENERIC,
+        current_frame: int = 0,
     ) -> tuple[torch.Tensor, torch.Tensor, ActiveCacheView | None]:
         """Build active K/V view with LifeCache memory.
 
@@ -407,6 +550,17 @@ class LifeCacheRuntime:
             layer_id=layer_id,
         )
 
+        # --- Oracle injection (Stage 2) ---
+        # If oracle mode is active, get the full-frame TokenSet and pass it
+        # to the composer. This replaces the normal sparse recall for oracle layers.
+        oracle_set = self.get_oracle_recall(
+            layer_id=layer_id,
+            q=q,
+            current_frame=current_frame,
+            device=q.device,
+        )
+        # --- End oracle injection ---
+
         # Debug: trace recall candidate count
         if compressed:
             n_sets = len(compressed)
@@ -434,6 +588,7 @@ class LifeCacheRuntime:
             anchors=anchors,
             compressed=compressed,
             motion=motion,
+            oracle_set=oracle_set,
         )
 
         if view.k is None or view.v is None:

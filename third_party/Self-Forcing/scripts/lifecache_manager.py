@@ -104,6 +104,15 @@ class LifecycleCacheManager:
             use_real_query_for_compression=lc.get("use_real_query_for_compression", True),
             enable_last_n_layers=lc.get("enable_last_n_layers", 0),
             random_recall=lc.get("random_recall", False),
+            # Oracle mode (Stage 2)
+            oracle_mode=lc.get("oracle_mode", "none"),
+            oracle_layer=lc.get("oracle_layer", 29),
+            oracle_num_frames=lc.get("oracle_num_frames", 1),
+            oracle_capture_frames=lc.get("oracle_capture_frames"),
+            oracle_recall_frames=lc.get("oracle_recall_frames"),
+            oracle_append_mode=lc.get("oracle_append_mode", True),
+            oracle_shuffle_v=lc.get("oracle_shuffle_v", False),
+            oracle_zero_v=lc.get("oracle_zero_v", False),
         )
 
         runtime = LifeCacheRuntime(runtime_config)

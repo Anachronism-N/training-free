@@ -84,13 +84,24 @@ class ActiveCacheComposer:
         anchors: list[TokenSet],
         compressed: list[TokenSet],
         motion: list[TokenSet],
+        oracle_set: TokenSet | None = None,
     ) -> ActiveCacheView:
         budget = self.budgets.get(role, DEFAULT_BUDGETS[HeadRole.UNKNOWN])
         selected: list[TokenSet] = []
 
         selected.extend(self._take_tokens(anchors, budget.anchor))
 
-        recalled: list[TokenSet] = []
+        # --- Oracle injection (Stage 2: full-frame oracle) ---
+        # If an oracle TokenSet is provided, inject it as RECALL tokens
+        # with correct frame/spatial metadata for 3D RoPE remap.
+        if oracle_set is not None and oracle_set.num_tokens > 0:
+            oracle_set = oracle_set.to_device(q.device)
+            oracle_set.region = CacheRegion.RECALL
+            recalled = [oracle_set]
+        else:
+            recalled = []
+        # --- End oracle injection ---
+
         if budget.recall > 0 and role not in {HeadRole.MOTION, HeadRole.WAVE}:
             if self.include_anchors_in_recall:
                 recall_candidates = anchors + compressed

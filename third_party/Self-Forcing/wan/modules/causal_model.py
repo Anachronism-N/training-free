@@ -554,6 +554,7 @@ class CausalWanSelfAttention(nn.Module):
                             token_indices=token_indices,
                             head_group=hg,
                             role=role,
+                            current_frame=current_start_frame,
                         )
                         # Debug: log recall composition result
                         n_recalled = sum(1 for r in view.regions if r == CacheRegion.RECALL) if view is not None and view.regions else 0

@@ -60,6 +60,9 @@ class CausalInferencePipeline(torch.nn.Module):
                 print(f"[LifeCache]   capture_clean_only={cfg.capture_clean_only}")
                 print(f"[LifeCache]   region_bias_beta={cfg.region_bias_beta} (NOT applied to attention!)")
                 print(f"[LifeCache]   random_recall={cfg.random_recall}")
+                print(f"[LifeCache]   oracle_mode={cfg.oracle_mode} oracle_layer={cfg.oracle_layer}")
+                print(f"[LifeCache]   oracle_capture_frames={cfg.oracle_capture_frames}")
+                print(f"[LifeCache]   oracle_recall_frames={cfg.oracle_recall_frames}")
                 print(f"[LifeCache] ========================================")
                 # Attach to generator so it can forward to model
                 self.generator.lifecache_manager = self.lifecache_manager
@@ -264,6 +267,35 @@ class CausalInferencePipeline(torch.nn.Module):
             # LifeCache v2: end capture after context refresh
             if self.lifecache_manager is not None:
                 self.lifecache_manager.runtime.end_capture()
+
+            # --- Oracle capture (Stage 2): capture full-frame raw K/V ---
+            # After clean-context forward, kv_cache[layer] contains all tokens
+            # of the current frame in k_pre_rope and v.
+            if self.lifecache_manager is not None:
+                rt = self.lifecache_manager.runtime
+                oracle_config = rt.config
+                if oracle_config.oracle_mode == "full_frame":
+                    capture_frames = oracle_config.oracle_capture_frames
+                    current_frame_idx = current_start_frame
+                    if capture_frames is None or current_frame_idx in capture_frames:
+                        oracle_layer = oracle_config.oracle_layer
+                        cache = self.kv_cache1[oracle_layer]
+                        k_pre = cache.get("k_pre_rope")
+                        v_tensor = cache.get("v")
+                        local_end = cache.get("local_end_index", 0)
+                        global_end = cache.get("global_end_index", 0)
+                        attn_start = max(0, local_end - self.frame_seq_length * self.num_frame_per_block)
+                        if k_pre is not None and v_tensor is not None and k_pre.shape[1] > 0:
+                            # Extract the current frame's tokens from the cache
+                            # All tokens in the cache for this frame
+                            frame_k = k_pre[0, attn_start:local_end]  # [T, H, D]
+                            frame_v = v_tensor[0, attn_start:local_end]  # [T, H, D]
+                            rt.store_oracle_frame(
+                                layer_id=oracle_layer,
+                                frame_idx=current_frame_idx,
+                                k_pre_rope=frame_k,
+                                v=frame_v,
+                            )
 
             # LifeCache: process ALL evicted tokens captured during this block.
             # Only compress and store tokens from clean-context capture.

@@ -118,6 +118,7 @@ class TokenSet:
             source_positions=new_source_positions,
             rope_mode=self.rope_mode,
             frame_positions=self.frame_positions.index_select(0, token_positions) if self.frame_positions is not None else None,
+            spatial_positions=self.spatial_positions.index_select(0, token_positions) if self.spatial_positions is not None else None,
             source_start_frame=self.source_start_frame,
             capture_step=self.capture_step,
         )
@@ -146,6 +147,7 @@ class TokenSet:
             source_positions=self.source_positions.to(device) if self.source_positions is not None else None,
             rope_mode=self.rope_mode,
             frame_positions=self.frame_positions.to(device) if self.frame_positions is not None else None,
+            spatial_positions=self.spatial_positions.to(device) if self.spatial_positions is not None else None,
             source_start_frame=self.source_start_frame,
             capture_step=self.capture_step,
         )
