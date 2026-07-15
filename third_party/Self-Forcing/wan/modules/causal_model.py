@@ -343,6 +343,10 @@ class CausalWanSelfAttention(nn.Module):
                 # Always capture when LifeCache is active.
                 if lifecache_manager is not None and num_evicted_tokens > 0 and sink_tokens == 0:
                     rt = lifecache_manager.runtime
+                    # Get timestep first (used in debug print below)
+                    timestep_val = None
+                    if hasattr(self, '_current_timestep'):
+                        timestep_val = self._current_timestep
                     # Debug: log eviction summary (first 3 and every 50th)
                     bi = getattr(self, '_block_index', -1)
                     if not hasattr(self, '_lifecache_evict_cnt'):
@@ -371,10 +375,6 @@ class CausalWanSelfAttention(nn.Module):
                     frame_positions = abs_token_indices // frame_seqlen
                     # Spatial positions within each frame
                     spatial_positions = abs_token_indices % frame_seqlen
-                    # Capture denoising step index for quality filtering
-                    timestep_val = None
-                    if hasattr(self, '_current_timestep'):
-                        timestep_val = self._current_timestep
                     payload = {
                             "layer_id": getattr(self, "_block_index", -1),
                             "evicted_k_pre_rope": evicted_k_pre_rope.squeeze(0).cpu() if evicted_k_pre_rope is not None else None,
@@ -539,18 +539,13 @@ class CausalWanSelfAttention(nn.Module):
                         # v2 fix: use pre-RoPE query for pre-RoPE bank retrieval
                         q_for_life = q[0] if q.ndim == 4 else q  # pre-RoPE query
                         q_for_attention = roped_query[0]  # post-RoPE for attention
-                        # Head-aware routing: skip recall for WAVE/MOTION heads
-                        # LAYOUT/ANCHOR heads get recall + anchors
+                        # Head-aware routing: use LAYOUT for recall-enabled layers
+                        # Previously: layer-level majority vote caused all layers to be
+                        # motion-dominated (layer 29 has 7 WAVE heads out of 12).
+                        # Fix: always use LAYOUT role for recall, rely on future per-head
+                        # bias mask for head-specific access control.
                         role = HeadRole.LAYOUT
                         hg = "layout"
-                        if hasattr(lifecache_manager, '_head_roles'):
-                            hr = lifecache_manager._head_roles
-                            # Check if majority of heads in this layer are motion/wave
-                            n_motion = sum(1 for h in range(self.num_heads)
-                                           if hr.get((block_index, h), HeadRole.GENERIC) in {HeadRole.WAVE, HeadRole.MOTION})
-                            if n_motion > self.num_heads // 2:
-                                role = HeadRole.GENERIC  # No recall for motion-dominated layers
-                                hg = "generic"
                         active_k, active_v, view = rt.compose_active_cache(
                             layer_id=block_index,
                             q=q_for_life,
