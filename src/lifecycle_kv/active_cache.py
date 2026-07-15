@@ -123,6 +123,9 @@ class ActiveCacheComposer:
                         k_summary=recall_result.k.float().mean(dim=0),
                         importance_score=recall_result.token_scores,
                         region=CacheRegion.RECALL,
+                        frame_positions=recall_result.frame_positions,
+                        spatial_positions=recall_result.spatial_positions,
+                        rope_mode=recall_result.rope_modes[0] if recall_result.rope_modes else "pre_rope",
                     )
                 )
         selected.extend(recalled)

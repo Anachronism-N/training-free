@@ -49,12 +49,18 @@ class CausalInferencePipeline(torch.nn.Module):
                 num_layers=self.num_transformer_blocks,
             )
             if self.lifecache_manager is not None:
-                print(f"[LifeCache] Manager initialized: "
-                      f"enabled={self.lifecache_manager.config.enabled}, "
-                      f"trace_only={self.lifecache_manager.config.trace_only}, "
-                      f"compression={self.lifecache_manager.config.compression}, "
-                      f"recall={self.lifecache_manager.config.recall_enabled}, "
-                      f"enable_layers={self.lifecache_manager.config.enable_layers}")
+                cfg = self.lifecache_manager.config
+                print(f"[LifeCache] ========================================")
+                print(f"[LifeCache] Manager initialized:")
+                print(f"[LifeCache]   enabled={cfg.enabled} trace_only={cfg.trace_only}")
+                print(f"[LifeCache]   compression={cfg.compression} topk={cfg.compression_topk}")
+                print(f"[LifeCache]   recall_enabled={cfg.recall_enabled} top_sets={cfg.recall_top_sets} top_tokens={cfg.recall_top_tokens}")
+                print(f"[LifeCache]   enable_layers={cfg.enable_layers}")
+                print(f"[LifeCache]   rope_safe={cfg.rope_safe_recall} allow_post={cfg.allow_post_rope_recall}")
+                print(f"[LifeCache]   capture_clean_only={cfg.capture_clean_only}")
+                print(f"[LifeCache]   region_bias_beta={cfg.region_bias_beta} (NOT applied to attention!)")
+                print(f"[LifeCache]   random_recall={cfg.random_recall}")
+                print(f"[LifeCache] ========================================")
                 # Attach to generator so it can forward to model
                 self.generator.lifecache_manager = self.lifecache_manager
 
@@ -273,7 +279,23 @@ class CausalInferencePipeline(torch.nn.Module):
                         continue
                     cache = self.kv_cache1[layer_id]
                     evicted_list = cache.pop("_lifecache_evicted_list", [])
+                    if evicted_list and not hasattr(self, '_lifecache_payload_cnt'):
+                        self._lifecache_payload_cnt = 0
                     for payload in evicted_list:
+                        # v3 debug: log payload processing
+                        if not hasattr(self, '_lifecache_payload_cnt'):
+                            self._lifecache_payload_cnt = 0
+                        self._lifecache_payload_cnt += 1
+                        if self._lifecache_payload_cnt <= 5 or self._lifecache_payload_cnt % 100 == 0:
+                            k_pre = payload.get("evicted_k_pre_rope")
+                            k_post = payload.get("evicted_k_post_rope")
+                            has_pre = k_pre is not None and (hasattr(k_pre, 'numel') and k_pre.numel() > 0)
+                            has_post = k_post is not None and (hasattr(k_post, 'numel') and k_post.numel() > 0)
+                            print(f"[LifeCache PAYLOAD] layer={layer_id} "
+                                  f"has_pre_rope={has_pre} has_post_rope={has_post} "
+                                  f"capture_reason={payload.get('capture_reason','?')} "
+                                  f"ts={payload.get('capture_timestep','?')} "
+                                  f"cnt={self._lifecache_payload_cnt}")
                         # v2: accept all captured tokens. Clean-only filtering
                         # prevents eviction capture because eviction only happens
                         # during denoising steps, not clean context refresh.

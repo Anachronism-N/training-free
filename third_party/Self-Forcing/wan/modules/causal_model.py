@@ -339,15 +339,19 @@ class CausalWanSelfAttention(nn.Module):
                 # Clone the source slice to avoid overlapping memory error
                 num_evicted_tokens = num_new_tokens + kv_cache["local_end_index"].item() - kv_cache_size
                 num_rolled_tokens = kv_cache["local_end_index"].item() - num_evicted_tokens - sink_tokens
-                # --- LifeCache v2: capture evicted tokens ---
+                # --- LifeCache v3: capture evicted tokens ---
                 # Always capture when LifeCache is active.
                 if lifecache_manager is not None and num_evicted_tokens > 0 and sink_tokens == 0:
                     rt = lifecache_manager.runtime
-                    # Debug: log first eviction
-                    if not hasattr(self, '_lifecache_debug_logged'):
-                        self._lifecache_debug_logged = True
-                        bi = getattr(self, '_block_index', -1)
-                        print(f'[LifeCache DEBUG] Layer {bi}: evicting {num_evicted_tokens} tokens at frame={current_start_frame}')
+                    # Debug: log eviction summary (first 3 and every 50th)
+                    bi = getattr(self, '_block_index', -1)
+                    if not hasattr(self, '_lifecache_evict_cnt'):
+                        self._lifecache_evict_cnt = 0
+                    self._lifecache_evict_cnt += 1
+                    if self._lifecache_evict_cnt <= 3 or self._lifecache_evict_cnt % 50 == 0:
+                        print(f"[LifeCache EVICT] L{bi} frame={current_start_frame} "
+                              f"evicted={num_evicted_tokens} capture_en={rt.capture_enabled} "
+                              f"reason={rt.capture_reason} ts={timestep_val} cnt={self._lifecache_evict_cnt}")
                     # Evicted tokens: read post-RoPE from cache, pre-RoPE from k_pre_rope cache
                     evicted_k_post_rope = kv_cache["k"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
                     evicted_v = kv_cache["v"][:, sink_tokens:sink_tokens + num_evicted_tokens].clone()
@@ -556,6 +560,15 @@ class CausalWanSelfAttention(nn.Module):
                             head_group=hg,
                             role=role,
                         )
+                        # Debug: log recall composition result
+                        n_recalled = sum(1 for r in view.regions if r == CacheRegion.RECALL) if view is not None and view.regions else 0
+                        if not hasattr(self, '_lifecache_compose_cnt'):
+                            self._lifecache_compose_cnt = 0
+                        self._lifecache_compose_cnt += 1
+                        if self._lifecache_compose_cnt <= 3 or self._lifecache_compose_cnt % 200 == 0:
+                            print(f"[LifeCache COMPOSE] L{block_index} frame={current_start_frame} "
+                                  f"active={active_k.shape[0]} recent={recent_k.shape[1]} "
+                                  f"recalled={n_recalled} role={role.value} cnt={self._lifecache_compose_cnt}")
                         # --- RoPE remap v3: sparse 3D RoPE with real positions ---
                         if view is not None and view.regions and active_k.shape[0] > 0:
                             has_recall = any(r == CacheRegion.RECALL for r in view.regions)
@@ -589,6 +602,12 @@ class CausalWanSelfAttention(nn.Module):
                                         if 'temporal_idx' in dir():
                                             gh = int(grid_sizes[0, 1].item())
                                             gw = int(grid_sizes[0, 2].item())
+                                            # Debug: log RoPE remap
+                                            if self._lifecache_compose_cnt <= 3:
+                                                print(f"[LifeCache REMAP] L{block_index} "
+                                                      f"t_idx=[{temporal_idx.min().item()},{temporal_idx.max().item()}] "
+                                                      f"s_idx=[{spatial_idx.min().item()},{spatial_idx.max().item()}] "
+                                                      f"gh={gh} gw={gw} n_recalled={idx.shape[0]}")
                                             rk = causal_rope_apply_sparse_3d(
                                             active_k[idx], freqs, temporal_idx, spatial_idx,
                                             grid_h=gh, grid_w=gw, clamp_temporal=TR,

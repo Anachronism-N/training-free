@@ -114,6 +114,11 @@ class LifeCacheRuntime:
     def __init__(self, config: LifeCacheRuntimeConfig) -> None:
         self.config = config
 
+        # Stage 1 correctness: warn if region_bias is non-zero but not applied
+        if config.region_bias_beta > 0:
+            print(f"[LifeCache] WARNING: region_bias_beta={config.region_bias_beta} but region_bias "
+                  f"is NOT applied to attention logits. Set to 0 for valid experiments.")
+
         # Bank
         bank_budgets: dict[CacheRegion, BankBudget] = {
             CacheRegion.COMPRESSED: BankBudget(
@@ -280,6 +285,18 @@ class LifeCacheRuntime:
 
         self.bank.add(token_set)
 
+        # Debug: log bank growth
+        if not hasattr(self, '_bank_add_cnt'):
+            self._bank_add_cnt = 0
+        self._bank_add_cnt += 1
+        if self._bank_add_cnt <= 5 or self._bank_add_cnt % 50 == 0:
+            print(f"[LifeCache BANK] layer={layer_id} added={token_set.num_tokens} "
+                  f"total_tokens={self.bank.total_tokens()} "
+                  f"rope={token_set.rope_mode} "
+                  f"fp=[{token_set.frame_positions.min().item() if token_set.frame_positions is not None else -1},"
+                  f"{token_set.frame_positions.max().item() if token_set.frame_positions is not None else -1}] "
+                  f"cnt={self._bank_add_cnt}")
+
         # Promote anchors periodically
         if self.config.anchor_enabled and (chunk_id + 1) % self.config.anchor_update_interval == 0:
             self._promote_anchors(layer_id, chunk_id, head_group)
@@ -392,6 +409,14 @@ class LifeCacheRuntime:
 
         # Debug: trace recall candidate count
         if compressed:
+            n_sets = len(compressed)
+            n_tokens = sum(s.num_tokens for s in compressed)
+            if not hasattr(self, '_recall_cand_cnt'):
+                self._recall_cand_cnt = 0
+            self._recall_cand_cnt += 1
+            if self._recall_cand_cnt <= 5 or self._recall_cand_cnt % 100 == 0:
+                print(f"[LifeCache RECALL] layer={layer_id} candidates={n_sets} sets, "
+                      f"{n_tokens} tokens cnt={self._recall_cand_cnt}")
             self.trace_event(
                 layer_id=layer_id,
                 event="recall_candidates",

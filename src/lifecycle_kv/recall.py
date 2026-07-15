@@ -18,6 +18,9 @@ class RecallResult:
     source_set_ids: list[str] = field(default_factory=list)
     source_positions: torch.Tensor | None = None
     set_scores: torch.Tensor | None = None
+    frame_positions: torch.Tensor | None = None
+    spatial_positions: torch.Tensor | None = None
+    rope_modes: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -151,12 +154,30 @@ def recall_tokens(
         return RecallResult(
             k=None, v=None, token_indices=None, token_scores=None,
             token_sets=[], source_set_ids=[], source_positions=None, set_scores=None,
+            frame_positions=None, spatial_positions=None, rope_modes=[],
         )
 
     all_k = torch.cat([s.k.to(q.device) for s in selected_sets], dim=0)
     all_v = torch.cat([s.v.to(q.device) for s in selected_sets], dim=0)
     all_indices = torch.cat([s.token_indices.to(q.device) for s in selected_sets], dim=0)
     importance = torch.cat([s.importance_score.to(q.device).float() for s in selected_sets], dim=0)
+    # Gather frame/spatial metadata from selected sets
+    fp_parts = []
+    sp_parts = []
+    rope_modes = []
+    for s in selected_sets:
+        n = s.num_tokens
+        if s.frame_positions is not None:
+            fp_parts.append(s.frame_positions.to(q.device))
+        else:
+            fp_parts.append(torch.full((n,), -1, device=q.device, dtype=torch.long))
+        if hasattr(s, 'spatial_positions') and s.spatial_positions is not None:
+            sp_parts.append(s.spatial_positions.to(q.device))
+        else:
+            sp_parts.append(torch.full((n,), -1, device=q.device, dtype=torch.long))
+        rope_modes.extend([getattr(s, 'rope_mode', 'post_rope')] * n)
+    all_fp = torch.cat(fp_parts, dim=0)
+    all_sp = torch.cat(sp_parts, dim=0)
     qk = token_qk_scores(q, all_k)
     scores = 0.7 * qk + 0.3 * importance
 
@@ -173,9 +194,17 @@ def recall_tokens(
         all_v = all_v[keep_mask]
         all_indices = all_indices[keep_mask]
         importance = importance[keep_mask]
+        all_fp = all_fp[keep_mask]
+        all_sp = all_sp[keep_mask]
+        rope_modes = [rope_modes[i] for i, m in enumerate(keep_mask.tolist()) if m]
 
     keep = min(config.top_tokens, scores.numel())
     positions = torch.topk(scores, keep, largest=True, sorted=True).indices
+
+    # Select metadata with same positions
+    selected_fp = all_fp.index_select(0, positions)
+    selected_sp = all_sp.index_select(0, positions)
+    selected_rope_modes = [rope_modes[int(i)] for i in positions.tolist()]
 
     # Update access metadata
     for token_set in selected_sets:
@@ -204,4 +233,7 @@ def recall_tokens(
         source_set_ids=selected_source_ids,
         source_positions=selected_source_positions,
         set_scores=None,
+        frame_positions=selected_fp,
+        spatial_positions=selected_sp,
+        rope_modes=selected_rope_modes,
     )
