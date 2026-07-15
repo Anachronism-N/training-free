@@ -578,6 +578,7 @@ class CausalWanSelfAttention(nn.Module):
                                         # Get temporal and spatial positions for recalled tokens
                                         fp = getattr(view, 'frame_positions', None)
                                         sp = getattr(view, 'spatial_positions', None)
+                                        can_remap = False
                                         # Stage 1 correctness gate: fail if metadata missing
                                         if fp is None or sp is None:
                                             print(f"[LifeCache] WARNING: recalled tokens missing frame/spatial positions. "
@@ -594,8 +595,9 @@ class CausalWanSelfAttention(nn.Module):
                                                 distance = (current_start_frame - recall_fp.float()).clamp(0, TR - 1)
                                                 temporal_idx = (current_start_frame - distance).long()
                                                 spatial_idx = recall_sp.long()
+                                                can_remap = True
                                         # Apply sparse 3D RoPE with dynamic grid dimensions
-                                        if 'temporal_idx' in dir():
+                                        if can_remap:
                                             gh = int(grid_sizes[0, 1].item())
                                             gw = int(grid_sizes[0, 2].item())
                                             # Debug: log RoPE remap
@@ -605,10 +607,10 @@ class CausalWanSelfAttention(nn.Module):
                                                       f"s_idx=[{spatial_idx.min().item()},{spatial_idx.max().item()}] "
                                                       f"gh={gh} gw={gw} n_recalled={idx.shape[0]}")
                                             rk = causal_rope_apply_sparse_3d(
-                                            active_k[idx], freqs, temporal_idx, spatial_idx,
-                                            grid_h=gh, grid_w=gw, clamp_temporal=TR,
-                                        )
-                                        active_k[idx] = rk.type_as(active_k)
+                                                active_k[idx], freqs, temporal_idx, spatial_idx,
+                                                grid_h=gh, grid_w=gw, clamp_temporal=TR,
+                                            )
+                                            active_k[idx] = rk.type_as(active_k)
                         active_k = active_k.unsqueeze(0)
                         active_v = active_v.unsqueeze(0)
                     else:

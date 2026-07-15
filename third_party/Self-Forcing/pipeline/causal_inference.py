@@ -270,7 +270,8 @@ class CausalInferencePipeline(torch.nn.Module):
 
             # --- Oracle capture (Stage 2): capture full-frame raw K/V ---
             # After clean-context forward, kv_cache[layer] contains all tokens
-            # of the current frame in k_pre_rope and v.
+            # of the current block in k_pre_rope and v.
+            # For oracle, capture only the FIRST frame in this block.
             if self.lifecache_manager is not None:
                 rt = self.lifecache_manager.runtime
                 oracle_config = rt.config
@@ -283,13 +284,13 @@ class CausalInferencePipeline(torch.nn.Module):
                         k_pre = cache.get("k_pre_rope")
                         v_tensor = cache.get("v")
                         local_end = cache.get("local_end_index", 0)
-                        global_end = cache.get("global_end_index", 0)
-                        attn_start = max(0, local_end - self.frame_seq_length * self.num_frame_per_block)
                         if k_pre is not None and v_tensor is not None and k_pre.shape[1] > 0:
-                            # Extract the current frame's tokens from the cache
-                            # All tokens in the cache for this frame
-                            frame_k = k_pre[0, attn_start:local_end]  # [T, H, D]
-                            frame_v = v_tensor[0, attn_start:local_end]  # [T, H, D]
+                            # Capture only ONE frame (frame_seq_length tokens)
+                            # from the end of the cache (most recent clean frame)
+                            fsl = self.frame_seq_length
+                            frame_start = max(0, local_end - fsl)
+                            frame_k = k_pre[0, frame_start:local_end]  # [T, H, D]
+                            frame_v = v_tensor[0, frame_start:local_end]  # [T, H, D]
                             rt.store_oracle_frame(
                                 layer_id=oracle_layer,
                                 frame_idx=current_frame_idx,

@@ -94,51 +94,51 @@ class ActiveCacheComposer:
         # --- Oracle injection (Stage 2: full-frame oracle) ---
         # If an oracle TokenSet is provided, inject it as RECALL tokens
         # with correct frame/spatial metadata for 3D RoPE remap.
+        # When oracle is active, skip normal sparse recall entirely.
         if oracle_set is not None and oracle_set.num_tokens > 0:
             oracle_set = oracle_set.to_device(q.device)
             oracle_set.region = CacheRegion.RECALL
             recalled = [oracle_set]
         else:
             recalled = []
-        # --- End oracle injection ---
-
-        if budget.recall > 0 and role not in {HeadRole.MOTION, HeadRole.WAVE}:
-            if self.include_anchors_in_recall:
-                recall_candidates = anchors + compressed
-            else:
-                recall_candidates = compressed
-            recall_result = recall_tokens(
-                recall_candidates,
-                q,
-                head_group=head_group,
-                config=RecallConfig(
-                    top_sets=self.recall_config.top_sets,
-                    top_tokens=budget.recall,
-                    query_weight=self.recall_config.query_weight,
-                    head_group_weight=self.recall_config.head_group_weight,
-                    quality_weight=self.recall_config.quality_weight,
-                    usage_weight=self.recall_config.usage_weight,
-                ),
-            )
-            if recall_result.k is not None and recall_result.v is not None:
-                recalled.append(
-                    TokenSet(
-                        set_id="recall:view",
-                        chunk_id=-1,
-                        frame_ids=[],
-                        layer_id=-1,
-                        head_group=head_group,
-                        k=recall_result.k,
-                        v=recall_result.v,
-                        token_indices=recall_result.token_indices,
-                        k_summary=recall_result.k.float().mean(dim=0),
-                        importance_score=recall_result.token_scores,
-                        region=CacheRegion.RECALL,
-                        frame_positions=recall_result.frame_positions,
-                        spatial_positions=recall_result.spatial_positions,
-                        rope_mode=recall_result.rope_modes[0] if recall_result.rope_modes else "pre_rope",
-                    )
+            if budget.recall > 0 and role not in {HeadRole.MOTION, HeadRole.WAVE}:
+                if self.include_anchors_in_recall:
+                    recall_candidates = anchors + compressed
+                else:
+                    recall_candidates = compressed
+                recall_result = recall_tokens(
+                    recall_candidates,
+                    q,
+                    head_group=head_group,
+                    config=RecallConfig(
+                        top_sets=self.recall_config.top_sets,
+                        top_tokens=budget.recall,
+                        query_weight=self.recall_config.query_weight,
+                        head_group_weight=self.recall_config.head_group_weight,
+                        quality_weight=self.recall_config.quality_weight,
+                        usage_weight=self.recall_config.usage_weight,
+                    ),
                 )
+                if recall_result.k is not None and recall_result.v is not None:
+                    recalled.append(
+                        TokenSet(
+                            set_id="recall:view",
+                            chunk_id=-1,
+                            frame_ids=[],
+                            layer_id=-1,
+                            head_group=head_group,
+                            k=recall_result.k,
+                            v=recall_result.v,
+                            token_indices=recall_result.token_indices,
+                            k_summary=recall_result.k.float().mean(dim=0),
+                            importance_score=recall_result.token_scores,
+                            region=CacheRegion.RECALL,
+                            frame_positions=recall_result.frame_positions,
+                            spatial_positions=recall_result.spatial_positions,
+                            rope_mode=recall_result.rope_modes[0] if recall_result.rope_modes else "pre_rope",
+                        )
+                    )
+        # --- End oracle injection ---
         selected.extend(recalled)
 
         if budget.motion > 0:
