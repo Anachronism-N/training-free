@@ -569,24 +569,27 @@ class CausalWanSelfAttention(nn.Module):
                                         # Get temporal and spatial positions for recalled tokens
                                         fp = getattr(view, 'frame_positions', None)
                                         sp = getattr(view, 'spatial_positions', None)
-                                        # Use index_select for correct indexing (not prefix slice)
-                                        if fp is not None and sp is not None:
+                                        # Stage 1 correctness gate: fail if metadata missing
+                                        if fp is None or sp is None:
+                                            print(f"[LifeCache] WARNING: recalled tokens missing frame/spatial positions. "
+                                                  f"Skipping RoPE remap for layer {block_index}.")
+                                        else:
                                             recall_fp = fp.index_select(0, idx)
                                             recall_sp = sp.index_select(0, idx)
-                                            if recall_fp.min() >= 0:
-                                                TR = self.local_attn_size if self.local_attn_size > 0 else 21
-                                                temporal_idx = recall_fp.clamp(0, TR - 1).long()
-                                                spatial_idx = recall_sp.long()
+                                            if recall_fp.min() < 0 or recall_sp.min() < 0:
+                                                print(f"[LifeCache] WARNING: invalid position in recalled tokens. "
+                                                      f"Skipping RoPE remap for layer {block_index}.")
                                             else:
-                                                temporal_idx = torch.zeros(idx.shape[0], device=active_k.device, dtype=torch.long)
-                                                spatial_idx = torch.arange(idx.shape[0], device=active_k.device, dtype=torch.long)
-                                        else:
-                                            temporal_idx = torch.zeros(idx.shape[0], device=active_k.device, dtype=torch.long)
-                                            spatial_idx = torch.arange(idx.shape[0], device=active_k.device, dtype=torch.long)
+                                                TR = self.local_attn_size if self.local_attn_size > 0 else 21
+                                                # relative-clamp: map to legal distance from current query
+                                                distance = (current_start_frame - recall_fp.float()).clamp(0, TR - 1)
+                                                temporal_idx = (current_start_frame - distance).long()
+                                                spatial_idx = recall_sp.long()
                                         # Apply sparse 3D RoPE with dynamic grid dimensions
-                                        gh = int(grid_sizes[0, 1].item())
-                                        gw = int(grid_sizes[0, 2].item())
-                                        rk = causal_rope_apply_sparse_3d(
+                                        if 'temporal_idx' in dir():
+                                            gh = int(grid_sizes[0, 1].item())
+                                            gw = int(grid_sizes[0, 2].item())
+                                            rk = causal_rope_apply_sparse_3d(
                                             active_k[idx], freqs, temporal_idx, spatial_idx,
                                             grid_h=gh, grid_w=gw, clamp_temporal=TR,
                                         )

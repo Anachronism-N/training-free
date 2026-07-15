@@ -1,0 +1,41 @@
+# LifeCache v3 — Full-Frame Oracle (Stage 2)
+# Deterministic recall of a complete historical frame.
+# No compression, no retrieval, no sparse top-k.
+# Tests: does clean full-frame K/V help scene revisit?
+
+lifecache:
+  enabled: true
+  trace_only: false
+  mode: union
+
+  compression: none
+  recall_enabled: true
+  recall_top_sets: 1
+  recall_top_tokens: 1560  # One full frame
+  max_frame_distance: null
+
+  anchor_enabled: false
+  motion_enabled: false
+
+  region_bias_beta: 0.0
+  trace_path: cache_trace.jsonl
+  record_latency: true
+
+  enable_last_n_layers: 1
+
+  rope_safe_recall: true
+  allow_post_rope_recall: false
+  rope_remap_policy: relative_clamp
+  max_post_rope_frame_distance: 21
+  capture_clean_only: false
+  use_real_query_for_compression: false
+
+  # Oracle mode: bypass all compression/retrieval
+  oracle_mode: full_frame
+  oracle_layer: 29
+  oracle_num_frames: 1
+
+  head_roles_path: third_party/Pyramid-Forcing/configs/head_configs/best_labels.csv
+
+  bank_max_compressed_sets: 4
+  bank_max_compressed_tokens: 8192
