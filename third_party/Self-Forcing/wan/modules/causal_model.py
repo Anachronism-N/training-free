@@ -608,8 +608,8 @@ class CausalWanSelfAttention(nn.Module):
                                         if can_remap:
                                             gh = int(grid_sizes[0, 1].item())
                                             gw = int(grid_sizes[0, 2].item())
-                                            # Debug: log RoPE remap
-                                            if self._lifecache_compose_cnt <= 3:
+                                            # Debug: log RoPE remap (for oracle frames too)
+                                            if self._lifecache_compose_cnt <= 3 or idx.shape[0] > 1000:
                                                 print(f"[LifeCache REMAP] L{block_index} "
                                                       f"t_idx=[{temporal_idx.min().item()},{temporal_idx.max().item()}] "
                                                       f"s_idx=[{spatial_idx.min().item()},{spatial_idx.max().item()}] "
@@ -638,7 +638,7 @@ class CausalWanSelfAttention(nn.Module):
                                 if is_recall_mask.any():
                                     for wh in wave_heads:
                                         active_v[0, is_recall_mask, wh, :] = 0.0
-                                if self._lifecache_compose_cnt <= 3:
+                                if self._lifecache_compose_cnt <= 3 or is_recall_mask.sum() > 1000:
                                     print(f"[LifeCache ORACLE V-MASK] L{block_index} "
                                           f"zeroed V for {len(wave_heads)} WAVE heads "
                                           f"on {is_recall_mask.sum().item()} recalled tokens")
