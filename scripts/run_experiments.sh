@@ -503,7 +503,7 @@ case "${1:-all}" in
         ;;
     v3_oracle_review)
         # Oracle on review prompts (long-horizon)
-        local out="$REPO_ROOT/runs/v3_oracle_review_${FRAMES}f"
+        out="$REPO_ROOT/runs/v3_oracle_review_${FRAMES}f"
         echo "[Run 19] Oracle full-frame on review prompts -> $out"
         cd "$REPO_ROOT/third_party/Self-Forcing"
         export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
@@ -522,7 +522,7 @@ case "${1:-all}" in
         echo "[Run 19] Done: $out"
         ;;
     v3_oracle_review_wrong)
-        local out="$REPO_ROOT/runs/v3_oracle_review_wrong_${FRAMES}f"
+        out="$REPO_ROOT/runs/v3_oracle_review_wrong_${FRAMES}f"
         echo "[Run 20] Oracle wrong frame control -> $out"
         cd "$REPO_ROOT/third_party/Self-Forcing"
         export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
@@ -541,7 +541,7 @@ case "${1:-all}" in
         echo "[Run 20] Done: $out"
         ;;
     v3_oracle_review_shuffled)
-        local out="$REPO_ROOT/runs/v3_oracle_review_shuffled_${FRAMES}f"
+        out="$REPO_ROOT/runs/v3_oracle_review_shuffled_${FRAMES}f"
         echo "[Run 21] Oracle shuffled V control -> $out"
         cd "$REPO_ROOT/third_party/Self-Forcing"
         export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
@@ -560,7 +560,7 @@ case "${1:-all}" in
         echo "[Run 21] Done: $out"
         ;;
     v3_oracle_review_zero_v)
-        local out="$REPO_ROOT/runs/v3_oracle_review_zero_v_${FRAMES}f"
+        out="$REPO_ROOT/runs/v3_oracle_review_zero_v_${FRAMES}f"
         echo "[Run 22] Oracle zero V control -> $out"
         cd "$REPO_ROOT/third_party/Self-Forcing"
         export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
