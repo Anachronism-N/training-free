@@ -501,6 +501,83 @@ case "${1:-all}" in
     v3_native_aba)
         run_v3_native_aba
         ;;
+    v3_oracle_review)
+        # Oracle on review prompts (long-horizon)
+        local out="$REPO_ROOT/runs/v3_oracle_review_${FRAMES}f"
+        echo "[Run 19] Oracle full-frame on review prompts -> $out"
+        cd "$REPO_ROOT/third_party/Self-Forcing"
+        export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+        export LIFECACHE_ENABLE=1
+        export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review.yaml"
+        python inference.py \
+            --config_path "$SF_CONFIG" \
+            --output_folder "$out" \
+            --checkpoint_path "$SF_CHECKPOINT" \
+            --data_path "$PROMPTS" \
+            --num_output_frames "$FRAMES" \
+            --seed "$SEED" \
+            --num_samples 1 \
+            --use_ema \
+            --save_with_index
+        echo "[Run 19] Done: $out"
+        ;;
+    v3_oracle_review_wrong)
+        local out="$REPO_ROOT/runs/v3_oracle_review_wrong_${FRAMES}f"
+        echo "[Run 20] Oracle wrong frame control -> $out"
+        cd "$REPO_ROOT/third_party/Self-Forcing"
+        export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+        export LIFECACHE_ENABLE=1
+        export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review_wrong.yaml"
+        python inference.py \
+            --config_path "$SF_CONFIG" \
+            --output_folder "$out" \
+            --checkpoint_path "$SF_CHECKPOINT" \
+            --data_path "$PROMPTS" \
+            --num_output_frames "$FRAMES" \
+            --seed "$SEED" \
+            --num_samples 1 \
+            --use_ema \
+            --save_with_index
+        echo "[Run 20] Done: $out"
+        ;;
+    v3_oracle_review_shuffled)
+        local out="$REPO_ROOT/runs/v3_oracle_review_shuffled_${FRAMES}f"
+        echo "[Run 21] Oracle shuffled V control -> $out"
+        cd "$REPO_ROOT/third_party/Self-Forcing"
+        export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+        export LIFECACHE_ENABLE=1
+        export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review_shuffled.yaml"
+        python inference.py \
+            --config_path "$SF_CONFIG" \
+            --output_folder "$out" \
+            --checkpoint_path "$SF_CHECKPOINT" \
+            --data_path "$PROMPTS" \
+            --num_output_frames "$FRAMES" \
+            --seed "$SEED" \
+            --num_samples 1 \
+            --use_ema \
+            --save_with_index
+        echo "[Run 21] Done: $out"
+        ;;
+    v3_oracle_review_zero_v)
+        local out="$REPO_ROOT/runs/v3_oracle_review_zero_v_${FRAMES}f"
+        echo "[Run 22] Oracle zero V control -> $out"
+        cd "$REPO_ROOT/third_party/Self-Forcing"
+        export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+        export LIFECACHE_ENABLE=1
+        export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review_zero_v.yaml"
+        python inference.py \
+            --config_path "$SF_CONFIG" \
+            --output_folder "$out" \
+            --checkpoint_path "$SF_CHECKPOINT" \
+            --data_path "$PROMPTS" \
+            --num_output_frames "$FRAMES" \
+            --seed "$SEED" \
+            --num_samples 1 \
+            --use_ema \
+            --save_with_index
+        echo "[Run 22] Done: $out"
+        ;;
     all)
         run_native_sf
         run_sf_pyramid
