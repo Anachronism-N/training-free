@@ -104,6 +104,7 @@ class LifecycleCacheManager:
             use_real_query_for_compression=lc.get("use_real_query_for_compression", True),
             enable_last_n_layers=lc.get("enable_last_n_layers", 0),
             random_recall=lc.get("random_recall", False),
+            strict_correctness=lc.get("strict_correctness", False),
             # Oracle mode (Stage 2)
             oracle_mode=lc.get("oracle_mode", "none"),
             oracle_layer=lc.get("oracle_layer", 29),
@@ -113,6 +114,7 @@ class LifecycleCacheManager:
             oracle_append_mode=lc.get("oracle_append_mode", True),
             oracle_shuffle_v=lc.get("oracle_shuffle_v", False),
             oracle_zero_v=lc.get("oracle_zero_v", False),
+            oracle_mask_wave_heads=lc.get("oracle_mask_wave_heads", True),
         )
 
         runtime = LifeCacheRuntime(runtime_config)
@@ -160,6 +162,22 @@ class LifecycleCacheManager:
     @property
     def config(self) -> LifeCacheRuntimeConfig:
         return self.runtime.config
+
+    def get_wave_head_indices(self, layer_id: int) -> list[int]:
+        """Return head indices for WAVE role heads in a given layer."""
+        wave_heads = []
+        for (li, hi), role in self._head_roles.items():
+            if li == layer_id and role == HeadRole.WAVE:
+                wave_heads.append(hi)
+        return sorted(wave_heads)
+
+    def get_non_wave_head_indices(self, layer_id: int) -> list[int]:
+        """Return head indices for non-WAVE role heads in a given layer."""
+        non_wave = []
+        for (li, hi), role in self._head_roles.items():
+            if li == layer_id and role != HeadRole.WAVE:
+                non_wave.append(hi)
+        return sorted(non_wave)
 
 
 # ---------------------------------------------------------------------------

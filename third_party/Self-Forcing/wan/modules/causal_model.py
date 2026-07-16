@@ -100,13 +100,16 @@ def causal_rope_apply_sparse_3d(
     grid_h: int = 60,
     grid_w: int = 104,
     clamp_temporal: int = 21,
+    temporal_mode: str = "absolute",  # "absolute" | "relative"
 ) -> "torch.Tensor":
     """Apply RoPE to arbitrary sparse tokens with real t/h/w coordinates.
 
     Uses Wan's native complex frequency representation (from rope_params).
     freqs is [max_seq, D/2] complex — already in polar form.
 
-    temporal_idx: absolute frame index, clamped to [0, clamp_temporal-1]
+    temporal_idx: In absolute mode, these are already mapped to legal
+        positions by the caller (relative_clamp). In relative mode,
+        internal clamp may be applied.
     spatial_idx: position within frame (0 to H*W-1)
     """
     import torch as _torch
@@ -117,10 +120,15 @@ def causal_rope_apply_sparse_3d(
     # Split freqs into temporal/height/width bands (same as native rope_apply)
     freqs_split = freqs.split([c - 2 * (c // 3), c // 3, c // 3], dim=1)
 
-    # Clamp temporal to legal range, compute h/w from spatial
-    t_idx = temporal_idx.clamp(0, clamp_temporal - 1).long()
-    h_idx = (spatial_idx // grid_w).clamp(0, grid_h - 1).long()
-    w_idx = (spatial_idx % grid_w).clamp(0, grid_w - 1).long()
+    # Safety clamp: only clamp to frequency table bounds, not TR
+    # The caller is responsible for mapping positions to legal ranges.
+    # This prevents index-out-of-bounds but does NOT enforce TR-1.
+    max_t = freqs_split[0].shape[0] - 1
+    max_h = grid_h - 1
+    max_w = grid_w - 1
+    t_idx = temporal_idx.clamp(0, max_t).long()
+    h_idx = (spatial_idx // grid_w).clamp(0, max_h).long()
+    w_idx = (spatial_idx % grid_w).clamp(0, max_w).long()
 
     # Gather per-token complex frequencies (already complex from rope_params)
     freq_t = freqs_split[0][t_idx]  # [T, D_t] complex
@@ -613,6 +621,28 @@ class CausalWanSelfAttention(nn.Module):
                                             active_k[idx] = rk.type_as(active_k)
                         active_k = active_k.unsqueeze(0)
                         active_v = active_v.unsqueeze(0)
+                        # --- Per-head oracle V masking (Stage 2.1) ---
+                        # Zero out oracle V for WAVE/motion heads to prevent
+                        # old state contamination. Layout/anchor heads keep
+                        # full oracle memory access.
+                        if (view is not None and view.regions and has_recall
+                                and lifecache_manager._head_roles
+                                and rt.config.oracle_mask_wave_heads):
+                            wave_heads = lifecache_manager.get_wave_head_indices(block_index)
+                            if wave_heads and active_v.shape[2] > max(wave_heads):
+                                # active_v: [1, T, H, D]
+                                # Set V to zero for WAVE heads on recalled tokens
+                                is_recall_mask = torch.tensor(
+                                    [r == CacheRegion.RECALL for r in view.regions],
+                                    device=active_v.device, dtype=torch.bool)
+                                if is_recall_mask.any():
+                                    for wh in wave_heads:
+                                        active_v[0, is_recall_mask, wh, :] = 0.0
+                                if self._lifecache_compose_cnt <= 3:
+                                    print(f"[LifeCache ORACLE V-MASK] L{block_index} "
+                                          f"zeroed V for {len(wave_heads)} WAVE heads "
+                                          f"on {is_recall_mask.sum().item()} recalled tokens")
+                        # --- End per-head V masking ---
                     else:
                         active_k = kv_cache["k"][:, attn_start:local_end_index]
                         active_v = kv_cache["v"][:, attn_start:local_end_index]

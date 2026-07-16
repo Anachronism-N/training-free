@@ -97,6 +97,9 @@ class LifeCacheRuntimeConfig:
     # Random recall for ablation
     random_recall: bool = False
 
+    # Strict correctness (docs/34 Section 5.3)
+    strict_correctness: bool = False  # True=RuntimeError on invalid metadata
+
     # Oracle mode (Stage 2: full-frame oracle)
     oracle_mode: Literal["none", "full_frame"] = "none"
     oracle_layer: int = 29
@@ -106,6 +109,7 @@ class LifeCacheRuntimeConfig:
     oracle_append_mode: bool = True  # True=append, False=fixed-budget replace
     oracle_shuffle_v: bool = False  # Shuffle V tokens (control: K/V alignment)
     oracle_zero_v: bool = False  # Zero out V tokens (control: value contribution)
+    oracle_mask_wave_heads: bool = True  # Zero V for WAVE heads (prevent contamination)
 
 
 class LifeCacheRuntime:

@@ -112,7 +112,7 @@ class ActiveCacheComposer:
                     head_group=head_group,
                     config=RecallConfig(
                         top_sets=self.recall_config.top_sets,
-                        top_tokens=budget.recall,
+                        top_tokens=min(budget.recall, self.recall_config.top_tokens),
                         query_weight=self.recall_config.query_weight,
                         head_group_weight=self.recall_config.head_group_weight,
                         quality_weight=self.recall_config.quality_weight,

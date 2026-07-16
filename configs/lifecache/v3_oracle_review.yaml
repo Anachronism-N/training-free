@@ -1,7 +1,9 @@
-# LifeCache v3 — Full-Frame Oracle for Long-Horizon Review Prompts
-# Captures clean full-frame K/V from early frames and injects
-# deterministically into later frames of the same scene.
-# 120 frames, 3 frames per block, 40 blocks.
+# LifeCache v3.1 — Full-Frame Oracle with Per-Head V Masking
+# Key improvements over v3:
+# 1. Per-head V masking: zero out oracle V for WAVE heads (prevent motion contamination)
+# 2. Removed temporal double clamp in sparse 3D RoPE
+# 3. Enforced recall budget (min of role_budget and config top_tokens)
+# Captures clean full-frame K/V from frame 0, injects at frames 30/60/90.
 
 lifecache:
   enabled: true
@@ -30,14 +32,15 @@ lifecache:
   capture_clean_only: false
   use_real_query_for_compression: false
 
-  # Oracle: capture first frame, recall at intervals throughout generation
-  # Frame 0 = initial scene state, recalled at frames 30, 60, 90
+  strict_correctness: false
+
   oracle_mode: full_frame
   oracle_layer: 29
   oracle_num_frames: 1
   oracle_capture_frames: [0]
   oracle_recall_frames: [30, 60, 90]
   oracle_append_mode: true
+  oracle_mask_wave_heads: true
 
   head_roles_path: third_party/Pyramid-Forcing/configs/head_configs/best_labels.csv
 
