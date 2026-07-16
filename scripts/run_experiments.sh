@@ -503,7 +503,7 @@ case "${1:-all}" in
         ;;
     v3_oracle_review)
         # Oracle on review prompts (long-horizon)
-        out="$REPO_ROOT/runs/v3_oracle_review_${FRAMES}f"
+        out="$REPO_ROOT/runs/v3_oracle_review_v31_${FRAMES}f"
         echo "[Run 19] Oracle full-frame on review prompts -> $out"
         cd "$REPO_ROOT/third_party/Self-Forcing"
         export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
