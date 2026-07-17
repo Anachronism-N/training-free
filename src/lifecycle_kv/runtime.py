@@ -111,6 +111,11 @@ class LifeCacheRuntimeConfig:
     oracle_zero_v: bool = False  # Zero out V tokens (control: value contribution)
     oracle_mask_wave_heads: bool = True  # Zero V for WAVE heads (prevent contamination)
 
+    # v3.2: Gated parallel attention (docs/35 Section 6)
+    use_gated_attention: bool = False  # Use parallel gated injection instead of union-append
+    memory_gate: float = 0.10  # Gate strength for memory branch (0.0 = native)
+    use_rms_matching: bool = True  # RMS-match memory output to recent output scale
+
 
 class LifeCacheRuntime:
     """Orchestrates LifeCache operations during inference.

@@ -1,9 +1,9 @@
-# LifeCache v3.1 — Full-Frame Oracle with Per-Head V Masking
-# Key improvements over v3:
-# 1. Per-head V masking: zero out oracle V for WAVE heads (prevent motion contamination)
-# 2. Removed temporal double clamp in sparse 3D RoPE
-# 3. Enforced recall budget (min of role_budget and config top_tokens)
-# Captures clean full-frame K/V from frame 0, injects at frames 30/60/90.
+# LifeCache v3.2 — Gated Parallel Oracle
+# Key improvements over v3.1:
+# 1. Gated parallel attention: separate recent/memory branches, no softmax competition
+# 2. Per-head gate: WAVE heads blocked from memory, identity/layout heads get memory
+# 3. RMS matching: scale memory output to match recent output
+# 4. Memory gate: controlled fusion strength (0.10 = 10% memory influence)
 
 lifecache:
   enabled: true
@@ -13,7 +13,7 @@ lifecache:
   compression: none
   recall_enabled: true
   recall_top_sets: 1
-  recall_top_tokens: 1560  # One full frame
+  recall_top_tokens: 1560
   max_frame_distance: null
 
   anchor_enabled: false
@@ -40,7 +40,12 @@ lifecache:
   oracle_capture_frames: [0]
   oracle_recall_frames: [30, 60, 90]
   oracle_append_mode: true
-  oracle_mask_wave_heads: true
+  oracle_mask_wave_heads: false  # Disabled: handled by head mask in gated attention
+
+  # v3.2: Gated parallel attention
+  use_gated_attention: true
+  memory_gate: 0.10
+  use_rms_matching: true
 
   head_roles_path: third_party/Pyramid-Forcing/configs/head_configs/best_labels.csv
 

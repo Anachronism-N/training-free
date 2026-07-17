@@ -643,10 +643,60 @@ class CausalWanSelfAttention(nn.Module):
                                           f"zeroed V for {len(wave_heads)} WAVE heads "
                                           f"on {is_recall_mask.sum().item()} recalled tokens")
                         # --- End per-head V masking ---
-                    else:
-                        active_k = kv_cache["k"][:, attn_start:local_end_index]
-                        active_v = kv_cache["v"][:, attn_start:local_end_index]
-                    x = attention(roped_query, active_k, active_v)
+                        # --- v3.2: Gated parallel attention ---
+                        if rt.config.use_gated_attention and has_recall:
+                            # Separate recent and memory attention branches
+                            # recent: [1, T_recent, H, D], memory: [1, T_mem, H, D]
+                            is_recall_mask = torch.tensor(
+                                [r == CacheRegion.RECALL for r in view.regions],
+                                device=active_k.device, dtype=torch.bool)
+                            recent_mask = ~is_recall_mask
+                            n_heads = active_k.shape[2]
+
+                            # 1. Recent-only attention (baseline)
+                            x_recent = attention(
+                                roped_query,
+                                active_k[:, recent_mask, :, :],
+                                active_v[:, recent_mask, :, :],
+                            )
+
+                            # 2. Memory-only attention
+                            memory_k = active_k[:, is_recall_mask, :, :]
+                            memory_v = active_v[:, is_recall_mask, :, :]
+                            x_memory = attention(
+                                roped_query,
+                                memory_k,
+                                memory_v,
+                            )
+
+                            # 3. RMS matching (scale memory output to match recent output scale)
+                            if rt.config.use_rms_matching:
+                                rms_recent = x_recent.pow(2).mean(dim=-1, keepdim=True).sqrt().clamp(min=1e-6)
+                                rms_memory = x_memory.pow(2).mean(dim=-1, keepdim=True).sqrt().clamp(min=1e-6)
+                                x_memory = x_memory * (rms_recent / rms_memory)
+
+                            # 4. Per-head gated fusion
+                            gate = rt.config.memory_gate
+                            # Build per-head mask: WAVE heads get zero gate
+                            head_mask = torch.ones(n_heads, device=active_k.device, dtype=active_k.dtype)
+                            if lifecache_manager._head_roles:
+                                wave_heads = lifecache_manager.get_wave_head_indices(block_index)
+                                for wh in wave_heads:
+                                    head_mask[wh] = 0.0  # Block WAVE heads from memory
+                            head_mask = head_mask.view(1, n_heads, 1, 1)  # [1, H, 1, 1]
+
+                            # Fused output: recent + gated memory
+                            x = x_recent + gate * head_mask * x_memory
+
+                            if self._lifecache_compose_cnt <= 3 or is_recall_mask.sum() > 1000:
+                                print(f"[LifeCache GATED] L{block_index} "
+                                      f"gate={gate} recent_tokens={recent_mask.sum().item()} "
+                                      f"memory_tokens={is_recall_mask.sum().item()} "
+                                      f"x_recent_rms={x_recent.pow(2).mean().sqrt().item():.4f} "
+                                      f"x_memory_rms={x_memory.pow(2).mean().sqrt().item():.4f}")
+                        else:
+                            x = attention(roped_query, active_k, active_v)
+                        # --- End gated parallel attention ---
                 elif hcp:
                     # --- Per-Head Cache Policy (HCP) ---------------------------------
                     # Different heads attend to different subsets of the cached window

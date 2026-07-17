@@ -115,6 +115,10 @@ class LifecycleCacheManager:
             oracle_shuffle_v=lc.get("oracle_shuffle_v", False),
             oracle_zero_v=lc.get("oracle_zero_v", False),
             oracle_mask_wave_heads=lc.get("oracle_mask_wave_heads", True),
+            # v3.2: Gated parallel attention
+            use_gated_attention=lc.get("use_gated_attention", False),
+            memory_gate=lc.get("memory_gate", 0.10),
+            use_rms_matching=lc.get("use_rms_matching", True),
         )
 
         runtime = LifeCacheRuntime(runtime_config)
