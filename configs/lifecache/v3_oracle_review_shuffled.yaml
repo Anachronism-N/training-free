@@ -1,34 +1,27 @@
-# LifeCache v3 — Full-Frame Oracle Control: Shuffled V
-# Same as oracle but shuffles V tokens within the frame.
-# Tests K/V spatial alignment requirement.
+# LifeCache v3.2 — Oracle Control: Shuffled V (gate=0.10)
 
 lifecache:
   enabled: true
   trace_only: false
   mode: union
-
   compression: none
   recall_enabled: true
   recall_top_sets: 1
   recall_top_tokens: 1560
   max_frame_distance: null
-
   anchor_enabled: false
   motion_enabled: false
-
   region_bias_beta: 0.0
   trace_path: cache_trace.jsonl
   record_latency: true
-
   enable_last_n_layers: 1
-
   rope_safe_recall: true
   allow_post_rope_recall: false
   rope_remap_policy: relative_clamp
   max_post_rope_frame_distance: 21
   capture_clean_only: false
   use_real_query_for_compression: false
-
+  strict_correctness: false
   oracle_mode: full_frame
   oracle_layer: 29
   oracle_num_frames: 1
@@ -36,8 +29,10 @@ lifecache:
   oracle_recall_frames: [30, 60, 90]
   oracle_append_mode: true
   oracle_shuffle_v: true
-
+  oracle_mask_wave_heads: false
+  use_gated_attention: true
+  memory_gate: 0.10
+  use_rms_matching: true
   head_roles_path: third_party/Pyramid-Forcing/configs/head_configs/best_labels.csv
-
   bank_max_compressed_sets: 4
   bank_max_compressed_tokens: 8192

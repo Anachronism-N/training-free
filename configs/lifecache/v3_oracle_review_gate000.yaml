@@ -1,5 +1,5 @@
-# LifeCache v3.2 — Oracle Control: Wrong Frame (gate=0.10)
-# Captures frame 30 instead of frame 0.
+# LifeCache v3.2 — Gated Parallel Oracle (gate=0.00)
+# Zero gate — equivalence check: should produce native-like output.
 
 lifecache:
   enabled: true
@@ -26,12 +26,12 @@ lifecache:
   oracle_mode: full_frame
   oracle_layer: 29
   oracle_num_frames: 1
-  oracle_capture_frames: [30]
+  oracle_capture_frames: [0]
   oracle_recall_frames: [30, 60, 90]
   oracle_append_mode: true
   oracle_mask_wave_heads: false
   use_gated_attention: true
-  memory_gate: 0.10
+  memory_gate: 0.00
   use_rms_matching: true
   head_roles_path: third_party/Pyramid-Forcing/configs/head_configs/best_labels.csv
   bank_max_compressed_sets: 4

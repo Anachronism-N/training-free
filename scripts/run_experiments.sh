@@ -578,6 +578,36 @@ case "${1:-all}" in
             --save_with_index
         echo "[Run 22] Done: $out"
         ;;
+    v3_oracle_review_gate005)
+        out="$REPO_ROOT/runs/v3_oracle_review_gate005_${FRAMES}f"
+        echo "[Run 23] Oracle gate=0.05 -> $out"
+        cd "$REPO_ROOT/third_party/Self-Forcing"
+        export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+        export LIFECACHE_ENABLE=1
+        export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review_gate005.yaml"
+        python inference.py --config_path "$SF_CONFIG" --output_folder "$out" --checkpoint_path "$SF_CHECKPOINT" --data_path "$PROMPTS" --num_output_frames "$FRAMES" --seed "$SEED" --num_samples 1 --use_ema --save_with_index
+        echo "[Run 23] Done: $out"
+        ;;
+    v3_oracle_review_gate020)
+        out="$REPO_ROOT/runs/v3_oracle_review_gate020_${FRAMES}f"
+        echo "[Run 24] Oracle gate=0.20 -> $out"
+        cd "$REPO_ROOT/third_party/Self-Forcing"
+        export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+        export LIFECACHE_ENABLE=1
+        export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review_gate020.yaml"
+        python inference.py --config_path "$SF_CONFIG" --output_folder "$out" --checkpoint_path "$SF_CHECKPOINT" --data_path "$PROMPTS" --num_output_frames "$FRAMES" --seed "$SEED" --num_samples 1 --use_ema --save_with_index
+        echo "[Run 24] Done: $out"
+        ;;
+    v3_oracle_review_gate000)
+        out="$REPO_ROOT/runs/v3_oracle_review_gate000_${FRAMES}f"
+        echo "[Run 25] Oracle gate=0.00 (equivalence) -> $out"
+        cd "$REPO_ROOT/third_party/Self-Forcing"
+        export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+        export LIFECACHE_ENABLE=1
+        export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review_gate000.yaml"
+        python inference.py --config_path "$SF_CONFIG" --output_folder "$out" --checkpoint_path "$SF_CHECKPOINT" --data_path "$PROMPTS" --num_output_frames "$FRAMES" --seed "$SEED" --num_samples 1 --use_ema --save_with_index
+        echo "[Run 25] Done: $out"
+        ;;
     all)
         run_native_sf
         run_sf_pyramid
