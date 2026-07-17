@@ -683,7 +683,8 @@ class CausalWanSelfAttention(nn.Module):
                                 wave_heads = lifecache_manager.get_wave_head_indices(block_index)
                                 for wh in wave_heads:
                                     head_mask[wh] = 0.0  # Block WAVE heads from memory
-                            head_mask = head_mask.view(1, n_heads, 1, 1)  # [1, H, 1, 1]
+                            # head_mask: [1, 1, H, 1] to broadcast with [1, T, H, D]
+                            head_mask = head_mask.view(1, 1, n_heads, 1)
 
                             # Fused output: recent + gated memory
                             x = x_recent + gate * head_mask * x_memory
