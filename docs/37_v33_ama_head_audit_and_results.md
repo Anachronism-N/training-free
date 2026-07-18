@@ -171,3 +171,5 @@ Go 条件：两个骨干、至少 3 prompts × 3 seeds 上，人工 review 明�
 - `runs/REVIEW_v33_adaptive_3prompt/`
 
 这些目录仅用于人工 review；完整视频、日志、trace、contact sheet 和 JSON 均保存在 `runs/v33_audits/`。
+
+原生曝光漂移的后续 latent 诊断见 `docs/38_native_latent_exposure_diagnosis.md`。

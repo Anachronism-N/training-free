@@ -1,6 +1,7 @@
 from .cache_types import CacheEntry, HeadRole, SlotState
 from .active_cache import ActiveCacheComposer, ActiveCacheView, RegionBudget
 from .attention_fusion import fuse_parallel_attention
+from .latent_trace import LatentTraceWriter, frame_statistics, tensor_statistics
 from .bank import BankBudget, BankStats, TokenSetBank
 from .compression import (
     CompressionConfig,
@@ -30,6 +31,9 @@ __all__ = [
     "ActiveCacheComposer",
     "ActiveCacheView",
     "fuse_parallel_attention",
+    "LatentTraceWriter",
+    "frame_statistics",
+    "tensor_statistics",
     "BankBudget",
     "BankStats",
     "CacheEntry",

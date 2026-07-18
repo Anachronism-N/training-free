@@ -7,6 +7,7 @@ from lifecycle_kv.attention_fusion import fuse_parallel_attention
 from lifecycle_kv.cache_types import HeadRole
 from lifecycle_kv.compression import qk_proxy_scores
 from lifecycle_kv.instrumentation import CacheTraceEvent, CacheTraceWriter
+from lifecycle_kv.latent_trace import frame_statistics, tensor_statistics
 from lifecycle_kv.oracle import slice_clean_block_frames
 from lifecycle_kv.recall import token_qk_scores
 from lifecycle_kv.runtime import LifeCacheRuntime, LifeCacheRuntimeConfig
@@ -264,3 +265,21 @@ def test_alignment_gate_rejects_opposing_stale_memory() -> None:
         alignment_threshold=0.0,
     )
     assert torch.allclose(aligned, recent * 1.5)
+
+
+def test_latent_trace_statistics_preserve_frame_and_channel_axes() -> None:
+    latent = torch.arange(1 * 2 * 3 * 2 * 2).reshape(1, 2, 3, 2, 2).float()
+    stats = tensor_statistics(latent, channel_dim=2)
+    frames = frame_statistics(latent, frame_dim=1)
+
+    assert stats["shape"] == [1, 2, 3, 2, 2]
+    assert len(stats["channel_mean"]) == 3
+    assert len(frames["frame_mean"]) == 2
+
+    video = torch.zeros(1, 2, 3, 2, 2)
+    video[:, :, 0] = 1.0
+    video_frames = frame_statistics(video, frame_dim=1)
+    assert torch.allclose(
+        torch.tensor(video_frames["frame_luma"]),
+        torch.full((2,), 0.2126),
+    )

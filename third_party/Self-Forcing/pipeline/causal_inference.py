@@ -40,6 +40,15 @@ class CausalInferencePipeline(torch.nn.Module):
         self.independent_first_frame = args.independent_first_frame
         self.local_attn_size = self.generator.model.local_attn_size
 
+        self.latent_trace = None
+        self._latent_trace_video_index = 0
+        latent_trace_path = os.environ.get("AR_LATENT_TRACE_PATH")
+        if latent_trace_path:
+            from lifecycle_kv.latent_trace import LatentTraceWriter
+
+            self.latent_trace = LatentTraceWriter(latent_trace_path)
+            print(f"[AR Trace] Latent/RGB statistics -> {latent_trace_path}")
+
         # LifeCache integration
         self.lifecache_manager = None
         if os.environ.get("LIFECACHE_ENABLE", "0") == "1":
@@ -98,6 +107,14 @@ class CausalInferencePipeline(torch.nn.Module):
                 It is normalized to be in the range [0, 1].
         """
         batch_size, num_frames, num_channels, height, width = noise.shape
+        trace_video_index = self._latent_trace_video_index
+        self._latent_trace_video_index += 1
+        if self.latent_trace is not None:
+            self.latent_trace.write({
+                "event": "video_start",
+                "video_index": trace_video_index,
+                "num_frames": num_frames,
+            })
         if not self.independent_first_frame or (self.independent_first_frame and initial_latent is not None):
             # If the first frame is independent and the first frame is provided, then the number of frames in the
             # noise should still be a multiple of num_frame_per_block
@@ -256,6 +273,17 @@ class CausalInferencePipeline(torch.nn.Module):
 
             # Step 3.2: record the model's output
             output[:, current_start_frame:current_start_frame + current_num_frames] = denoised_pred
+            if self.latent_trace is not None:
+                from lifecycle_kv.latent_trace import frame_statistics, tensor_statistics
+
+                self.latent_trace.write({
+                    "event": "denoised_block",
+                    "video_index": trace_video_index,
+                    "start_frame": current_start_frame,
+                    "num_frames": current_num_frames,
+                    **tensor_statistics(denoised_pred, channel_dim=2),
+                    **frame_statistics(denoised_pred, frame_dim=1),
+                })
 
             # Step 3.3: rerun with timestep zero to update KV cache using clean context
             context_timestep = torch.ones_like(timestep) * self.args.context_noise
@@ -413,6 +441,15 @@ class CausalInferencePipeline(torch.nn.Module):
         # Step 4: Decode the output
         video = self.vae.decode_to_pixel(output, use_cache=False)
         video = (video * 0.5 + 0.5).clamp(0, 1)
+        if self.latent_trace is not None:
+            from lifecycle_kv.latent_trace import frame_statistics, tensor_statistics
+
+            self.latent_trace.write({
+                "event": "decoded_video",
+                "video_index": trace_video_index,
+                **tensor_statistics(video, channel_dim=2),
+                **frame_statistics(video, frame_dim=1),
+            })
 
         if profile:
             # End VAE timing and synchronize CUDA
