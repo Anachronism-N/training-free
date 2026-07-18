@@ -379,6 +379,9 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         capture_frame_id_mode=hc.pyramidkv_capture_frame_id_mode,
                         readout_cache_enabled=hc.pyramidkv_readout_cache_enabled,
                         prompt_value_cache_enabled=hc.pyramidkv_prompt_v_cache_enabled,
+                        history_value_renorm_strength=hc.pyramidkv_history_value_renorm_strength,
+                        history_value_recent_frames=hc.pyramidkv_history_value_recent_frames,
+                        history_value_gate_lambda=hc.pyramidkv_history_value_gate_lambda,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(
@@ -456,6 +459,9 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         capture_frame_id_mode=hc.pyramidkv_capture_frame_id_mode,
                         readout_cache_enabled=hc.pyramidkv_readout_cache_enabled,
                         prompt_value_cache_enabled=hc.pyramidkv_prompt_v_cache_enabled,
+                        history_value_renorm_strength=hc.pyramidkv_history_value_renorm_strength,
+                        history_value_recent_frames=hc.pyramidkv_history_value_recent_frames,
+                        history_value_gate_lambda=hc.pyramidkv_history_value_gate_lambda,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(

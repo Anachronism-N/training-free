@@ -87,6 +87,22 @@ parser.add_argument(
     help="If set, save videos as {fixed_prefix}{global_idx:03d}.mp4, "
          "ignoring per-prompt naming.",
 )
+parser.add_argument(
+    "--pyramidkv_history_value_renorm_strength", type=float, default=None,
+    help="Blend stale history V channel statistics toward the recent live window (0 disables).",
+)
+parser.add_argument(
+    "--pyramidkv_history_value_recent_frames", type=int, default=None,
+    help="Number of recent frames used as live V statistics for history renormalization.",
+)
+parser.add_argument(
+    "--pyramidkv_history_value_gate_lambda", type=float, default=None,
+    help="Echo-style discrepancy gate for stale-history V refresh (0 disables).",
+)
+parser.add_argument(
+    "--reseed_per_prompt", action="store_true",
+    help="Reset RNG to seed + prompt index before sampling each prompt for fair A/B runs.",
+)
 args = parser.parse_args()
 
 
@@ -200,6 +216,12 @@ if local_rank == 0:
 config = OmegaConf.load(args.config_path)
 default_config = OmegaConf.load("configs/default_config.yaml")
 config = OmegaConf.merge(default_config, config)
+if args.pyramidkv_history_value_renorm_strength is not None:
+    config.pyramidkv_history_value_renorm_strength = args.pyramidkv_history_value_renorm_strength
+if args.pyramidkv_history_value_recent_frames is not None:
+    config.pyramidkv_history_value_recent_frames = args.pyramidkv_history_value_recent_frames
+if args.pyramidkv_history_value_gate_lambda is not None:
+    config.pyramidkv_history_value_gate_lambda = args.pyramidkv_history_value_gate_lambda
 
 # Initialize pipeline
 if hasattr(config, 'denoising_step_list'):
@@ -327,6 +349,8 @@ try:
     with torch.inference_mode():
         for i, batch_data in enumerate(dataloader):
             idx = batch_data['idx'].item()
+            if args.reseed_per_prompt:
+                set_seed(args.seed + int(idx))
 
             # For DataLoader batch_size=1, the batch_data is already a single item, but in a batch container
             # Unpack the batch data for convenience

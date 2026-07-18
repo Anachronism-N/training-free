@@ -181,6 +181,9 @@ class AdaptiveKVCache(PyramidKVCache):
         capture_frame_id_mode: str = "mapped",
         readout_cache_enabled: bool = True,
         prompt_value_cache_enabled: bool = False,
+        history_value_renorm_strength: float = 0.0,
+        history_value_recent_frames: int = 4,
+        history_value_gate_lambda: float = 0.0,
     ):
         super().__init__(
             config=config,
@@ -271,6 +274,11 @@ class AdaptiveKVCache(PyramidKVCache):
             mode = "mapped"
         self.capture_frame_id_mode = mode
         self.readout_cache_enabled = bool(readout_cache_enabled)
+        self.history_value_renorm_strength = max(
+            0.0, min(1.0, float(history_value_renorm_strength))
+        )
+        self.history_value_recent_frames = max(1, int(history_value_recent_frames))
+        self.history_value_gate_lambda = max(0.0, float(history_value_gate_lambda))
         self._base_tail_len = self.tail_len
         max_cap = max(self.capacities) if self.capacities else 0
         min_cap = min(self.capacities) if self.capacities else 0

@@ -79,6 +79,9 @@ class PyramidKVPipelineConfig:
     history_time_soft_factor: float = 0.5
     pyramidkv_readout_cache_enabled: bool = True
     pyramidkv_prompt_v_cache_enabled: bool = False
+    pyramidkv_history_value_renorm_strength: float = 0.0
+    pyramidkv_history_value_recent_frames: int = 4
+    pyramidkv_history_value_gate_lambda: float = 0.0
     # --- Cyclic (was phase/osc_frame) ---
     cyclic_enabled: bool = False  # was use_osc_frame_mode
     cyclic_period: int = 6  # was phase_period
@@ -176,6 +179,15 @@ class PyramidKVPipelineConfig:
             history_time_soft_factor=getattr(args, "history_time_soft_factor", 0.5),
             pyramidkv_readout_cache_enabled=bool(getattr(args, "pyramidkv_readout_cache_enabled", True)),
             pyramidkv_prompt_v_cache_enabled=bool(getattr(args, "pyramidkv_prompt_v_cache_enabled", False)),
+            pyramidkv_history_value_renorm_strength=float(
+                getattr(args, "pyramidkv_history_value_renorm_strength", 0.0)
+            ),
+            pyramidkv_history_value_recent_frames=int(
+                getattr(args, "pyramidkv_history_value_recent_frames", 4)
+            ),
+            pyramidkv_history_value_gate_lambda=float(
+                getattr(args, "pyramidkv_history_value_gate_lambda", 0.0)
+            ),
             cyclic_enabled=getattr(args, "cyclic_enabled", use_adaptive),
             cyclic_period=getattr(args, "cyclic_period", 6),
             cyclic_bucket_cap=getattr(args, "cyclic_bucket_cap", 1),

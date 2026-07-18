@@ -29,6 +29,7 @@ from .capture import (
     ATTENTION_WEIGHT_CAPTURE,
     compute_frame_attention_metrics_single_sequence,
 )
+from .history_value import renormalize_stale_history_values
 
 
 def flash_attention(
@@ -369,6 +370,22 @@ def pyramidkv_attention(
                 k_flat_chunk[ks:ke] = local_k
         return k_flat_chunk
 
+    def _refresh_stale_history_values(
+        v_flat_chunk: torch.Tensor,
+        cu_seqlens_k_chunk: torch.Tensor,
+        k_frame_ids_flat: torch.Tensor | None,
+        current_frames: int | list[int],
+    ) -> torch.Tensor:
+        return renormalize_stale_history_values(
+            values=v_flat_chunk,
+            cu_seqlens=cu_seqlens_k_chunk,
+            frame_ids=k_frame_ids_flat,
+            current_frames=current_frames,
+            strength=float(getattr(kv_cache, "history_value_renorm_strength", 0.0)),
+            recent_frames=int(getattr(kv_cache, "history_value_recent_frames", 4)),
+            gate_lambda=float(getattr(kv_cache, "history_value_gate_lambda", 0.0)),
+        )
+
     def _capture_varlen_frame_attention(
         q_chunk: torch.Tensor,
         k_flat_chunk: torch.Tensor,
@@ -571,7 +588,7 @@ def pyramidkv_attention(
             )
             if use_merged:
                 current_starts = [base_start + c * frame_seqlen for c in range(num_chunks)]
-                k_flat_m, v_flat_m, cu_seqlens_k_m, max_seqlen_k_m, _ = (
+                k_flat_m, v_flat_m, cu_seqlens_k_m, max_seqlen_k_m, k_frame_ids_m = (
                     kv_cache.get_decoupled_flat_kv_and_frames_multi(
                         current_starts=current_starts,
                         grid_sizes=grid_sizes,
@@ -579,6 +596,10 @@ def pyramidkv_attention(
                     )
                 )
                 num_seq = b * h
+                sync_frames = [start // frame_seqlen for start in current_starts for _ in range(num_seq)]
+                v_flat_m = _refresh_stale_history_values(
+                    v_flat_m, cu_seqlens_k_m, k_frame_ids_m, sync_frames
+                )
                 # Q: [b, lq, h, d] → chunk-first layout for FA varlen
                 # Target: [b*num_chunks*h*frame_seqlen, 1, d] ordered as
                 #   chunk0_head0, chunk0_head1, ..., chunk1_head0, ...
@@ -646,6 +667,12 @@ def pyramidkv_attention(
                     k_frame_ids_flat=k_frame_ids_flat,
                     chunk_start_token=base_start + offset,
                 )
+                v_flat = _refresh_stale_history_values(
+                    v_flat,
+                    cu_seqlens_k,
+                    k_frame_ids_flat,
+                    (base_start + offset) // frame_seqlen,
+                )
                 _capture_varlen_frame_attention(
                     q_chunk=q_chunk,
                     k_flat_chunk=k_flat,
@@ -692,6 +719,13 @@ def pyramidkv_attention(
             k_frame_ids_flat=k_frame_ids_flat,
             chunk_start_token=int(current_start or 0),
         )
+        if frame_seqlen is not None and frame_seqlen > 0:
+            v_flat = _refresh_stale_history_values(
+                v_flat,
+                cu_seqlens_k,
+                k_frame_ids_flat,
+                int(current_start or 0) // frame_seqlen,
+            )
 
         _capture_varlen_frame_attention(
             q_chunk=q,
