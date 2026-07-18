@@ -1,5 +1,6 @@
 from .cache_types import CacheEntry, HeadRole, SlotState
 from .active_cache import ActiveCacheComposer, ActiveCacheView, RegionBudget
+from .attention_fusion import fuse_parallel_attention
 from .bank import BankBudget, BankStats, TokenSetBank
 from .compression import (
     CompressionConfig,
@@ -28,6 +29,7 @@ from .tokenset import CacheRegion, TokenSet
 __all__ = [
     "ActiveCacheComposer",
     "ActiveCacheView",
+    "fuse_parallel_attention",
     "BankBudget",
     "BankStats",
     "CacheEntry",

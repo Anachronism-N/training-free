@@ -20,6 +20,8 @@ mkdir -p "$REPO_ROOT/runs"
 # Common checkpoint and config
 SF_CHECKPOINT="$REPO_ROOT/third_party/Self-Forcing/checkpoints/self_forcing_dmd.pt"
 SF_CONFIG="$REPO_ROOT/third_party/Self-Forcing/configs/self_forcing_dmd.yaml"
+CF_CHECKPOINT="${CF_CHECKPOINT:-$REPO_ROOT/../research_sprint/cf_checkpoints/chunkwise/causal_forcing.pt}"
+CF_CONFIG="$REPO_ROOT/configs/backbones/causal_forcing_dmd_chunkwise.yaml"
 PF_CONFIG="$REPO_ROOT/third_party/Pyramid-Forcing/configs/pyramid-forcing.yaml"
 LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache-v1-minimal.yaml"
 
@@ -49,6 +51,71 @@ run_native_sf() {
         --save_with_index
     echo "[Run 1] Done: $out"
     echo ""
+}
+
+require_cf_checkpoint() {
+    if [[ ! -f "$CF_CHECKPOINT" ]]; then
+        echo "Missing Causal-Forcing checkpoint: $CF_CHECKPOINT" >&2
+        echo "Set CF_CHECKPOINT to the official chunkwise/causal_forcing.pt path." >&2
+        exit 2
+    fi
+}
+
+run_native_cf() {
+    require_cf_checkpoint
+    local out="$REPO_ROOT/runs/cf_native_${FRAMES}f"
+    echo "[CF] Native Causal-Forcing -> $out"
+    cd "$REPO_ROOT/third_party/Self-Forcing"
+    export LIFECACHE_ENABLE=0
+    python inference.py \
+        --config_path "$CF_CONFIG" \
+        --output_folder "$out" \
+        --checkpoint_path "$CF_CHECKPOINT" \
+        --data_path "$PROMPTS" \
+        --num_output_frames "$FRAMES" \
+        --seed "$SEED" \
+        --num_samples 1 \
+        --save_with_index
+}
+
+run_cf_oracle_gate000() {
+    require_cf_checkpoint
+    local out="$REPO_ROOT/runs/cf_oracle_review_gate000_${FRAMES}f"
+    echo "[CF] LifeCache oracle gate=0 equivalence -> $out"
+    cd "$REPO_ROOT/third_party/Self-Forcing"
+    export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+    export LIFECACHE_ENABLE=1
+    export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review_gate000.yaml"
+    export LIFECACHE_TRACE_PATH="$out/cache_trace.jsonl"
+    python inference.py \
+        --config_path "$CF_CONFIG" \
+        --output_folder "$out" \
+        --checkpoint_path "$CF_CHECKPOINT" \
+        --data_path "$PROMPTS" \
+        --num_output_frames "$FRAMES" \
+        --seed "$SEED" \
+        --num_samples 1 \
+        --save_with_index
+}
+
+run_cf_oracle_review() {
+    require_cf_checkpoint
+    local out="$REPO_ROOT/runs/cf_oracle_review_v32_${FRAMES}f"
+    echo "[CF] LifeCache gated oracle -> $out"
+    cd "$REPO_ROOT/third_party/Self-Forcing"
+    export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
+    export LIFECACHE_ENABLE=1
+    export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review.yaml"
+    export LIFECACHE_TRACE_PATH="$out/cache_trace.jsonl"
+    python inference.py \
+        --config_path "$CF_CONFIG" \
+        --output_folder "$out" \
+        --checkpoint_path "$CF_CHECKPOINT" \
+        --data_path "$PROMPTS" \
+        --num_output_frames "$FRAMES" \
+        --seed "$SEED" \
+        --num_samples 1 \
+        --save_with_index
 }
 
 # -------------------------------------------------------------------
@@ -509,6 +576,7 @@ case "${1:-all}" in
         export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
         export LIFECACHE_ENABLE=1
         export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review.yaml"
+        export LIFECACHE_TRACE_PATH="$out/cache_trace.jsonl"
         python inference.py \
             --config_path "$SF_CONFIG" \
             --output_folder "$out" \
@@ -585,6 +653,7 @@ case "${1:-all}" in
         export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
         export LIFECACHE_ENABLE=1
         export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review_gate005.yaml"
+        export LIFECACHE_TRACE_PATH="$out/cache_trace.jsonl"
         python inference.py --config_path "$SF_CONFIG" --output_folder "$out" --checkpoint_path "$SF_CHECKPOINT" --data_path "$PROMPTS" --num_output_frames "$FRAMES" --seed "$SEED" --num_samples 1 --use_ema --save_with_index
         echo "[Run 23] Done: $out"
         ;;
@@ -595,6 +664,7 @@ case "${1:-all}" in
         export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
         export LIFECACHE_ENABLE=1
         export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review_gate020.yaml"
+        export LIFECACHE_TRACE_PATH="$out/cache_trace.jsonl"
         python inference.py --config_path "$SF_CONFIG" --output_folder "$out" --checkpoint_path "$SF_CHECKPOINT" --data_path "$PROMPTS" --num_output_frames "$FRAMES" --seed "$SEED" --num_samples 1 --use_ema --save_with_index
         echo "[Run 24] Done: $out"
         ;;
@@ -605,8 +675,18 @@ case "${1:-all}" in
         export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT/third_party/Self-Forcing/scripts:${PYTHONPATH:-}"
         export LIFECACHE_ENABLE=1
         export LIFECACHE_CONFIG="$REPO_ROOT/configs/lifecache/v3_oracle_review_gate000.yaml"
+        export LIFECACHE_TRACE_PATH="$out/cache_trace.jsonl"
         python inference.py --config_path "$SF_CONFIG" --output_folder "$out" --checkpoint_path "$SF_CHECKPOINT" --data_path "$PROMPTS" --num_output_frames "$FRAMES" --seed "$SEED" --num_samples 1 --use_ema --save_with_index
         echo "[Run 25] Done: $out"
+        ;;
+    cf_native)
+        run_native_cf
+        ;;
+    cf_v3_oracle_review_gate000)
+        run_cf_oracle_gate000
+        ;;
+    cf_v3_oracle_review)
+        run_cf_oracle_review
         ;;
     all)
         run_native_sf
@@ -625,6 +705,9 @@ case "${1:-all}" in
         echo "  v3_oracle_shuffled — E2c3: Shuffled V control"
         echo "  v3_oracle_zero_v   — E2c4: Zero V control"
         echo "  v3_native_aba      — E2b: Native SF on ABA prompts"
+        echo "  cf_native          — Native Causal-Forcing through the shared Wan path"
+        echo "  cf_v3_oracle_review_gate000 — Causal-Forcing gate=0 equivalence"
+        echo "  cf_v3_oracle_review — Causal-Forcing gated oracle"
         exit 1
         ;;
 esac

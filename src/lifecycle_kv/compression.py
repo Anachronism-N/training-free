@@ -90,7 +90,12 @@ def compress_attention_participation(
     )
 
 
-def qk_proxy_scores(q: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
+def qk_proxy_scores(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    *,
+    query_chunk_size: int = 128,
+) -> torch.Tensor:
     """Approximate attention participation without materialized attention maps.
 
     q: [query_tokens, heads_q, dim]
@@ -109,8 +114,24 @@ def qk_proxy_scores(q: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
         qn = qn.mean(dim=1, keepdim=True)
         kn = kn.mean(dim=1, keepdim=True)
 
-    sim = torch.einsum("qhd,khd->qkh", qn, kn)
-    scores = sim.max(dim=0).values.mean(dim=-1)
+    if query_chunk_size <= 0:
+        raise ValueError("query_chunk_size must be positive")
+
+    # Materializing [Q, K, H] is several GiB at video-token scale. The score
+    # only needs max over Q, so accumulate that reduction one query chunk at a
+    # time without changing the result.
+    max_sim = torch.full(
+        (kn.shape[0], kn.shape[1]),
+        -torch.inf,
+        device=kn.device,
+        dtype=kn.dtype,
+    )
+    for start in range(0, qn.shape[0], query_chunk_size):
+        q_chunk = qn[start:start + query_chunk_size]
+        sim = torch.einsum("qhd,khd->qkh", q_chunk, kn)
+        max_sim = torch.maximum(max_sim, sim.max(dim=0).values)
+
+    scores = max_sim.mean(dim=-1)
     scores = scores.clamp_min(0)
     return scores / scores.sum().clamp_min(1e-8)
 

@@ -66,12 +66,32 @@ class LifecycleCacheManager:
             cfg = yaml.safe_load(f)
 
         lc = cfg.get("lifecache", cfg)
+        trace_path = os.environ.get("LIFECACHE_TRACE_PATH", lc.get("trace_path"))
+        oracle_layer_override = os.environ.get("LIFECACHE_ORACLE_LAYER")
+        oracle_layer = int(oracle_layer_override) if oracle_layer_override is not None else lc.get("oracle_layer", 29)
+        enable_layers = lc.get("enable_layers")
+        if oracle_layer_override is not None:
+            enable_layers = [oracle_layer]
+        memory_gate = float(os.environ.get("LIFECACHE_MEMORY_GATE", lc.get("memory_gate", 0.10)))
+        memory_head_policy = os.environ.get(
+            "LIFECACHE_MEMORY_HEAD_POLICY", lc.get("memory_head_policy", "all"))
+        memory_alignment_threshold = float(os.environ.get(
+            "LIFECACHE_MEMORY_ALIGNMENT_THRESHOLD",
+            lc.get("memory_alignment_threshold", 0.0),
+        ))
+        memory_head_indices_value = os.environ.get("LIFECACHE_MEMORY_HEAD_INDICES")
+        if memory_head_indices_value is None:
+            memory_head_indices = lc.get("memory_head_indices", [])
+        else:
+            memory_head_indices = [
+                int(head) for head in memory_head_indices_value.split(",") if head.strip()
+            ]
 
         runtime_config = LifeCacheRuntimeConfig(
             enabled=lc.get("enabled", False),
             trace_only=lc.get("trace_only", True),
             mode=lc.get("mode", "union"),
-            enable_layers=None,
+            enable_layers=tuple(int(layer) for layer in enable_layers) if enable_layers else None,
             compression=lc.get("compression", "none"),
             compression_topk=lc.get("compression_topk", 512),
             compression_min_tokens=lc.get("compression_min_tokens", 1),
@@ -89,7 +109,7 @@ class LifecycleCacheManager:
             region_bias_beta=lc.get("region_bias_beta", 0.0),
             include_anchors_in_recall=lc.get("include_anchors_in_recall", False),
             frame_seq_length=lc.get("frame_seq_length", 1560),
-            trace_path=lc.get("trace_path"),
+            trace_path=trace_path,
             bank_max_compressed_sets=lc.get("bank_max_compressed_sets", 64),
             bank_max_compressed_tokens=lc.get("bank_max_compressed_tokens", 65536),
             bank_max_anchor_sets=lc.get("bank_max_anchor_sets", 32),
@@ -107,18 +127,30 @@ class LifecycleCacheManager:
             strict_correctness=lc.get("strict_correctness", False),
             # Oracle mode (Stage 2)
             oracle_mode=lc.get("oracle_mode", "none"),
-            oracle_layer=lc.get("oracle_layer", 29),
+            oracle_layer=oracle_layer,
             oracle_num_frames=lc.get("oracle_num_frames", 1),
             oracle_capture_frames=lc.get("oracle_capture_frames"),
             oracle_recall_frames=lc.get("oracle_recall_frames"),
+            oracle_recall_start_frame=lc.get("oracle_recall_start_frame"),
+            oracle_recall_stride=lc.get("oracle_recall_stride", 1),
             oracle_append_mode=lc.get("oracle_append_mode", True),
             oracle_shuffle_v=lc.get("oracle_shuffle_v", False),
             oracle_zero_v=lc.get("oracle_zero_v", False),
             oracle_mask_wave_heads=lc.get("oracle_mask_wave_heads", True),
+            oracle_allow_sparse_fallback=lc.get("oracle_allow_sparse_fallback", False),
             # v3.2: Gated parallel attention
             use_gated_attention=lc.get("use_gated_attention", False),
-            memory_gate=lc.get("memory_gate", 0.10),
+            memory_gate=memory_gate,
             use_rms_matching=lc.get("use_rms_matching", True),
+            rms_scale_max=lc.get("rms_scale_max", 4.0),
+            memory_head_policy=memory_head_policy,
+            memory_head_indices=(
+                tuple(int(head) for head in memory_head_indices) or None
+            ),
+            memory_alignment_gate=lc.get("memory_alignment_gate", False),
+            memory_alignment_threshold=memory_alignment_threshold,
+            qk_diagnostic_enabled=lc.get("qk_diagnostic_enabled", False),
+            qk_query_chunk_size=lc.get("qk_query_chunk_size", 128),
         )
 
         runtime = LifeCacheRuntime(runtime_config)
@@ -160,6 +192,8 @@ class LifecycleCacheManager:
             role_counts = Counter(head_roles.values())
             print(f"[LifeCache] Loaded {len(head_roles)} head roles: "
                   f"{', '.join(f'{k.value}={v}' for k, v in sorted(role_counts.items(), key=lambda x: x[0].value))}")
+        print(f"[LifeCache] Memory head policy: {runtime.config.memory_head_policy}"
+              f"{f' indices={runtime.config.memory_head_indices}' if runtime.config.memory_head_indices else ''}")
 
         return cls(runtime, num_layers=num_layers, head_roles=head_roles)
 

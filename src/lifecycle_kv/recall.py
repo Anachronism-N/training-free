@@ -115,7 +115,12 @@ def retrieve_token_sets(
     return [token_sets[i] for i in order]
 
 
-def token_qk_scores(q: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
+def token_qk_scores(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    *,
+    query_chunk_size: int = 128,
+) -> torch.Tensor:
     """Return max query-key cosine score per historical token.
 
     q: [query_tokens, heads_q, dim]
@@ -132,9 +137,22 @@ def token_qk_scores(q: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
         # Mean over heads to align: qn -> [Q, 1, D], kn -> [K, 1, D]
         qn = qn.mean(dim=1, keepdim=True)
         kn = kn.mean(dim=1, keepdim=True)
-    # [query, token, head] -> max over query, mean over heads
-    sim = torch.einsum("qhd,khd->qkh", qn, kn)
-    return sim.max(dim=0).values.mean(dim=-1)
+    if query_chunk_size <= 0:
+        raise ValueError("query_chunk_size must be positive")
+
+    # [Q, K, H] is too large to materialize for Wan video tokens. Accumulate
+    # max over Q in bounded chunks, then average over heads as before.
+    max_sim = torch.full(
+        (kn.shape[0], kn.shape[1]),
+        -torch.inf,
+        device=kn.device,
+        dtype=kn.dtype,
+    )
+    for start in range(0, qn.shape[0], query_chunk_size):
+        q_chunk = qn[start:start + query_chunk_size]
+        sim = torch.einsum("qhd,khd->qkh", q_chunk, kn)
+        max_sim = torch.maximum(max_sim, sim.max(dim=0).values)
+    return max_sim.mean(dim=-1)
 
 
 def recall_tokens(

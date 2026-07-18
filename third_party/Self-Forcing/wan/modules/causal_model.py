@@ -18,9 +18,11 @@ import math
 import torch.distributed as dist
 
 try:
+    from lifecycle_kv.attention_fusion import fuse_parallel_attention
     from lifecycle_kv.cache_types import HeadRole
     from lifecycle_kv.tokenset import CacheRegion
 except ImportError:
+    fuse_parallel_attention = None  # type: ignore
     HeadRole = None  # type: ignore
     CacheRegion = None  # type: ignore
 
@@ -308,6 +310,12 @@ class CausalWanSelfAttention(nn.Module):
 
             current_end = current_start + roped_query.shape[1]
             sink_tokens = self.sink_size * frame_seqlen
+            block_index = getattr(self, "_block_index", None)
+            lifecache_layer_enabled = (
+                lifecache_manager is not None
+                and block_index is not None
+                and lifecache_manager.runtime.should_enable_layer(block_index)
+            )
             # --- Anchor-Adjacent RoPE (AAR) ---------------------------------
             # BUG (doc 102/103): sink frames are stored pre-roped at absolute
             # positions 0..sink-1 and never refreshed. As current_start_frame
@@ -349,7 +357,10 @@ class CausalWanSelfAttention(nn.Module):
                 num_rolled_tokens = kv_cache["local_end_index"].item() - num_evicted_tokens - sink_tokens
                 # --- LifeCache v3: capture evicted tokens ---
                 # Always capture when LifeCache is active.
-                if lifecache_manager is not None and num_evicted_tokens > 0 and sink_tokens == 0:
+                if (lifecache_layer_enabled
+                        and lifecache_manager.runtime.should_capture_evictions()
+                        and num_evicted_tokens > 0
+                        and sink_tokens == 0):
                     rt = lifecache_manager.runtime
                     # Get timestep first (used in debug print below)
                     timestep_val = None
@@ -416,7 +427,7 @@ class CausalWanSelfAttention(nn.Module):
                 kv_cache["k"][:, local_start_index:local_end_index] = k if fwaar else roped_key
                 kv_cache["v"][:, local_start_index:local_end_index] = v
                 # LifeCache: also write pre-RoPE K
-                if lifecache_manager is not None:
+                if lifecache_layer_enabled:
                     k_pre = kv_cache.setdefault("k_pre_rope",
                         torch.zeros_like(kv_cache["k"]))
                     k_pre[:, local_start_index:local_end_index] = k
@@ -438,7 +449,7 @@ class CausalWanSelfAttention(nn.Module):
                     kv_cache["k"][:, local_start_index:local_end_index] = roped_key
                 kv_cache["v"][:, local_start_index:local_end_index] = v
             # LifeCache: also write pre-RoPE K in all cases
-            if lifecache_manager is not None:
+            if lifecache_layer_enabled:
                 k_pre = kv_cache.setdefault("k_pre_rope",
                     torch.zeros_like(kv_cache["k"]))
                 k_pre[:, local_start_index:local_end_index] = k
@@ -535,7 +546,6 @@ class CausalWanSelfAttention(nn.Module):
                 hcp = getattr(self, "head_cache_policy_on", False)
                 if lifecache_manager is not None:
                     # --- LifeCache active K/V composition --------------------------
-                    block_index = getattr(self, "_block_index", None)
                     rt = lifecache_manager.runtime
                     if block_index is not None and rt.should_enable_layer(block_index):
                         recent_k = kv_cache["k"][:, attn_start:local_end_index]
@@ -574,6 +584,7 @@ class CausalWanSelfAttention(nn.Module):
                                   f"active={active_k.shape[0]} recent={recent_k.shape[1]} "
                                   f"recalled={n_recalled} role={role.value} cnt={self._lifecache_compose_cnt}")
                         # --- RoPE remap v3: sparse 3D RoPE with real positions ---
+                        has_recall = False
                         if view is not None and view.regions and active_k.shape[0] > 0:
                             has_recall = any(r == CacheRegion.RECALL for r in view.regions)
                             if has_recall:
@@ -587,16 +598,14 @@ class CausalWanSelfAttention(nn.Module):
                                         fp = getattr(view, 'frame_positions', None)
                                         sp = getattr(view, 'spatial_positions', None)
                                         can_remap = False
-                                        # Stage 1 correctness gate: fail if metadata missing
+                                        invalid_reason = None
                                         if fp is None or sp is None:
-                                            print(f"[LifeCache] WARNING: recalled tokens missing frame/spatial positions. "
-                                                  f"Skipping RoPE remap for layer {block_index}.")
+                                            invalid_reason = "recalled tokens missing frame/spatial positions"
                                         else:
                                             recall_fp = fp.index_select(0, idx)
                                             recall_sp = sp.index_select(0, idx)
                                             if recall_fp.min() < 0 or recall_sp.min() < 0:
-                                                print(f"[LifeCache] WARNING: invalid position in recalled tokens. "
-                                                      f"Skipping RoPE remap for layer {block_index}.")
+                                                invalid_reason = "recalled tokens contain invalid frame/spatial positions"
                                             else:
                                                 TR = self.local_attn_size if self.local_attn_size > 0 else 21
                                                 # relative-clamp: map to legal distance from current query
@@ -604,6 +613,15 @@ class CausalWanSelfAttention(nn.Module):
                                                 temporal_idx = (current_start_frame - distance).long()
                                                 spatial_idx = recall_sp.long()
                                                 can_remap = True
+                                        if invalid_reason is not None:
+                                            message = f"[LifeCache] {invalid_reason} at layer {block_index}"
+                                            if rt.config.strict_correctness:
+                                                raise RuntimeError(message)
+                                            print(f"{message}; falling back to native recent attention.")
+                                            active_k = recent_k[0]
+                                            active_v = recent_v[0]
+                                            view = None
+                                            has_recall = False
                                         # Apply sparse 3D RoPE with dynamic grid dimensions
                                         if can_remap:
                                             gh = int(grid_sizes[0, 1].item())
@@ -660,44 +678,69 @@ class CausalWanSelfAttention(nn.Module):
                                 active_v[:, recent_mask, :, :],
                             )
 
-                            # 2. Memory-only attention
-                            memory_k = active_k[:, is_recall_mask, :, :]
-                            memory_v = active_v[:, is_recall_mask, :, :]
-                            x_memory = attention(
-                                roped_query,
-                                memory_k,
-                                memory_v,
-                            )
+                            gate = float(rt.config.memory_gate)
+                            if gate == 0.0:
+                                # This is the experiment's equivalence control. Do not
+                                # execute the memory branch: 0 * NaN is still NaN, and
+                                # an unnecessary kernel also breaks strict equivalence.
+                                x = x_recent
+                                x_memory = None
+                            else:
+                                # 2. Memory-only attention
+                                memory_k = active_k[:, is_recall_mask, :, :]
+                                memory_v = active_v[:, is_recall_mask, :, :]
+                                x_memory = attention(
+                                    roped_query,
+                                    memory_k,
+                                    memory_v,
+                                )
 
-                            # 3. RMS matching (scale memory output to match recent output scale)
-                            if rt.config.use_rms_matching:
-                                rms_recent = x_recent.pow(2).mean(dim=-1, keepdim=True).sqrt().clamp(min=1e-6)
-                                rms_memory = x_memory.pow(2).mean(dim=-1, keepdim=True).sqrt().clamp(min=1e-6)
-                                x_memory = x_memory * (rms_recent / rms_memory)
-
-                            # 4. Per-head gated fusion
-                            gate = rt.config.memory_gate
-                            # Build per-head mask: WAVE heads get zero gate
-                            head_mask = torch.ones(n_heads, device=active_k.device, dtype=active_k.dtype)
-                            if lifecache_manager._head_roles:
-                                wave_heads = lifecache_manager.get_wave_head_indices(block_index)
-                                for wh in wave_heads:
-                                    head_mask[wh] = 0.0  # Block WAVE heads from memory
-                            # head_mask: [1, 1, H, 1] to broadcast with [1, T, H, D]
-                            head_mask = head_mask.view(1, 1, n_heads, 1)
-
-                            # Fused output: recent + gated memory
-                            x = x_recent + gate * head_mask * x_memory
+                                # 3. Per-head gated fusion. Pyramid labels describe
+                                # RoPE/cache behavior, not semantic identity or motion;
+                                # they are only used by the explicit pf_stable ablation.
+                                pf_oscillating = lifecache_manager.get_wave_head_indices(block_index)
+                                enabled_heads = rt.resolve_memory_head_indices(
+                                    n_heads,
+                                    pf_oscillating_heads=pf_oscillating,
+                                )
+                                head_mask = torch.zeros(
+                                    n_heads, device=active_k.device, dtype=active_k.dtype)
+                                head_mask[enabled_heads] = 1.0
+                                head_mask = head_mask.view(1, 1, n_heads, 1)
+                                x = fuse_parallel_attention(
+                                    x_recent,
+                                    x_memory,
+                                    gate=gate,
+                                    head_mask=head_mask,
+                                    rms_match=rt.config.use_rms_matching,
+                                    rms_scale_max=rt.config.rms_scale_max,
+                                    alignment_gate=rt.config.memory_alignment_gate,
+                                    alignment_threshold=rt.config.memory_alignment_threshold,
+                                )
 
                             if self._lifecache_compose_cnt <= 3 or is_recall_mask.sum() > 1000:
-                                print(f"[LifeCache GATED] L{block_index} "
-                                      f"gate={gate} recent_tokens={recent_mask.sum().item()} "
-                                      f"memory_tokens={is_recall_mask.sum().item()} "
-                                      f"x_recent_rms={x_recent.pow(2).mean().sqrt().item():.4f} "
-                                      f"x_memory_rms={x_memory.pow(2).mean().sqrt().item():.4f}")
+                                if x_memory is None:
+                                    print(f"[LifeCache GATED] L{block_index} gate=0.0 native-equivalent")
+                                else:
+                                    print(f"[LifeCache GATED] L{block_index} "
+                                          f"gate={gate} recent_tokens={recent_mask.sum().item()} "
+                                          f"memory_tokens={is_recall_mask.sum().item()} "
+                                          f"memory_heads={enabled_heads} "
+                                          f"alignment_gate={rt.config.memory_alignment_gate} "
+                                          f"x_recent_rms={x_recent.pow(2).mean().sqrt().item():.4f} "
+                                          f"x_memory_rms={x_memory.pow(2).mean().sqrt().item():.4f}")
                         else:
                             x = attention(roped_query, active_k, active_v)
                         # --- End gated parallel attention ---
+                    else:
+                        # LifeCache is attached to every transformer block, but only
+                        # selected blocks may alter attention. All other blocks must
+                        # execute the exact native path.
+                        x = attention(
+                            roped_query,
+                            kv_cache["k"][:, attn_start:local_end_index],
+                            kv_cache["v"][:, attn_start:local_end_index],
+                        )
                 elif hcp:
                     # --- Per-Head Cache Policy (HCP) ---------------------------------
                     # Different heads attend to different subsets of the cached window

@@ -123,6 +123,12 @@ class CausalInferencePipeline(torch.nn.Module):
             dtype=noise.dtype
         )
 
+        # A pipeline instance is reused across prompts. KV indices were reset
+        # below, but LifeCache's bank and oracle frames previously survived and
+        # leaked memory from one prompt into the next.
+        if self.lifecache_manager is not None:
+            self.lifecache_manager.runtime.reset()
+
         # Set up profiling if requested
         if profile:
             init_start = torch.cuda.Event(enable_timing=True)
@@ -277,26 +283,44 @@ class CausalInferencePipeline(torch.nn.Module):
                 oracle_config = rt.config
                 if oracle_config.oracle_mode == "full_frame":
                     capture_frames = oracle_config.oracle_capture_frames
-                    current_frame_idx = current_start_frame
-                    if capture_frames is None or current_frame_idx in capture_frames:
+                    block_end_frame = current_start_frame + current_num_frames
+                    if capture_frames is None:
+                        target_frames = [current_start_frame]
+                    else:
+                        target_frames = [
+                            frame_idx for frame_idx in capture_frames
+                            if current_start_frame <= frame_idx < block_end_frame
+                        ]
+                    if target_frames:
                         oracle_layer = oracle_config.oracle_layer
                         cache = self.kv_cache1[oracle_layer]
                         k_pre = cache.get("k_pre_rope")
                         v_tensor = cache.get("v")
-                        local_end = cache.get("local_end_index", 0)
+                        local_end_value = cache.get("local_end_index", 0)
+                        local_end = int(
+                            local_end_value.item()
+                            if hasattr(local_end_value, "item")
+                            else local_end_value
+                        )
                         if k_pre is not None and v_tensor is not None and k_pre.shape[1] > 0:
-                            # Capture only ONE frame (frame_seq_length tokens)
-                            # from the end of the cache (most recent clean frame)
-                            fsl = self.frame_seq_length
-                            frame_start = max(0, local_end - fsl)
-                            frame_k = k_pre[0, frame_start:local_end]  # [T, H, D]
-                            frame_v = v_tensor[0, frame_start:local_end]  # [T, H, D]
-                            rt.store_oracle_frame(
-                                layer_id=oracle_layer,
-                                frame_idx=current_frame_idx,
-                                k_pre_rope=frame_k,
-                                v=frame_v,
+                            from lifecycle_kv.oracle import slice_clean_block_frames
+
+                            frame_slices = slice_clean_block_frames(
+                                k_pre_rope=k_pre,
+                                v=v_tensor,
+                                local_end=local_end,
+                                block_start_frame=current_start_frame,
+                                block_num_frames=current_num_frames,
+                                target_frames=target_frames,
+                                frame_seq_length=self.frame_seq_length,
                             )
+                            for target_frame, frame_k, frame_v in frame_slices:
+                                rt.store_oracle_frame(
+                                    layer_id=oracle_layer,
+                                    frame_idx=target_frame,
+                                    k_pre_rope=frame_k,
+                                    v=frame_v,
+                                )
 
             # LifeCache: process ALL evicted tokens captured during this block.
             # Only compress and store tokens from clean-context capture.
@@ -329,10 +353,6 @@ class CausalInferencePipeline(torch.nn.Module):
                                   f"capture_reason={payload.get('capture_reason','?')} "
                                   f"ts={payload.get('capture_timestep','?')} "
                                   f"cnt={self._lifecache_payload_cnt}")
-                        # v2: accept all captured tokens. Clean-only filtering
-                        # prevents eviction capture because eviction only happens
-                        # during denoising steps, not clean context refresh.
-                        # RoPE remap handles position safety at recall time.
                         evicted_k = payload.get("evicted_k_pre_rope")
                         if evicted_k is None:
                             evicted_k = payload["evicted_k_post_rope"]
@@ -366,6 +386,7 @@ class CausalInferencePipeline(torch.nn.Module):
                             frame_positions=frame_positions,
                             spatial_positions=spatial_positions,
                             is_pre_rope=payload.get("evicted_k_pre_rope") is not None,
+                            capture_reason=payload.get("capture_reason", "unknown"),
                         )
 
             # LifeCache: advance step counter after processing evicted tokens

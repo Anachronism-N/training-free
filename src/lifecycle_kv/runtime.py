@@ -106,15 +106,27 @@ class LifeCacheRuntimeConfig:
     oracle_num_frames: int = 1
     oracle_capture_frames: list[int] | None = None  # frame indices to capture
     oracle_recall_frames: list[int] | None = None  # frame indices where oracle is active
+    oracle_recall_start_frame: int | None = None
+    oracle_recall_stride: int = 1
     oracle_append_mode: bool = True  # True=append, False=fixed-budget replace
     oracle_shuffle_v: bool = False  # Shuffle V tokens (control: K/V alignment)
     oracle_zero_v: bool = False  # Zero out V tokens (control: value contribution)
     oracle_mask_wave_heads: bool = True  # Zero V for WAVE heads (prevent contamination)
+    oracle_allow_sparse_fallback: bool = False
 
     # v3.2: Gated parallel attention (docs/35 Section 6)
     use_gated_attention: bool = False  # Use parallel gated injection instead of union-append
     memory_gate: float = 0.10  # Gate strength for memory branch (0.0 = native)
     use_rms_matching: bool = True  # RMS-match memory output to recent output scale
+    rms_scale_max: float = 4.0
+    memory_head_policy: Literal["all", "pf_stable", "explicit"] = "all"
+    memory_head_indices: tuple[int, ...] | None = None
+    memory_alignment_gate: bool = False
+    memory_alignment_threshold: float = 0.0
+
+    # Expensive diagnostics are opt-in and must remain bounded.
+    qk_diagnostic_enabled: bool = False
+    qk_query_chunk_size: int = 128
 
 
 class LifeCacheRuntime:
@@ -132,6 +144,21 @@ class LifeCacheRuntime:
 
     def __init__(self, config: LifeCacheRuntimeConfig) -> None:
         self.config = config
+
+        if config.memory_gate < 0:
+            raise ValueError("memory_gate must be non-negative")
+        if config.rms_scale_max <= 0:
+            raise ValueError("rms_scale_max must be positive")
+        if config.qk_query_chunk_size <= 0:
+            raise ValueError("qk_query_chunk_size must be positive")
+        if config.memory_head_policy not in {"all", "pf_stable", "explicit"}:
+            raise ValueError(f"unsupported memory_head_policy: {config.memory_head_policy}")
+        if config.memory_head_policy == "explicit" and not config.memory_head_indices:
+            raise ValueError("explicit memory_head_policy requires memory_head_indices")
+        if config.oracle_recall_stride <= 0:
+            raise ValueError("oracle_recall_stride must be positive")
+        if config.memory_alignment_threshold >= 1:
+            raise ValueError("memory_alignment_threshold must be less than 1")
 
         # Stage 1 correctness: warn if region_bias is non-zero but not applied
         if config.region_bias_beta > 0:
@@ -199,6 +226,34 @@ class LifeCacheRuntime:
             return True
         return layer_id in self.config.enable_layers
 
+    def should_capture_evictions(self) -> bool:
+        """Return whether rolled native KV can participate in later recall."""
+        return not (
+            self._oracle_enabled
+            and not self.config.oracle_allow_sparse_fallback
+        )
+
+    def resolve_memory_head_indices(
+        self,
+        num_heads: int,
+        *,
+        pf_oscillating_heads: list[int] | tuple[int, ...] = (),
+    ) -> list[int]:
+        """Resolve the causal memory ablation mask without semantic relabeling."""
+        policy = self.config.memory_head_policy
+        if policy == "all":
+            return list(range(num_heads))
+        if policy == "pf_stable":
+            oscillating = set(pf_oscillating_heads)
+            return [head for head in range(num_heads) if head not in oscillating]
+
+        indices = sorted(set(self.config.memory_head_indices or ()))
+        if indices and (indices[0] < 0 or indices[-1] >= num_heads):
+            raise ValueError(
+                f"memory_head_indices must be in [0, {num_heads}), got {indices}"
+            )
+        return indices
+
     def trace_event(
         self,
         *,
@@ -224,6 +279,17 @@ class LifeCacheRuntime:
 
     def advance_step(self) -> None:
         self.step += 1
+
+    def reset(self) -> None:
+        """Reset all per-video state without reopening the trace writer."""
+        self.bank.clear()
+        self._oracle_frames.clear()
+        self.step = 0
+        self.chunk_counter = 0
+        self.previous_k_by_layer.clear()
+        self._latencies.clear()
+        self.capture_enabled = False
+        self.capture_reason = ""
 
     # ---- capture ----
 
@@ -309,8 +375,7 @@ class LifeCacheRuntime:
         if layer_id != self.config.oracle_layer:
             return None
 
-        recall_frames = self.config.oracle_recall_frames
-        if recall_frames is not None and current_frame not in recall_frames:
+        if not self._is_oracle_recall_frame(current_frame):
             return None
         if not self._oracle_frames:
             return None
@@ -352,10 +417,19 @@ class LifeCacheRuntime:
         """Check if oracle recall should be active for this frame."""
         if not self._oracle_enabled:
             return False
+        return self._is_oracle_recall_frame(current_frame) and bool(self._oracle_frames)
+
+    def _is_oracle_recall_frame(self, current_frame: int) -> bool:
         recall_frames = self.config.oracle_recall_frames
         if recall_frames is not None:
             return current_frame in recall_frames
-        return bool(self._oracle_frames)
+        start = self.config.oracle_recall_start_frame
+        if start is None:
+            return True
+        return (
+            current_frame >= start
+            and (current_frame - start) % self.config.oracle_recall_stride == 0
+        )
 
     # ---- eviction & compression ----
 
@@ -375,6 +449,7 @@ class LifeCacheRuntime:
         spatial_positions: torch.Tensor | None = None,
         current_start_frame: int | None = None,
         is_pre_rope: bool = False,
+        capture_reason: str = "unknown",
     ) -> TokenSet | None:
         """Compress evicted KV tokens and store in bank.
 
@@ -386,7 +461,19 @@ class LifeCacheRuntime:
         """
         if not self.config.enabled:
             return None
+        if not self.should_capture_evictions():
+            return None
         if self.config.trace_only and self.config.compression == "none":
+            return None
+        if self.config.capture_clean_only and capture_reason != "clean_context":
+            self.trace_event(
+                layer_id=layer_id,
+                event="capture_skipped",
+                extra=make_trace_extra(
+                    capture_reason=capture_reason,
+                    required_reason="clean_context",
+                ),
+            )
             return None
 
         t0 = time.perf_counter() if self.config.record_latency else 0
@@ -428,6 +515,8 @@ class LifeCacheRuntime:
                 token_indices=token_indices,
                 k_summary=evicted_k.float().mean(dim=0),
                 region=CacheRegion.COMPRESSED,
+                frame_positions=frame_positions,
+                spatial_positions=spatial_positions,
             )
 
         # Set rope_mode (frame/spatial positions already set in compression)
@@ -598,6 +687,10 @@ class LifeCacheRuntime:
             compressed=compressed,
             motion=motion,
             oracle_set=oracle_set,
+            allow_sparse_recall=(
+                not self._oracle_enabled or self.config.oracle_allow_sparse_fallback
+            ),
+            current_frame=current_frame,
         )
 
         if view.k is None or view.v is None:
@@ -645,8 +738,12 @@ class LifeCacheRuntime:
         for i, r in enumerate(view.regions):
             if r == CacheRegion.RECALL:
                 n_recall += 1
-        if n_recall > 0 and view.k is not None:
-            qk_all = qk_proxy_scores(q, view.k)
+        if self.config.qk_diagnostic_enabled and n_recall > 0 and view.k is not None:
+            qk_all = qk_proxy_scores(
+                q,
+                view.k,
+                query_chunk_size=self.config.qk_query_chunk_size,
+            )
             qk_recent = float(qk_all[-native_recent_k.shape[0]:].mean()) if native_recent_k.shape[0] > 0 else 0.0
             qk_recall = float(qk_all[:n_recall].mean()) if n_recall > 0 else 0.0
         # --- End QK diagnostic ---

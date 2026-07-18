@@ -85,6 +85,8 @@ class ActiveCacheComposer:
         compressed: list[TokenSet],
         motion: list[TokenSet],
         oracle_set: TokenSet | None = None,
+        allow_sparse_recall: bool = True,
+        current_frame: int | None = None,
     ) -> ActiveCacheView:
         budget = self.budgets.get(role, DEFAULT_BUDGETS[HeadRole.UNKNOWN])
         selected: list[TokenSet] = []
@@ -101,7 +103,7 @@ class ActiveCacheComposer:
             recalled = [oracle_set]
         else:
             recalled = []
-            if budget.recall > 0 and role not in {HeadRole.MOTION, HeadRole.WAVE}:
+            if allow_sparse_recall and budget.recall > 0 and role not in {HeadRole.MOTION, HeadRole.WAVE}:
                 if self.include_anchors_in_recall:
                     recall_candidates = anchors + compressed
                 else:
@@ -117,7 +119,11 @@ class ActiveCacheComposer:
                         head_group_weight=self.recall_config.head_group_weight,
                         quality_weight=self.recall_config.quality_weight,
                         usage_weight=self.recall_config.usage_weight,
+                        max_frame_distance=self.recall_config.max_frame_distance,
+                        min_set_score=self.recall_config.min_set_score,
+                        min_token_score=self.recall_config.min_token_score,
                     ),
+                    current_frame=current_frame,
                 )
                 if recall_result.k is not None and recall_result.v is not None:
                     recalled.append(

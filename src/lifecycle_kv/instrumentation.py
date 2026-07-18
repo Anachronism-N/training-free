@@ -23,11 +23,12 @@ class CacheTraceEvent:
 
 
 class CacheTraceWriter:
-    """Append-only JSONL trace writer for LifeCache integration experiments."""
+    """Per-process JSONL trace writer for LifeCache integration experiments."""
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text("", encoding="utf-8")
 
     def write(self, event: CacheTraceEvent) -> None:
         with self.path.open("a", encoding="utf-8") as f:

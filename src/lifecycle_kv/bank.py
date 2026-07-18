@@ -36,6 +36,11 @@ class TokenSetBank:
     def __len__(self) -> int:
         return len(self._sets)
 
+    def clear(self) -> None:
+        """Remove all stored memory while preserving configured budgets."""
+        self._sets.clear()
+        self._by_region.clear()
+
     def add(self, token_set: TokenSet) -> None:
         if token_set.set_id in self._sets:
             old = self._sets[token_set.set_id]
