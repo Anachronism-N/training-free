@@ -82,6 +82,11 @@ class PyramidKVPipelineConfig:
     pyramidkv_history_value_renorm_strength: float = 0.0
     pyramidkv_history_value_recent_frames: int = 4
     pyramidkv_history_value_gate_lambda: float = 0.0
+    pyramidkv_history_value_labels: Optional[list] = None
+    pyramidkv_history_value_layer_start: int = 0
+    pyramidkv_history_value_layer_end: int = -1
+    pyramidkv_history_value_label_layer_routes: Optional[dict] = None
+    pyramidkv_history_value_moment_mode: str = "full"
     # --- Cyclic (was phase/osc_frame) ---
     cyclic_enabled: bool = False  # was use_osc_frame_mode
     cyclic_period: int = 6  # was phase_period
@@ -187,6 +192,19 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_history_value_gate_lambda=float(
                 getattr(args, "pyramidkv_history_value_gate_lambda", 0.0)
+            ),
+            pyramidkv_history_value_labels=getattr(args, "pyramidkv_history_value_labels", None),
+            pyramidkv_history_value_layer_start=int(
+                getattr(args, "pyramidkv_history_value_layer_start", 0)
+            ),
+            pyramidkv_history_value_layer_end=int(
+                getattr(args, "pyramidkv_history_value_layer_end", -1)
+            ),
+            pyramidkv_history_value_label_layer_routes=getattr(
+                args, "pyramidkv_history_value_label_layer_routes", None
+            ),
+            pyramidkv_history_value_moment_mode=str(
+                getattr(args, "pyramidkv_history_value_moment_mode", "full")
             ),
             cyclic_enabled=getattr(args, "cyclic_enabled", use_adaptive),
             cyclic_period=getattr(args, "cyclic_period", 6),

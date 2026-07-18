@@ -14,6 +14,8 @@ def renormalize_stale_history_values(
     strength: float,
     recent_frames: int,
     gate_lambda: float = 0.0,
+    sequence_enabled: Sequence[bool] | None = None,
+    moment_mode: str = "full",
     eps: float = 1e-5,
 ) -> torch.Tensor:
     """Match stale history V statistics to each head's live window.
@@ -25,6 +27,9 @@ def renormalize_stale_history_values(
     strength = max(0.0, min(1.0, float(strength)))
     recent_frames = max(1, int(recent_frames))
     gate_lambda = max(0.0, float(gate_lambda))
+    moment_mode = str(moment_mode).strip().lower()
+    if moment_mode not in {"full", "variance_only", "mean_only"}:
+        raise ValueError(f"Unsupported moment_mode: {moment_mode}")
     if strength == 0.0 or frame_ids is None or values.numel() == 0:
         return values
     if frame_ids.shape[0] != values.shape[0]:
@@ -42,9 +47,19 @@ def renormalize_stale_history_values(
             raise ValueError(
                 f"current_frames has {len(sync_frames)} entries for {num_sequences} sequences"
             )
+    if sequence_enabled is None:
+        enabled = [True] * num_sequences
+    else:
+        enabled = [bool(value) for value in sequence_enabled]
+        if len(enabled) != num_sequences:
+            raise ValueError(
+                f"sequence_enabled has {len(enabled)} entries for {num_sequences} sequences"
+            )
 
     output: torch.Tensor | None = None
     for sequence_idx, sync_frame in enumerate(sync_frames):
+        if not enabled[sequence_idx]:
+            continue
         start, end = boundaries[sequence_idx], boundaries[sequence_idx + 1]
         if end <= start:
             continue
@@ -63,7 +78,12 @@ def renormalize_stale_history_values(
         live_mean = live.mean(dim=0, keepdim=True)
         stale_std = stale.std(dim=0, keepdim=True, unbiased=False).clamp_min(eps)
         live_std = live.std(dim=0, keepdim=True, unbiased=False).clamp_min(eps)
-        matched = (stale - stale_mean) / stale_std * live_std + live_mean
+        if moment_mode == "full":
+            matched = (stale - stale_mean) / stale_std * live_std + live_mean
+        elif moment_mode == "variance_only":
+            matched = (stale - stale_mean) / stale_std * live_std + stale_mean
+        else:
+            matched = stale + (live_mean - stale_mean)
         effective_strength: float | torch.Tensor = strength
         if gate_lambda > 0.0:
             similarity = torch.nn.functional.cosine_similarity(

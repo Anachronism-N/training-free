@@ -376,6 +376,35 @@ def pyramidkv_attention(
         k_frame_ids_flat: torch.Tensor | None,
         current_frames: int | list[int],
     ) -> torch.Tensor:
+        layer_idx = int(getattr(kv_cache, "layer_idx", -1))
+        layer_start = int(getattr(kv_cache, "history_value_layer_start", 0))
+        layer_end = int(getattr(kv_cache, "history_value_layer_end", -1))
+        if layer_idx < layer_start or (layer_end >= 0 and layer_idx >= layer_end):
+            return v_flat_chunk
+        selected_labels = getattr(kv_cache, "history_value_labels", None)
+        sequence_enabled = None
+        label_layer_routes = getattr(kv_cache, "history_value_label_layer_routes", None)
+        if label_layer_routes:
+            head_labels = list(getattr(kv_cache, "head_labels", []))
+            if not head_labels:
+                return v_flat_chunk
+            num_sequences = int(cu_seqlens_k_chunk.numel()) - 1
+            sequence_enabled = []
+            for index in range(num_sequences):
+                label = int(head_labels[index % len(head_labels)])
+                bounds = label_layer_routes.get(label)
+                sequence_enabled.append(
+                    bounds is not None and int(bounds[0]) <= layer_idx < int(bounds[1])
+                )
+        elif selected_labels is not None:
+            head_labels = list(getattr(kv_cache, "head_labels", []))
+            if not head_labels:
+                return v_flat_chunk
+            num_sequences = int(cu_seqlens_k_chunk.numel()) - 1
+            sequence_enabled = [
+                int(head_labels[index % len(head_labels)]) in selected_labels
+                for index in range(num_sequences)
+            ]
         return renormalize_stale_history_values(
             values=v_flat_chunk,
             cu_seqlens=cu_seqlens_k_chunk,
@@ -384,6 +413,8 @@ def pyramidkv_attention(
             strength=float(getattr(kv_cache, "history_value_renorm_strength", 0.0)),
             recent_frames=int(getattr(kv_cache, "history_value_recent_frames", 4)),
             gate_lambda=float(getattr(kv_cache, "history_value_gate_lambda", 0.0)),
+            sequence_enabled=sequence_enabled,
+            moment_mode=str(getattr(kv_cache, "history_value_moment_mode", "full")),
         )
 
     def _capture_varlen_frame_attention(

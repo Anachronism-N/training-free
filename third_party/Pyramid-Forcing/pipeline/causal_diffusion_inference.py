@@ -382,6 +382,11 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         history_value_renorm_strength=hc.pyramidkv_history_value_renorm_strength,
                         history_value_recent_frames=hc.pyramidkv_history_value_recent_frames,
                         history_value_gate_lambda=hc.pyramidkv_history_value_gate_lambda,
+                        history_value_labels=hc.pyramidkv_history_value_labels,
+                        history_value_layer_start=hc.pyramidkv_history_value_layer_start,
+                        history_value_layer_end=hc.pyramidkv_history_value_layer_end,
+                        history_value_label_layer_routes=hc.pyramidkv_history_value_label_layer_routes,
+                        history_value_moment_mode=hc.pyramidkv_history_value_moment_mode,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(
@@ -462,6 +467,11 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         history_value_renorm_strength=hc.pyramidkv_history_value_renorm_strength,
                         history_value_recent_frames=hc.pyramidkv_history_value_recent_frames,
                         history_value_gate_lambda=hc.pyramidkv_history_value_gate_lambda,
+                        history_value_labels=hc.pyramidkv_history_value_labels,
+                        history_value_layer_start=hc.pyramidkv_history_value_layer_start,
+                        history_value_layer_end=hc.pyramidkv_history_value_layer_end,
+                        history_value_label_layer_routes=hc.pyramidkv_history_value_label_layer_routes,
+                        history_value_moment_mode=hc.pyramidkv_history_value_moment_mode,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(

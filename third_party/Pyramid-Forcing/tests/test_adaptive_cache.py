@@ -110,6 +110,40 @@ def test_semantic_mask_headwise_ratio():
     assert int(mask[1].sum().item()) == 2
 
 
+def test_reset_clears_cross_prompt_optimization_state():
+    config = _build_config(num_layers=1, num_heads=1, capacities=[8])
+    cache = AdaptiveKVCache(
+        config=config,
+        batch_size=1,
+        num_heads=1,
+        head_dim=4,
+        layer_idx=0,
+        sink_len=2,
+        tail_len=4,
+    )
+    cache.prompt_v = torch.ones(1, 4)
+    cache.tail_len = 9
+    cache._grid_fhw = [(3, 2, 2)]
+    cache._steady_state_reached = True
+    cache._prev_cu_seqlens = (0, 8)
+    cache._last_readout_shape_key = (8,)
+    cache._last_readout_anchor_shape_key = (2,)
+    cache._cuda_refresh_desc_key = ("previous-prompt",)
+    cache._cuda_refresh_disabled = True
+
+    cache.reset()
+
+    assert cache.prompt_v is None
+    assert cache.tail_len == cache._base_tail_len
+    assert cache._grid_fhw is None
+    assert not cache._steady_state_reached
+    assert cache._prev_cu_seqlens is None
+    assert cache._last_readout_shape_key is None
+    assert cache._last_readout_anchor_shape_key is None
+    assert cache._cuda_refresh_desc_key is None
+    assert not cache._cuda_refresh_disabled
+
+
 def test_adaptive_cache_ragged_compaction_and_pos_ids():
     config = _build_config(num_layers=1, num_heads=2, capacities=[6, 10])
     cache = AdaptiveKVCache(

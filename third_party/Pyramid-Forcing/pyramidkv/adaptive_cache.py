@@ -184,6 +184,11 @@ class AdaptiveKVCache(PyramidKVCache):
         history_value_renorm_strength: float = 0.0,
         history_value_recent_frames: int = 4,
         history_value_gate_lambda: float = 0.0,
+        history_value_labels: list[int] | None = None,
+        history_value_layer_start: int = 0,
+        history_value_layer_end: int = -1,
+        history_value_label_layer_routes: dict | None = None,
+        history_value_moment_mode: str = "full",
     ):
         super().__init__(
             config=config,
@@ -279,6 +284,20 @@ class AdaptiveKVCache(PyramidKVCache):
         )
         self.history_value_recent_frames = max(1, int(history_value_recent_frames))
         self.history_value_gate_lambda = max(0.0, float(history_value_gate_lambda))
+        self.history_value_labels = (
+            None if history_value_labels is None else frozenset(int(value) for value in history_value_labels)
+        )
+        self.history_value_layer_start = max(0, int(history_value_layer_start))
+        self.history_value_layer_end = int(history_value_layer_end)
+        self.history_value_label_layer_routes = {
+            int(label): (int(bounds[0]), int(bounds[1]))
+            for label, bounds in (history_value_label_layer_routes or {}).items()
+        }
+        self.history_value_moment_mode = str(history_value_moment_mode).strip().lower()
+        if self.history_value_moment_mode not in {"full", "variance_only", "mean_only"}:
+            raise ValueError(
+                f"Unsupported history_value_moment_mode: {self.history_value_moment_mode}"
+            )
         self._base_tail_len = self.tail_len
         max_cap = max(self.capacities) if self.capacities else 0
         min_cap = min(self.capacities) if self.capacities else 0
@@ -1434,7 +1453,18 @@ class AdaptiveKVCache(PyramidKVCache):
         self.static_pos = [None] * (self.batch_size * self.num_heads)
         self.dynamic_pos = [None] * (self.batch_size * self.num_heads)
         self.update_step = 0
+        self.prompt_v = None
         self.last_flat_pos_ids = None
+        self.tail_len = self._base_tail_len
+        self._grid_fhw = None
+        self._frame_seqlen = self.frame_seq_length
+        self._steady_state_reached = False
+        self._prev_cu_seqlens = None
+        self._last_readout_shape_key = None
+        self._last_readout_anchor_shape_key = None
+        self._cuda_refresh_desc_key = None
+        self._cuda_refresh_disabled = False
+        self._shadow = None
         # Clear workspace buffers
         self._ws_k_raw = None
         self._ws_k = None

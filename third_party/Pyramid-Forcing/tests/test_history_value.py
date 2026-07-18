@@ -68,3 +68,37 @@ def test_discrepancy_gate_suppresses_conflicting_history_refresh():
     assert torch.linalg.vector_norm(gated[:2] - values[:2]) < torch.linalg.vector_norm(
         ungated[:2] - values[:2]
     )
+
+
+def test_sequence_mask_only_refreshes_selected_heads():
+    values = torch.tensor([[0.0], [2.0], [10.0], [12.0], [100.0], [102.0], [130.0], [132.0]])
+    output = renormalize_stale_history_values(
+        values,
+        torch.tensor([0, 4, 8], dtype=torch.int32),
+        torch.tensor([0, 0, 2, 2, 0, 0, 2, 2]),
+        [2, 2],
+        strength=1.0,
+        recent_frames=1,
+        sequence_enabled=[True, False],
+    )
+
+    assert not torch.equal(output[:2], values[:2])
+    assert torch.equal(output[4:], values[4:])
+
+
+def test_variance_only_preserves_stale_mean():
+    values = torch.tensor([[0.0], [2.0], [10.0], [14.0], [20.0], [24.0]])
+    output = renormalize_stale_history_values(
+        values,
+        torch.tensor([0, 6], dtype=torch.int32),
+        torch.tensor([0, 0, 1, 1, 2, 2]),
+        2,
+        strength=1.0,
+        recent_frames=1,
+        moment_mode="variance_only",
+    )
+
+    assert torch.allclose(output[:4].mean(0), values[:4].mean(0))
+    assert torch.allclose(
+        output[:4].std(0, unbiased=False), values[4:].std(0, unbiased=False)
+    )

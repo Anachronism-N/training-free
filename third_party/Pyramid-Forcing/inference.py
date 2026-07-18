@@ -103,6 +103,28 @@ parser.add_argument(
     "--reseed_per_prompt", action="store_true",
     help="Reset RNG to seed + prompt index before sampling each prompt for fair A/B runs.",
 )
+parser.add_argument(
+    "--pyramidkv_history_value_labels", type=str, default=None,
+    help="Comma-separated PF labels to refresh (for example: -1,1). Default: all labels.",
+)
+parser.add_argument(
+    "--pyramidkv_history_value_layer_start", type=int, default=None,
+    help="First transformer layer receiving history V refresh (inclusive).",
+)
+parser.add_argument(
+    "--pyramidkv_history_value_layer_end", type=int, default=None,
+    help="Last transformer layer receiving history V refresh (exclusive; -1 means all).",
+)
+parser.add_argument(
+    "--pyramidkv_history_value_label_layer_routes", type=str, default=None,
+    help="Per-label layer routes, e.g. '-1:10-20,1:10-20,2:0-30'. End is exclusive.",
+)
+parser.add_argument(
+    "--pyramidkv_history_value_moment_mode",
+    choices=("full", "variance_only", "mean_only"),
+    default=None,
+    help="Which live V moments are transported into stale history values.",
+)
 args = parser.parse_args()
 
 
@@ -222,6 +244,23 @@ if args.pyramidkv_history_value_recent_frames is not None:
     config.pyramidkv_history_value_recent_frames = args.pyramidkv_history_value_recent_frames
 if args.pyramidkv_history_value_gate_lambda is not None:
     config.pyramidkv_history_value_gate_lambda = args.pyramidkv_history_value_gate_lambda
+if args.pyramidkv_history_value_labels is not None:
+    config.pyramidkv_history_value_labels = [
+        int(value.strip()) for value in args.pyramidkv_history_value_labels.split(",") if value.strip()
+    ]
+if args.pyramidkv_history_value_layer_start is not None:
+    config.pyramidkv_history_value_layer_start = args.pyramidkv_history_value_layer_start
+if args.pyramidkv_history_value_layer_end is not None:
+    config.pyramidkv_history_value_layer_end = args.pyramidkv_history_value_layer_end
+if args.pyramidkv_history_value_label_layer_routes is not None:
+    routes = {}
+    for item in args.pyramidkv_history_value_label_layer_routes.split(","):
+        label_text, bounds_text = item.split(":", maxsplit=1)
+        start_text, end_text = bounds_text.split("-", maxsplit=1)
+        routes[int(label_text)] = [int(start_text), int(end_text)]
+    config.pyramidkv_history_value_label_layer_routes = routes
+if args.pyramidkv_history_value_moment_mode is not None:
+    config.pyramidkv_history_value_moment_mode = args.pyramidkv_history_value_moment_mode
 
 # Initialize pipeline
 if hasattr(config, 'denoising_step_list'):
