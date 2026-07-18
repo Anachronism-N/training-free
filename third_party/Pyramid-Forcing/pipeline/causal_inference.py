@@ -873,6 +873,19 @@ class CausalInferencePipeline(torch.nn.Module):
                         history_value_layer_end=hc.pyramidkv_history_value_layer_end,
                         history_value_label_layer_routes=hc.pyramidkv_history_value_label_layer_routes,
                         history_value_moment_mode=hc.pyramidkv_history_value_moment_mode,
+                        history_value_target_frames=hc.pyramidkv_history_value_target_frames,
+                        history_value_transition_lambda=hc.pyramidkv_history_value_transition_lambda,
+                        history_value_max_std_ratio=hc.pyramidkv_history_value_max_std_ratio,
+                        structured_memory_enabled=hc.pyramidkv_structured_memory_enabled,
+                        structured_memory_budget_frames=hc.pyramidkv_structured_memory_budget_frames,
+                        structured_memory_spatial_stride=hc.pyramidkv_structured_memory_spatial_stride,
+                        structured_memory_local_fusion_distance=hc.pyramidkv_structured_memory_local_fusion_distance,
+                        structured_memory_core_fusion_weight=hc.pyramidkv_structured_memory_core_fusion_weight,
+                        structured_memory_readout_gate=hc.pyramidkv_structured_memory_readout_gate,
+                        structured_memory_retrieval_temperature=hc.pyramidkv_structured_memory_retrieval_temperature,
+                        structured_memory_confidence_threshold=hc.pyramidkv_structured_memory_confidence_threshold,
+                        structured_memory_layer_start=hc.pyramidkv_structured_memory_layer_start,
+                        structured_memory_layer_end=hc.pyramidkv_structured_memory_layer_end,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(

@@ -229,6 +229,7 @@ class CausalWanSelfAttention(nn.Module):
                 if getattr(kv_cache, "post_prune_rope", False):
                     x = pyramidkv_attention(
                         q=roped_query,
+                        raw_q=q,
                         k=k,
                         v=v,
                         kv_cache=kv_cache,
@@ -245,6 +246,7 @@ class CausalWanSelfAttention(nn.Module):
                         k, grid_sizes, freqs, start_frame=current_start_frame, grid_int=grid_int).type_as(v)
                     x = pyramidkv_attention(
                         q=roped_query,
+                        raw_q=q,
                         k=roped_key,
                         v=v,
                         kv_cache=kv_cache,

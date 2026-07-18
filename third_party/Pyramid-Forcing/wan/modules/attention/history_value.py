@@ -14,6 +14,9 @@ def renormalize_stale_history_values(
     strength: float,
     recent_frames: int,
     gate_lambda: float = 0.0,
+    target_frames: int = 0,
+    transition_lambda: float = 0.0,
+    max_std_ratio: float = 0.0,
     sequence_enabled: Sequence[bool] | None = None,
     moment_mode: str = "full",
     eps: float = 1e-5,
@@ -27,6 +30,11 @@ def renormalize_stale_history_values(
     strength = max(0.0, min(1.0, float(strength)))
     recent_frames = max(1, int(recent_frames))
     gate_lambda = max(0.0, float(gate_lambda))
+    target_frames = max(recent_frames, int(target_frames)) if int(target_frames) > 0 else recent_frames
+    transition_lambda = max(0.0, float(transition_lambda))
+    max_std_ratio = float(max_std_ratio)
+    if 0.0 < max_std_ratio < 1.0:
+        raise ValueError("max_std_ratio must be 0 (disabled) or at least 1")
     moment_mode = str(moment_mode).strip().lower()
     if moment_mode not in {"full", "variance_only", "mean_only"}:
         raise ValueError(f"Unsupported moment_mode: {moment_mode}")
@@ -66,32 +74,56 @@ def renormalize_stale_history_values(
 
         sequence_ids = frame_ids[start:end]
         live_start = max(0, sync_frame - recent_frames + 1)
+        target_start = max(0, sync_frame - target_frames + 1)
         stale_mask = sequence_ids < live_start
-        live_mask = (sequence_ids >= live_start) & (sequence_ids <= sync_frame)
-        if not torch.any(stale_mask) or not torch.any(live_mask):
+        target_mask = (sequence_ids >= target_start) & (sequence_ids <= sync_frame)
+        if not torch.any(stale_mask) or not torch.any(target_mask):
             continue
 
         sequence_values = values[start:end]
         stale = sequence_values[stale_mask].float()
-        live = sequence_values[live_mask].float()
+        target = sequence_values[target_mask].float()
+        target_ids = sequence_ids[target_mask]
         stale_mean = stale.mean(dim=0, keepdim=True)
-        live_mean = live.mean(dim=0, keepdim=True)
+        target_mean = target.mean(dim=0, keepdim=True)
         stale_std = stale.std(dim=0, keepdim=True, unbiased=False).clamp_min(eps)
-        live_std = live.std(dim=0, keepdim=True, unbiased=False).clamp_min(eps)
+        target_std = target.std(dim=0, keepdim=True, unbiased=False).clamp_min(eps)
+        std_ratio = target_std / stale_std
+        if max_std_ratio >= 1.0:
+            std_ratio = std_ratio.clamp(1.0 / max_std_ratio, max_std_ratio)
         if moment_mode == "full":
-            matched = (stale - stale_mean) / stale_std * live_std + live_mean
+            matched = (stale - stale_mean) * std_ratio + target_mean
         elif moment_mode == "variance_only":
-            matched = (stale - stale_mean) / stale_std * live_std + stale_mean
+            matched = (stale - stale_mean) * std_ratio + stale_mean
         else:
-            matched = stale + (live_mean - stale_mean)
+            matched = stale + (target_mean - stale_mean)
         effective_strength: float | torch.Tensor = strength
         if gate_lambda > 0.0:
             similarity = torch.nn.functional.cosine_similarity(
-                stale_mean.flatten(), live_mean.flatten(), dim=0, eps=eps
+                stale_mean.flatten(), target_mean.flatten(), dim=0, eps=eps
             ).clamp(-1.0, 1.0)
             effective_strength = strength * torch.exp(
                 -gate_lambda * (1.0 - similarity)
             )
+        if transition_lambda > 0.0:
+            latest_frame = int(target_ids.max().item())
+            previous_mask = target_ids < latest_frame
+            latest_mask = target_ids == latest_frame
+            if torch.any(previous_mask) and torch.any(latest_mask):
+                previous = target[previous_mask]
+                latest = target[latest_mask]
+                previous_mean = previous.mean(dim=0)
+                latest_mean = latest.mean(dim=0)
+                direction_gap = 1.0 - torch.nn.functional.cosine_similarity(
+                    previous_mean, latest_mean, dim=0, eps=eps
+                ).clamp(-1.0, 1.0)
+                previous_std = previous.std(dim=0, unbiased=False).clamp_min(eps)
+                latest_std = latest.std(dim=0, unbiased=False).clamp_min(eps)
+                scale_gap = torch.log(latest_std / previous_std).abs().mean().clamp_max(4.0)
+                transition_gap = direction_gap + 0.25 * scale_gap
+                effective_strength = effective_strength * torch.exp(
+                    -transition_lambda * transition_gap
+                )
         corrected = (stale + effective_strength * (matched - stale)).to(dtype=values.dtype)
 
         if output is None:

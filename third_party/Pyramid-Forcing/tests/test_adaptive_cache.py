@@ -130,6 +130,10 @@ def test_reset_clears_cross_prompt_optimization_state():
     cache._last_readout_anchor_shape_key = (2,)
     cache._cuda_refresh_desc_key = ("previous-prompt",)
     cache._cuda_refresh_disabled = True
+    cache.structured_memory_k = torch.ones(1, 1, 1, 4)
+    cache.structured_memory_v = torch.ones(1, 1, 1, 4)
+    cache.structured_memory_intervals = torch.tensor([[0, 0]])
+    cache._structured_memory_last_start = 0
 
     cache.reset()
 
@@ -142,6 +146,64 @@ def test_reset_clears_cross_prompt_optimization_state():
     assert cache._last_readout_anchor_shape_key is None
     assert cache._cuda_refresh_desc_key is None
     assert not cache._cuda_refresh_disabled
+    assert cache.structured_memory_k is None
+    assert cache.structured_memory_v is None
+    assert cache.structured_memory_intervals is None
+    assert cache._structured_memory_last_start is None
+
+
+def test_structured_memory_commits_clean_blocks_once_with_fixed_budget():
+    config = _build_config(num_layers=1, num_heads=1, capacities=[16])
+    cache = AdaptiveKVCache(
+        config=config,
+        batch_size=1,
+        num_heads=1,
+        head_dim=4,
+        layer_idx=0,
+        sink_len=0,
+        tail_len=16,
+        ivc_ratio=0.0,
+        semantic_ratio=0.0,
+        structured_memory_enabled=True,
+        structured_memory_budget_frames=2,
+        structured_memory_spatial_stride=2,
+        structured_memory_layer_start=0,
+        structured_memory_layer_end=1,
+    )
+    grid_sizes = torch.tensor([[2, 2, 2]], dtype=torch.long)
+    first = _make_tokens(0, 8, num_heads=1, head_dim=4)
+    cache.update(
+        first,
+        first.clone(),
+        current_start=0,
+        grid_sizes=grid_sizes,
+        cache_update_mode="clean",
+    )
+    assert 1 <= cache.structured_memory_k.shape[0] <= 2
+    assert cache.structured_memory_k.shape[1:] == (1, 1, 4)
+    assert cache.structured_memory_intervals[:, 0].min().item() == 0
+    assert cache.structured_memory_intervals[:, 1].max().item() == 1
+
+    memory_before = cache.structured_memory_k
+    cache.update(
+        first + 100,
+        first + 100,
+        current_start=0,
+        grid_sizes=grid_sizes,
+        cache_update_mode="clean",
+    )
+    assert cache.structured_memory_k is memory_before
+
+    second = _make_tokens(8, 8, num_heads=1, head_dim=4)
+    cache.update(
+        second,
+        second.clone(),
+        current_start=8,
+        grid_sizes=grid_sizes,
+        cache_update_mode="clean",
+    )
+    assert cache.structured_memory_k.shape[0] <= 2
+    assert cache.structured_memory_intervals[-1, 1].item() == 3
 
 
 def test_adaptive_cache_ragged_compaction_and_pos_ids():

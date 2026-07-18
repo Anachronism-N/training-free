@@ -125,6 +125,31 @@ parser.add_argument(
     default=None,
     help="Which live V moments are transported into stale history values.",
 )
+parser.add_argument(
+    "--pyramidkv_history_value_target_frames", type=int, default=None,
+    help="Frames used for moment targets; may exceed the untouched recent window.",
+)
+parser.add_argument(
+    "--pyramidkv_history_value_transition_lambda", type=float, default=None,
+    help="Suppress history transport when consecutive live moments disagree.",
+)
+parser.add_argument(
+    "--pyramidkv_history_value_max_std_ratio", type=float, default=None,
+    help="Maximum variance scale ratio; 0 disables bounding.",
+)
+parser.add_argument(
+    "--pyramidkv_structured_memory", action="store_true",
+    help="Enable compressed visual memory with an independent query-conditioned readout.",
+)
+parser.add_argument("--pyramidkv_structured_memory_budget_frames", type=int, default=None)
+parser.add_argument("--pyramidkv_structured_memory_spatial_stride", type=int, default=None)
+parser.add_argument("--pyramidkv_structured_memory_local_fusion_distance", type=float, default=None)
+parser.add_argument("--pyramidkv_structured_memory_core_fusion_weight", type=float, default=None)
+parser.add_argument("--pyramidkv_structured_memory_readout_gate", type=float, default=None)
+parser.add_argument("--pyramidkv_structured_memory_retrieval_temperature", type=float, default=None)
+parser.add_argument("--pyramidkv_structured_memory_confidence_threshold", type=float, default=None)
+parser.add_argument("--pyramidkv_structured_memory_layer_start", type=int, default=None)
+parser.add_argument("--pyramidkv_structured_memory_layer_end", type=int, default=None)
 args = parser.parse_args()
 
 
@@ -261,6 +286,28 @@ if args.pyramidkv_history_value_label_layer_routes is not None:
     config.pyramidkv_history_value_label_layer_routes = routes
 if args.pyramidkv_history_value_moment_mode is not None:
     config.pyramidkv_history_value_moment_mode = args.pyramidkv_history_value_moment_mode
+if args.pyramidkv_history_value_target_frames is not None:
+    config.pyramidkv_history_value_target_frames = args.pyramidkv_history_value_target_frames
+if args.pyramidkv_history_value_transition_lambda is not None:
+    config.pyramidkv_history_value_transition_lambda = args.pyramidkv_history_value_transition_lambda
+if args.pyramidkv_history_value_max_std_ratio is not None:
+    config.pyramidkv_history_value_max_std_ratio = args.pyramidkv_history_value_max_std_ratio
+if args.pyramidkv_structured_memory:
+    config.pyramidkv_structured_memory_enabled = True
+for name in (
+    "budget_frames",
+    "spatial_stride",
+    "local_fusion_distance",
+    "core_fusion_weight",
+    "readout_gate",
+    "retrieval_temperature",
+    "confidence_threshold",
+    "layer_start",
+    "layer_end",
+):
+    value = getattr(args, f"pyramidkv_structured_memory_{name}")
+    if value is not None:
+        setattr(config, f"pyramidkv_structured_memory_{name}", value)
 
 # Initialize pipeline
 if hasattr(config, 'denoising_step_list'):

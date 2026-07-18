@@ -231,6 +231,7 @@ def pyramidkv_attention(
     k,
     v,
     kv_cache,
+    raw_q=None,
     current_start=None,
     grid_sizes=None,
     freqs=None,
@@ -282,6 +283,45 @@ def pyramidkv_attention(
 
     def half(x):
         return x if x.dtype in half_dtypes else x.to(dtype)
+
+    # Snapshot before update so the separate memory branch can only read
+    # completed past blocks, never the current clean block being committed.
+    structured_memory_k = getattr(kv_cache, "structured_memory_k", None)
+    structured_memory_v = getattr(kv_cache, "structured_memory_v", None)
+
+    def _fuse_structured_memory(out: torch.Tensor) -> torch.Tensor:
+        gate = float(getattr(kv_cache, "structured_memory_readout_gate", 0.0))
+        if (
+            raw_q is None
+            or structured_memory_k is None
+            or structured_memory_v is None
+            or gate <= 0.0
+        ):
+            return out
+        from lifecycle_kv.attention_fusion import (
+            fuse_parallel_attention,
+            query_conditioned_memory_readout,
+        )
+
+        memory = query_conditioned_memory_readout(
+            raw_q,
+            structured_memory_k,
+            structured_memory_v,
+            retrieval_temperature=float(
+                getattr(kv_cache, "structured_memory_retrieval_temperature", 0.1)
+            ),
+            confidence_threshold=float(
+                getattr(kv_cache, "structured_memory_confidence_threshold", 0.2)
+            ),
+        )
+        return fuse_parallel_attention(
+            out,
+            memory.output,
+            gate=gate,
+            rms_match=True,
+            alignment_gate=True,
+            alignment_threshold=0.0,
+        )
 
     def _build_region_mask(frame_ids: torch.Tensor, sync_t: int, region: str) -> torch.Tensor:
         """
@@ -413,6 +453,11 @@ def pyramidkv_attention(
             strength=float(getattr(kv_cache, "history_value_renorm_strength", 0.0)),
             recent_frames=int(getattr(kv_cache, "history_value_recent_frames", 4)),
             gate_lambda=float(getattr(kv_cache, "history_value_gate_lambda", 0.0)),
+            target_frames=int(getattr(kv_cache, "history_value_target_frames", 0)),
+            transition_lambda=float(
+                getattr(kv_cache, "history_value_transition_lambda", 0.0)
+            ),
+            max_std_ratio=float(getattr(kv_cache, "history_value_max_std_ratio", 0.0)),
             sequence_enabled=sequence_enabled,
             moment_mode=str(getattr(kv_cache, "history_value_moment_mode", "full")),
         )
@@ -670,7 +715,7 @@ def pyramidkv_attention(
                 out_buf = out_r.permute(0, 2, 1, 3, 4).reshape(b, h, lq, d).transpose(1, 2).to(out_dtype)
                 if _any_drop:
                     out_buf[:, :, drop_head_mask, :] = 0
-                return out_buf
+                return _fuse_structured_memory(out_buf)
 
             # Fallback: per-chunk path (used when capture or soft_ablate is active)
             cu_seqlens_q_fixed = torch.arange(
@@ -712,7 +757,7 @@ def pyramidkv_attention(
                     k_frame_ids_flat=k_frame_ids_flat,
                 )
                 out_buf[:, offset:offset + frame_seqlen] = run_varlen(q_chunk, k_flat, v_flat, cu_seqlens_k, max_seqlen_k, cu_seqlens_q_override=cu_seqlens_q_fixed)
-            return out_buf
+            return _fuse_structured_memory(out_buf)
 
         k_frame_ids_flat = None
         if getattr(kv_cache, "post_prune_rope", False):
@@ -766,7 +811,7 @@ def pyramidkv_attention(
             k_frame_ids_flat=k_frame_ids_flat,
         )
         out = run_varlen(q, k_flat, v_flat, cu_seqlens_k, max_seqlen_k)
-        return out.type(out_dtype)
+        return _fuse_structured_memory(out.type(out_dtype))
     finally:
         if capture_enabled:
             capture_obj.current_layer_idx += 1

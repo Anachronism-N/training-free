@@ -189,6 +189,19 @@ class AdaptiveKVCache(PyramidKVCache):
         history_value_layer_end: int = -1,
         history_value_label_layer_routes: dict | None = None,
         history_value_moment_mode: str = "full",
+        history_value_target_frames: int = 0,
+        history_value_transition_lambda: float = 0.0,
+        history_value_max_std_ratio: float = 0.0,
+        structured_memory_enabled: bool = False,
+        structured_memory_budget_frames: int = 4,
+        structured_memory_spatial_stride: int = 4,
+        structured_memory_local_fusion_distance: float = 0.08,
+        structured_memory_core_fusion_weight: float = 0.5,
+        structured_memory_readout_gate: float = 0.05,
+        structured_memory_retrieval_temperature: float = 0.1,
+        structured_memory_confidence_threshold: float = 0.2,
+        structured_memory_layer_start: int = 15,
+        structured_memory_layer_end: int = 25,
     ):
         super().__init__(
             config=config,
@@ -298,6 +311,47 @@ class AdaptiveKVCache(PyramidKVCache):
             raise ValueError(
                 f"Unsupported history_value_moment_mode: {self.history_value_moment_mode}"
             )
+        self.history_value_target_frames = max(0, int(history_value_target_frames))
+        self.history_value_transition_lambda = max(
+            0.0, float(history_value_transition_lambda)
+        )
+        self.history_value_max_std_ratio = float(history_value_max_std_ratio)
+        if 0.0 < self.history_value_max_std_ratio < 1.0:
+            raise ValueError(
+                "history_value_max_std_ratio must be 0 (disabled) or at least 1"
+            )
+        self.structured_memory_enabled = bool(structured_memory_enabled) and (
+            int(structured_memory_layer_start) <= self.layer_idx
+            and (
+                int(structured_memory_layer_end) < 0
+                or self.layer_idx < int(structured_memory_layer_end)
+            )
+        )
+        self.structured_memory_budget_frames = max(1, int(structured_memory_budget_frames))
+        self.structured_memory_spatial_stride = max(1, int(structured_memory_spatial_stride))
+        self.structured_memory_local_fusion_distance = float(
+            structured_memory_local_fusion_distance
+        )
+        if not 0.0 <= self.structured_memory_local_fusion_distance <= 2.0:
+            raise ValueError("structured_memory_local_fusion_distance must be in [0, 2]")
+        self.structured_memory_core_fusion_weight = float(
+            structured_memory_core_fusion_weight
+        )
+        if not 0.0 <= self.structured_memory_core_fusion_weight <= 1.0:
+            raise ValueError("structured_memory_core_fusion_weight must be in [0, 1]")
+        self.structured_memory_readout_gate = max(0.0, float(structured_memory_readout_gate))
+        self.structured_memory_retrieval_temperature = max(
+            1e-4, float(structured_memory_retrieval_temperature)
+        )
+        self.structured_memory_confidence_threshold = float(
+            structured_memory_confidence_threshold
+        )
+        if not -1.0 <= self.structured_memory_confidence_threshold < 1.0:
+            raise ValueError("structured_memory_confidence_threshold must be in [-1, 1)")
+        self.structured_memory_k: torch.Tensor | None = None
+        self.structured_memory_v: torch.Tensor | None = None
+        self.structured_memory_intervals: torch.Tensor | None = None
+        self._structured_memory_last_start: int | None = None
         self._base_tail_len = self.tail_len
         max_cap = max(self.capacities) if self.capacities else 0
         min_cap = min(self.capacities) if self.capacities else 0
@@ -1431,6 +1485,74 @@ class AdaptiveKVCache(PyramidKVCache):
     def set_prompt_values(self, prompt_v: torch.Tensor | None) -> None:
         self.prompt_v = prompt_v
 
+    def _update_structured_memory(
+        self,
+        new_k: torch.Tensor,
+        new_v: torch.Tensor,
+        *,
+        current_start: int | None,
+        frame_seqlen: int,
+        grid_sizes: torch.Tensor,
+        cache_update_mode: str,
+    ) -> None:
+        if not self.structured_memory_enabled or cache_update_mode != "clean":
+            return
+        if current_start is None or self._structured_memory_last_start == int(current_start):
+            return
+        if self.batch_size != 1 or frame_seqlen <= 0 or new_k.shape[1] % frame_seqlen != 0:
+            return
+
+        from lifecycle_kv.structured_visual_memory import (
+            StructuredVisualMemoryConfig,
+            compress_structured_visual_memory,
+        )
+
+        frames = new_k.shape[1] // frame_seqlen
+        height = int(grid_sizes[0, 1].item())
+        width = int(grid_sizes[0, 2].item())
+        if height * width != frame_seqlen:
+            return
+
+        def _pool_spatial(tensor: torch.Tensor) -> torch.Tensor:
+            tensor = tensor[0].reshape(frames, height, width, self.num_heads, self.head_dim)
+            if self.structured_memory_spatial_stride == 1:
+                return tensor.reshape(frames, frame_seqlen, self.num_heads, self.head_dim)
+            out_h = max(1, (height + self.structured_memory_spatial_stride - 1) // self.structured_memory_spatial_stride)
+            out_w = max(1, (width + self.structured_memory_spatial_stride - 1) // self.structured_memory_spatial_stride)
+            channels = self.num_heads * self.head_dim
+            image = tensor.permute(0, 3, 4, 1, 2).reshape(frames, channels, height, width)
+            pooled = torch.nn.functional.adaptive_avg_pool2d(image.float(), (out_h, out_w))
+            return pooled.to(tensor.dtype).reshape(
+                frames, self.num_heads, self.head_dim, out_h * out_w
+            ).permute(0, 3, 1, 2).contiguous()
+
+        pooled_k = _pool_spatial(new_k.detach())
+        pooled_v = _pool_spatial(new_v.detach())
+        first_frame = int(current_start // frame_seqlen)
+        frame_ids = torch.arange(
+            first_frame, first_frame + frames, device=new_k.device, dtype=torch.long
+        )
+        intervals = torch.stack([frame_ids, frame_ids], dim=1)
+        if self.structured_memory_k is not None:
+            pooled_k = torch.cat([self.structured_memory_k, pooled_k], dim=0)
+            pooled_v = torch.cat([self.structured_memory_v, pooled_v], dim=0)
+            intervals = torch.cat([self.structured_memory_intervals, intervals], dim=0)
+
+        memory = compress_structured_visual_memory(
+            pooled_k,
+            pooled_v,
+            intervals,
+            StructuredVisualMemoryConfig(
+                budget_frames=self.structured_memory_budget_frames,
+                local_fusion_distance=self.structured_memory_local_fusion_distance,
+                core_fusion_weight=self.structured_memory_core_fusion_weight,
+            ),
+        )
+        self.structured_memory_k = memory.k
+        self.structured_memory_v = memory.v
+        self.structured_memory_intervals = memory.intervals
+        self._structured_memory_last_start = int(current_start)
+
     def _effective_selection_params(self, pos_seg: torch.Tensor, current_t: int | None = None) -> tuple[float, float, float]:
         traj_ratio = self.trajectory_ratio
         traj_weight = self.trajectory_weight
@@ -1454,6 +1576,10 @@ class AdaptiveKVCache(PyramidKVCache):
         self.dynamic_pos = [None] * (self.batch_size * self.num_heads)
         self.update_step = 0
         self.prompt_v = None
+        self.structured_memory_k = None
+        self.structured_memory_v = None
+        self.structured_memory_intervals = None
+        self._structured_memory_last_start = None
         self.last_flat_pos_ids = None
         self.tail_len = self._base_tail_len
         self._grid_fhw = None
@@ -1972,6 +2098,15 @@ class AdaptiveKVCache(PyramidKVCache):
             self._frame_seqlen = int(frame_tokens[0].item())
         frame_seqlen = self._frame_seqlen
         frame_start_t = 0 if frame_seqlen <= 0 else int((current_start or 0) // frame_seqlen)
+
+        self._update_structured_memory(
+            new_k,
+            new_v,
+            current_start=current_start,
+            frame_seqlen=frame_seqlen,
+            grid_sizes=grid_sizes,
+            cache_update_mode=cache_update_mode,
+        )
 
         # M6: Fast-path for steady-state noisy/clean overwrite.
         # When all heads already have dyn_store populated with at least l_new rows

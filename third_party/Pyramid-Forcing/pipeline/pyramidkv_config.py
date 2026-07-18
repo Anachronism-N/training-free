@@ -87,6 +87,19 @@ class PyramidKVPipelineConfig:
     pyramidkv_history_value_layer_end: int = -1
     pyramidkv_history_value_label_layer_routes: Optional[dict] = None
     pyramidkv_history_value_moment_mode: str = "full"
+    pyramidkv_history_value_target_frames: int = 0
+    pyramidkv_history_value_transition_lambda: float = 0.0
+    pyramidkv_history_value_max_std_ratio: float = 0.0
+    pyramidkv_structured_memory_enabled: bool = False
+    pyramidkv_structured_memory_budget_frames: int = 4
+    pyramidkv_structured_memory_spatial_stride: int = 4
+    pyramidkv_structured_memory_local_fusion_distance: float = 0.08
+    pyramidkv_structured_memory_core_fusion_weight: float = 0.5
+    pyramidkv_structured_memory_readout_gate: float = 0.05
+    pyramidkv_structured_memory_retrieval_temperature: float = 0.1
+    pyramidkv_structured_memory_confidence_threshold: float = 0.2
+    pyramidkv_structured_memory_layer_start: int = 15
+    pyramidkv_structured_memory_layer_end: int = 25
     # --- Cyclic (was phase/osc_frame) ---
     cyclic_enabled: bool = False  # was use_osc_frame_mode
     cyclic_period: int = 6  # was phase_period
@@ -205,6 +218,45 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_history_value_moment_mode=str(
                 getattr(args, "pyramidkv_history_value_moment_mode", "full")
+            ),
+            pyramidkv_history_value_target_frames=int(
+                getattr(args, "pyramidkv_history_value_target_frames", 0)
+            ),
+            pyramidkv_history_value_transition_lambda=float(
+                getattr(args, "pyramidkv_history_value_transition_lambda", 0.0)
+            ),
+            pyramidkv_history_value_max_std_ratio=float(
+                getattr(args, "pyramidkv_history_value_max_std_ratio", 0.0)
+            ),
+            pyramidkv_structured_memory_enabled=bool(
+                getattr(args, "pyramidkv_structured_memory_enabled", False)
+            ),
+            pyramidkv_structured_memory_budget_frames=int(
+                getattr(args, "pyramidkv_structured_memory_budget_frames", 4)
+            ),
+            pyramidkv_structured_memory_spatial_stride=int(
+                getattr(args, "pyramidkv_structured_memory_spatial_stride", 4)
+            ),
+            pyramidkv_structured_memory_local_fusion_distance=float(
+                getattr(args, "pyramidkv_structured_memory_local_fusion_distance", 0.08)
+            ),
+            pyramidkv_structured_memory_core_fusion_weight=float(
+                getattr(args, "pyramidkv_structured_memory_core_fusion_weight", 0.5)
+            ),
+            pyramidkv_structured_memory_readout_gate=float(
+                getattr(args, "pyramidkv_structured_memory_readout_gate", 0.05)
+            ),
+            pyramidkv_structured_memory_retrieval_temperature=float(
+                getattr(args, "pyramidkv_structured_memory_retrieval_temperature", 0.1)
+            ),
+            pyramidkv_structured_memory_confidence_threshold=float(
+                getattr(args, "pyramidkv_structured_memory_confidence_threshold", 0.2)
+            ),
+            pyramidkv_structured_memory_layer_start=int(
+                getattr(args, "pyramidkv_structured_memory_layer_start", 15)
+            ),
+            pyramidkv_structured_memory_layer_end=int(
+                getattr(args, "pyramidkv_structured_memory_layer_end", 25)
             ),
             cyclic_enabled=getattr(args, "cyclic_enabled", use_adaptive),
             cyclic_period=getattr(args, "cyclic_period", 6),
