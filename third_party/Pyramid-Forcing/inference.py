@@ -148,6 +148,16 @@ parser.add_argument("--pyramidkv_structured_memory_core_fusion_weight", type=flo
 parser.add_argument("--pyramidkv_structured_memory_readout_gate", type=float, default=None)
 parser.add_argument("--pyramidkv_structured_memory_retrieval_temperature", type=float, default=None)
 parser.add_argument("--pyramidkv_structured_memory_confidence_threshold", type=float, default=None)
+parser.add_argument(
+    "--pyramidkv_structured_memory_value_mode",
+    choices=("full", "spatial_detail"),
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_structured_memory_readout_mode",
+    choices=("all", "clean_only", "noisy_only"),
+    default=None,
+)
 parser.add_argument("--pyramidkv_structured_memory_layer_start", type=int, default=None)
 parser.add_argument("--pyramidkv_structured_memory_layer_end", type=int, default=None)
 args = parser.parse_args()
@@ -302,6 +312,8 @@ for name in (
     "readout_gate",
     "retrieval_temperature",
     "confidence_threshold",
+    "value_mode",
+    "readout_mode",
     "layer_start",
     "layer_end",
 ):

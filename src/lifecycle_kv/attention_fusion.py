@@ -19,6 +19,7 @@ def query_conditioned_memory_readout(
     *,
     retrieval_temperature: float = 0.1,
     confidence_threshold: float = 0.0,
+    value_mode: str = "full",
     eps: float = 1e-6,
 ) -> StructuredMemoryReadout:
     """Read structured history through a separate query-conditioned attention.
@@ -39,6 +40,8 @@ def query_conditioned_memory_readout(
         raise ValueError("retrieval_temperature must be positive")
     if not -1.0 <= confidence_threshold < 1.0:
         raise ValueError("confidence_threshold must be in [-1, 1)")
+    if value_mode not in {"full", "spatial_detail"}:
+        raise ValueError("value_mode must be 'full' or 'spatial_detail'")
 
     query_summary = torch.nn.functional.normalize(q.float().mean(dim=1), dim=-1, eps=eps)
     frame_summary = torch.nn.functional.normalize(
@@ -51,7 +54,10 @@ def query_conditioned_memory_readout(
     logits = logits * (q.shape[-1] ** -0.5)
     logits = logits + torch.log(frame_weights.clamp_min(eps))[:, :, None, :, None]
     attention = torch.softmax(logits.flatten(start_dim=-2), dim=-1).view_as(logits)
-    output = torch.einsum("bhqms,mshd->bqhd", attention, memory_v.float())
+    readout_v = memory_v.float()
+    if value_mode == "spatial_detail":
+        readout_v = readout_v - readout_v.mean(dim=1, keepdim=True)
+    output = torch.einsum("bhqms,mshd->bqhd", attention, readout_v)
 
     best_similarity = frame_similarity.max(dim=-1).values
     confidence = (

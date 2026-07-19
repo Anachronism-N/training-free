@@ -291,11 +291,18 @@ def pyramidkv_attention(
 
     def _fuse_structured_memory(out: torch.Tensor) -> torch.Tensor:
         gate = float(getattr(kv_cache, "structured_memory_readout_gate", 0.0))
+        readout_mode = str(getattr(kv_cache, "structured_memory_readout_mode", "all"))
+        mode_enabled = (
+            readout_mode == "all"
+            or (readout_mode == "clean_only" and cache_update_mode == "clean")
+            or (readout_mode == "noisy_only" and cache_update_mode == "noisy")
+        )
         if (
             raw_q is None
             or structured_memory_k is None
             or structured_memory_v is None
             or gate <= 0.0
+            or not mode_enabled
         ):
             return out
         from lifecycle_kv.attention_fusion import (
@@ -313,6 +320,7 @@ def pyramidkv_attention(
             confidence_threshold=float(
                 getattr(kv_cache, "structured_memory_confidence_threshold", 0.2)
             ),
+            value_mode=str(getattr(kv_cache, "structured_memory_value_mode", "full")),
         )
         return fuse_parallel_attention(
             out,

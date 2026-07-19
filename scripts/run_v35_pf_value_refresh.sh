@@ -27,6 +27,8 @@ MEMORY_CORE_WEIGHT="${MEMORY_CORE_WEIGHT:-0.5}"
 MEMORY_GATE="${MEMORY_GATE:-0.05}"
 MEMORY_TEMPERATURE="${MEMORY_TEMPERATURE:-0.1}"
 MEMORY_CONFIDENCE="${MEMORY_CONFIDENCE:-0.2}"
+MEMORY_VALUE_MODE="${MEMORY_VALUE_MODE:-full}"
+MEMORY_READOUT_MODE="${MEMORY_READOUT_MODE:-all}"
 MEMORY_LAYER_START="${MEMORY_LAYER_START:-15}"
 MEMORY_LAYER_END="${MEMORY_LAYER_END:-25}"
 GPU="${CUDA_VISIBLE_DEVICES:-0}"
@@ -61,6 +63,8 @@ printf 'structured_memory=%s\nmemory_budget=%s\nmemory_spatial_stride=%s\nmemory
     "$MEMORY_LOCAL_DISTANCE" "$MEMORY_CORE_WEIGHT" "$MEMORY_GATE" \
     "$MEMORY_TEMPERATURE" "$MEMORY_CONFIDENCE" "$MEMORY_LAYER_START" \
     "$MEMORY_LAYER_END" >> "$OUT/run_meta.txt"
+printf 'memory_value_mode=%s\n' "$MEMORY_VALUE_MODE" >> "$OUT/run_meta.txt"
+printf 'memory_readout_mode=%s\n' "$MEMORY_READOUT_MODE" >> "$OUT/run_meta.txt"
 
 echo "Pyramid-Forcing stale-history V refresh"
 echo "GPU=$GPU output=$OUT"
@@ -94,6 +98,8 @@ PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" CUDA_VISIBLE_DEVICES="$GPU" py
     --pyramidkv_structured_memory_readout_gate "$MEMORY_GATE" \
     --pyramidkv_structured_memory_retrieval_temperature "$MEMORY_TEMPERATURE" \
     --pyramidkv_structured_memory_confidence_threshold "$MEMORY_CONFIDENCE" \
+    --pyramidkv_structured_memory_value_mode "$MEMORY_VALUE_MODE" \
+    --pyramidkv_structured_memory_readout_mode "$MEMORY_READOUT_MODE" \
     --pyramidkv_structured_memory_layer_start "$MEMORY_LAYER_START" \
     --pyramidkv_structured_memory_layer_end "$MEMORY_LAYER_END" \
     "${EXTRA_ARGS[@]}"

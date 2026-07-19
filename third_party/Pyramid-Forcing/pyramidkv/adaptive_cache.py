@@ -200,6 +200,8 @@ class AdaptiveKVCache(PyramidKVCache):
         structured_memory_readout_gate: float = 0.05,
         structured_memory_retrieval_temperature: float = 0.1,
         structured_memory_confidence_threshold: float = 0.2,
+        structured_memory_value_mode: str = "full",
+        structured_memory_readout_mode: str = "all",
         structured_memory_layer_start: int = 15,
         structured_memory_layer_end: int = 25,
     ):
@@ -348,6 +350,16 @@ class AdaptiveKVCache(PyramidKVCache):
         )
         if not -1.0 <= self.structured_memory_confidence_threshold < 1.0:
             raise ValueError("structured_memory_confidence_threshold must be in [-1, 1)")
+        self.structured_memory_value_mode = str(structured_memory_value_mode)
+        if self.structured_memory_value_mode not in {"full", "spatial_detail"}:
+            raise ValueError(
+                "structured_memory_value_mode must be 'full' or 'spatial_detail'"
+            )
+        self.structured_memory_readout_mode = str(structured_memory_readout_mode)
+        if self.structured_memory_readout_mode not in {"all", "clean_only", "noisy_only"}:
+            raise ValueError(
+                "structured_memory_readout_mode must be all, clean_only, or noisy_only"
+            )
         self.structured_memory_k: torch.Tensor | None = None
         self.structured_memory_v: torch.Tensor | None = None
         self.structured_memory_intervals: torch.Tensor | None = None

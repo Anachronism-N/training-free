@@ -98,6 +98,8 @@ class PyramidKVPipelineConfig:
     pyramidkv_structured_memory_readout_gate: float = 0.05
     pyramidkv_structured_memory_retrieval_temperature: float = 0.1
     pyramidkv_structured_memory_confidence_threshold: float = 0.2
+    pyramidkv_structured_memory_value_mode: str = "full"
+    pyramidkv_structured_memory_readout_mode: str = "all"
     pyramidkv_structured_memory_layer_start: int = 15
     pyramidkv_structured_memory_layer_end: int = 25
     # --- Cyclic (was phase/osc_frame) ---
@@ -251,6 +253,12 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_structured_memory_confidence_threshold=float(
                 getattr(args, "pyramidkv_structured_memory_confidence_threshold", 0.2)
+            ),
+            pyramidkv_structured_memory_value_mode=str(
+                getattr(args, "pyramidkv_structured_memory_value_mode", "full")
+            ),
+            pyramidkv_structured_memory_readout_mode=str(
+                getattr(args, "pyramidkv_structured_memory_readout_mode", "all")
             ),
             pyramidkv_structured_memory_layer_start=int(
                 getattr(args, "pyramidkv_structured_memory_layer_start", 15)

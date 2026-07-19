@@ -50,3 +50,19 @@ def test_readout_preserves_query_shape_with_spatial_memory():
     assert result.output.shape == q.shape
     assert result.frame_weights.shape == (2, 4, 5)
     assert result.confidence.shape == (2, 4)
+
+
+def test_spatial_detail_mode_removes_frame_constant_values():
+    q = torch.randn(1, 3, 1, 4)
+    memory_k = torch.randn(2, 5, 1, 4)
+    memory_v = torch.randn(2, 1, 1, 4).expand(2, 5, 1, 4).clone()
+
+    result = query_conditioned_memory_readout(
+        q,
+        memory_k,
+        memory_v,
+        confidence_threshold=-1.0,
+        value_mode="spatial_detail",
+    )
+
+    torch.testing.assert_close(result.output, torch.zeros_like(result.output))

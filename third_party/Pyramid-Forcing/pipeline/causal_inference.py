@@ -884,6 +884,8 @@ class CausalInferencePipeline(torch.nn.Module):
                         structured_memory_readout_gate=hc.pyramidkv_structured_memory_readout_gate,
                         structured_memory_retrieval_temperature=hc.pyramidkv_structured_memory_retrieval_temperature,
                         structured_memory_confidence_threshold=hc.pyramidkv_structured_memory_confidence_threshold,
+                        structured_memory_value_mode=hc.pyramidkv_structured_memory_value_mode,
+                        structured_memory_readout_mode=hc.pyramidkv_structured_memory_readout_mode,
                         structured_memory_layer_start=hc.pyramidkv_structured_memory_layer_start,
                         structured_memory_layer_end=hc.pyramidkv_structured_memory_layer_end,
                     )
