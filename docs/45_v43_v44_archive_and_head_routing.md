@@ -68,6 +68,14 @@ functional head routing，不能替代真正的 identity/motion 干预分类。
 
 ## 5. 人工 review
 
+“列”指同一个同步视频画面被分成五个竖直面板，并不是五个时间段。由左到右：
+
+1. PF baseline：只使用原生 Pyramid Forcing，不启用我们的 archive；
+2. All-head query：所有 PF head 都可读取完整帧 archive；
+3. Stable-1 0.20：只有 PF label `1` 可读取 archive；
+4. Stable-1+2 0.20：labels `{1,2}` 可读取、排除 `-1`，是当前候选；
+5. Stable-1 0.30：更强 gate 的负消融。
+
 ```text
 runs/REVIEW_v44_headroute_30s/comparisons/
   0_fiveway.mp4     # parkour
@@ -81,6 +89,19 @@ runs/REVIEW_v44_headroute_30s/comparisons/
 五列为 PF、all-head query、stable-1 0.20、stable-1+2 0.20、stable-1 0.30。必须完整观看，
 重点检查多肢体、重影、背景块边界、主体变暗、face ID 和动作回放。任何严重人工伪影都
 覆盖 VBench 的晋级判断。
+
+更易 review 的双列和盲评入口见 `docs/46_manual_review_protocol_and_method_summary.md`。
+
+### 伪影归因限制
+
+目前不能笼统声称“PF 原生有伪影”。parkour 的 PF 与 stable12 前 25 个解码帧完全一致，
+cafe 首帧两者 PSNR 为 54.3 dB、视觉近似一致，但共同出现的模糊可能是合理运动模糊，
+不一定是生成错误。有效归因必须带方法、时间戳和现象：
+
+- PF 独有且重复出现：该 PF sample 的问题；
+- 两者共同、且发生在分化前：base/sample 共有现象；
+- Ours 独有且发生在分化后：我们的方法引入；
+- 正常 motion blur 不计为伪影，只有错误双轮廓、额外肢体、闪回或不连续才计。
 
 ## 6. 下一决策
 
