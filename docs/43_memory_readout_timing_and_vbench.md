@@ -1,7 +1,11 @@
 # Memory readout 时机与 v3.9-v4.1 结果
 
 > 日期: 2026-07-19
-> 状态: 两 prompt / 36 latent frames 筛选完成；clean-only 0.10 待人工 review
+> 状态: 两 prompt / 36 latent frames 筛选完成；clean-only 0.10 已被人工 review 否决
+
+> 2026-07-19 人工纠正：`20260719_v41_clean010` 开头仍有重影和闪回，8.8 秒也不足以
+> 判断长外推。因此本文件中的 VBench 数字只保留为负结果分析，不能把 clean-only 0.10
+> 称为当前最优方法。后续 120 latent frame 严格对照见 `docs/44_v42_30s_and_integration_audit.md`。
 
 ## 1. 评估政策纠正
 
@@ -68,8 +72,9 @@ v4.1 只在 clean pass 读取历史：memory 不直接修改当前块的 denoise
 | Clean-only 0.20 | 0.9220 | 0.9301 | 0.5698 | 0.6616 | 0.9717 | **0.9** |
 
 相对 PF，clean-only 0.10 在 subject、imaging、motion、dynamic 四维上升，background 和
-aesthetic 下降。clean-only 0.20 过强，明确淘汰。0.10 只能称为待人工确认候选：
-VBench-Long 也可能奖励稳定/重复，且当前只有两条 8.8 秒视频。
+aesthetic 下降。clean-only 0.20 过强，明确淘汰。人工 review 随后发现 clean-only 0.10
+开头仍有重影和闪回，因此同样不能晋级；这也再次说明两条 8.8 秒视频和 VBench 分数
+不足以证明方法有效。
 
 ## 5. 人工 review
 
