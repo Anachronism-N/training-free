@@ -100,6 +100,13 @@ class PyramidKVPipelineConfig:
     pyramidkv_structured_memory_confidence_threshold: float = 0.2
     pyramidkv_structured_memory_value_mode: str = "full"
     pyramidkv_structured_memory_readout_mode: str = "all"
+    pyramidkv_structured_memory_storage_mode: str = "compressed"
+    pyramidkv_structured_memory_archive_max_frames: int = 128
+    pyramidkv_structured_memory_top_k_frames: int = 0
+    pyramidkv_structured_memory_recent_exclude_frames: int = 0
+    pyramidkv_structured_memory_selection_policy: str = "query"
+    pyramidkv_structured_memory_fusion_mode: str = "residual"
+    pyramidkv_structured_memory_head_labels: Optional[list] = None
     pyramidkv_structured_memory_layer_start: int = 15
     pyramidkv_structured_memory_layer_end: int = 25
     # --- Cyclic (was phase/osc_frame) ---
@@ -259,6 +266,27 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_structured_memory_readout_mode=str(
                 getattr(args, "pyramidkv_structured_memory_readout_mode", "all")
+            ),
+            pyramidkv_structured_memory_storage_mode=str(
+                getattr(args, "pyramidkv_structured_memory_storage_mode", "compressed")
+            ),
+            pyramidkv_structured_memory_archive_max_frames=int(
+                getattr(args, "pyramidkv_structured_memory_archive_max_frames", 128)
+            ),
+            pyramidkv_structured_memory_top_k_frames=int(
+                getattr(args, "pyramidkv_structured_memory_top_k_frames", 0)
+            ),
+            pyramidkv_structured_memory_recent_exclude_frames=int(
+                getattr(args, "pyramidkv_structured_memory_recent_exclude_frames", 0)
+            ),
+            pyramidkv_structured_memory_selection_policy=str(
+                getattr(args, "pyramidkv_structured_memory_selection_policy", "query")
+            ),
+            pyramidkv_structured_memory_fusion_mode=str(
+                getattr(args, "pyramidkv_structured_memory_fusion_mode", "residual")
+            ),
+            pyramidkv_structured_memory_head_labels=getattr(
+                args, "pyramidkv_structured_memory_head_labels", None
             ),
             pyramidkv_structured_memory_layer_start=int(
                 getattr(args, "pyramidkv_structured_memory_layer_start", 15)

@@ -206,6 +206,52 @@ def test_structured_memory_commits_clean_blocks_once_with_fixed_budget():
     assert cache.structured_memory_intervals[-1, 1].item() == 3
 
 
+def test_structured_archive_preserves_full_frames_without_cross_frame_fusion():
+    config = _build_config(num_layers=1, num_heads=1, capacities=[32])
+    cache = AdaptiveKVCache(
+        config=config,
+        batch_size=1,
+        num_heads=1,
+        head_dim=4,
+        layer_idx=0,
+        sink_len=0,
+        tail_len=32,
+        ivc_ratio=0.0,
+        semantic_ratio=0.0,
+        structured_memory_enabled=True,
+        structured_memory_storage_mode="archive",
+        structured_memory_archive_max_frames=3,
+        structured_memory_spatial_stride=4,
+        structured_memory_layer_start=0,
+        structured_memory_layer_end=1,
+    )
+    grid_sizes = torch.tensor([[2, 2, 2]], dtype=torch.long)
+    first = _make_tokens(0, 8, num_heads=1, head_dim=4)
+    cache.update(
+        first,
+        first.clone(),
+        current_start=0,
+        grid_sizes=grid_sizes,
+        cache_update_mode="clean",
+    )
+
+    assert cache.structured_memory_k.shape == (2, 4, 1, 4)
+    torch.testing.assert_close(cache.structured_memory_k[0], first[0, :4])
+    torch.testing.assert_close(cache.structured_memory_k[1], first[0, 4:])
+
+    second = _make_tokens(8, 8, num_heads=1, head_dim=4)
+    cache.update(
+        second,
+        second.clone(),
+        current_start=8,
+        grid_sizes=grid_sizes,
+        cache_update_mode="clean",
+    )
+
+    assert cache.structured_memory_k.shape == (3, 4, 1, 4)
+    assert cache.structured_memory_intervals[:, 0].tolist() == [0, 2, 3]
+
+
 def test_adaptive_cache_ragged_compaction_and_pos_ids():
     config = _build_config(num_layers=1, num_heads=2, capacities=[6, 10])
     cache = AdaptiveKVCache(

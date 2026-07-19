@@ -158,6 +158,30 @@ parser.add_argument(
     choices=("all", "clean_only", "noisy_only"),
     default=None,
 )
+parser.add_argument(
+    "--pyramidkv_structured_memory_storage_mode",
+    choices=("compressed", "archive"),
+    default=None,
+)
+parser.add_argument("--pyramidkv_structured_memory_archive_max_frames", type=int, default=None)
+parser.add_argument("--pyramidkv_structured_memory_top_k_frames", type=int, default=None)
+parser.add_argument("--pyramidkv_structured_memory_recent_exclude_frames", type=int, default=None)
+parser.add_argument(
+    "--pyramidkv_structured_memory_selection_policy",
+    choices=("query", "oldest", "newest"),
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_structured_memory_fusion_mode",
+    choices=("residual", "convex"),
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_structured_memory_head_labels",
+    type=str,
+    default=None,
+    help="Optional comma-separated PF labels allowed to read archival memory.",
+)
 parser.add_argument("--pyramidkv_structured_memory_layer_start", type=int, default=None)
 parser.add_argument("--pyramidkv_structured_memory_layer_end", type=int, default=None)
 args = parser.parse_args()
@@ -304,6 +328,12 @@ if args.pyramidkv_history_value_max_std_ratio is not None:
     config.pyramidkv_history_value_max_std_ratio = args.pyramidkv_history_value_max_std_ratio
 if args.pyramidkv_structured_memory:
     config.pyramidkv_structured_memory_enabled = True
+if args.pyramidkv_structured_memory_head_labels is not None:
+    config.pyramidkv_structured_memory_head_labels = [
+        int(value.strip())
+        for value in args.pyramidkv_structured_memory_head_labels.split(",")
+        if value.strip()
+    ]
 for name in (
     "budget_frames",
     "spatial_stride",
@@ -314,6 +344,12 @@ for name in (
     "confidence_threshold",
     "value_mode",
     "readout_mode",
+    "storage_mode",
+    "archive_max_frames",
+    "top_k_frames",
+    "recent_exclude_frames",
+    "selection_policy",
+    "fusion_mode",
     "layer_start",
     "layer_end",
 ):

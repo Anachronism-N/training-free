@@ -288,6 +288,7 @@ def pyramidkv_attention(
     # completed past blocks, never the current clean block being committed.
     structured_memory_k = getattr(kv_cache, "structured_memory_k", None)
     structured_memory_v = getattr(kv_cache, "structured_memory_v", None)
+    structured_memory_intervals = getattr(kv_cache, "structured_memory_intervals", None)
 
     def _fuse_structured_memory(out: torch.Tensor) -> torch.Tensor:
         gate = float(getattr(kv_cache, "structured_memory_readout_gate", 0.0))
@@ -310,6 +311,21 @@ def pyramidkv_attention(
             query_conditioned_memory_readout,
         )
 
+        eligible_frame_mask = None
+        recent_exclude = int(
+            getattr(kv_cache, "structured_memory_recent_exclude_frames", 0)
+        )
+        if (
+            structured_memory_intervals is not None
+            and frame_seqlen is not None
+            and frame_seqlen > 0
+            and recent_exclude > 0
+        ):
+            current_frame = int((current_start or 0) // frame_seqlen)
+            eligible_frame_mask = structured_memory_intervals[:, 1] < (
+                current_frame - recent_exclude
+            )
+
         memory = query_conditioned_memory_readout(
             raw_q,
             structured_memory_k,
@@ -321,14 +337,32 @@ def pyramidkv_attention(
                 getattr(kv_cache, "structured_memory_confidence_threshold", 0.2)
             ),
             value_mode=str(getattr(kv_cache, "structured_memory_value_mode", "full")),
+            eligible_frame_mask=eligible_frame_mask,
+            top_k_frames=int(getattr(kv_cache, "structured_memory_top_k_frames", 0)),
+            selection_policy=str(
+                getattr(kv_cache, "structured_memory_selection_policy", "query")
+            ),
         )
+        memory_head_mask = None
+        allowed_labels = getattr(kv_cache, "structured_memory_head_labels", None)
+        if allowed_labels is not None:
+            labels = list(getattr(kv_cache, "head_labels", []))
+            if len(labels) == h:
+                memory_head_mask = torch.tensor(
+                    [int(label) in allowed_labels for label in labels],
+                    device=out.device,
+                    dtype=out.dtype,
+                ).view(1, 1, h, 1)
         return fuse_parallel_attention(
             out,
             memory.output,
             gate=gate,
+            head_mask=memory_head_mask,
             rms_match=True,
             alignment_gate=True,
             alignment_threshold=0.0,
+            confidence=memory.confidence,
+            mode=str(getattr(kv_cache, "structured_memory_fusion_mode", "residual")),
         )
 
     def _build_region_mask(frame_ids: torch.Tensor, sync_t: int, region: str) -> torch.Tensor:

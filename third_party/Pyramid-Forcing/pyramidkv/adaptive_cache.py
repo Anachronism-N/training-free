@@ -202,6 +202,13 @@ class AdaptiveKVCache(PyramidKVCache):
         structured_memory_confidence_threshold: float = 0.2,
         structured_memory_value_mode: str = "full",
         structured_memory_readout_mode: str = "all",
+        structured_memory_storage_mode: str = "compressed",
+        structured_memory_archive_max_frames: int = 128,
+        structured_memory_top_k_frames: int = 0,
+        structured_memory_recent_exclude_frames: int = 0,
+        structured_memory_selection_policy: str = "query",
+        structured_memory_fusion_mode: str = "residual",
+        structured_memory_head_labels: list[int] | None = None,
         structured_memory_layer_start: int = 15,
         structured_memory_layer_end: int = 25,
     ):
@@ -360,6 +367,29 @@ class AdaptiveKVCache(PyramidKVCache):
             raise ValueError(
                 "structured_memory_readout_mode must be all, clean_only, or noisy_only"
             )
+        self.structured_memory_storage_mode = str(structured_memory_storage_mode)
+        if self.structured_memory_storage_mode not in {"compressed", "archive"}:
+            raise ValueError("structured_memory_storage_mode must be compressed or archive")
+        self.structured_memory_archive_max_frames = max(
+            1, int(structured_memory_archive_max_frames)
+        )
+        self.structured_memory_top_k_frames = max(0, int(structured_memory_top_k_frames))
+        self.structured_memory_recent_exclude_frames = max(
+            0, int(structured_memory_recent_exclude_frames)
+        )
+        self.structured_memory_selection_policy = str(structured_memory_selection_policy)
+        if self.structured_memory_selection_policy not in {"query", "oldest", "newest"}:
+            raise ValueError(
+                "structured_memory_selection_policy must be query, oldest, or newest"
+            )
+        self.structured_memory_fusion_mode = str(structured_memory_fusion_mode)
+        if self.structured_memory_fusion_mode not in {"residual", "convex"}:
+            raise ValueError("structured_memory_fusion_mode must be residual or convex")
+        self.structured_memory_head_labels = (
+            None
+            if structured_memory_head_labels is None
+            else frozenset(int(value) for value in structured_memory_head_labels)
+        )
         self.structured_memory_k: torch.Tensor | None = None
         self.structured_memory_v: torch.Tensor | None = None
         self.structured_memory_intervals: torch.Tensor | None = None
@@ -1527,7 +1557,10 @@ class AdaptiveKVCache(PyramidKVCache):
 
         def _pool_spatial(tensor: torch.Tensor) -> torch.Tensor:
             tensor = tensor[0].reshape(frames, height, width, self.num_heads, self.head_dim)
-            if self.structured_memory_spatial_stride == 1:
+            if (
+                self.structured_memory_storage_mode == "archive"
+                or self.structured_memory_spatial_stride == 1
+            ):
                 return tensor.reshape(frames, frame_seqlen, self.num_heads, self.head_dim)
             out_h = max(1, (height + self.structured_memory_spatial_stride - 1) // self.structured_memory_spatial_stride)
             out_w = max(1, (width + self.structured_memory_spatial_stride - 1) // self.structured_memory_spatial_stride)
@@ -1550,19 +1583,34 @@ class AdaptiveKVCache(PyramidKVCache):
             pooled_v = torch.cat([self.structured_memory_v, pooled_v], dim=0)
             intervals = torch.cat([self.structured_memory_intervals, intervals], dim=0)
 
-        memory = compress_structured_visual_memory(
-            pooled_k,
-            pooled_v,
-            intervals,
-            StructuredVisualMemoryConfig(
-                budget_frames=self.structured_memory_budget_frames,
-                local_fusion_distance=self.structured_memory_local_fusion_distance,
-                core_fusion_weight=self.structured_memory_core_fusion_weight,
-            ),
-        )
-        self.structured_memory_k = memory.k
-        self.structured_memory_v = memory.v
-        self.structured_memory_intervals = memory.intervals
+        if self.structured_memory_storage_mode == "archive":
+            if pooled_k.shape[0] > self.structured_memory_archive_max_frames:
+                keep = torch.linspace(
+                    0,
+                    pooled_k.shape[0] - 1,
+                    steps=self.structured_memory_archive_max_frames,
+                    device=pooled_k.device,
+                ).round().to(torch.long).unique(sorted=True)
+                pooled_k = pooled_k.index_select(0, keep)
+                pooled_v = pooled_v.index_select(0, keep)
+                intervals = intervals.index_select(0, keep.to(intervals.device))
+            self.structured_memory_k = pooled_k
+            self.structured_memory_v = pooled_v
+            self.structured_memory_intervals = intervals
+        else:
+            memory = compress_structured_visual_memory(
+                pooled_k,
+                pooled_v,
+                intervals,
+                StructuredVisualMemoryConfig(
+                    budget_frames=self.structured_memory_budget_frames,
+                    local_fusion_distance=self.structured_memory_local_fusion_distance,
+                    core_fusion_weight=self.structured_memory_core_fusion_weight,
+                ),
+            )
+            self.structured_memory_k = memory.k
+            self.structured_memory_v = memory.v
+            self.structured_memory_intervals = memory.intervals
         self._structured_memory_last_start = int(current_start)
 
     def _effective_selection_params(self, pos_seg: torch.Tensor, current_t: int | None = None) -> tuple[float, float, float]:

@@ -886,6 +886,13 @@ class CausalInferencePipeline(torch.nn.Module):
                         structured_memory_confidence_threshold=hc.pyramidkv_structured_memory_confidence_threshold,
                         structured_memory_value_mode=hc.pyramidkv_structured_memory_value_mode,
                         structured_memory_readout_mode=hc.pyramidkv_structured_memory_readout_mode,
+                        structured_memory_storage_mode=hc.pyramidkv_structured_memory_storage_mode,
+                        structured_memory_archive_max_frames=hc.pyramidkv_structured_memory_archive_max_frames,
+                        structured_memory_top_k_frames=hc.pyramidkv_structured_memory_top_k_frames,
+                        structured_memory_recent_exclude_frames=hc.pyramidkv_structured_memory_recent_exclude_frames,
+                        structured_memory_selection_policy=hc.pyramidkv_structured_memory_selection_policy,
+                        structured_memory_fusion_mode=hc.pyramidkv_structured_memory_fusion_mode,
+                        structured_memory_head_labels=hc.pyramidkv_structured_memory_head_labels,
                         structured_memory_layer_start=hc.pyramidkv_structured_memory_layer_start,
                         structured_memory_layer_end=hc.pyramidkv_structured_memory_layer_end,
                     )

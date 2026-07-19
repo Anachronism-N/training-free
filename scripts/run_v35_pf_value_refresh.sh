@@ -29,6 +29,13 @@ MEMORY_TEMPERATURE="${MEMORY_TEMPERATURE:-0.1}"
 MEMORY_CONFIDENCE="${MEMORY_CONFIDENCE:-0.2}"
 MEMORY_VALUE_MODE="${MEMORY_VALUE_MODE:-full}"
 MEMORY_READOUT_MODE="${MEMORY_READOUT_MODE:-all}"
+MEMORY_STORAGE_MODE="${MEMORY_STORAGE_MODE:-compressed}"
+MEMORY_ARCHIVE_MAX_FRAMES="${MEMORY_ARCHIVE_MAX_FRAMES:-128}"
+MEMORY_TOP_K_FRAMES="${MEMORY_TOP_K_FRAMES:-0}"
+MEMORY_RECENT_EXCLUDE_FRAMES="${MEMORY_RECENT_EXCLUDE_FRAMES:-0}"
+MEMORY_SELECTION_POLICY="${MEMORY_SELECTION_POLICY:-query}"
+MEMORY_FUSION_MODE="${MEMORY_FUSION_MODE:-residual}"
+MEMORY_HEAD_LABELS="${MEMORY_HEAD_LABELS:-}"
 MEMORY_LAYER_START="${MEMORY_LAYER_START:-15}"
 MEMORY_LAYER_END="${MEMORY_LAYER_END:-25}"
 GPU="${CUDA_VISIBLE_DEVICES:-0}"
@@ -44,6 +51,9 @@ if [[ -n "$HEAD_ROUTES" ]]; then
 fi
 if [[ "$STRUCTURED_MEMORY_ENABLE" == "1" ]]; then
     EXTRA_ARGS+=(--pyramidkv_structured_memory)
+fi
+if [[ -n "$MEMORY_HEAD_LABELS" ]]; then
+    EXTRA_ARGS+=(--pyramidkv_structured_memory_head_labels "$MEMORY_HEAD_LABELS")
 fi
 
 mkdir -p "$OUT"
@@ -65,6 +75,11 @@ printf 'structured_memory=%s\nmemory_budget=%s\nmemory_spatial_stride=%s\nmemory
     "$MEMORY_LAYER_END" >> "$OUT/run_meta.txt"
 printf 'memory_value_mode=%s\n' "$MEMORY_VALUE_MODE" >> "$OUT/run_meta.txt"
 printf 'memory_readout_mode=%s\n' "$MEMORY_READOUT_MODE" >> "$OUT/run_meta.txt"
+printf 'memory_storage_mode=%s\nmemory_archive_max_frames=%s\nmemory_top_k_frames=%s\nmemory_recent_exclude_frames=%s\nmemory_selection_policy=%s\nmemory_fusion_mode=%s\n' \
+    "$MEMORY_STORAGE_MODE" "$MEMORY_ARCHIVE_MAX_FRAMES" "$MEMORY_TOP_K_FRAMES" \
+    "$MEMORY_RECENT_EXCLUDE_FRAMES" "$MEMORY_SELECTION_POLICY" "$MEMORY_FUSION_MODE" \
+    >> "$OUT/run_meta.txt"
+printf 'memory_head_labels=%s\n' "$MEMORY_HEAD_LABELS" >> "$OUT/run_meta.txt"
 
 echo "Pyramid-Forcing stale-history V refresh"
 echo "GPU=$GPU output=$OUT"
@@ -100,6 +115,12 @@ PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" CUDA_VISIBLE_DEVICES="$GPU" py
     --pyramidkv_structured_memory_confidence_threshold "$MEMORY_CONFIDENCE" \
     --pyramidkv_structured_memory_value_mode "$MEMORY_VALUE_MODE" \
     --pyramidkv_structured_memory_readout_mode "$MEMORY_READOUT_MODE" \
+    --pyramidkv_structured_memory_storage_mode "$MEMORY_STORAGE_MODE" \
+    --pyramidkv_structured_memory_archive_max_frames "$MEMORY_ARCHIVE_MAX_FRAMES" \
+    --pyramidkv_structured_memory_top_k_frames "$MEMORY_TOP_K_FRAMES" \
+    --pyramidkv_structured_memory_recent_exclude_frames "$MEMORY_RECENT_EXCLUDE_FRAMES" \
+    --pyramidkv_structured_memory_selection_policy "$MEMORY_SELECTION_POLICY" \
+    --pyramidkv_structured_memory_fusion_mode "$MEMORY_FUSION_MODE" \
     --pyramidkv_structured_memory_layer_start "$MEMORY_LAYER_START" \
     --pyramidkv_structured_memory_layer_end "$MEMORY_LAYER_END" \
     "${EXTRA_ARGS[@]}"
