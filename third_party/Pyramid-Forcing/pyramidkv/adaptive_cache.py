@@ -408,6 +408,7 @@ class AdaptiveKVCache(PyramidKVCache):
         self.structured_memory_margin_threshold = float(structured_memory_margin_threshold)
         self.structured_memory_query_ema_decay = float(structured_memory_query_ema_decay)
         self._functional_query_ema = None
+        self._functional_query_ema_start = None
         self._last_functional_head_mask = None
         self._last_memory_confidence = 0.0
         self._structured_memory_last_start: int | None = None
@@ -1673,7 +1674,10 @@ class AdaptiveKVCache(PyramidKVCache):
         self.structured_memory_v = None
         self.structured_memory_intervals = None
         self._functional_query_ema = None
+        self._functional_query_ema_start = None
         self._last_functional_head_mask = None
+        self._last_memory_confidence = 0.0
+        self._last_per_head_confidence = None
         self._structured_memory_last_start = None
         self.last_flat_pos_ids = None
         self.tail_len = self._base_tail_len

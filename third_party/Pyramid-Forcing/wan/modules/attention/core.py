@@ -801,6 +801,7 @@ def pyramidkv_attention(
             )
             sharpness = float(getattr(kv_cache, "structured_memory_routing_sharpness", 5.0))
             soft_mask = torch.sigmoid(sharpness * (conf - conf_threshold))
+            soft_mask = soft_mask.mean(dim=0, keepdim=True)
             memory_head_mask = soft_mask[:, None, :, None].to(out.dtype)
         elif routing_mode == "functional_adaptive":
             # Certainty-and-Drift Adaptive Routing (CDAR): online, per-query,
@@ -813,9 +814,14 @@ def pyramidkv_attention(
             frame_weights = memory.frame_weights  # [B,H,M]
             if frame_weights.shape[-1] >= 2:
                 top2 = torch.topk(frame_weights.float(), k=2, dim=-1).values
-                margin = top2[..., 0] - top2[..., 1]
-            elif frame_weights.shape[-1] == 1:
-                margin = frame_weights[..., 0].float()
+                active_count = (frame_weights > 0).sum(dim=-1)
+                # A sole eligible frame is not evidence of an unambiguous
+                # retrieval; margin is defined only when two candidates exist.
+                margin = torch.where(
+                    active_count >= 2,
+                    top2[..., 0] - top2[..., 1],
+                    torch.zeros_like(top2[..., 0]),
+                )
             else:
                 margin = torch.zeros_like(confidence.float())
             margin_threshold = float(
@@ -828,21 +834,28 @@ def pyramidkv_attention(
                 raw_q.detach().float().mean(dim=1), dim=-1
             )  # [B,H,D]
             query_ema = getattr(kv_cache, "_functional_query_ema", None)
+            last_ema_start = getattr(kv_cache, "_functional_query_ema_start", None)
             if query_ema is None or query_ema.shape != query_summary.shape:
                 stability = torch.ones_like(confidence.float())
                 kv_cache._functional_query_ema = query_summary.detach()
+                kv_cache._functional_query_ema_start = int(current_start or 0)
             else:
                 stability = torch.nn.functional.cosine_similarity(
                     query_summary, query_ema.to(query_summary.device), dim=-1
                 ).clamp(0.0, 1.0)
-                ema_decay = float(getattr(kv_cache, "structured_memory_query_ema_decay", 0.9))
-                updated = ema_decay * query_ema.to(query_summary.device) + (1.0 - ema_decay) * query_summary
-                kv_cache._functional_query_ema = torch.nn.functional.normalize(
-                    updated, dim=-1
-                ).detach()
+                # Update once per generated block, not once per denoising call.
+                if last_ema_start != int(current_start or 0):
+                    ema_decay = float(getattr(kv_cache, "structured_memory_query_ema_decay", 0.9))
+                    updated = ema_decay * query_ema.to(query_summary.device) + (1.0 - ema_decay) * query_summary
+                    kv_cache._functional_query_ema = torch.nn.functional.normalize(
+                        updated, dim=-1
+                    ).detach()
+                    kv_cache._functional_query_ema_start = int(current_start or 0)
 
-            certainty = confidence.float() * margin_gate
-            functional_mask = (certainty * stability).clamp(0.0, 1.0)
+            # Fusion already multiplies by memory.confidence. The routing mask
+            # only supplies the additional admission terms, avoiding confidence².
+            functional_mask = (margin_gate * stability).clamp(0.0, 1.0)
+            functional_mask = functional_mask.mean(dim=0, keepdim=True)
             memory_head_mask = functional_mask[:, None, :, None].to(out.dtype)
             kv_cache._last_functional_head_mask = functional_mask.detach().cpu()
         # Store confidence on kv_cache for pipeline-level access (dynamic CFG)
