@@ -109,6 +109,7 @@ class PyramidKVPipelineConfig:
     pyramidkv_structured_memory_head_labels: Optional[list] = None
     pyramidkv_structured_memory_layer_start: int = 15
     pyramidkv_structured_memory_layer_end: int = 25
+    pyramidkv_structured_memory_warmup_blocks: int = 0
     # --- Cyclic (was phase/osc_frame) ---
     cyclic_enabled: bool = False  # was use_osc_frame_mode
     cyclic_period: int = 6  # was phase_period
@@ -293,6 +294,9 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_structured_memory_layer_end=int(
                 getattr(args, "pyramidkv_structured_memory_layer_end", 25)
+            ),
+            pyramidkv_structured_memory_warmup_blocks=int(
+                getattr(args, "pyramidkv_structured_memory_warmup_blocks", 0)
             ),
             cyclic_enabled=getattr(args, "cyclic_enabled", use_adaptive),
             cyclic_period=getattr(args, "cyclic_period", 6),

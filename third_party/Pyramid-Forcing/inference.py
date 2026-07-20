@@ -184,6 +184,7 @@ parser.add_argument(
 )
 parser.add_argument("--pyramidkv_structured_memory_layer_start", type=int, default=None)
 parser.add_argument("--pyramidkv_structured_memory_layer_end", type=int, default=None)
+parser.add_argument("--pyramidkv_structured_memory_warmup_blocks", type=int, default=None)
 args = parser.parse_args()
 
 

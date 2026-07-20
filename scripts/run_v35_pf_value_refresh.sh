@@ -38,6 +38,7 @@ MEMORY_FUSION_MODE="${MEMORY_FUSION_MODE:-residual}"
 MEMORY_HEAD_LABELS="${MEMORY_HEAD_LABELS:-}"
 MEMORY_LAYER_START="${MEMORY_LAYER_START:-15}"
 MEMORY_LAYER_END="${MEMORY_LAYER_END:-25}"
+MEMORY_WARMUP_BLOCKS="${MEMORY_WARMUP_BLOCKS:-0}"
 GPU="${CUDA_VISIBLE_DEVICES:-0}"
 RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)}"
 TAG="${METHOD_TAG:-pf_refresh_s${STRENGTH//./}_r${RECENT_FRAMES}_g${GATE_LAMBDA//./}}"
@@ -123,6 +124,7 @@ PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" CUDA_VISIBLE_DEVICES="$GPU" py
     --pyramidkv_structured_memory_fusion_mode "$MEMORY_FUSION_MODE" \
     --pyramidkv_structured_memory_layer_start "$MEMORY_LAYER_START" \
     --pyramidkv_structured_memory_layer_end "$MEMORY_LAYER_END" \
+    --pyramidkv_structured_memory_warmup_blocks "$MEMORY_WARMUP_BLOCKS" \
     "${EXTRA_ARGS[@]}"
 
 echo "Done: $OUT"

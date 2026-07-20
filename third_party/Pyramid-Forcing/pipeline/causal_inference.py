@@ -895,6 +895,7 @@ class CausalInferencePipeline(torch.nn.Module):
                         structured_memory_head_labels=hc.pyramidkv_structured_memory_head_labels,
                         structured_memory_layer_start=hc.pyramidkv_structured_memory_layer_start,
                         structured_memory_layer_end=hc.pyramidkv_structured_memory_layer_end,
+                        structured_memory_warmup_blocks=hc.pyramidkv_structured_memory_warmup_blocks,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(

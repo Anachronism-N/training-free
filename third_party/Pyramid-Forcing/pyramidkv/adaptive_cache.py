@@ -211,6 +211,7 @@ class AdaptiveKVCache(PyramidKVCache):
         structured_memory_head_labels: list[int] | None = None,
         structured_memory_layer_start: int = 15,
         structured_memory_layer_end: int = 25,
+        structured_memory_warmup_blocks: int = 0,
     ):
         super().__init__(
             config=config,
@@ -393,6 +394,7 @@ class AdaptiveKVCache(PyramidKVCache):
         self.structured_memory_k: torch.Tensor | None = None
         self.structured_memory_v: torch.Tensor | None = None
         self.structured_memory_intervals: torch.Tensor | None = None
+        self.structured_memory_warmup_blocks = max(0, int(structured_memory_warmup_blocks))
         self._structured_memory_last_start: int | None = None
         self._base_tail_len = self.tail_len
         max_cap = max(self.capacities) if self.capacities else 0
