@@ -217,7 +217,30 @@ class CausalInferencePipeline(torch.nn.Module):
             num_blocks = (num_frames - 1) // self.num_frame_per_block
         num_input_frames = initial_latent.shape[1] if initial_latent is not None else 0
         num_output_frames = num_frames + num_input_frames  # add the initial latent frames
-        conditional_dict = self.text_encoder(text_prompts=text_prompts)
+        # Controlled scene schedule: a single prompt may contain block-aligned
+        # segments separated by `||`, e.g. A1 || B || A2. The archive persists
+        # across segments while cross-attention is invalidated at boundaries.
+        scene_prompts = None
+        if len(text_prompts) == 1 and "||" in text_prompts[0]:
+            scene_prompts = [part.strip() for part in text_prompts[0].split("||") if part.strip()]
+        if scene_prompts and len(scene_prompts) > 1:
+            encoded_scenes = self.text_encoder(text_prompts=scene_prompts)
+            conditional_dicts = []
+            for scene_index in range(len(scene_prompts)):
+                conditional_dicts.append({
+                    key: (
+                        value[scene_index:scene_index + 1]
+                        if isinstance(value, torch.Tensor)
+                        and value.ndim > 0
+                        and value.shape[0] == len(scene_prompts)
+                        else value
+                    )
+                    for key, value in encoded_scenes.items()
+                })
+            conditional_dict = conditional_dicts[0]
+        else:
+            conditional_dicts = None
+            conditional_dict = self.text_encoder(text_prompts=text_prompts)
         unconditional_dict = None
         if self.few_step_cfg_enabled:
             negative_prompt = str(getattr(self.args, "negative_prompt", ""))
@@ -455,7 +478,23 @@ class CausalInferencePipeline(torch.nn.Module):
         scalar_buf = torch.empty(
             [batch_size * max_block_frames], device=noise.device, dtype=torch.long)
 
+        active_scene_index = 0
         for block_index, current_num_frames in enumerate(all_num_frames, start=1):
+            if conditional_dicts is not None:
+                scene_index = min(
+                    ((block_index - 1) * len(conditional_dicts)) // total_denoise_blocks,
+                    len(conditional_dicts) - 1,
+                )
+                if scene_index != active_scene_index:
+                    active_scene_index = scene_index
+                    for cache in self.crossattn_cache:
+                        cache["is_init"] = False
+                        cache["prompt_v"] = None
+                    if self.crossattn_cache_uncond is not None:
+                        for cache in self.crossattn_cache_uncond:
+                            cache["is_init"] = False
+                            cache["prompt_v"] = None
+                conditional_dict = conditional_dicts[scene_index]
             if profile:
                 block_start.record()
                 clean_pass_start = torch.cuda.Event(enable_timing=True)
