@@ -331,6 +331,16 @@ class CausalInferencePipeline(torch.nn.Module):
             self.kv_cache_uncond = None
             self.crossattn_cache_uncond = None
 
+        def _set_memory_prompt_descriptor(conditioning: dict) -> None:
+            embeds = conditioning.get("prompt_embeds")
+            if not isinstance(embeds, torch.Tensor):
+                return
+            descriptor = embeds.detach().float().mean(dim=1).squeeze(0)
+            for cache in self.kv_cache1:
+                if isinstance(cache, AdaptiveKVCache):
+                    cache._current_prompt_descriptor = descriptor
+
+        _set_memory_prompt_descriptor(conditional_dict)
         self._set_adaptive_kv_profile(profile)
         if self.use_teacache:
             self.generator.pop_teacache_stats()
@@ -495,6 +505,7 @@ class CausalInferencePipeline(torch.nn.Module):
                             cache["is_init"] = False
                             cache["prompt_v"] = None
                 conditional_dict = conditional_dicts[scene_index]
+                _set_memory_prompt_descriptor(conditional_dict)
             if profile:
                 block_start.record()
                 clean_pass_start = torch.cuda.Event(enable_timing=True)
@@ -1035,6 +1046,7 @@ class CausalInferencePipeline(torch.nn.Module):
                         structured_memory_max_retrieval_entropy=hc.pyramidkv_structured_memory_max_retrieval_entropy,
                         structured_memory_control_mode=hc.pyramidkv_structured_memory_control_mode,
                         structured_memory_position_mode=hc.pyramidkv_structured_memory_position_mode,
+                        structured_memory_prompt_prior_weight=hc.pyramidkv_structured_memory_prompt_prior_weight,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(

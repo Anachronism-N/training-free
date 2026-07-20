@@ -120,6 +120,27 @@ def test_empty_eligible_history_returns_zero_confidence():
     assert torch.count_nonzero(result.confidence) == 0
 
 
+def test_frame_prior_can_override_visual_frame_ranking():
+    q = torch.tensor([[[[1.0, 0.0]]]])
+    memory_k = torch.tensor([[[[1.0, 0.0]]], [[[0.6, 0.8]]]])
+    memory_v = torch.tensor([[[[5.0, 0.0]]], [[[0.0, 7.0]]]])
+    visual_only = query_conditioned_memory_readout(
+        q, memory_k, memory_v, top_k_frames=1, confidence_threshold=-1.0
+    )
+    prompt_guided = query_conditioned_memory_readout(
+        q,
+        memory_k,
+        memory_v,
+        top_k_frames=1,
+        confidence_threshold=-1.0,
+        frame_prior_scores=torch.tensor([[0.0, 1.0]]),
+        frame_prior_weight=0.8,
+    )
+
+    assert visual_only.frame_weights[0, 0, 0] == 1
+    assert prompt_guided.frame_weights[0, 0, 1] == 1
+
+
 def test_per_head_selection_can_choose_different_frames():
     q = torch.tensor([[[[1.0, 0.0], [0.0, 1.0]]]])
     memory_k = torch.tensor(

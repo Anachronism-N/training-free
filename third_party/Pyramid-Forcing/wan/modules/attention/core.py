@@ -711,6 +711,9 @@ def pyramidkv_attention(
     structured_memory_k = getattr(kv_cache, "structured_memory_k", None)
     structured_memory_v = getattr(kv_cache, "structured_memory_v", None)
     structured_memory_intervals = getattr(kv_cache, "structured_memory_intervals", None)
+    structured_memory_prompt_descriptors = getattr(
+        kv_cache, "structured_memory_prompt_descriptors", None
+    )
 
     def _fuse_structured_memory(out: torch.Tensor) -> torch.Tensor:
         _record_query_signature(raw_q, kv_cache, current_start, cache_update_mode)
@@ -760,6 +763,21 @@ def pyramidkv_attention(
                 current_frame - recent_exclude
             )
 
+        frame_prior_scores = None
+        current_prompt_descriptor = getattr(kv_cache, "_current_prompt_descriptor", None)
+        if (
+            structured_memory_prompt_descriptors is not None
+            and current_prompt_descriptor is not None
+            and structured_memory_prompt_descriptors.shape[0] == structured_memory_k.shape[0]
+        ):
+            prompt_query = torch.nn.functional.normalize(
+                current_prompt_descriptor.detach().float().to(structured_memory_k.device), dim=-1
+            ).view(1, -1)
+            prompt_memory = torch.nn.functional.normalize(
+                structured_memory_prompt_descriptors.detach().float(), dim=-1
+            )
+            frame_prior_scores = prompt_query @ prompt_memory.transpose(0, 1)
+
         memory = query_conditioned_memory_readout(
             raw_q,
             structured_memory_k,
@@ -794,6 +812,10 @@ def pyramidkv_attention(
             rope_freqs=freqs,
             grid_h=int(grid_sizes[0, 1].item()) if grid_sizes is not None else None,
             grid_w=int(grid_sizes[0, 2].item()) if grid_sizes is not None else None,
+            frame_prior_scores=frame_prior_scores,
+            frame_prior_weight=float(
+                getattr(kv_cache, "structured_memory_prompt_prior_weight", 0.0)
+            ),
         )
         _record_memory_function_signals(
             out, memory, kv_cache, current_start, cache_update_mode

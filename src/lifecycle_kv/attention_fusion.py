@@ -74,6 +74,8 @@ def query_conditioned_memory_readout(
     rope_freqs: torch.Tensor | None = None,
     grid_h: int | None = None,
     grid_w: int | None = None,
+    frame_prior_scores: torch.Tensor | None = None,
+    frame_prior_weight: float = 0.0,
     eps: float = 1e-6,
 ) -> StructuredMemoryReadout:
     """Read structured history through a separate query-conditioned attention.
@@ -117,6 +119,16 @@ def query_conditioned_memory_readout(
     )
     frame_similarity = torch.einsum("bhd,mhd->bhm", query_summary, frame_summary)
     frame_count = memory_k.shape[0]
+    if frame_prior_scores is not None and frame_prior_weight > 0.0:
+        if frame_prior_scores.shape != (q.shape[0], frame_count):
+            raise ValueError(
+                f"frame_prior_scores must have shape {(q.shape[0], frame_count)}"
+            )
+        weight = float(max(0.0, min(1.0, frame_prior_weight)))
+        frame_similarity = (
+            (1.0 - weight) * frame_similarity
+            + weight * frame_prior_scores[:, None, :].to(frame_similarity)
+        )
     if eligible_frame_mask is None:
         eligible = torch.ones(frame_count, dtype=torch.bool, device=memory_k.device)
     else:

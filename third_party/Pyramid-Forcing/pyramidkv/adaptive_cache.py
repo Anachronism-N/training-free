@@ -222,6 +222,7 @@ class AdaptiveKVCache(PyramidKVCache):
         structured_memory_max_retrieval_entropy: float = 1.0,
         structured_memory_control_mode: str = "normal",
         structured_memory_position_mode: str = "none",
+        structured_memory_prompt_prior_weight: float = 0.0,
     ):
         super().__init__(
             config=config,
@@ -412,6 +413,8 @@ class AdaptiveKVCache(PyramidKVCache):
         self.structured_memory_k: torch.Tensor | None = None
         self.structured_memory_v: torch.Tensor | None = None
         self.structured_memory_intervals: torch.Tensor | None = None
+        self.structured_memory_prompt_descriptors: torch.Tensor | None = None
+        self._current_prompt_descriptor: torch.Tensor | None = None
         self.structured_memory_warmup_blocks = max(0, int(structured_memory_warmup_blocks))
         self.structured_memory_head_routing = str(structured_memory_head_routing)
         if self.structured_memory_head_routing not in {
@@ -437,6 +440,9 @@ class AdaptiveKVCache(PyramidKVCache):
         self.structured_memory_position_mode = str(structured_memory_position_mode)
         if self.structured_memory_position_mode not in {"none", "local_grid"}:
             raise ValueError("unsupported structured_memory_position_mode")
+        self.structured_memory_prompt_prior_weight = float(
+            max(0.0, min(1.0, structured_memory_prompt_prior_weight))
+        )
         self._functional_query_ema = None
         self._functional_query_ema_start = None
         self._last_functional_head_mask = None
@@ -1628,10 +1634,22 @@ class AdaptiveKVCache(PyramidKVCache):
             first_frame, first_frame + frames, device=new_k.device, dtype=torch.long
         )
         intervals = torch.stack([frame_ids, frame_ids], dim=1)
+        prompt_descriptors = None
+        if self._current_prompt_descriptor is not None:
+            descriptor = torch.nn.functional.normalize(
+                self._current_prompt_descriptor.detach().float().to(new_k.device), dim=-1
+            )
+            prompt_descriptors = descriptor.view(1, -1).expand(frames, -1).clone()
         if self.structured_memory_k is not None:
             pooled_k = torch.cat([self.structured_memory_k, pooled_k], dim=0)
             pooled_v = torch.cat([self.structured_memory_v, pooled_v], dim=0)
             intervals = torch.cat([self.structured_memory_intervals, intervals], dim=0)
+            if self.structured_memory_prompt_descriptors is not None and prompt_descriptors is not None:
+                prompt_descriptors = torch.cat(
+                    [self.structured_memory_prompt_descriptors, prompt_descriptors], dim=0
+                )
+            elif self.structured_memory_prompt_descriptors is not None:
+                prompt_descriptors = self.structured_memory_prompt_descriptors
 
         if self.structured_memory_storage_mode == "archive":
             if pooled_k.shape[0] > self.structured_memory_archive_max_frames:
@@ -1664,9 +1682,14 @@ class AdaptiveKVCache(PyramidKVCache):
                 pooled_k = pooled_k.index_select(0, keep)
                 pooled_v = pooled_v.index_select(0, keep)
                 intervals = intervals.index_select(0, keep.to(intervals.device))
+                if prompt_descriptors is not None:
+                    prompt_descriptors = prompt_descriptors.index_select(
+                        0, keep.to(prompt_descriptors.device)
+                    )
             self.structured_memory_k = pooled_k
             self.structured_memory_v = pooled_v
             self.structured_memory_intervals = intervals
+            self.structured_memory_prompt_descriptors = prompt_descriptors
         else:
             memory = compress_structured_visual_memory(
                 pooled_k,
@@ -1709,6 +1732,8 @@ class AdaptiveKVCache(PyramidKVCache):
         self.structured_memory_k = None
         self.structured_memory_v = None
         self.structured_memory_intervals = None
+        self.structured_memory_prompt_descriptors = None
+        self._current_prompt_descriptor = None
         self._functional_query_ema = None
         self._functional_query_ema_start = None
         self._last_functional_head_mask = None

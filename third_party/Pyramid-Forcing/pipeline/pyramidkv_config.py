@@ -120,6 +120,7 @@ class PyramidKVPipelineConfig:
     pyramidkv_structured_memory_max_retrieval_entropy: float = 1.0
     pyramidkv_structured_memory_control_mode: str = "normal"
     pyramidkv_structured_memory_position_mode: str = "none"
+    pyramidkv_structured_memory_prompt_prior_weight: float = 0.0
     # --- Cyclic (was phase/osc_frame) ---
     cyclic_enabled: bool = False  # was use_osc_frame_mode
     cyclic_period: int = 6  # was phase_period
@@ -337,6 +338,9 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_structured_memory_position_mode=str(
                 getattr(args, "pyramidkv_structured_memory_position_mode", "none")
+            ),
+            pyramidkv_structured_memory_prompt_prior_weight=float(
+                getattr(args, "pyramidkv_structured_memory_prompt_prior_weight", 0.0)
             ),
             cyclic_enabled=getattr(args, "cyclic_enabled", use_adaptive),
             cyclic_period=getattr(args, "cyclic_period", 6),
