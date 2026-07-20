@@ -306,6 +306,15 @@ def pyramidkv_attention(
             or not mode_enabled
         ):
             return out
+
+        # Warmup ramp: gradually increase effective gate over the first few
+        # blocks to avoid discontinuity when memory first activates.
+        warmup_blocks = int(getattr(kv_cache, "structured_memory_warmup_blocks", 0))
+        if warmup_blocks > 0 and frame_seqlen is not None and current_start is not None:
+            current_block = int(current_start // (frame_seqlen * 3))  # 3 frames per block
+            if current_block < warmup_blocks:
+                gate = gate * (current_block + 1) / warmup_blocks
+
         from lifecycle_kv.attention_fusion import (
             fuse_parallel_attention,
             query_conditioned_memory_readout,

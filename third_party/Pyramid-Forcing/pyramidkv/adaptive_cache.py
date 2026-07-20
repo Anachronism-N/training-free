@@ -1585,12 +1585,28 @@ class AdaptiveKVCache(PyramidKVCache):
 
         if self.structured_memory_storage_mode == "archive":
             if pooled_k.shape[0] > self.structured_memory_archive_max_frames:
-                keep = torch.linspace(
-                    0,
-                    pooled_k.shape[0] - 1,
-                    steps=self.structured_memory_archive_max_frames,
-                    device=pooled_k.device,
-                ).round().to(torch.long).unique(sorted=True)
+                # Preservation-aware subsampling: always keep first frame
+                # (identity anchor) and last frame, then evenly sample the rest.
+                max_frames = self.structured_memory_archive_max_frames
+                total = pooled_k.shape[0]
+                if max_frames <= 2:
+                    keep = torch.tensor(
+                        [0, total - 1] if max_frames == 2 else [0],
+                        device=pooled_k.device, dtype=torch.long,
+                    )
+                else:
+                    # Always keep frame 0 (identity) and last frame
+                    middle_count = max_frames - 2
+                    middle_indices = torch.linspace(
+                        1, total - 2, steps=middle_count,
+                        device=pooled_k.device,
+                    ).round().to(torch.long).unique(sorted=True)
+                    keep = torch.cat([
+                        torch.tensor([0], device=pooled_k.device, dtype=torch.long),
+                        middle_indices,
+                        torch.tensor([total - 1], device=pooled_k.device, dtype=torch.long),
+                    ])
+                    keep = keep.unique(sorted=True)
                 pooled_k = pooled_k.index_select(0, keep)
                 pooled_v = pooled_v.index_select(0, keep)
                 intervals = intervals.index_select(0, keep.to(intervals.device))
