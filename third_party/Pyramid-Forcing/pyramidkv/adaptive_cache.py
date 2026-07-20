@@ -204,6 +204,7 @@ class AdaptiveKVCache(PyramidKVCache):
         structured_memory_readout_mode: str = "all",
         structured_memory_storage_mode: str = "compressed",
         structured_memory_archive_max_frames: int = 128,
+        structured_memory_archive_policy: str = "uniform",
         structured_memory_top_k_frames: int = 0,
         structured_memory_recent_exclude_frames: int = 0,
         structured_memory_selection_policy: str = "query",
@@ -216,6 +217,9 @@ class AdaptiveKVCache(PyramidKVCache):
         structured_memory_routing_sharpness: float = 5.0,
         structured_memory_margin_threshold: float = 0.10,
         structured_memory_query_ema_decay: float = 0.90,
+        structured_memory_min_retrieval_margin: float = 0.0,
+        structured_memory_max_retrieval_entropy: float = 1.0,
+        structured_memory_control_mode: str = "normal",
     ):
         super().__init__(
             config=config,
@@ -378,14 +382,19 @@ class AdaptiveKVCache(PyramidKVCache):
         self.structured_memory_archive_max_frames = max(
             1, int(structured_memory_archive_max_frames)
         )
+        self.structured_memory_archive_policy = str(structured_memory_archive_policy)
+        if self.structured_memory_archive_policy not in {"uniform", "coverage"}:
+            raise ValueError("structured_memory_archive_policy must be uniform or coverage")
         self.structured_memory_top_k_frames = max(0, int(structured_memory_top_k_frames))
         self.structured_memory_recent_exclude_frames = max(
             0, int(structured_memory_recent_exclude_frames)
         )
         self.structured_memory_selection_policy = str(structured_memory_selection_policy)
-        if self.structured_memory_selection_policy not in {"query", "oldest", "newest"}:
+        if self.structured_memory_selection_policy not in {
+            "query", "least_similar", "oldest", "newest"
+        }:
             raise ValueError(
-                "structured_memory_selection_policy must be query, oldest, or newest"
+                "structured_memory_selection_policy must be query, least_similar, oldest, or newest"
             )
         self.structured_memory_fusion_mode = str(structured_memory_fusion_mode)
         if self.structured_memory_fusion_mode not in {"residual", "convex"}:
@@ -407,6 +416,19 @@ class AdaptiveKVCache(PyramidKVCache):
         self.structured_memory_routing_sharpness = float(structured_memory_routing_sharpness)
         self.structured_memory_margin_threshold = float(structured_memory_margin_threshold)
         self.structured_memory_query_ema_decay = float(structured_memory_query_ema_decay)
+        self.structured_memory_min_retrieval_margin = float(
+            structured_memory_min_retrieval_margin
+        )
+        self.structured_memory_max_retrieval_entropy = float(
+            structured_memory_max_retrieval_entropy
+        )
+        if self.structured_memory_min_retrieval_margin < 0.0:
+            raise ValueError("structured_memory_min_retrieval_margin must be non-negative")
+        if not 0.0 <= self.structured_memory_max_retrieval_entropy <= 1.0:
+            raise ValueError("structured_memory_max_retrieval_entropy must be in [0, 1]")
+        self.structured_memory_control_mode = str(structured_memory_control_mode)
+        if self.structured_memory_control_mode not in {"normal", "shuffled_v", "abstain"}:
+            raise ValueError("unsupported structured_memory_control_mode")
         self._functional_query_ema = None
         self._functional_query_ema_start = None
         self._last_functional_head_mask = None
@@ -1565,6 +1587,8 @@ class AdaptiveKVCache(PyramidKVCache):
         from lifecycle_kv.structured_visual_memory import (
             StructuredVisualMemoryConfig,
             compress_structured_visual_memory,
+            frame_descriptors,
+            select_coverage_indices,
         )
 
         frames = new_k.shape[1] // frame_seqlen
@@ -1603,17 +1627,22 @@ class AdaptiveKVCache(PyramidKVCache):
 
         if self.structured_memory_storage_mode == "archive":
             if pooled_k.shape[0] > self.structured_memory_archive_max_frames:
-                # Preservation-aware subsampling: always keep first frame
-                # (identity anchor) and last frame, then evenly sample the rest.
                 max_frames = self.structured_memory_archive_max_frames
                 total = pooled_k.shape[0]
-                if max_frames <= 2:
+                if self.structured_memory_archive_policy == "coverage":
+                    descriptors = frame_descriptors(pooled_v)
+                    keep = select_coverage_indices(
+                        descriptors,
+                        max_frames,
+                        preserve_endpoints=True,
+                    )
+                elif max_frames <= 2:
                     keep = torch.tensor(
                         [0, total - 1] if max_frames == 2 else [0],
                         device=pooled_k.device, dtype=torch.long,
                     )
                 else:
-                    # Always keep frame 0 (identity) and last frame
+                    # Uniform endpoint-preserving baseline.
                     middle_count = max_frames - 2
                     middle_indices = torch.linspace(
                         1, total - 2, steps=middle_count,
@@ -1623,8 +1652,7 @@ class AdaptiveKVCache(PyramidKVCache):
                         torch.tensor([0], device=pooled_k.device, dtype=torch.long),
                         middle_indices,
                         torch.tensor([total - 1], device=pooled_k.device, dtype=torch.long),
-                    ])
-                    keep = keep.unique(sorted=True)
+                    ]).unique(sorted=True)
                 pooled_k = pooled_k.index_select(0, keep)
                 pooled_v = pooled_v.index_select(0, keep)
                 intervals = intervals.index_select(0, keep.to(intervals.device))
@@ -1678,6 +1706,9 @@ class AdaptiveKVCache(PyramidKVCache):
         self._last_functional_head_mask = None
         self._last_memory_confidence = 0.0
         self._last_per_head_confidence = None
+        self._memory_readout_calls = 0
+        self._memory_readout_heads = 0
+        self._memory_accepted_heads = 0
         self._structured_memory_last_start = None
         self.last_flat_pos_ids = None
         self.tail_len = self._base_tail_len

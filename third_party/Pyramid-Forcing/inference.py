@@ -164,11 +164,16 @@ parser.add_argument(
     default=None,
 )
 parser.add_argument("--pyramidkv_structured_memory_archive_max_frames", type=int, default=None)
+parser.add_argument(
+    "--pyramidkv_structured_memory_archive_policy",
+    choices=("uniform", "coverage"),
+    default=None,
+)
 parser.add_argument("--pyramidkv_structured_memory_top_k_frames", type=int, default=None)
 parser.add_argument("--pyramidkv_structured_memory_recent_exclude_frames", type=int, default=None)
 parser.add_argument(
     "--pyramidkv_structured_memory_selection_policy",
-    choices=("query", "oldest", "newest"),
+    choices=("query", "least_similar", "oldest", "newest"),
     default=None,
 )
 parser.add_argument(
@@ -189,6 +194,13 @@ parser.add_argument("--pyramidkv_structured_memory_head_routing", type=str, defa
 parser.add_argument("--pyramidkv_structured_memory_routing_sharpness", type=float, default=None)
 parser.add_argument("--pyramidkv_structured_memory_margin_threshold", type=float, default=None)
 parser.add_argument("--pyramidkv_structured_memory_query_ema_decay", type=float, default=None)
+parser.add_argument("--pyramidkv_structured_memory_min_retrieval_margin", type=float, default=None)
+parser.add_argument("--pyramidkv_structured_memory_max_retrieval_entropy", type=float, default=None)
+parser.add_argument(
+    "--pyramidkv_structured_memory_control_mode",
+    choices=("normal", "shuffled_v", "abstain"),
+    default=None,
+)
 parser.add_argument("--dynamic_cfg_enabled", action="store_true", default=False)
 parser.add_argument("--dynamic_cfg_min_scale", type=float, default=1.0)
 parser.add_argument("--dynamic_cfg_max_scale", type=float, default=5.0)
@@ -369,6 +381,7 @@ for name in (
     "readout_mode",
     "storage_mode",
     "archive_max_frames",
+    "archive_policy",
     "top_k_frames",
     "recent_exclude_frames",
     "selection_policy",
@@ -380,6 +393,9 @@ for name in (
     "routing_sharpness",
     "margin_threshold",
     "query_ema_decay",
+    "min_retrieval_margin",
+    "max_retrieval_entropy",
+    "control_mode",
 ):
     value = getattr(args, f"pyramidkv_structured_memory_{name}")
     if value is not None:
@@ -623,6 +639,26 @@ if os.environ.get("HEAD_DIAGNOSTIC", "0") == "1":
         save_diagnostic_report(diag_path)
     except Exception as e:
         print(f"[DIAG] Failed to save report: {e}")
+
+# Persist memory-admission statistics for every run.
+try:
+    caches = list(getattr(pipeline, "kv_cache1", []) or [])
+    total_calls = sum(int(getattr(cache, "_memory_readout_calls", 0)) for cache in caches)
+    total_heads = sum(int(getattr(cache, "_memory_readout_heads", 0)) for cache in caches)
+    accepted_heads = sum(int(getattr(cache, "_memory_accepted_heads", 0)) for cache in caches)
+    if total_calls > 0:
+        import json
+        admission_report = {
+            "readout_calls": total_calls,
+            "evaluated_heads": total_heads,
+            "accepted_heads": accepted_heads,
+            "acceptance_rate": accepted_heads / max(total_heads, 1),
+        }
+        with open(os.path.join(args.output_folder, "memory_admission_report.json"), "w") as f:
+            json.dump(admission_report, f, indent=2)
+        print(f"[MEMORY] admission report: {admission_report}")
+except Exception as e:
+    print(f"[MEMORY] Failed to save admission report: {e}")
 
 if getattr(pipeline, "few_step_cfg_enabled", False):
     import json

@@ -4,6 +4,7 @@ from lifecycle_kv.structured_visual_memory import (
     StructuredVisualMemoryConfig,
     compress_structured_visual_memory,
     frame_descriptors,
+    select_coverage_indices,
     uniqueness_scores,
 )
 
@@ -59,6 +60,26 @@ def test_budget_preserves_endpoints_and_fuses_redundancy():
     assert 0 in result.source_groups[0]
     assert 3 in result.source_groups[1]
     assert sorted(source for group in result.source_groups for source in group) == [0, 1, 2, 3]
+
+
+def test_coverage_selection_preserves_endpoints_and_distinct_frame():
+    descriptors = torch.nn.functional.normalize(
+        torch.tensor(
+            [
+                [1.0, 0.0],
+                [0.99, 0.01],
+                [0.0, 1.0],
+                [0.01, 0.99],
+                [-1.0, 0.0],
+            ]
+        ),
+        dim=-1,
+    )
+    selected = select_coverage_indices(descriptors, budget=3)
+
+    assert selected[0].item() == 0
+    assert selected[-1].item() == 4
+    assert 2 in selected.tolist()
 
 
 def test_invalid_budget_is_rejected():

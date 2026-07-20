@@ -480,6 +480,7 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         structured_memory_readout_mode=hc.pyramidkv_structured_memory_readout_mode,
                         structured_memory_storage_mode=hc.pyramidkv_structured_memory_storage_mode,
                         structured_memory_archive_max_frames=hc.pyramidkv_structured_memory_archive_max_frames,
+                        structured_memory_archive_policy=hc.pyramidkv_structured_memory_archive_policy,
                         structured_memory_top_k_frames=hc.pyramidkv_structured_memory_top_k_frames,
                         structured_memory_recent_exclude_frames=hc.pyramidkv_structured_memory_recent_exclude_frames,
                         structured_memory_selection_policy=hc.pyramidkv_structured_memory_selection_policy,
@@ -492,6 +493,9 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         structured_memory_routing_sharpness=hc.pyramidkv_structured_memory_routing_sharpness,
                         structured_memory_margin_threshold=hc.pyramidkv_structured_memory_margin_threshold,
                         structured_memory_query_ema_decay=hc.pyramidkv_structured_memory_query_ema_decay,
+                        structured_memory_min_retrieval_margin=hc.pyramidkv_structured_memory_min_retrieval_margin,
+                        structured_memory_max_retrieval_entropy=hc.pyramidkv_structured_memory_max_retrieval_entropy,
+                        structured_memory_control_mode=hc.pyramidkv_structured_memory_control_mode,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(
@@ -592,6 +596,7 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         structured_memory_readout_mode=hc.pyramidkv_structured_memory_readout_mode,
                         structured_memory_storage_mode=hc.pyramidkv_structured_memory_storage_mode,
                         structured_memory_archive_max_frames=hc.pyramidkv_structured_memory_archive_max_frames,
+                        structured_memory_archive_policy=hc.pyramidkv_structured_memory_archive_policy,
                         structured_memory_top_k_frames=hc.pyramidkv_structured_memory_top_k_frames,
                         structured_memory_recent_exclude_frames=hc.pyramidkv_structured_memory_recent_exclude_frames,
                         structured_memory_selection_policy=hc.pyramidkv_structured_memory_selection_policy,
@@ -604,6 +609,9 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         structured_memory_routing_sharpness=hc.pyramidkv_structured_memory_routing_sharpness,
                         structured_memory_margin_threshold=hc.pyramidkv_structured_memory_margin_threshold,
                         structured_memory_query_ema_decay=hc.pyramidkv_structured_memory_query_ema_decay,
+                        structured_memory_min_retrieval_margin=hc.pyramidkv_structured_memory_min_retrieval_margin,
+                        structured_memory_max_retrieval_entropy=hc.pyramidkv_structured_memory_max_retrieval_entropy,
+                        structured_memory_control_mode=hc.pyramidkv_structured_memory_control_mode,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(

@@ -10,6 +10,9 @@ class StructuredMemoryReadout:
     output: torch.Tensor
     frame_weights: torch.Tensor
     confidence: torch.Tensor
+    retrieval_margin: torch.Tensor
+    retrieval_entropy: torch.Tensor
+    accepted: torch.Tensor
 
 
 def query_conditioned_memory_readout(
@@ -23,6 +26,9 @@ def query_conditioned_memory_readout(
     eligible_frame_mask: torch.Tensor | None = None,
     top_k_frames: int = 0,
     selection_policy: str = "query",
+    min_retrieval_margin: float = 0.0,
+    max_retrieval_entropy: float = 1.0,
+    control_mode: str = "normal",
     eps: float = 1e-6,
 ) -> StructuredMemoryReadout:
     """Read structured history through a separate query-conditioned attention.
@@ -47,8 +53,14 @@ def query_conditioned_memory_readout(
         raise ValueError("value_mode must be 'full' or 'spatial_detail'")
     if top_k_frames < 0:
         raise ValueError("top_k_frames must be non-negative")
-    if selection_policy not in {"query", "oldest", "newest"}:
-        raise ValueError("selection_policy must be query, oldest, or newest")
+    if selection_policy not in {"query", "least_similar", "oldest", "newest"}:
+        raise ValueError("selection_policy must be query, least_similar, oldest, or newest")
+    if min_retrieval_margin < 0.0:
+        raise ValueError("min_retrieval_margin must be non-negative")
+    if not 0.0 <= max_retrieval_entropy <= 1.0:
+        raise ValueError("max_retrieval_entropy must be in [0, 1]")
+    if control_mode not in {"normal", "shuffled_v", "abstain"}:
+        raise ValueError("control_mode must be normal, shuffled_v, or abstain")
 
     query_summary = torch.nn.functional.normalize(q.float().mean(dim=1), dim=-1, eps=eps)
     frame_summary = torch.nn.functional.normalize(
@@ -63,20 +75,27 @@ def query_conditioned_memory_readout(
             raise ValueError(f"eligible_frame_mask must have shape {(frame_count,)}")
         eligible = eligible_frame_mask.to(device=memory_k.device, dtype=torch.bool)
     if not bool(torch.any(eligible)):
+        zeros = q.new_zeros((q.shape[0], q.shape[2]))
         return StructuredMemoryReadout(
             output=torch.zeros_like(q),
             frame_weights=q.new_zeros((q.shape[0], q.shape[2], frame_count)),
-            confidence=q.new_zeros((q.shape[0], q.shape[2])),
+            confidence=zeros,
+            retrieval_margin=zeros,
+            retrieval_entropy=zeros,
+            accepted=torch.zeros_like(zeros, dtype=torch.bool),
         )
 
     selected = eligible.unsqueeze(0).expand(q.shape[0], -1).clone()
     if top_k_frames > 0 and int(eligible.sum().item()) > top_k_frames:
         selected.zero_()
         eligible_indices = torch.nonzero(eligible, as_tuple=False).flatten()
-        if selection_policy == "query":
+        if selection_policy in {"query", "least_similar"}:
             rank_scores = frame_similarity.mean(dim=1).index_select(-1, eligible_indices)
             chosen_local = torch.topk(
-                rank_scores, k=min(top_k_frames, eligible_indices.numel()), dim=-1
+                rank_scores,
+                k=min(top_k_frames, eligible_indices.numel()),
+                dim=-1,
+                largest=selection_policy == "query",
             ).indices
             chosen = eligible_indices[chosen_local]
         elif selection_policy == "oldest":
@@ -104,6 +123,10 @@ def query_conditioned_memory_readout(
     logits = logits + torch.log(active_weights.clamp_min(eps))[:, :, None, :, None]
     attention = torch.softmax(logits.flatten(start_dim=-2), dim=-1).view_as(logits)
     readout_v = active_v.float()
+    if control_mode == "shuffled_v":
+        # Deterministic spatial misalignment control: K retains its selected
+        # coordinates while V is reversed within every complete frame.
+        readout_v = readout_v.flip(dims=(1,))
     if value_mode == "spatial_detail":
         readout_v = readout_v - readout_v.mean(dim=1, keepdim=True)
     output = torch.einsum("bhqms,mshd->bqhd", attention, readout_v)
@@ -112,11 +135,43 @@ def query_conditioned_memory_readout(
     confidence = (
         (best_similarity - confidence_threshold) / (1.0 - confidence_threshold)
     ).clamp(0.0, 1.0)
-    output = output * confidence[:, None, :, None]
+
+    active_count = active_selected[:, None, :].sum(dim=-1).expand_as(confidence)
+    if active_weights.shape[-1] >= 2:
+        top2 = torch.topk(active_weights, k=2, dim=-1).values
+        retrieval_margin = torch.where(
+            active_count >= 2,
+            top2[..., 0] - top2[..., 1],
+            torch.zeros_like(top2[..., 0]),
+        )
+    else:
+        retrieval_margin = torch.zeros_like(confidence)
+    entropy = -(active_weights.clamp_min(eps) * torch.log(active_weights.clamp_min(eps))).sum(dim=-1)
+    entropy_denominator = torch.log(active_count.clamp_min(2).to(entropy.dtype))
+    retrieval_entropy = torch.where(
+        active_count >= 2,
+        entropy / entropy_denominator.clamp_min(eps),
+        torch.zeros_like(entropy),
+    ).clamp(0.0, 1.0)
+
+    accepted = (
+        (confidence > 0.0)
+        & (retrieval_margin >= min_retrieval_margin)
+        & (retrieval_entropy <= max_retrieval_entropy)
+    )
+    if control_mode == "abstain":
+        accepted = torch.zeros_like(accepted)
+    effective_confidence = confidence * accepted.to(confidence.dtype)
+    # Fusion applies confidence exactly once. The readout only hard-zeros
+    # rejected heads so medium-confidence memory is not accidentally squared.
+    output = output * accepted[:, None, :, None].to(output.dtype)
     return StructuredMemoryReadout(
         output=output.to(dtype=q.dtype),
         frame_weights=frame_weights,
-        confidence=confidence,
+        confidence=effective_confidence,
+        retrieval_margin=retrieval_margin,
+        retrieval_entropy=retrieval_entropy,
+        accepted=accepted,
     )
 
 

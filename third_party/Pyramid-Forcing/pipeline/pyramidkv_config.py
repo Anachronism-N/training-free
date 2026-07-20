@@ -102,6 +102,7 @@ class PyramidKVPipelineConfig:
     pyramidkv_structured_memory_readout_mode: str = "all"
     pyramidkv_structured_memory_storage_mode: str = "compressed"
     pyramidkv_structured_memory_archive_max_frames: int = 128
+    pyramidkv_structured_memory_archive_policy: str = "uniform"
     pyramidkv_structured_memory_top_k_frames: int = 0
     pyramidkv_structured_memory_recent_exclude_frames: int = 0
     pyramidkv_structured_memory_selection_policy: str = "query"
@@ -114,6 +115,9 @@ class PyramidKVPipelineConfig:
     pyramidkv_structured_memory_routing_sharpness: float = 5.0
     pyramidkv_structured_memory_margin_threshold: float = 0.10
     pyramidkv_structured_memory_query_ema_decay: float = 0.90
+    pyramidkv_structured_memory_min_retrieval_margin: float = 0.0
+    pyramidkv_structured_memory_max_retrieval_entropy: float = 1.0
+    pyramidkv_structured_memory_control_mode: str = "normal"
     # --- Cyclic (was phase/osc_frame) ---
     cyclic_enabled: bool = False  # was use_osc_frame_mode
     cyclic_period: int = 6  # was phase_period
@@ -278,6 +282,9 @@ class PyramidKVPipelineConfig:
             pyramidkv_structured_memory_archive_max_frames=int(
                 getattr(args, "pyramidkv_structured_memory_archive_max_frames", 128)
             ),
+            pyramidkv_structured_memory_archive_policy=str(
+                getattr(args, "pyramidkv_structured_memory_archive_policy", "uniform")
+            ),
             pyramidkv_structured_memory_top_k_frames=int(
                 getattr(args, "pyramidkv_structured_memory_top_k_frames", 0)
             ),
@@ -313,6 +320,15 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_structured_memory_query_ema_decay=float(
                 getattr(args, "pyramidkv_structured_memory_query_ema_decay", 0.90)
+            ),
+            pyramidkv_structured_memory_min_retrieval_margin=float(
+                getattr(args, "pyramidkv_structured_memory_min_retrieval_margin", 0.0)
+            ),
+            pyramidkv_structured_memory_max_retrieval_entropy=float(
+                getattr(args, "pyramidkv_structured_memory_max_retrieval_entropy", 1.0)
+            ),
+            pyramidkv_structured_memory_control_mode=str(
+                getattr(args, "pyramidkv_structured_memory_control_mode", "normal")
             ),
             cyclic_enabled=getattr(args, "cyclic_enabled", use_adaptive),
             cyclic_period=getattr(args, "cyclic_period", 6),

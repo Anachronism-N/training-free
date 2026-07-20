@@ -307,18 +307,17 @@ def _record_memory_function_signals(out, memory, kv_cache, current_start, cache_
     if len(samples) >= _cfg_diag_max_samples:
         return
     confidence = memory.confidence.detach().float().mean(dim=0)  # [H]
-    weights = memory.frame_weights.detach().float().mean(dim=0)  # [H, M]
-    if weights.shape[-1] >= 2:
-        top2 = torch.topk(weights, k=2, dim=-1).values
-        margin = top2[:, 0] - top2[:, 1]
-    else:
-        margin = weights[:, 0] if weights.shape[-1] == 1 else torch.zeros_like(confidence)
+    margin = memory.retrieval_margin.detach().float().mean(dim=0)
+    entropy = memory.retrieval_entropy.detach().float().mean(dim=0)
+    accepted = memory.accepted.detach().float().mean(dim=0)
     alignment = torch.nn.functional.cosine_similarity(
         out.detach().float(), memory.output.detach().float(), dim=-1
     ).mean(dim=(0, 1))
     samples.append({
         "confidence": confidence.cpu().tolist(),
         "retrieval_margin": margin.cpu().tolist(),
+        "retrieval_entropy": entropy.cpu().tolist(),
+        "accepted": accepted.cpu().tolist(),
         "memory_alignment": alignment.cpu().tolist(),
         "current_start": int(current_start or 0),
     })
@@ -777,10 +776,28 @@ def pyramidkv_attention(
             selection_policy=str(
                 getattr(kv_cache, "structured_memory_selection_policy", "query")
             ),
+            min_retrieval_margin=float(
+                getattr(kv_cache, "structured_memory_min_retrieval_margin", 0.0)
+            ),
+            max_retrieval_entropy=float(
+                getattr(kv_cache, "structured_memory_max_retrieval_entropy", 1.0)
+            ),
+            control_mode=str(
+                getattr(kv_cache, "structured_memory_control_mode", "normal")
+            ),
         )
         _record_memory_function_signals(
             out, memory, kv_cache, current_start, cache_update_mode
         )
+        kv_cache._memory_readout_calls = int(
+            getattr(kv_cache, "_memory_readout_calls", 0)
+        ) + 1
+        kv_cache._memory_readout_heads = int(
+            getattr(kv_cache, "_memory_readout_heads", 0)
+        ) + int(memory.accepted.numel())
+        kv_cache._memory_accepted_heads = int(
+            getattr(kv_cache, "_memory_accepted_heads", 0)
+        ) + int(memory.accepted.sum().item())
         memory_head_mask = None
         routing_mode = str(getattr(kv_cache, "structured_memory_head_routing", "static"))
         if routing_mode == "static":
@@ -811,19 +828,7 @@ def pyramidkv_attention(
             # stability: current raw-query direction vs its rolling EMA prototype
             # The product abstains under ambiguous retrieval or rapid semantic/motion drift.
             confidence = memory.confidence  # [B,H]
-            frame_weights = memory.frame_weights  # [B,H,M]
-            if frame_weights.shape[-1] >= 2:
-                top2 = torch.topk(frame_weights.float(), k=2, dim=-1).values
-                active_count = (frame_weights > 0).sum(dim=-1)
-                # A sole eligible frame is not evidence of an unambiguous
-                # retrieval; margin is defined only when two candidates exist.
-                margin = torch.where(
-                    active_count >= 2,
-                    top2[..., 0] - top2[..., 1],
-                    torch.zeros_like(top2[..., 0]),
-                )
-            else:
-                margin = torch.zeros_like(confidence.float())
+            margin = memory.retrieval_margin.float()
             margin_threshold = float(
                 getattr(kv_cache, "structured_memory_margin_threshold", 0.10)
             )

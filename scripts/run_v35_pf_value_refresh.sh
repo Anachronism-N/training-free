@@ -31,6 +31,7 @@ MEMORY_VALUE_MODE="${MEMORY_VALUE_MODE:-full}"
 MEMORY_READOUT_MODE="${MEMORY_READOUT_MODE:-all}"
 MEMORY_STORAGE_MODE="${MEMORY_STORAGE_MODE:-compressed}"
 MEMORY_ARCHIVE_MAX_FRAMES="${MEMORY_ARCHIVE_MAX_FRAMES:-128}"
+MEMORY_ARCHIVE_POLICY="${MEMORY_ARCHIVE_POLICY:-uniform}"
 MEMORY_TOP_K_FRAMES="${MEMORY_TOP_K_FRAMES:-0}"
 MEMORY_RECENT_EXCLUDE_FRAMES="${MEMORY_RECENT_EXCLUDE_FRAMES:-0}"
 MEMORY_SELECTION_POLICY="${MEMORY_SELECTION_POLICY:-query}"
@@ -43,6 +44,9 @@ MEMORY_HEAD_ROUTING="${MEMORY_HEAD_ROUTING:-static}"
 MEMORY_ROUTING_SHARPNESS="${MEMORY_ROUTING_SHARPNESS:-5.0}"
 MEMORY_MARGIN_THRESHOLD="${MEMORY_MARGIN_THRESHOLD:-0.10}"
 MEMORY_QUERY_EMA_DECAY="${MEMORY_QUERY_EMA_DECAY:-0.90}"
+MEMORY_MIN_RETRIEVAL_MARGIN="${MEMORY_MIN_RETRIEVAL_MARGIN:-0.0}"
+MEMORY_MAX_RETRIEVAL_ENTROPY="${MEMORY_MAX_RETRIEVAL_ENTROPY:-1.0}"
+MEMORY_CONTROL_MODE="${MEMORY_CONTROL_MODE:-normal}"
 DYNAMIC_CFG_ENABLED="${DYNAMIC_CFG_ENABLED:-0}"
 DYNAMIC_CFG_MIN_SCALE="${DYNAMIC_CFG_MIN_SCALE:-1.0}"
 DYNAMIC_CFG_MAX_SCALE="${DYNAMIC_CFG_MAX_SCALE:-5.0}"
@@ -140,6 +144,7 @@ PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" CUDA_VISIBLE_DEVICES="$GPU" py
     --pyramidkv_structured_memory_readout_mode "$MEMORY_READOUT_MODE" \
     --pyramidkv_structured_memory_storage_mode "$MEMORY_STORAGE_MODE" \
     --pyramidkv_structured_memory_archive_max_frames "$MEMORY_ARCHIVE_MAX_FRAMES" \
+    --pyramidkv_structured_memory_archive_policy "$MEMORY_ARCHIVE_POLICY" \
     --pyramidkv_structured_memory_top_k_frames "$MEMORY_TOP_K_FRAMES" \
     --pyramidkv_structured_memory_recent_exclude_frames "$MEMORY_RECENT_EXCLUDE_FRAMES" \
     --pyramidkv_structured_memory_selection_policy "$MEMORY_SELECTION_POLICY" \
@@ -151,6 +156,9 @@ PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" CUDA_VISIBLE_DEVICES="$GPU" py
     --pyramidkv_structured_memory_routing_sharpness "$MEMORY_ROUTING_SHARPNESS" \
     --pyramidkv_structured_memory_margin_threshold "$MEMORY_MARGIN_THRESHOLD" \
     --pyramidkv_structured_memory_query_ema_decay "$MEMORY_QUERY_EMA_DECAY" \
+    --pyramidkv_structured_memory_min_retrieval_margin "$MEMORY_MIN_RETRIEVAL_MARGIN" \
+    --pyramidkv_structured_memory_max_retrieval_entropy "$MEMORY_MAX_RETRIEVAL_ENTROPY" \
+    --pyramidkv_structured_memory_control_mode "$MEMORY_CONTROL_MODE" \
     "${EXTRA_ARGS[@]}"
 
 echo "Done: $OUT"

@@ -100,6 +100,46 @@ def uniqueness_scores(descriptors: torch.Tensor) -> torch.Tensor:
     return (mean_similarity.mean() - mean_similarity) * (count ** 0.5)
 
 
+def select_coverage_indices(
+    descriptors: torch.Tensor,
+    budget: int,
+    *,
+    preserve_endpoints: bool = True,
+) -> torch.Tensor:
+    """Greedy k-center selection for a bounded, full-frame archive.
+
+    Archive maintenance optimizes query-independent coverage rather than the
+    current query's relevance. Complete K/V frames remain untouched; only the
+    representative frame indices are selected.
+    """
+    if descriptors.ndim != 2:
+        raise ValueError("descriptors must be [frame, dim]")
+    count = descriptors.shape[0]
+    if budget <= 0:
+        raise ValueError("budget must be positive")
+    if budget >= count:
+        return torch.arange(count, device=descriptors.device, dtype=torch.long)
+
+    selected: list[int] = []
+    if preserve_endpoints:
+        selected.append(0)
+        if budget > 1 and count > 1:
+            selected.append(count - 1)
+    if not selected:
+        # Start with the globally most unique frame.
+        selected.append(int(torch.argmax(uniqueness_scores(descriptors)).item()))
+
+    similarity = descriptors @ descriptors.transpose(0, 1)
+    while len(selected) < budget:
+        selected_tensor = torch.tensor(selected, device=descriptors.device, dtype=torch.long)
+        max_similarity = similarity.index_select(1, selected_tensor).max(dim=1).values
+        min_distance = 1.0 - max_similarity
+        min_distance[selected_tensor] = float("-inf")
+        selected.append(int(torch.argmax(min_distance).item()))
+
+    return torch.tensor(sorted(selected), device=descriptors.device, dtype=torch.long)
+
+
 def _select_cores(scores: torch.Tensor, budget: int, preserve_endpoints: bool) -> list[int]:
     count = scores.numel()
     if budget >= count:

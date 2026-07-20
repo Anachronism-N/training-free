@@ -120,6 +120,53 @@ def test_empty_eligible_history_returns_zero_confidence():
     assert torch.count_nonzero(result.confidence) == 0
 
 
+def test_margin_abstention_rejects_ambiguous_retrieval():
+    q = torch.tensor([[[[1.0, 0.0]]]])
+    memory_k = torch.tensor([[[[1.0, 0.0]]], [[[1.0, 0.0]]]])
+    memory_v = torch.tensor([[[[2.0, 0.0]]], [[[4.0, 0.0]]]])
+    result = query_conditioned_memory_readout(
+        q,
+        memory_k,
+        memory_v,
+        retrieval_temperature=1.0,
+        min_retrieval_margin=0.1,
+    )
+
+    assert result.retrieval_margin.item() == 0
+    assert not result.accepted.item()
+    assert torch.count_nonzero(result.output) == 0
+    assert torch.count_nonzero(result.confidence) == 0
+
+
+def test_abstain_control_always_returns_native_safe_zero():
+    q = torch.tensor([[[[1.0, 0.0]]]])
+    memory_k = torch.tensor([[[[1.0, 0.0]]], [[[0.0, 1.0]]]])
+    memory_v = torch.tensor([[[[5.0, 0.0]]], [[[0.0, 7.0]]]])
+    result = query_conditioned_memory_readout(
+        q, memory_k, memory_v, control_mode="abstain"
+    )
+
+    assert not result.accepted.any()
+    assert torch.count_nonzero(result.output) == 0
+
+
+def test_least_similar_control_selects_wrong_history():
+    q = torch.tensor([[[[1.0, 0.0]]]])
+    memory_k = torch.tensor([[[[1.0, 0.0]]], [[[0.0, 1.0]]]])
+    memory_v = torch.tensor([[[[5.0, 0.0]]], [[[0.0, 7.0]]]])
+    result = query_conditioned_memory_readout(
+        q,
+        memory_k,
+        memory_v,
+        top_k_frames=1,
+        selection_policy="least_similar",
+        confidence_threshold=-1.0,
+    )
+
+    assert result.frame_weights[0, 0, 1] == 1
+    assert result.output[0, 0, 0, 1] > result.output[0, 0, 0, 0]
+
+
 def test_confidence_survives_rms_matching_and_scales_convex_replacement():
     recent = torch.tensor([[[[2.0, 0.0]]]])
     memory = torch.tensor([[[[0.0, 10.0]]]])
