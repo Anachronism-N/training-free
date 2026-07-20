@@ -896,6 +896,10 @@ class CausalInferencePipeline(torch.nn.Module):
                         structured_memory_layer_start=hc.pyramidkv_structured_memory_layer_start,
                         structured_memory_layer_end=hc.pyramidkv_structured_memory_layer_end,
                         structured_memory_warmup_blocks=hc.pyramidkv_structured_memory_warmup_blocks,
+                        structured_memory_head_routing=hc.pyramidkv_structured_memory_head_routing,
+                        structured_memory_routing_sharpness=hc.pyramidkv_structured_memory_routing_sharpness,
+                        structured_memory_margin_threshold=hc.pyramidkv_structured_memory_margin_threshold,
+                        structured_memory_query_ema_decay=hc.pyramidkv_structured_memory_query_ema_decay,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(
@@ -916,6 +920,7 @@ class CausalInferencePipeline(torch.nn.Module):
             for cache in self.kv_cache1:
                 cache.soft_ablate_region = str(hc.pyramidkv_soft_ablate_region)
                 cache.soft_ablate_scale = float(hc.pyramidkv_soft_ablate_scale)
+                cache._cfg_branch = "cond"
         else:
             kv_cache1 = []
             if self.local_attn_size != -1:

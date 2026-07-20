@@ -1,6 +1,7 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 import torch
 import gc
+import os
 
 try:
     import flash_attn_interface
@@ -129,8 +130,8 @@ def _measure_head_signals_diagnostic(q, kv_cache, archive_k, archive_v, frame_se
     _diagnostic_measurements[layer_idx]["count"] += 1
 
 
-def save_diagnostic_report(output_path):
-    """Save collected diagnostic measurements."""
+def _save_legacy_diagnostic_report(output_path):
+    """Save the legacy full-vs-recent diagnostic measurements."""
     import json
     import numpy as np
 
@@ -222,7 +223,236 @@ def save_diagnostic_report(output_path):
         print(f"VERDICT: {s['verdict']}")
     print("=" * 60)
 
-# === END HEAD DIAGNOSTIC ===
+# === END LEGACY HEAD DIAGNOSTIC ===
+
+
+# Prompt-aware functional-head diagnostic.
+# Unlike PF's offline temporal-pattern labels, these signals are measured online:
+#   prompt_reliance = ||A_cond - A_uncond|| / ||A_uncond||
+#   history_confidence = retrieval confidence for each head
+#   retrieval_margin = top1 frame weight - top2 frame weight
+#   memory_alignment = cosine(native_output, memory_output)
+_cfg_diag_pending = {}
+_cfg_diag_samples = {}
+_cfg_diag_memory = {}
+_cfg_diag_queries = {}
+_cfg_diag_prompt_id = 0
+_cfg_diag_max_samples = 64
+
+
+def set_diagnostic_prompt_id(prompt_id):
+    global _cfg_diag_prompt_id
+    _cfg_diag_prompt_id = int(prompt_id)
+
+
+def _record_query_signature(raw_q, kv_cache, current_start, cache_update_mode):
+    """Record per-head query signatures for cross-prompt functional analysis."""
+    import os
+    if os.environ.get("HEAD_DIAGNOSTIC", "0") != "1" or cache_update_mode != "noisy":
+        return
+    if raw_q is None or raw_q.ndim != 4:
+        return
+    layer = int(getattr(kv_cache, "layer_idx", -1))
+    if layer < 0:
+        return
+    key = (layer, _cfg_diag_prompt_id)
+    samples = _cfg_diag_queries.setdefault(key, [])
+    if len(samples) >= _cfg_diag_max_samples:
+        return
+    # [B,T,H,D] -> [H,D], retain direction rather than only magnitude.
+    signature = torch.nn.functional.normalize(
+        raw_q.detach().float().mean(dim=(0, 1)), dim=-1
+    )
+    samples.append(signature.cpu().tolist())
+
+
+def _record_cfg_branch_output(out, kv_cache, current_start, cache_update_mode):
+    """Pair conditional/unconditional attention outputs per layer and step."""
+    import os
+    if os.environ.get("HEAD_DIAGNOSTIC", "0") != "1" or cache_update_mode != "noisy":
+        return
+    branch = getattr(kv_cache, "_cfg_branch", None)
+    layer = int(getattr(kv_cache, "layer_idx", -1))
+    if branch not in {"cond", "uncond"} or layer < 0 or out.ndim != 4:
+        return
+    key = (layer, int(current_start or 0))
+    if branch == "cond":
+        # Cond runs immediately before uncond. Store a compact per-token/head output.
+        _cfg_diag_pending[key] = out.detach().float().cpu()
+        return
+    cond = _cfg_diag_pending.pop(key, None)
+    if cond is None:
+        return
+    samples = _cfg_diag_samples.setdefault(layer, [])
+    if len(samples) >= _cfg_diag_max_samples:
+        return
+    uncond = out.detach().float().cpu()
+    prompt_delta = (cond - uncond).norm(dim=-1)
+    uncond_norm = uncond.norm(dim=-1).clamp_min(1e-6)
+    reliance = (prompt_delta / uncond_norm).mean(dim=(0, 1))
+    samples.append(reliance.tolist())
+
+
+def _record_memory_function_signals(out, memory, kv_cache, current_start, cache_update_mode):
+    """Record content-aware historical-memory signals for conditional heads."""
+    import os
+    if os.environ.get("HEAD_DIAGNOSTIC", "0") != "1" or cache_update_mode != "noisy":
+        return
+    if getattr(kv_cache, "_cfg_branch", None) != "cond":
+        return
+    layer = int(getattr(kv_cache, "layer_idx", -1))
+    if layer < 0 or out.ndim != 4:
+        return
+    samples = _cfg_diag_memory.setdefault(layer, [])
+    if len(samples) >= _cfg_diag_max_samples:
+        return
+    confidence = memory.confidence.detach().float().mean(dim=0)  # [H]
+    weights = memory.frame_weights.detach().float().mean(dim=0)  # [H, M]
+    if weights.shape[-1] >= 2:
+        top2 = torch.topk(weights, k=2, dim=-1).values
+        margin = top2[:, 0] - top2[:, 1]
+    else:
+        margin = weights[:, 0] if weights.shape[-1] == 1 else torch.zeros_like(confidence)
+    alignment = torch.nn.functional.cosine_similarity(
+        out.detach().float(), memory.output.detach().float(), dim=-1
+    ).mean(dim=(0, 1))
+    samples.append({
+        "confidence": confidence.cpu().tolist(),
+        "retrieval_margin": margin.cpu().tolist(),
+        "memory_alignment": alignment.cpu().tolist(),
+        "current_start": int(current_start or 0),
+    })
+
+
+def save_diagnostic_report(output_path):
+    """Save prompt-aware functional-head measurements and feasibility analysis."""
+    import json
+    import os
+    import numpy as np
+
+    report = {
+        "definition": {
+            "prompt_sensitivity": "between-prompt query variance divided by within-prompt variance",
+            "history_confidence": "per-head query/archive retrieval confidence",
+            "retrieval_margin": "top1 frame weight minus top2 frame weight",
+            "memory_alignment": "cosine(native attention output, memory output)",
+        },
+        "per_layer": {},
+        "summary": {},
+    }
+    all_prompt, all_conf, all_margin = [], [], []
+    query_layers = {layer for layer, _ in _cfg_diag_queries}
+    layers = sorted(query_layers | set(_cfg_diag_samples) | set(_cfg_diag_memory))
+
+    for layer in layers:
+        entry = {}
+        # Few-step DMD inference has no unconditional CFG branch. Estimate
+        # prompt sensitivity through between-prompt vs within-prompt query variation.
+        prompt_groups = []
+        for (query_layer, prompt_id), samples in _cfg_diag_queries.items():
+            if query_layer != layer or not samples:
+                continue
+            prompt_groups.append((prompt_id, np.asarray(samples, dtype=np.float32)))
+        if len(prompt_groups) >= 2:
+            prompt_groups.sort(key=lambda item: item[0])
+            centroids = []
+            within = []
+            for prompt_id, samples in prompt_groups:
+                # samples: [N,H,D]
+                centroid = samples.mean(axis=0)
+                centroid /= np.linalg.norm(centroid, axis=-1, keepdims=True) + 1e-6
+                sample_norm = samples / (np.linalg.norm(samples, axis=-1, keepdims=True) + 1e-6)
+                within.append((1.0 - (sample_norm * centroid[None]).sum(axis=-1)).mean(axis=0))
+                centroids.append(centroid)
+            centroids = np.asarray(centroids)  # [P,H,D]
+            pairwise = []
+            for i in range(len(centroids)):
+                for j in range(i + 1, len(centroids)):
+                    pairwise.append(1.0 - (centroids[i] * centroids[j]).sum(axis=-1))
+            between = np.asarray(pairwise).mean(axis=0)
+            within_mean = np.asarray(within).mean(axis=0)
+            prompt_score = between / (within_mean + 1e-4)
+            entry.update({
+                "prompt_sensitivity": prompt_score.tolist(),
+                "prompt_between_variance": between.tolist(),
+                "prompt_within_variance": within_mean.tolist(),
+                "prompt_sensitivity_cv": float(prompt_score.std() / (abs(prompt_score.mean()) + 1e-6)),
+                "num_prompts": len(prompt_groups),
+            })
+            all_prompt.extend(prompt_score.tolist())
+        elif _cfg_diag_samples.get(layer):
+            prompt_arr = np.asarray(_cfg_diag_samples[layer], dtype=np.float32)
+            prompt_score = prompt_arr.mean(axis=0)
+            entry["prompt_sensitivity"] = prompt_score.tolist()
+            entry["prompt_sensitivity_cv"] = float(prompt_score.std() / (abs(prompt_score.mean()) + 1e-6))
+            entry["num_prompts"] = 1
+            all_prompt.extend(prompt_score.tolist())
+
+        mem_samples = _cfg_diag_memory.get(layer, [])
+        if mem_samples:
+            confidence = np.asarray([s["confidence"] for s in mem_samples]).mean(axis=0)
+            margin = np.asarray([s["retrieval_margin"] for s in mem_samples]).mean(axis=0)
+            alignment = np.asarray([s["memory_alignment"] for s in mem_samples]).mean(axis=0)
+            entry.update({
+                "history_confidence": confidence.tolist(),
+                "retrieval_margin": margin.tolist(),
+                "memory_alignment": alignment.tolist(),
+                "history_confidence_cv": float(confidence.std() / (abs(confidence.mean()) + 1e-6)),
+                "retrieval_margin_cv": float(margin.std() / (abs(margin.mean()) + 1e-6)),
+                "memory_samples": len(mem_samples),
+            })
+            all_conf.extend(confidence.tolist())
+            all_margin.extend(margin.tolist())
+
+        if "prompt_sensitivity" in entry and "history_confidence" in entry:
+            prompt_score = np.asarray(entry["prompt_sensitivity"])
+            confidence = np.asarray(entry["history_confidence"])
+            p_thr, c_thr = np.median(prompt_score), np.median(confidence)
+            roles = []
+            for p_value, c_value in zip(prompt_score, confidence):
+                if p_value > p_thr and c_value > c_thr:
+                    roles.append("semantic_memory")
+                elif p_value > p_thr and c_value <= c_thr:
+                    roles.append("prompt_driven")
+                elif p_value <= p_thr and c_value > c_thr:
+                    roles.append("layout_memory")
+                else:
+                    roles.append("local_motion")
+            entry["dynamic_roles"] = roles
+            entry["role_counts"] = {role: roles.count(role) for role in sorted(set(roles))}
+        if entry:
+            report["per_layer"][str(layer)] = entry
+
+    def cv(values):
+        values = np.asarray(values, dtype=np.float32)
+        return float(values.std() / (abs(values.mean()) + 1e-6)) if values.size else 0.0
+
+    prompt_cv, conf_cv, margin_cv = cv(all_prompt), cv(all_conf), cv(all_margin)
+    corr = 0.0
+    if len(all_prompt) == len(all_conf) and len(all_prompt) > 2:
+        corr = float(np.corrcoef(all_prompt, all_conf)[0, 1])
+    summary = {
+        "num_layers": len(report["per_layer"]),
+        "prompt_sensitivity_cv": prompt_cv,
+        "history_confidence_cv": conf_cv,
+        "retrieval_margin_cv": margin_cv,
+        "prompt_history_correlation": corr,
+        "prompt_signal_discriminable": prompt_cv > 0.20,
+        "history_signal_discriminable": max(conf_cv, margin_cv) > 0.20,
+        "signals_nonredundant": abs(corr) < 0.70,
+    }
+    summary["verdict"] = (
+        "FEASIBLE" if summary["prompt_signal_discriminable"]
+        and summary["history_signal_discriminable"]
+        and summary["signals_nonredundant"] else "NOT_YET_VALIDATED"
+    )
+    report["summary"] = summary
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    with open(output_path, "w") as f:
+        json.dump(report, f, indent=2)
+    print("\n=== PROMPT-AWARE HEAD DIAGNOSTIC ===")
+    print(json.dumps(summary, indent=2))
+    print(f"Report: {output_path}")
 
 
 def flash_attention(
@@ -484,6 +714,9 @@ def pyramidkv_attention(
     structured_memory_intervals = getattr(kv_cache, "structured_memory_intervals", None)
 
     def _fuse_structured_memory(out: torch.Tensor) -> torch.Tensor:
+        _record_query_signature(raw_q, kv_cache, current_start, cache_update_mode)
+        # Multi-step CFG pipelines can also pair cond/uncond attention outputs.
+        _record_cfg_branch_output(out, kv_cache, current_start, cache_update_mode)
         gate = float(getattr(kv_cache, "structured_memory_readout_gate", 0.0))
         readout_mode = str(getattr(kv_cache, "structured_memory_readout_mode", "all"))
         mode_enabled = (
@@ -495,7 +728,7 @@ def pyramidkv_attention(
             raw_q is None
             or structured_memory_k is None
             or structured_memory_v is None
-            or gate <= 0.0
+            or (gate <= 0.0 and os.environ.get("HEAD_DIAGNOSTIC", "0") != "1")
             or not mode_enabled
         ):
             return out
@@ -545,6 +778,9 @@ def pyramidkv_attention(
                 getattr(kv_cache, "structured_memory_selection_policy", "query")
             ),
         )
+        _record_memory_function_signals(
+            out, memory, kv_cache, current_start, cache_update_mode
+        )
         memory_head_mask = None
         routing_mode = str(getattr(kv_cache, "structured_memory_head_routing", "static"))
         if routing_mode == "static":
@@ -559,24 +795,56 @@ def pyramidkv_attention(
                         dtype=out.dtype,
                     ).view(1, 1, h, 1)
         elif routing_mode == "confidence_adaptive":
-            # Our innovation: per-head confidence-adaptive routing.
-            # Instead of static PF labels, each head's memory access is
-            # modulated by its own retrieval confidence. Heads with high
-            # confidence get full memory access; low-confidence heads are
-            # suppressed. This replaces PF's offline label classification
-            # with a dynamic, content-aware routing that adapts per-query.
-            # memory.confidence shape: [B, H]
-            conf = memory.confidence  # [B, H]
-            # Threshold: heads below this get zero memory access
+            conf = memory.confidence
             conf_threshold = float(
                 getattr(kv_cache, "structured_memory_confidence_threshold", 0.25)
             )
-            # Soft mask: smooth transition around threshold
             sharpness = float(getattr(kv_cache, "structured_memory_routing_sharpness", 5.0))
-            soft_mask = torch.sigmoid(
-                sharpness * (conf - conf_threshold)
-            )  # [B, H], range (0, 1)
-            memory_head_mask = soft_mask[:, None, :, None].to(out.dtype)  # [B, 1, H, 1]
+            soft_mask = torch.sigmoid(sharpness * (conf - conf_threshold))
+            memory_head_mask = soft_mask[:, None, :, None].to(out.dtype)
+        elif routing_mode == "functional_adaptive":
+            # Certainty-and-Drift Adaptive Routing (CDAR): online, per-query,
+            # per-head routing independent of PF labels.
+            #
+            # certainty: retrieval confidence AND unambiguous top1-vs-top2 margin
+            # stability: current raw-query direction vs its rolling EMA prototype
+            # The product abstains under ambiguous retrieval or rapid semantic/motion drift.
+            confidence = memory.confidence  # [B,H]
+            frame_weights = memory.frame_weights  # [B,H,M]
+            if frame_weights.shape[-1] >= 2:
+                top2 = torch.topk(frame_weights.float(), k=2, dim=-1).values
+                margin = top2[..., 0] - top2[..., 1]
+            elif frame_weights.shape[-1] == 1:
+                margin = frame_weights[..., 0].float()
+            else:
+                margin = torch.zeros_like(confidence.float())
+            margin_threshold = float(
+                getattr(kv_cache, "structured_memory_margin_threshold", 0.10)
+            )
+            sharpness = float(getattr(kv_cache, "structured_memory_routing_sharpness", 5.0))
+            margin_gate = torch.sigmoid(sharpness * (margin - margin_threshold))
+
+            query_summary = torch.nn.functional.normalize(
+                raw_q.detach().float().mean(dim=1), dim=-1
+            )  # [B,H,D]
+            query_ema = getattr(kv_cache, "_functional_query_ema", None)
+            if query_ema is None or query_ema.shape != query_summary.shape:
+                stability = torch.ones_like(confidence.float())
+                kv_cache._functional_query_ema = query_summary.detach()
+            else:
+                stability = torch.nn.functional.cosine_similarity(
+                    query_summary, query_ema.to(query_summary.device), dim=-1
+                ).clamp(0.0, 1.0)
+                ema_decay = float(getattr(kv_cache, "structured_memory_query_ema_decay", 0.9))
+                updated = ema_decay * query_ema.to(query_summary.device) + (1.0 - ema_decay) * query_summary
+                kv_cache._functional_query_ema = torch.nn.functional.normalize(
+                    updated, dim=-1
+                ).detach()
+
+            certainty = confidence.float() * margin_gate
+            functional_mask = (certainty * stability).clamp(0.0, 1.0)
+            memory_head_mask = functional_mask[:, None, :, None].to(out.dtype)
+            kv_cache._last_functional_head_mask = functional_mask.detach().cpu()
         # Store confidence on kv_cache for pipeline-level access (dynamic CFG)
         if hasattr(kv_cache, '_last_memory_confidence'):
             kv_cache._last_memory_confidence = float(memory.confidence.max().item())

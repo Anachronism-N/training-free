@@ -187,6 +187,8 @@ parser.add_argument("--pyramidkv_structured_memory_layer_end", type=int, default
 parser.add_argument("--pyramidkv_structured_memory_warmup_blocks", type=int, default=None)
 parser.add_argument("--pyramidkv_structured_memory_head_routing", type=str, default=None)
 parser.add_argument("--pyramidkv_structured_memory_routing_sharpness", type=float, default=None)
+parser.add_argument("--pyramidkv_structured_memory_margin_threshold", type=float, default=None)
+parser.add_argument("--pyramidkv_structured_memory_query_ema_decay", type=float, default=None)
 parser.add_argument("--dynamic_cfg_enabled", action="store_true", default=False)
 parser.add_argument("--dynamic_cfg_min_scale", type=float, default=1.0)
 parser.add_argument("--dynamic_cfg_max_scale", type=float, default=5.0)
@@ -361,6 +363,11 @@ for name in (
     "fusion_mode",
     "layer_start",
     "layer_end",
+    "warmup_blocks",
+    "head_routing",
+    "routing_sharpness",
+    "margin_threshold",
+    "query_ema_decay",
 ):
     value = getattr(args, f"pyramidkv_structured_memory_{name}")
     if value is not None:
@@ -533,7 +540,14 @@ try:
                     [args.num_samples, args.num_output_frames, 16, 60, 104], device=device, dtype=torch.bfloat16
                 )
 
-            # Generate 81 frames
+            if os.environ.get("HEAD_DIAGNOSTIC", "0") == "1":
+                try:
+                    from wan.modules.attention.core import set_diagnostic_prompt_id
+                    set_diagnostic_prompt_id(i)
+                except Exception as e:
+                    print(f"[DIAG] Failed to set prompt id: {e}")
+
+            # Generate video frames
             video, latents = pipeline.inference(
                 noise=sampled_noise,
                 text_prompts=prompts,

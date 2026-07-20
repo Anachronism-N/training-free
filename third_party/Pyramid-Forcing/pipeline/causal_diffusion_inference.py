@@ -51,8 +51,15 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
         self.dynamic_cfg_max_scale = float(getattr(args, "dynamic_cfg_max_scale", 5.0))
         self._last_memory_confidence = 0.0  # Updated by memory readout
 
-        # Per-head CFG: each head gets its own CFG scale based on memory confidence
-        self.per_head_cfg_enabled = bool(getattr(args, "per_head_cfg_enabled", False))
+        # A final DiT flow prediction has latent channels, not attention-head axes.
+        # Therefore per-head CFG cannot be applied safely at this boundary. Keep
+        # the old flag parseable for archived runs, but disable it explicitly;
+        # head-specific control belongs inside attention/memory routing instead.
+        requested_per_head_cfg = bool(getattr(args, "per_head_cfg_enabled", False))
+        if requested_per_head_cfg:
+            print("[CFG] WARNING: per-head CFG at flow output is invalid and has been disabled; "
+                  "using prompt-aware per-head memory routing instead.")
+        self.per_head_cfg_enabled = False
         self.per_head_cfg_min_scale = float(getattr(args, "per_head_cfg_min_scale", 1.0))
         self.per_head_cfg_max_scale = float(getattr(args, "per_head_cfg_max_scale", 5.0))
 
@@ -483,6 +490,8 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         structured_memory_warmup_blocks=hc.pyramidkv_structured_memory_warmup_blocks,
                         structured_memory_head_routing=hc.pyramidkv_structured_memory_head_routing,
                         structured_memory_routing_sharpness=hc.pyramidkv_structured_memory_routing_sharpness,
+                        structured_memory_margin_threshold=hc.pyramidkv_structured_memory_margin_threshold,
+                        structured_memory_query_ema_decay=hc.pyramidkv_structured_memory_query_ema_decay,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(
@@ -593,6 +602,8 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         structured_memory_warmup_blocks=hc.pyramidkv_structured_memory_warmup_blocks,
                         structured_memory_head_routing=hc.pyramidkv_structured_memory_head_routing,
                         structured_memory_routing_sharpness=hc.pyramidkv_structured_memory_routing_sharpness,
+                        structured_memory_margin_threshold=hc.pyramidkv_structured_memory_margin_threshold,
+                        structured_memory_query_ema_decay=hc.pyramidkv_structured_memory_query_ema_decay,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(
@@ -613,9 +624,11 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
             for cache in self.kv_cache_pos:
                 cache.soft_ablate_region = str(hc.pyramidkv_soft_ablate_region)
                 cache.soft_ablate_scale = float(hc.pyramidkv_soft_ablate_scale)
+                cache._cfg_branch = "cond"
             for cache in self.kv_cache_neg:
                 cache.soft_ablate_region = str(hc.pyramidkv_soft_ablate_region)
                 cache.soft_ablate_scale = float(hc.pyramidkv_soft_ablate_scale)
+                cache._cfg_branch = "uncond"
                 # Disable structured memory on negative (unconditional) cache
                 # to preserve clean CFG signal. Memory should only influence
                 # the conditional branch.

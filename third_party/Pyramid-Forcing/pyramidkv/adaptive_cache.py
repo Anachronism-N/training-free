@@ -214,6 +214,8 @@ class AdaptiveKVCache(PyramidKVCache):
         structured_memory_warmup_blocks: int = 0,
         structured_memory_head_routing: str = "static",
         structured_memory_routing_sharpness: float = 5.0,
+        structured_memory_margin_threshold: float = 0.10,
+        structured_memory_query_ema_decay: float = 0.90,
     ):
         super().__init__(
             config=config,
@@ -398,7 +400,15 @@ class AdaptiveKVCache(PyramidKVCache):
         self.structured_memory_intervals: torch.Tensor | None = None
         self.structured_memory_warmup_blocks = max(0, int(structured_memory_warmup_blocks))
         self.structured_memory_head_routing = str(structured_memory_head_routing)
+        if self.structured_memory_head_routing not in {
+            "static", "confidence_adaptive", "functional_adaptive"
+        }:
+            raise ValueError("unsupported structured_memory_head_routing")
         self.structured_memory_routing_sharpness = float(structured_memory_routing_sharpness)
+        self.structured_memory_margin_threshold = float(structured_memory_margin_threshold)
+        self.structured_memory_query_ema_decay = float(structured_memory_query_ema_decay)
+        self._functional_query_ema = None
+        self._last_functional_head_mask = None
         self._last_memory_confidence = 0.0
         self._structured_memory_last_start: int | None = None
         self._base_tail_len = self.tail_len
@@ -1662,6 +1672,8 @@ class AdaptiveKVCache(PyramidKVCache):
         self.structured_memory_k = None
         self.structured_memory_v = None
         self.structured_memory_intervals = None
+        self._functional_query_ema = None
+        self._last_functional_head_mask = None
         self._structured_memory_last_start = None
         self.last_flat_pos_ids = None
         self.tail_len = self._base_tail_len

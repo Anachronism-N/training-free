@@ -39,10 +39,10 @@ run_eval() {
 
 # Map ablation variants to video directories
 declare -A VARIANTS
-VARIANTS[pf]="runs/v35_pf_value_refresh/20260720_v48_32p_pf/pf_refresh_pf_32p"
-VARIANTS[static]="runs/v35_pf_value_refresh/20260720_v48_32p_static/pf_refresh_static_32p"
-VARIANTS[adaptive]="runs/v35_pf_value_refresh/20260720_v48_32p_adaptive/pf_refresh_adaptive_32p"
-VARIANTS[full]="runs/v35_pf_value_refresh/20260720_v48_32p_full/pf_refresh_full_32p"
+VARIANTS[pf]="$ROOT/runs/v35_pf_value_refresh/20260720_v48_32p_pf/pf_refresh_pf_32p"
+VARIANTS[static]="$ROOT/runs/v35_pf_value_refresh/20260720_v48_32p_static/pf_refresh_static_32p"
+VARIANTS[adaptive]="$ROOT/runs/v35_pf_value_refresh/20260720_v48_32p_adaptive/pf_refresh_adaptive_32p"
+VARIANTS[full]="$ROOT/runs/v35_pf_value_refresh/20260720_v48_32p_full/pf_refresh_full_32p"
 
 gpu=0
 pids=()

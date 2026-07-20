@@ -13,13 +13,14 @@ OUTPUT_DIR="$ROOT/runs/head_diagnostic/videos"
 mkdir -p "$OUTPUT_DIR"
 
 cd "$ROOT/third_party/Pyramid-Forcing"
+export PYTHONPATH="$ROOT/src:$ROOT/third_party/Pyramid-Forcing:${PYTHONPATH:-}"
 
 # Run inference with diagnostic enabled
 # gate=0.0 so memory doesn't affect output, but archive is built for measurement
 CUDA_VISIBLE_DEVICES=4 HEAD_DIAGNOSTIC=1 python inference.py \
     --config_path "$PF_CONFIG" \
     --output_folder "$OUTPUT_DIR" \
-    --checkpoint_path checkpoints/self_forcing_dmd.pt \
+    --checkpoint_path "$ROOT/third_party/Self-Forcing/checkpoints/self_forcing_dmd.pt" \
     --data_path "$PROMPT_FILE" \
     --num_output_frames 120 \
     --seed 0 \
