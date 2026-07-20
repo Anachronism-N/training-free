@@ -62,7 +62,7 @@ run_variant 2 20260720_v46_ours_60s ours_60s \
     MEMORY_HEAD_LABELS=1,2 \
     MEMORY_LAYER_START=15 \
     MEMORY_LAYER_END=21 \
-    MEMORY_WARMUP_BLOCKS=3 &
+    MEMORY_WARMUP_BLOCKS=6 &
 pid_ours=$!
 
 status=0

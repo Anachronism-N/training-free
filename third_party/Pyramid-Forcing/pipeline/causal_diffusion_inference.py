@@ -541,6 +541,10 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
             for cache in self.kv_cache_neg:
                 cache.soft_ablate_region = str(hc.pyramidkv_soft_ablate_region)
                 cache.soft_ablate_scale = float(hc.pyramidkv_soft_ablate_scale)
+                # Disable structured memory on negative (unconditional) cache
+                # to preserve clean CFG signal. Memory should only influence
+                # the conditional branch.
+                cache.structured_memory_enabled = False
         else:
             kv_cache_pos = []
             kv_cache_neg = []
