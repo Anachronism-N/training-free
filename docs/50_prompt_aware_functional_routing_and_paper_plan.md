@@ -198,6 +198,23 @@ correct memory 必须优于 wrong-scene、shuffled-V 和 abstain。否则 archiv
 
 后续报告必须显式标注，不能把 no-op/无效路径写成正向消融。
 
+### 7.1 32-prompt VBench 结果与停止条件
+
+| 方法 | Subject | Background | Aesthetic | Imaging | Motion | Dynamic |
+|---|---:|---:|---:|---:|---:|---:|
+| PF | 0.97798 | 0.96664 | 0.64744 | **0.72359** | 0.98690 | **0.59167** |
+| PF static memory | 0.97839 | 0.96640 | 0.64869 | 0.72236 | 0.98707 | 0.56250 |
+| Confidence routing | **0.97969** | 0.96787 | 0.64897 | 0.72309 | 0.98750 | 0.55417 |
+| Archived full | 0.97949 | **0.96810** | **0.65207** | 0.72197 | **0.98773** | 0.53333 |
+
+相对 PF，confidence routing 只带来 subject `+0.00172`、background `+0.00122`、aesthetic
+`+0.00153`、motion `+0.00060`，但 dynamic degree 下降 `-0.03750`。`full` 的 dynamic 下降
+`-0.05833`。这表明当前 memory route 的小幅一致性收益部分来自运动减弱，不满足强论文结果。
+
+此外，这批 `adaptive/full` 使用的是 corrected CLI wiring 之前启动的实验；`full` 中 per-head CFG
+也没有合法生效。因此只能作为“memory 增强可能提高保守一致性”的风险证据，不能证明当前
+functional routing 或 CFG 有效。
+
 ## 8. 真实三 Prompt Head 诊断结果
 
 诊断路径：`runs/head_diagnostic/diagnostic_report.json`。使用三个不同自然 prompt、120 latent
