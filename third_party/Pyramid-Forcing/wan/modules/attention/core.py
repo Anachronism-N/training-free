@@ -785,6 +785,12 @@ def pyramidkv_attention(
             control_mode=str(
                 getattr(kv_cache, "structured_memory_control_mode", "normal")
             ),
+            position_mode=str(
+                getattr(kv_cache, "structured_memory_position_mode", "none")
+            ),
+            rope_freqs=freqs,
+            grid_h=int(grid_sizes[0, 1].item()) if grid_sizes is not None else None,
+            grid_w=int(grid_sizes[0, 2].item()) if grid_sizes is not None else None,
         )
         _record_memory_function_signals(
             out, memory, kv_cache, current_start, cache_update_mode

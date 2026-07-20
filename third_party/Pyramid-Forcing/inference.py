@@ -201,6 +201,11 @@ parser.add_argument(
     choices=("normal", "shuffled_v", "abstain"),
     default=None,
 )
+parser.add_argument(
+    "--pyramidkv_structured_memory_position_mode",
+    choices=("none", "local_grid"),
+    default=None,
+)
 parser.add_argument("--dynamic_cfg_enabled", action="store_true", default=False)
 parser.add_argument("--dynamic_cfg_min_scale", type=float, default=1.0)
 parser.add_argument("--dynamic_cfg_max_scale", type=float, default=5.0)
@@ -396,6 +401,7 @@ for name in (
     "min_retrieval_margin",
     "max_retrieval_entropy",
     "control_mode",
+    "position_mode",
 ):
     value = getattr(args, f"pyramidkv_structured_memory_{name}")
     if value is not None:

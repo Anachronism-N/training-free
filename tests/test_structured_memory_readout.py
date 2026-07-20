@@ -167,6 +167,31 @@ def test_least_similar_control_selects_wrong_history():
     assert result.output[0, 0, 0, 1] > result.output[0, 0, 0, 0]
 
 
+def test_local_grid_position_mode_preserves_shape_and_changes_readout():
+    q = torch.randn(1, 4, 1, 6)
+    memory_k = torch.randn(2, 4, 1, 6)
+    memory_v = torch.randn(2, 4, 1, 6)
+    freqs = torch.polar(
+        torch.ones(16, 3), torch.randn(16, 3)
+    )
+    raw = query_conditioned_memory_readout(
+        q, memory_k, memory_v, confidence_threshold=-1.0
+    )
+    positioned = query_conditioned_memory_readout(
+        q,
+        memory_k,
+        memory_v,
+        confidence_threshold=-1.0,
+        position_mode="local_grid",
+        rope_freqs=freqs,
+        grid_h=2,
+        grid_w=2,
+    )
+
+    assert positioned.output.shape == q.shape
+    assert not torch.allclose(positioned.output, raw.output)
+
+
 def test_confidence_survives_rms_matching_and_scales_convex_replacement():
     recent = torch.tensor([[[[2.0, 0.0]]]])
     memory = torch.tensor([[[[0.0, 10.0]]]])

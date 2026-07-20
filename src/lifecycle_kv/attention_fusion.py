@@ -5,6 +5,46 @@ from dataclasses import dataclass
 import torch
 
 
+def _apply_local_grid_rope(
+    x: torch.Tensor,
+    freqs: torch.Tensor,
+    *,
+    grid_h: int,
+    grid_w: int,
+    temporal_start: int,
+) -> torch.Tensor:
+    """Apply bounded local 3D RoPE to [frame, spatial, head, dim]."""
+    if x.ndim != 4 or x.shape[1] != grid_h * grid_w:
+        raise ValueError("local-grid RoPE expects [frame, H*W, head, dim]")
+    frames, spatial, heads, dim = x.shape
+    complex_dim = dim // 2
+    split = [
+        complex_dim - 2 * (complex_dim // 3),
+        complex_dim // 3,
+        complex_dim // 3,
+    ]
+    ft, fy, fx = freqs.to(x.device).split(split, dim=1)
+    temporal = torch.arange(
+        temporal_start, temporal_start + frames, device=x.device, dtype=torch.long
+    ).clamp(max=ft.shape[0] - 1)
+    spatial_idx = torch.arange(spatial, device=x.device, dtype=torch.long)
+    y = (spatial_idx // grid_w).clamp(max=fy.shape[0] - 1)
+    z = (spatial_idx % grid_w).clamp(max=fx.shape[0] - 1)
+    phases = torch.cat(
+        [
+            ft[temporal][:, None, :].expand(frames, spatial, -1),
+            fy[y][None, :, :].expand(frames, spatial, -1),
+            fx[z][None, :, :].expand(frames, spatial, -1),
+        ],
+        dim=-1,
+    ).reshape(frames * spatial, 1, complex_dim)
+    x_complex = torch.view_as_complex(
+        x.float().reshape(frames * spatial, heads, complex_dim, 2)
+    )
+    rotated = torch.view_as_real(x_complex * phases).reshape_as(x.float())
+    return rotated.to(x.dtype)
+
+
 @dataclass(frozen=True)
 class StructuredMemoryReadout:
     output: torch.Tensor
@@ -29,6 +69,10 @@ def query_conditioned_memory_readout(
     min_retrieval_margin: float = 0.0,
     max_retrieval_entropy: float = 1.0,
     control_mode: str = "normal",
+    position_mode: str = "none",
+    rope_freqs: torch.Tensor | None = None,
+    grid_h: int | None = None,
+    grid_w: int | None = None,
     eps: float = 1e-6,
 ) -> StructuredMemoryReadout:
     """Read structured history through a separate query-conditioned attention.
@@ -61,6 +105,8 @@ def query_conditioned_memory_readout(
         raise ValueError("max_retrieval_entropy must be in [0, 1]")
     if control_mode not in {"normal", "shuffled_v", "abstain"}:
         raise ValueError("control_mode must be normal, shuffled_v, or abstain")
+    if position_mode not in {"none", "local_grid"}:
+        raise ValueError("position_mode must be none or local_grid")
 
     query_summary = torch.nn.functional.normalize(q.float().mean(dim=1), dim=-1, eps=eps)
     frame_summary = torch.nn.functional.normalize(
@@ -118,7 +164,35 @@ def query_conditioned_memory_readout(
         -1, active_indices.to(frame_weights.device), active_weights.to(frame_weights.dtype)
     )
 
-    logits = torch.einsum("bqhd,mshd->bhqms", q.float(), active_k.float())
+    token_q = q
+    token_k = active_k
+    if position_mode == "local_grid":
+        if rope_freqs is None or grid_h is None or grid_w is None:
+            raise ValueError("local_grid position mode requires freqs and grid dimensions")
+        spatial = grid_h * grid_w
+        if q.shape[1] % spatial != 0:
+            raise ValueError("query token count must be divisible by H*W")
+        query_frames = q.shape[1] // spatial
+        query_as_frames = q.reshape(
+            q.shape[0] * query_frames, spatial, q.shape[2], q.shape[3]
+        )
+        query_as_frames = _apply_local_grid_rope(
+            query_as_frames,
+            rope_freqs,
+            grid_h=grid_h,
+            grid_w=grid_w,
+            temporal_start=active_k.shape[0],
+        )
+        token_q = query_as_frames.reshape_as(q)
+        token_k = _apply_local_grid_rope(
+            active_k,
+            rope_freqs,
+            grid_h=grid_h,
+            grid_w=grid_w,
+            temporal_start=0,
+        )
+
+    logits = torch.einsum("bqhd,mshd->bhqms", token_q.float(), token_k.float())
     logits = logits * (q.shape[-1] ** -0.5)
     logits = logits + torch.log(active_weights.clamp_min(eps))[:, :, None, :, None]
     attention = torch.softmax(logits.flatten(start_dim=-2), dim=-1).view_as(logits)

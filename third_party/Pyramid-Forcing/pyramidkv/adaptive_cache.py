@@ -220,6 +220,7 @@ class AdaptiveKVCache(PyramidKVCache):
         structured_memory_min_retrieval_margin: float = 0.0,
         structured_memory_max_retrieval_entropy: float = 1.0,
         structured_memory_control_mode: str = "normal",
+        structured_memory_position_mode: str = "none",
     ):
         super().__init__(
             config=config,
@@ -429,6 +430,9 @@ class AdaptiveKVCache(PyramidKVCache):
         self.structured_memory_control_mode = str(structured_memory_control_mode)
         if self.structured_memory_control_mode not in {"normal", "shuffled_v", "abstain"}:
             raise ValueError("unsupported structured_memory_control_mode")
+        self.structured_memory_position_mode = str(structured_memory_position_mode)
+        if self.structured_memory_position_mode not in {"none", "local_grid"}:
+            raise ValueError("unsupported structured_memory_position_mode")
         self._functional_query_ema = None
         self._functional_query_ema_start = None
         self._last_functional_head_mask = None
