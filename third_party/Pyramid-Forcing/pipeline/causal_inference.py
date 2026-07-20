@@ -1,4 +1,5 @@
 from typing import List, Optional
+import copy
 import os
 import torch
 from tqdm import tqdm
@@ -67,13 +68,27 @@ class CausalInferencePipeline(torch.nn.Module):
         self.frame_seq_length = 1560
 
         self.kv_cache1 = None
+        self.kv_cache_uncond = None
+        self.crossattn_cache_uncond = None
         self.args = args
+        self.few_step_cfg_enabled = bool(getattr(args, "few_step_cfg_enabled", False))
+        self.few_step_cfg_mode = str(getattr(args, "few_step_cfg_mode", "fixed"))
+        self.few_step_cfg_scale = float(getattr(args, "few_step_cfg_scale", 3.0))
+        self.few_step_cfg_min_scale = float(getattr(args, "few_step_cfg_min_scale", 1.5))
+        self.few_step_cfg_max_scale = float(getattr(args, "few_step_cfg_max_scale", 3.5))
+        if self.few_step_cfg_mode not in {"fixed", "dynamic"}:
+            raise ValueError("few_step_cfg_mode must be fixed or dynamic")
+        self._few_step_cfg_scales: list[float] = []
         self.num_frame_per_block = getattr(args, "num_frame_per_block", 1)
         self.independent_first_frame = args.independent_first_frame
         self.local_attn_size = self.generator.model.local_attn_size
         self.use_pyramidkv = getattr(args, "use_pyramidkv", False)
         self.pyramidkv_config = PyramidKVPipelineConfig.from_args(args, frame_seq_length=self.frame_seq_length)
         self.use_teacache = getattr(args, "use_teacache", False)
+        if self.few_step_cfg_enabled and self.use_teacache:
+            raise ValueError("few-step CFG requires TeaCache disabled so cond/uncond states remain independent")
+        if self.few_step_cfg_enabled and os.environ.get("PYRAMIDKV_USE_MEGA_CACHE", "0") == "1":
+            raise ValueError("few-step CFG does not yet support MegaCache cloning")
         if self.use_teacache:
             teacache_coefficients = getattr(args, "teacache_coefficients", None)
             if teacache_coefficients is not None:
@@ -202,9 +217,13 @@ class CausalInferencePipeline(torch.nn.Module):
             num_blocks = (num_frames - 1) // self.num_frame_per_block
         num_input_frames = initial_latent.shape[1] if initial_latent is not None else 0
         num_output_frames = num_frames + num_input_frames  # add the initial latent frames
-        conditional_dict = self.text_encoder(
-            text_prompts=text_prompts
-        )
+        conditional_dict = self.text_encoder(text_prompts=text_prompts)
+        unconditional_dict = None
+        if self.few_step_cfg_enabled:
+            negative_prompt = str(getattr(self.args, "negative_prompt", ""))
+            unconditional_dict = self.text_encoder(
+                text_prompts=[negative_prompt] * len(text_prompts)
+            )
 
         if low_memory:
             gpu_memory_preservation = get_cuda_free_memory_gb(gpu) + 5
@@ -273,6 +292,22 @@ class CausalInferencePipeline(torch.nn.Module):
                         [0], dtype=torch.long, device=noise.device)
                     self.kv_cache1[block_index]["local_end_index"] = torch.tensor(
                         [0], dtype=torch.long, device=noise.device)
+        if self.few_step_cfg_enabled:
+            # The unconditional branch needs an independent clean KV trajectory.
+            # Clone only after the conditional cache has been reset/initialized.
+            self.kv_cache_uncond = copy.deepcopy(self.kv_cache1)
+            self.crossattn_cache_uncond = copy.deepcopy(self.crossattn_cache)
+            for cache in self.kv_cache_uncond:
+                if isinstance(cache, AdaptiveKVCache):
+                    cache.structured_memory_enabled = False
+                    cache._cfg_branch = "uncond"
+            for cache in self.kv_cache1:
+                if isinstance(cache, AdaptiveKVCache):
+                    cache._cfg_branch = "cond"
+        else:
+            self.kv_cache_uncond = None
+            self.crossattn_cache_uncond = None
+
         self._set_adaptive_kv_profile(profile)
         if self.use_teacache:
             self.generator.pop_teacache_stats()
@@ -355,6 +390,16 @@ class CausalInferencePipeline(torch.nn.Module):
                     current_start=current_start_frame * self.frame_seq_length,
                     cache_update_mode="clean",
                 )
+                if self.few_step_cfg_enabled:
+                    self.generator(
+                        noisy_image_or_video=initial_latent[:, :1],
+                        conditional_dict=unconditional_dict,
+                        timestep=timestep * 0,
+                        kv_cache=self.kv_cache_uncond,
+                        crossattn_cache=self.crossattn_cache_uncond,
+                        current_start=current_start_frame * self.frame_seq_length,
+                        cache_update_mode="clean",
+                    )
                 _submit_vae_chunk(initial_latent[:, :1])
                 current_start_frame += 1
             else:
@@ -375,6 +420,16 @@ class CausalInferencePipeline(torch.nn.Module):
                     current_start=current_start_frame * self.frame_seq_length,
                     cache_update_mode="clean",
                 )
+                if self.few_step_cfg_enabled:
+                    self.generator(
+                        noisy_image_or_video=current_ref_latents,
+                        conditional_dict=unconditional_dict,
+                        timestep=timestep * 0,
+                        kv_cache=self.kv_cache_uncond,
+                        crossattn_cache=self.crossattn_cache_uncond,
+                        current_start=current_start_frame * self.frame_seq_length,
+                        cache_update_mode="clean",
+                    )
                 _submit_vae_chunk(current_ref_latents)
                 current_start_frame += self.num_frame_per_block
 
@@ -449,17 +504,53 @@ class CausalInferencePipeline(torch.nn.Module):
                     index == 0 or index == len(self.denoising_step_list) - 1
                 )
 
-                if index < len(self.denoising_step_list) - 1:
-                    _, denoised_pred = self.generator(
+                flow_cond, denoised_cond = self.generator(
+                    noisy_image_or_video=noisy_input,
+                    conditional_dict=conditional_dict,
+                    timestep=timestep,
+                    kv_cache=self.kv_cache1,
+                    crossattn_cache=self.crossattn_cache,
+                    current_start=current_start_frame * self.frame_seq_length,
+                    cache_update_mode="noisy",
+                    teacache_force_calc=teacache_force_calc,
+                )
+                if self.few_step_cfg_enabled:
+                    flow_uncond, _ = self.generator(
                         noisy_image_or_video=noisy_input,
-                        conditional_dict=conditional_dict,
+                        conditional_dict=unconditional_dict,
                         timestep=timestep,
-                        kv_cache=self.kv_cache1,
-                        crossattn_cache=self.crossattn_cache,
+                        kv_cache=self.kv_cache_uncond,
+                        crossattn_cache=self.crossattn_cache_uncond,
                         current_start=current_start_frame * self.frame_seq_length,
                         cache_update_mode="noisy",
                         teacache_force_calc=teacache_force_calc,
                     )
+                    if self.few_step_cfg_mode == "dynamic":
+                        confidences = [
+                            float(getattr(cache, "_last_memory_confidence", 0.0))
+                            for cache in self.kv_cache1
+                            if isinstance(cache, AdaptiveKVCache)
+                            and cache.structured_memory_enabled
+                        ]
+                        certainty = sum(confidences) / len(confidences) if confidences else 0.0
+                        certainty = max(0.0, min(1.0, certainty))
+                        cfg_scale = (
+                            self.few_step_cfg_max_scale
+                            - certainty * (self.few_step_cfg_max_scale - self.few_step_cfg_min_scale)
+                        )
+                    else:
+                        cfg_scale = self.few_step_cfg_scale
+                    self._few_step_cfg_scales.append(float(cfg_scale))
+                    guided_flow = flow_uncond + cfg_scale * (flow_cond - flow_uncond)
+                    denoised_pred = self.generator._convert_flow_pred_to_x0(
+                        flow_pred=guided_flow.flatten(0, 1),
+                        xt=noisy_input.flatten(0, 1),
+                        timestep=timestep.flatten(0, 1),
+                    ).unflatten(0, guided_flow.shape[:2])
+                else:
+                    denoised_pred = denoised_cond
+
+                if index < len(self.denoising_step_list) - 1:
                     next_timestep = self.denoising_step_list[index + 1]
                     ns_buf.normal_()
                     noisy_input = self.scheduler.add_noise(
@@ -467,18 +558,6 @@ class CausalInferencePipeline(torch.nn.Module):
                         ns_buf,
                         sc_buf.fill_(next_timestep),
                     ).unflatten(0, denoised_pred.shape[:2])
-                else:
-                    # for getting real output
-                    _, denoised_pred = self.generator(
-                        noisy_image_or_video=noisy_input,
-                        conditional_dict=conditional_dict,
-                        timestep=timestep,
-                        kv_cache=self.kv_cache1,
-                        crossattn_cache=self.crossattn_cache,
-                        current_start=current_start_frame * self.frame_seq_length,
-                        cache_update_mode="noisy",
-                        teacache_force_calc=teacache_force_calc,
-                    )
 
                 if self._timestep_pbar is not None:
                     self._timestep_pbar.update(1)
@@ -500,6 +579,17 @@ class CausalInferencePipeline(torch.nn.Module):
                 cache_update_mode="clean",
                 skip_x0=True,
             )
+            if self.few_step_cfg_enabled:
+                self.generator(
+                    noisy_image_or_video=denoised_pred,
+                    conditional_dict=unconditional_dict,
+                    timestep=context_timestep,
+                    kv_cache=self.kv_cache_uncond,
+                    crossattn_cache=self.crossattn_cache_uncond,
+                    current_start=current_start_frame * self.frame_seq_length,
+                    cache_update_mode="clean",
+                    skip_x0=True,
+                )
             if profile:
                 clean_pass_end.record()
             if self._timestep_pbar is not None:

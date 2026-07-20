@@ -195,6 +195,11 @@ parser.add_argument("--dynamic_cfg_max_scale", type=float, default=5.0)
 parser.add_argument("--per_head_cfg_enabled", action="store_true", default=False)
 parser.add_argument("--per_head_cfg_min_scale", type=float, default=1.0)
 parser.add_argument("--per_head_cfg_max_scale", type=float, default=5.0)
+parser.add_argument("--few_step_cfg_enabled", action="store_true", default=False)
+parser.add_argument("--few_step_cfg_mode", choices=("fixed", "dynamic"), default="fixed")
+parser.add_argument("--few_step_cfg_scale", type=float, default=3.0)
+parser.add_argument("--few_step_cfg_min_scale", type=float, default=1.5)
+parser.add_argument("--few_step_cfg_max_scale", type=float, default=3.5)
 args = parser.parse_args()
 
 
@@ -345,6 +350,13 @@ if args.pyramidkv_structured_memory_head_labels is not None:
         for value in args.pyramidkv_structured_memory_head_labels.split(",")
         if value.strip()
     ]
+# Copy valid few-step CFG CLI overrides into the pipeline config.
+config.few_step_cfg_enabled = bool(args.few_step_cfg_enabled)
+config.few_step_cfg_mode = str(args.few_step_cfg_mode)
+config.few_step_cfg_scale = float(args.few_step_cfg_scale)
+config.few_step_cfg_min_scale = float(args.few_step_cfg_min_scale)
+config.few_step_cfg_max_scale = float(args.few_step_cfg_max_scale)
+
 for name in (
     "budget_frames",
     "spatial_stride",
@@ -611,3 +623,19 @@ if os.environ.get("HEAD_DIAGNOSTIC", "0") == "1":
         save_diagnostic_report(diag_path)
     except Exception as e:
         print(f"[DIAG] Failed to save report: {e}")
+
+if getattr(pipeline, "few_step_cfg_enabled", False):
+    import json
+    scales = list(getattr(pipeline, "_few_step_cfg_scales", []))
+    cfg_report = {
+        "enabled": True,
+        "mode": pipeline.few_step_cfg_mode,
+        "num_scales": len(scales),
+        "min": min(scales) if scales else None,
+        "max": max(scales) if scales else None,
+        "mean": sum(scales) / len(scales) if scales else None,
+        "scales": scales,
+    }
+    with open(os.path.join(args.output_folder, "cfg_report.json"), "w") as f:
+        json.dump(cfg_report, f, indent=2)
+    print(f"[CFG] scale report: {cfg_report}")

@@ -49,6 +49,7 @@ DYNAMIC_CFG_MAX_SCALE="${DYNAMIC_CFG_MAX_SCALE:-5.0}"
 PER_HEAD_CFG_ENABLED="${PER_HEAD_CFG_ENABLED:-0}"
 PER_HEAD_CFG_MIN_SCALE="${PER_HEAD_CFG_MIN_SCALE:-1.0}"
 PER_HEAD_CFG_MAX_SCALE="${PER_HEAD_CFG_MAX_SCALE:-5.0}"
+EXTRA_CFG_ARGS="${EXTRA_CFG_ARGS:-}"
 GPU="${CUDA_VISIBLE_DEVICES:-0}"
 RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)}"
 TAG="${METHOD_TAG:-pf_refresh_s${STRENGTH//./}_r${RECENT_FRAMES}_g${GATE_LAMBDA//./}}"
@@ -71,6 +72,11 @@ if [[ "$DYNAMIC_CFG_ENABLED" == "1" ]]; then
 fi
 if [[ "$PER_HEAD_CFG_ENABLED" == "1" ]]; then
     EXTRA_ARGS+=(--per_head_cfg_enabled --per_head_cfg_min_scale "$PER_HEAD_CFG_MIN_SCALE" --per_head_cfg_max_scale "$PER_HEAD_CFG_MAX_SCALE")
+fi
+if [[ -n "$EXTRA_CFG_ARGS" ]]; then
+    # Internal experiment scripts provide only trusted static CLI fragments.
+    read -r -a cfg_args <<< "$EXTRA_CFG_ARGS"
+    EXTRA_ARGS+=("${cfg_args[@]}")
 fi
 
 mkdir -p "$OUT"
