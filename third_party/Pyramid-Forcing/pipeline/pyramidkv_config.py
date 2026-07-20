@@ -106,6 +106,7 @@ class PyramidKVPipelineConfig:
     pyramidkv_structured_memory_top_k_frames: int = 0
     pyramidkv_structured_memory_recent_exclude_frames: int = 0
     pyramidkv_structured_memory_selection_policy: str = "query"
+    pyramidkv_structured_memory_selection_scope: str = "shared"
     pyramidkv_structured_memory_fusion_mode: str = "residual"
     pyramidkv_structured_memory_head_labels: Optional[list] = None
     pyramidkv_structured_memory_layer_start: int = 15
@@ -294,6 +295,9 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_structured_memory_selection_policy=str(
                 getattr(args, "pyramidkv_structured_memory_selection_policy", "query")
+            ),
+            pyramidkv_structured_memory_selection_scope=str(
+                getattr(args, "pyramidkv_structured_memory_selection_scope", "shared")
             ),
             pyramidkv_structured_memory_fusion_mode=str(
                 getattr(args, "pyramidkv_structured_memory_fusion_mode", "residual")

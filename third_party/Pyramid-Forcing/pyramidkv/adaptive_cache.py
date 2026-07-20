@@ -208,6 +208,7 @@ class AdaptiveKVCache(PyramidKVCache):
         structured_memory_top_k_frames: int = 0,
         structured_memory_recent_exclude_frames: int = 0,
         structured_memory_selection_policy: str = "query",
+        structured_memory_selection_scope: str = "shared",
         structured_memory_fusion_mode: str = "residual",
         structured_memory_head_labels: list[int] | None = None,
         structured_memory_layer_start: int = 15,
@@ -397,6 +398,9 @@ class AdaptiveKVCache(PyramidKVCache):
             raise ValueError(
                 "structured_memory_selection_policy must be query, least_similar, oldest, or newest"
             )
+        self.structured_memory_selection_scope = str(structured_memory_selection_scope)
+        if self.structured_memory_selection_scope not in {"shared", "per_head"}:
+            raise ValueError("structured_memory_selection_scope must be shared or per_head")
         self.structured_memory_fusion_mode = str(structured_memory_fusion_mode)
         if self.structured_memory_fusion_mode not in {"residual", "convex"}:
             raise ValueError("structured_memory_fusion_mode must be residual or convex")

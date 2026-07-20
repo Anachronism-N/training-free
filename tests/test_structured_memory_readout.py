@@ -120,6 +120,35 @@ def test_empty_eligible_history_returns_zero_confidence():
     assert torch.count_nonzero(result.confidence) == 0
 
 
+def test_per_head_selection_can_choose_different_frames():
+    q = torch.tensor([[[[1.0, 0.0], [0.0, 1.0]]]])
+    memory_k = torch.tensor(
+        [
+            [[[1.0, 0.0], [1.0, 0.0]]],
+            [[[0.0, 1.0], [0.0, 1.0]]],
+        ]
+    )
+    memory_v = torch.tensor(
+        [
+            [[[5.0, 0.0], [5.0, 0.0]]],
+            [[[0.0, 7.0], [0.0, 7.0]]],
+        ]
+    )
+    result = query_conditioned_memory_readout(
+        q,
+        memory_k,
+        memory_v,
+        top_k_frames=1,
+        selection_scope="per_head",
+        confidence_threshold=-1.0,
+    )
+
+    assert result.frame_weights[0, 0, 0] == 1
+    assert result.frame_weights[0, 1, 1] == 1
+    assert result.output[0, 0, 0, 0] > 4.9
+    assert result.output[0, 0, 1, 1] > 6.9
+
+
 def test_margin_abstention_rejects_ambiguous_retrieval():
     q = torch.tensor([[[[1.0, 0.0]]]])
     memory_k = torch.tensor([[[[1.0, 0.0]]], [[[1.0, 0.0]]]])

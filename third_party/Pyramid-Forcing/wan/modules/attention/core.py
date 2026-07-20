@@ -776,6 +776,9 @@ def pyramidkv_attention(
             selection_policy=str(
                 getattr(kv_cache, "structured_memory_selection_policy", "query")
             ),
+            selection_scope=str(
+                getattr(kv_cache, "structured_memory_selection_scope", "shared")
+            ),
             min_retrieval_margin=float(
                 getattr(kv_cache, "structured_memory_min_retrieval_margin", 0.0)
             ),

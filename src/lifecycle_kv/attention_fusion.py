@@ -66,6 +66,7 @@ def query_conditioned_memory_readout(
     eligible_frame_mask: torch.Tensor | None = None,
     top_k_frames: int = 0,
     selection_policy: str = "query",
+    selection_scope: str = "shared",
     min_retrieval_margin: float = 0.0,
     max_retrieval_entropy: float = 1.0,
     control_mode: str = "normal",
@@ -99,6 +100,8 @@ def query_conditioned_memory_readout(
         raise ValueError("top_k_frames must be non-negative")
     if selection_policy not in {"query", "least_similar", "oldest", "newest"}:
         raise ValueError("selection_policy must be query, least_similar, oldest, or newest")
+    if selection_scope not in {"shared", "per_head"}:
+        raise ValueError("selection_scope must be shared or per_head")
     if min_retrieval_margin < 0.0:
         raise ValueError("min_retrieval_margin must be non-negative")
     if not 0.0 <= max_retrieval_entropy <= 1.0:
@@ -131,12 +134,20 @@ def query_conditioned_memory_readout(
             accepted=torch.zeros_like(zeros, dtype=torch.bool),
         )
 
-    selected = eligible.unsqueeze(0).expand(q.shape[0], -1).clone()
+    if selection_scope == "per_head":
+        selected = eligible.view(1, 1, -1).expand(q.shape[0], q.shape[2], -1).clone()
+    else:
+        selected = eligible.unsqueeze(0).expand(q.shape[0], -1).clone()
     if top_k_frames > 0 and int(eligible.sum().item()) > top_k_frames:
         selected.zero_()
         eligible_indices = torch.nonzero(eligible, as_tuple=False).flatten()
         if selection_policy in {"query", "least_similar"}:
-            rank_scores = frame_similarity.mean(dim=1).index_select(-1, eligible_indices)
+            if selection_scope == "per_head":
+                rank_scores = frame_similarity.index_select(-1, eligible_indices)
+                scatter_dim = 2
+            else:
+                rank_scores = frame_similarity.mean(dim=1).index_select(-1, eligible_indices)
+                scatter_dim = 1
             chosen_local = torch.topk(
                 rank_scores,
                 k=min(top_k_frames, eligible_indices.numel()),
@@ -145,18 +156,32 @@ def query_conditioned_memory_readout(
             ).indices
             chosen = eligible_indices[chosen_local]
         elif selection_policy == "oldest":
-            chosen = eligible_indices[:top_k_frames].unsqueeze(0).expand(q.shape[0], -1)
+            base = eligible_indices[:top_k_frames]
+            chosen = (
+                base.view(1, 1, -1).expand(q.shape[0], q.shape[2], -1)
+                if selection_scope == "per_head"
+                else base.unsqueeze(0).expand(q.shape[0], -1)
+            )
+            scatter_dim = 2 if selection_scope == "per_head" else 1
         else:
-            chosen = eligible_indices[-top_k_frames:].unsqueeze(0).expand(q.shape[0], -1)
-        selected.scatter_(1, chosen, True)
+            base = eligible_indices[-top_k_frames:]
+            chosen = (
+                base.view(1, 1, -1).expand(q.shape[0], q.shape[2], -1)
+                if selection_scope == "per_head"
+                else base.unsqueeze(0).expand(q.shape[0], -1)
+            )
+            scatter_dim = 2 if selection_scope == "per_head" else 1
+        selected.scatter_(scatter_dim, chosen, True)
 
-    active_indices = torch.nonzero(selected.any(dim=0), as_tuple=False).flatten()
+    selected_any = selected.any(dim=(0, 1)) if selection_scope == "per_head" else selected.any(dim=0)
+    active_indices = torch.nonzero(selected_any, as_tuple=False).flatten()
     active_k = memory_k.index_select(0, active_indices.to(memory_k.device))
     active_v = memory_v.index_select(0, active_indices.to(memory_v.device))
     active_similarity = frame_similarity.index_select(-1, active_indices)
     active_selected = selected.index_select(-1, active_indices)
+    selection_mask = active_selected if selection_scope == "per_head" else active_selected[:, None, :]
     masked_similarity = active_similarity.masked_fill(
-        ~active_selected[:, None, :], float("-inf")
+        ~selection_mask, float("-inf")
     )
     active_weights = torch.softmax(masked_similarity / retrieval_temperature, dim=-1)
     frame_weights = q.new_zeros((q.shape[0], q.shape[2], frame_count))
@@ -210,7 +235,7 @@ def query_conditioned_memory_readout(
         (best_similarity - confidence_threshold) / (1.0 - confidence_threshold)
     ).clamp(0.0, 1.0)
 
-    active_count = active_selected[:, None, :].sum(dim=-1).expand_as(confidence)
+    active_count = selection_mask.sum(dim=-1).expand_as(confidence)
     if active_weights.shape[-1] >= 2:
         top2 = torch.topk(active_weights, k=2, dim=-1).values
         retrieval_margin = torch.where(

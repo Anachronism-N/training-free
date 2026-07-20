@@ -35,6 +35,7 @@ MEMORY_ARCHIVE_POLICY="${MEMORY_ARCHIVE_POLICY:-uniform}"
 MEMORY_TOP_K_FRAMES="${MEMORY_TOP_K_FRAMES:-0}"
 MEMORY_RECENT_EXCLUDE_FRAMES="${MEMORY_RECENT_EXCLUDE_FRAMES:-0}"
 MEMORY_SELECTION_POLICY="${MEMORY_SELECTION_POLICY:-query}"
+MEMORY_SELECTION_SCOPE="${MEMORY_SELECTION_SCOPE:-shared}"
 MEMORY_FUSION_MODE="${MEMORY_FUSION_MODE:-residual}"
 MEMORY_HEAD_LABELS="${MEMORY_HEAD_LABELS:-}"
 MEMORY_LAYER_START="${MEMORY_LAYER_START:-15}"
@@ -149,6 +150,7 @@ PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" CUDA_VISIBLE_DEVICES="$GPU" py
     --pyramidkv_structured_memory_top_k_frames "$MEMORY_TOP_K_FRAMES" \
     --pyramidkv_structured_memory_recent_exclude_frames "$MEMORY_RECENT_EXCLUDE_FRAMES" \
     --pyramidkv_structured_memory_selection_policy "$MEMORY_SELECTION_POLICY" \
+    --pyramidkv_structured_memory_selection_scope "$MEMORY_SELECTION_SCOPE" \
     --pyramidkv_structured_memory_fusion_mode "$MEMORY_FUSION_MODE" \
     --pyramidkv_structured_memory_layer_start "$MEMORY_LAYER_START" \
     --pyramidkv_structured_memory_layer_end "$MEMORY_LAYER_END" \

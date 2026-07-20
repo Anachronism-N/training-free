@@ -177,6 +177,11 @@ parser.add_argument(
     default=None,
 )
 parser.add_argument(
+    "--pyramidkv_structured_memory_selection_scope",
+    choices=("shared", "per_head"),
+    default=None,
+)
+parser.add_argument(
     "--pyramidkv_structured_memory_fusion_mode",
     choices=("residual", "convex"),
     default=None,
@@ -390,6 +395,7 @@ for name in (
     "top_k_frames",
     "recent_exclude_frames",
     "selection_policy",
+    "selection_scope",
     "fusion_mode",
     "layer_start",
     "layer_end",
