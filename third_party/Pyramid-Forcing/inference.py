@@ -588,3 +588,12 @@ try:
                 )
 finally:
     video_writer.close()
+
+# Save head diagnostic report if enabled
+if os.environ.get("HEAD_DIAGNOSTIC", "0") == "1":
+    try:
+        from wan.modules.attention.core import save_diagnostic_report
+        diag_path = os.path.join(args.output_folder, "..", "diagnostic_report.json")
+        save_diagnostic_report(diag_path)
+    except Exception as e:
+        print(f"[DIAG] Failed to save report: {e}")

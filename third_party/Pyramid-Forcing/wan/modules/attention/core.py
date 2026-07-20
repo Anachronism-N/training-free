@@ -32,6 +32,199 @@ from .capture import (
 from .history_value import renormalize_stale_history_values
 
 
+# === HEAD DIAGNOSTIC GLOBAL STATE ===
+_diagnostic_measurements = {}
+_diagnostic_max_samples = 20
+
+def _measure_head_signals_diagnostic(q, kv_cache, archive_k, archive_v, frame_seqlen, cache_update_mode):
+    """Measure per-head temporal sensitivity and content specificity."""
+    import os
+    import numpy as np
+
+    if cache_update_mode != "noisy":
+        return
+
+    layer_idx = getattr(kv_cache, "layer_idx", -1)
+    if layer_idx < 0:
+        return
+
+    if layer_idx not in _diagnostic_measurements:
+        _diagnostic_measurements[layer_idx] = {"ts": [], "cs": [], "count": 0}
+    if _diagnostic_measurements[layer_idx]["count"] >= _diagnostic_max_samples:
+        return
+
+    # Get cache K/V
+    cache_k = getattr(kv_cache, "k_cache", None) or getattr(kv_cache, "k", None)
+    cache_v = getattr(kv_cache, "v_cache", None) or getattr(kv_cache, "v", None)
+    if cache_k is None:
+        return
+
+    # q may be [B, T, H, D] or [B, H, T, D]
+    q_4d = q
+    if q_4d.ndim == 3:
+        q_4d = q_4d.unsqueeze(0)
+    if q_4d.ndim != 4:
+        return
+
+    B, T, H, D = q_4d.shape
+    if H != 12:
+        return
+
+    # Determine cache shape
+    if cache_k.ndim == 4:
+        Tk = cache_k.shape[1]
+    else:
+        return
+
+    local_end = int(getattr(kv_cache, "local_end_index", Tk))
+    if local_end <= 0 or local_end > Tk:
+        local_end = Tk
+
+    recent_frames = 4
+    recent_start = max(0, local_end - recent_frames * frame_seqlen)
+    if recent_start <= 0:
+        return  # Not enough distant history
+
+    full_k = cache_k[:, :local_end]
+    full_v = cache_v[:, :local_end]
+    recent_k = cache_k[:, recent_start:local_end]
+    recent_v = cache_v[:, recent_start:local_end]
+
+    scale = D ** -0.5
+
+    with torch.no_grad():
+        # 1. Temporal Sensitivity
+        logits_full = torch.einsum("bqhd,bkhd->bhqk", q_4d.float(), full_k.float()) * scale
+        attn_full = torch.softmax(logits_full, dim=-1)
+        x_full = torch.einsum("bhqk,bkhd->bqhd", attn_full, full_v.float())
+
+        logits_recent = torch.einsum("bqhd,bkhd->bhqk", q_4d.float(), recent_k.float()) * scale
+        attn_recent = torch.softmax(logits_recent, dim=-1)
+        x_recent = torch.einsum("bhqk,bkhd->bqhd", attn_recent, recent_v.float())
+
+        diff_norm = (x_full - x_recent).norm(dim=-1)  # [B, T, H]
+        recent_norm = x_recent.norm(dim=-1).clamp(min=1e-6)
+        ts = (diff_norm / recent_norm).mean(dim=(0, 1)).cpu().numpy()  # [H]
+
+        # 2. Content Specificity
+        if archive_k is not None and archive_k.shape[0] > 2:
+            import torch.nn.functional as F
+            q_summary = F.normalize(q_4d.float().mean(dim=1), dim=-1)  # [B, H, D]
+            arch_summary = F.normalize(archive_k.float().mean(dim=1), dim=-1)  # [M, H, D]
+            sim_correct = torch.einsum("bhd,mhd->bhm", q_summary, arch_summary)
+            conf_correct = sim_correct.max(dim=-1).values.mean(dim=0)  # [H]
+
+            M = archive_k.shape[0]
+            perm = torch.randperm(M, device=archive_k.device)
+            rand_summary = F.normalize(archive_k[perm].float().mean(dim=1), dim=-1)
+            sim_random = torch.einsum("bhd,mhd->bhm", q_summary, rand_summary)
+            conf_random = sim_random.max(dim=-1).values.mean(dim=0)  # [H]
+
+            cs = (conf_correct - conf_random).cpu().numpy()
+        else:
+            cs = np.zeros(H)
+
+    _diagnostic_measurements[layer_idx]["ts"].append(ts.tolist())
+    _diagnostic_measurements[layer_idx]["cs"].append(cs.tolist())
+    _diagnostic_measurements[layer_idx]["count"] += 1
+
+
+def save_diagnostic_report(output_path):
+    """Save collected diagnostic measurements."""
+    import json
+    import numpy as np
+
+    report = {"per_layer": {}, "summary": {}}
+    all_ts = []
+    all_cs = []
+
+    for layer, data in _diagnostic_measurements.items():
+        if data["count"] == 0:
+            continue
+
+        ts_arr = np.array(data["ts"])  # [N, H]
+        cs_arr = np.array(data["cs"])
+        ts_mean = ts_arr.mean(axis=0)  # [H]
+        cs_mean = cs_arr.mean(axis=0)  # [H]
+        H = len(ts_mean)
+
+        # Classify
+        ts_thresh = np.median(ts_mean)
+        cs_thresh = np.median(cs_mean)
+        labels = []
+        for h in range(H):
+            if ts_mean[h] > ts_thresh and cs_mean[h] > cs_thresh:
+                labels.append("identity")
+            elif ts_mean[h] > ts_thresh and cs_mean[h] <= cs_thresh:
+                labels.append("motion")
+            elif ts_mean[h] <= ts_thresh and cs_mean[h] > cs_thresh:
+                labels.append("layout")
+            else:
+                labels.append("recent")
+
+        report["per_layer"][str(layer)] = {
+            "num_samples": data["count"],
+            "ts_mean": ts_mean.tolist(),
+            "cs_mean": cs_mean.tolist(),
+            "ts_cv": float(ts_mean.std() / (abs(ts_mean.mean()) + 1e-6)),
+            "cs_cv": float(cs_mean.std() / (abs(cs_mean.mean()) + 1e-6)),
+            "labels": labels,
+            "label_counts": {l: labels.count(l) for l in set(labels)},
+        }
+        all_ts.extend(ts_mean.tolist())
+        all_cs.extend(cs_mean.tolist())
+
+    if all_ts:
+        ts_arr = np.array(all_ts)
+        cs_arr = np.array(all_cs)
+        ts_cv = float(ts_arr.std() / (abs(ts_arr.mean()) + 1e-6))
+        cs_cv = float(cs_arr.std() / (abs(cs_arr.mean()) + 1e-6))
+        corr = float(np.corrcoef(ts_arr, cs_arr)[0, 1]) if len(ts_arr) > 2 else 0.0
+
+        all_labels = []
+        for ld in report["per_layer"].values():
+            all_labels.extend(ld["labels"])
+
+        verdict = (
+            "FEASIBLE" if (ts_cv > 0.3 and cs_cv > 0.3 and abs(corr) < 0.5)
+            else "PARTIALLY_FEASIBLE" if (ts_cv > 0.2 or cs_cv > 0.2)
+            else "NOT_FEASIBLE"
+        )
+
+        report["summary"] = {
+            "total_heads": len(all_ts),
+            "ts_cv": round(ts_cv, 4),
+            "cs_cv": round(cs_cv, 4),
+            "ts_cs_correlation": round(corr, 4),
+            "ts_discriminable": ts_cv > 0.3,
+            "cs_discriminable": cs_cv > 0.3,
+            "signals_independent": abs(corr) < 0.5,
+            "label_distribution": {l: all_labels.count(l) for l in set(all_labels)},
+            "verdict": verdict,
+        }
+
+    import os
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    with open(output_path, "w") as f:
+        json.dump(report, f, indent=2)
+
+    # Print summary
+    print("\n" + "=" * 60)
+    print("HEAD CLASSIFICATION FEASIBILITY REPORT (REAL DATA)")
+    print("=" * 60)
+    if all_ts:
+        s = report["summary"]
+        print(f"Total heads measured: {s['total_heads']}")
+        print(f"TS CV: {s['ts_cv']:.4f} (discriminable: {s['ts_discriminable']})")
+        print(f"CS CV: {s['cs_cv']:.4f} (discriminable: {s['cs_discriminable']})")
+        print(f"TS-CS Correlation: {s['ts_cs_correlation']:.4f} (independent: {s['signals_independent']})")
+        print(f"Labels: {s['label_distribution']}")
+        print(f"VERDICT: {s['verdict']}")
+    print("=" * 60)
+
+# === END HEAD DIAGNOSTIC ===
+
+
 def flash_attention(
     q,
     k,
@@ -391,6 +584,20 @@ def pyramidkv_attention(
         if hasattr(kv_cache, '_last_per_head_confidence'):
             # memory.confidence: [B, H], take batch 0
             kv_cache._last_per_head_confidence = memory.confidence[0].detach().cpu()
+
+        # === HEAD DIAGNOSTIC MEASUREMENT ===
+        # Measure temporal sensitivity and content specificity
+        # to validate dynamic head classification feasibility
+        import os as _os
+        if _os.environ.get("HEAD_DIAGNOSTIC", "0") == "1":
+            try:
+                _measure_head_signals_diagnostic(
+                    raw_q, kv_cache, structured_memory_k, structured_memory_v,
+                    frame_seqlen, cache_update_mode,
+                )
+            except Exception:
+                pass
+        # === END DIAGNOSTIC ===
 
         return fuse_parallel_attention(
             out,
