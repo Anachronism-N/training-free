@@ -190,6 +190,9 @@ parser.add_argument("--pyramidkv_structured_memory_routing_sharpness", type=floa
 parser.add_argument("--dynamic_cfg_enabled", action="store_true", default=False)
 parser.add_argument("--dynamic_cfg_min_scale", type=float, default=1.0)
 parser.add_argument("--dynamic_cfg_max_scale", type=float, default=5.0)
+parser.add_argument("--per_head_cfg_enabled", action="store_true", default=False)
+parser.add_argument("--per_head_cfg_min_scale", type=float, default=1.0)
+parser.add_argument("--per_head_cfg_max_scale", type=float, default=5.0)
 args = parser.parse_args()
 
 

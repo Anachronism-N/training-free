@@ -44,6 +44,9 @@ MEMORY_ROUTING_SHARPNESS="${MEMORY_ROUTING_SHARPNESS:-5.0}"
 DYNAMIC_CFG_ENABLED="${DYNAMIC_CFG_ENABLED:-0}"
 DYNAMIC_CFG_MIN_SCALE="${DYNAMIC_CFG_MIN_SCALE:-1.0}"
 DYNAMIC_CFG_MAX_SCALE="${DYNAMIC_CFG_MAX_SCALE:-5.0}"
+PER_HEAD_CFG_ENABLED="${PER_HEAD_CFG_ENABLED:-0}"
+PER_HEAD_CFG_MIN_SCALE="${PER_HEAD_CFG_MIN_SCALE:-1.0}"
+PER_HEAD_CFG_MAX_SCALE="${PER_HEAD_CFG_MAX_SCALE:-5.0}"
 GPU="${CUDA_VISIBLE_DEVICES:-0}"
 RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)}"
 TAG="${METHOD_TAG:-pf_refresh_s${STRENGTH//./}_r${RECENT_FRAMES}_g${GATE_LAMBDA//./}}"
@@ -63,6 +66,9 @@ if [[ -n "$MEMORY_HEAD_LABELS" ]]; then
 fi
 if [[ "$DYNAMIC_CFG_ENABLED" == "1" ]]; then
     EXTRA_ARGS+=(--dynamic_cfg_enabled --dynamic_cfg_min_scale "$DYNAMIC_CFG_MIN_SCALE" --dynamic_cfg_max_scale "$DYNAMIC_CFG_MAX_SCALE")
+fi
+if [[ "$PER_HEAD_CFG_ENABLED" == "1" ]]; then
+    EXTRA_ARGS+=(--per_head_cfg_enabled --per_head_cfg_min_scale "$PER_HEAD_CFG_MIN_SCALE" --per_head_cfg_max_scale "$PER_HEAD_CFG_MAX_SCALE")
 fi
 
 mkdir -p "$OUT"

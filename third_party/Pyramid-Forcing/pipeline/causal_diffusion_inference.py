@@ -51,6 +51,11 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
         self.dynamic_cfg_max_scale = float(getattr(args, "dynamic_cfg_max_scale", 5.0))
         self._last_memory_confidence = 0.0  # Updated by memory readout
 
+        # Per-head CFG: each head gets its own CFG scale based on memory confidence
+        self.per_head_cfg_enabled = bool(getattr(args, "per_head_cfg_enabled", False))
+        self.per_head_cfg_min_scale = float(getattr(args, "per_head_cfg_min_scale", 1.0))
+        self.per_head_cfg_max_scale = float(getattr(args, "per_head_cfg_max_scale", 5.0))
+
         print(f"KV inference with {self.num_frame_per_block} frames per block")
 
         if self.num_frame_per_block > 1:
@@ -269,6 +274,46 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                     )
                     flow_pred = flow_pred_uncond + effective_scale * (
                         flow_pred_cond - flow_pred_uncond)
+
+                # Per-head CFG: modulate the CFG direction per-head based on
+                # each head's memory confidence. Heads with high memory
+                # confidence get reduced CFG (memory provides structure);
+                # heads with low confidence keep full CFG (prompt-driven).
+                # This is implemented by storing per-head confidence from
+                # the cond forward and applying it to the flow prediction.
+                if self.per_head_cfg_enabled and self.kv_cache_pos:
+                    # Get per-head confidence from the layer with highest avg confidence
+                    best_layer_confs = None
+                    best_avg = -1.0
+                    for cache in self.kv_cache_pos:
+                        confs = getattr(cache, '_last_per_head_confidence', None)
+                        if confs is not None:
+                            avg = float(confs.mean().item())
+                            if avg > best_avg:
+                                best_avg = avg
+                            best_layer_confs = confs
+                    if best_layer_confs is not None:
+                        # best_layer_confs: [H] tensor, per-head confidence
+                        # Scale: high confidence -> reduce CFG for that head
+                        # effective_cfg_per_head = max_cfg - conf * (max_cfg - min_cfg)
+                        cfg_scale = (
+                            self.per_head_cfg_max_scale
+                            + best_layer_confs.to(flow_pred.device, flow_pred.dtype) *
+                            (self.per_head_cfg_min_scale - self.per_head_cfg_max_scale)
+                        )  # [H]
+                        # flow_pred shape: [B, T, C] where C = H * D
+                        # Reshape to [B, T, H, D], apply per-head scale, reshape back
+                        B, T, C = flow_pred.shape
+                        H = best_layer_confs.shape[0]
+                        D = C // H
+                        flow_pred_reshaped = flow_pred.view(B, T, H, D)
+                        # Original CFG: uncond + scale * (cond - uncond)
+                        # Per-head CFG: uncond + scale_per_head * (cond - uncond)
+                        cfg_diff = flow_pred_cond - flow_pred_uncond  # [B, T, C]
+                        cfg_diff_reshaped = cfg_diff.view(B, T, H, D)
+                        flow_pred_reshaped = flow_pred_uncond.view(B, T, H, D) + \
+                            cfg_scale.view(1, 1, H, 1) * cfg_diff_reshaped
+                        flow_pred = flow_pred_reshaped.view(B, T, C)
 
                 temp_x0 = sample_scheduler.step(
                     flow_pred,

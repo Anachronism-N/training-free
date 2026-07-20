@@ -387,6 +387,10 @@ def pyramidkv_attention(
         # Store confidence on kv_cache for pipeline-level access (dynamic CFG)
         if hasattr(kv_cache, '_last_memory_confidence'):
             kv_cache._last_memory_confidence = float(memory.confidence.max().item())
+        # Store per-head confidence for per-head CFG
+        if hasattr(kv_cache, '_last_per_head_confidence'):
+            # memory.confidence: [B, H], take batch 0
+            kv_cache._last_per_head_confidence = memory.confidence[0].detach().cpu()
 
         return fuse_parallel_attention(
             out,
