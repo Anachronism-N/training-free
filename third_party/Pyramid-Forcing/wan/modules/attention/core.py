@@ -353,15 +353,41 @@ def pyramidkv_attention(
             ),
         )
         memory_head_mask = None
-        allowed_labels = getattr(kv_cache, "structured_memory_head_labels", None)
-        if allowed_labels is not None:
-            labels = list(getattr(kv_cache, "head_labels", []))
-            if len(labels) == h:
-                memory_head_mask = torch.tensor(
-                    [int(label) in allowed_labels for label in labels],
-                    device=out.device,
-                    dtype=out.dtype,
-                ).view(1, 1, h, 1)
+        routing_mode = str(getattr(kv_cache, "structured_memory_head_routing", "static"))
+        if routing_mode == "static":
+            # Original: use PF static labels for head routing
+            allowed_labels = getattr(kv_cache, "structured_memory_head_labels", None)
+            if allowed_labels is not None:
+                labels = list(getattr(kv_cache, "head_labels", []))
+                if len(labels) == h:
+                    memory_head_mask = torch.tensor(
+                        [int(label) in allowed_labels for label in labels],
+                        device=out.device,
+                        dtype=out.dtype,
+                    ).view(1, 1, h, 1)
+        elif routing_mode == "confidence_adaptive":
+            # Our innovation: per-head confidence-adaptive routing.
+            # Instead of static PF labels, each head's memory access is
+            # modulated by its own retrieval confidence. Heads with high
+            # confidence get full memory access; low-confidence heads are
+            # suppressed. This replaces PF's offline label classification
+            # with a dynamic, content-aware routing that adapts per-query.
+            # memory.confidence shape: [B, H]
+            conf = memory.confidence  # [B, H]
+            # Threshold: heads below this get zero memory access
+            conf_threshold = float(
+                getattr(kv_cache, "structured_memory_confidence_threshold", 0.25)
+            )
+            # Soft mask: smooth transition around threshold
+            sharpness = float(getattr(kv_cache, "structured_memory_routing_sharpness", 5.0))
+            soft_mask = torch.sigmoid(
+                sharpness * (conf - conf_threshold)
+            )  # [B, H], range (0, 1)
+            memory_head_mask = soft_mask[:, None, :, None].to(out.dtype)  # [B, 1, H, 1]
+        # Store confidence on kv_cache for pipeline-level access (dynamic CFG)
+        if hasattr(kv_cache, '_last_memory_confidence'):
+            kv_cache._last_memory_confidence = float(memory.confidence.max().item())
+
         return fuse_parallel_attention(
             out,
             memory.output,

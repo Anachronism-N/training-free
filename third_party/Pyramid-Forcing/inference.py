@@ -185,6 +185,11 @@ parser.add_argument(
 parser.add_argument("--pyramidkv_structured_memory_layer_start", type=int, default=None)
 parser.add_argument("--pyramidkv_structured_memory_layer_end", type=int, default=None)
 parser.add_argument("--pyramidkv_structured_memory_warmup_blocks", type=int, default=None)
+parser.add_argument("--pyramidkv_structured_memory_head_routing", type=str, default=None)
+parser.add_argument("--pyramidkv_structured_memory_routing_sharpness", type=float, default=None)
+parser.add_argument("--dynamic_cfg_enabled", action="store_true", default=False)
+parser.add_argument("--dynamic_cfg_min_scale", type=float, default=1.0)
+parser.add_argument("--dynamic_cfg_max_scale", type=float, default=5.0)
 args = parser.parse_args()
 
 

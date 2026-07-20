@@ -45,6 +45,12 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
         self.use_pyramidkv = getattr(args, "use_pyramidkv", False)
         self.pyramidkv_config = PyramidKVPipelineConfig.from_args(args, frame_seq_length=self.frame_seq_length)
 
+        # Dynamic CFG: memory confidence modulates guidance scale
+        self.dynamic_cfg_enabled = bool(getattr(args, "dynamic_cfg_enabled", False))
+        self.dynamic_cfg_min_scale = float(getattr(args, "dynamic_cfg_min_scale", 1.0))
+        self.dynamic_cfg_max_scale = float(getattr(args, "dynamic_cfg_max_scale", 5.0))
+        self._last_memory_confidence = 0.0  # Updated by memory readout
+
         print(f"KV inference with {self.num_frame_per_block} frames per block")
 
         if self.num_frame_per_block > 1:
@@ -230,6 +236,10 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                     cache_start=cache_start_frame * self.frame_seq_length,
                     cache_update_mode="noisy",
                 )
+                # Update memory confidence for dynamic CFG
+                if self.dynamic_cfg_enabled and self.kv_cache_pos:
+                    confs = [getattr(c, '_last_memory_confidence', 0.0) for c in self.kv_cache_pos]
+                    self._last_memory_confidence = max(confs) if confs else 0.0
                 flow_pred_uncond, _ = self.generator(
                     noisy_image_or_video=latent_model_input,
                     conditional_dict=unconditional_dict,
@@ -243,6 +253,22 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
 
                 flow_pred = flow_pred_uncond + self.args.guidance_scale * (
                     flow_pred_cond - flow_pred_uncond)
+
+                # Dynamic CFG: when memory confidence is high (strong historical
+                # retrieval), reduce guidance scale to let memory provide structure
+                # instead of forcing prompt adherence. When confidence is low,
+                # keep high guidance for prompt-driven generation.
+                if self.dynamic_cfg_enabled:
+                    # _last_memory_confidence is updated by the memory readout
+                    # during the cond forward. Range [0, 1].
+                    conf = self._last_memory_confidence
+                    # Linear interpolation: high confidence -> lower guidance
+                    effective_scale = (
+                        self.dynamic_cfg_max_scale
+                        + conf * (self.dynamic_cfg_min_scale - self.dynamic_cfg_max_scale)
+                    )
+                    flow_pred = flow_pred_uncond + effective_scale * (
+                        flow_pred_cond - flow_pred_uncond)
 
                 temp_x0 = sample_scheduler.step(
                     flow_pred,
@@ -410,6 +436,8 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         structured_memory_layer_start=hc.pyramidkv_structured_memory_layer_start,
                         structured_memory_layer_end=hc.pyramidkv_structured_memory_layer_end,
                         structured_memory_warmup_blocks=hc.pyramidkv_structured_memory_warmup_blocks,
+                        structured_memory_head_routing=hc.pyramidkv_structured_memory_head_routing,
+                        structured_memory_routing_sharpness=hc.pyramidkv_structured_memory_routing_sharpness,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(
@@ -518,6 +546,8 @@ class CausalDiffusionInferencePipeline(torch.nn.Module):
                         structured_memory_layer_start=hc.pyramidkv_structured_memory_layer_start,
                         structured_memory_layer_end=hc.pyramidkv_structured_memory_layer_end,
                         structured_memory_warmup_blocks=hc.pyramidkv_structured_memory_warmup_blocks,
+                        structured_memory_head_routing=hc.pyramidkv_structured_memory_head_routing,
+                        structured_memory_routing_sharpness=hc.pyramidkv_structured_memory_routing_sharpness,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(

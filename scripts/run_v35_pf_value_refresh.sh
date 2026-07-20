@@ -39,6 +39,11 @@ MEMORY_HEAD_LABELS="${MEMORY_HEAD_LABELS:-}"
 MEMORY_LAYER_START="${MEMORY_LAYER_START:-15}"
 MEMORY_LAYER_END="${MEMORY_LAYER_END:-25}"
 MEMORY_WARMUP_BLOCKS="${MEMORY_WARMUP_BLOCKS:-0}"
+MEMORY_HEAD_ROUTING="${MEMORY_HEAD_ROUTING:-static}"
+MEMORY_ROUTING_SHARPNESS="${MEMORY_ROUTING_SHARPNESS:-5.0}"
+DYNAMIC_CFG_ENABLED="${DYNAMIC_CFG_ENABLED:-0}"
+DYNAMIC_CFG_MIN_SCALE="${DYNAMIC_CFG_MIN_SCALE:-1.0}"
+DYNAMIC_CFG_MAX_SCALE="${DYNAMIC_CFG_MAX_SCALE:-5.0}"
 GPU="${CUDA_VISIBLE_DEVICES:-0}"
 RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)}"
 TAG="${METHOD_TAG:-pf_refresh_s${STRENGTH//./}_r${RECENT_FRAMES}_g${GATE_LAMBDA//./}}"
@@ -55,6 +60,9 @@ if [[ "$STRUCTURED_MEMORY_ENABLE" == "1" ]]; then
 fi
 if [[ -n "$MEMORY_HEAD_LABELS" ]]; then
     EXTRA_ARGS+=(--pyramidkv_structured_memory_head_labels "$MEMORY_HEAD_LABELS")
+fi
+if [[ "$DYNAMIC_CFG_ENABLED" == "1" ]]; then
+    EXTRA_ARGS+=(--dynamic_cfg_enabled --dynamic_cfg_min_scale "$DYNAMIC_CFG_MIN_SCALE" --dynamic_cfg_max_scale "$DYNAMIC_CFG_MAX_SCALE")
 fi
 
 mkdir -p "$OUT"
@@ -125,6 +133,8 @@ PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" CUDA_VISIBLE_DEVICES="$GPU" py
     --pyramidkv_structured_memory_layer_start "$MEMORY_LAYER_START" \
     --pyramidkv_structured_memory_layer_end "$MEMORY_LAYER_END" \
     --pyramidkv_structured_memory_warmup_blocks "$MEMORY_WARMUP_BLOCKS" \
+    --pyramidkv_structured_memory_head_routing "$MEMORY_HEAD_ROUTING" \
+    --pyramidkv_structured_memory_routing_sharpness "$MEMORY_ROUTING_SHARPNESS" \
     "${EXTRA_ARGS[@]}"
 
 echo "Done: $OUT"
