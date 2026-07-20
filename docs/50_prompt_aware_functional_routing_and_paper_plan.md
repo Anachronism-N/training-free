@@ -197,3 +197,47 @@ correct memory 必须优于 wrong-scene、shuffled-V 和 abstain。否则 archiv
 证明 per-head CFG；有效差异主要来自 retrieval 和合法的全局 dynamic CFG。
 
 后续报告必须显式标注，不能把 no-op/无效路径写成正向消融。
+
+## 8. 真实三 Prompt Head 诊断结果
+
+诊断路径：`runs/head_diagnostic/diagnostic_report.json`。使用三个不同自然 prompt、120 latent
+frames，收集所有层的 per-head raw-query 方向；memory readout 只在层 15–20 开启。
+
+### 8.1 Memory layers 15–20 的配对统计
+
+| 指标 | 数值 | 判断 |
+|---|---:|---|
+| Prompt sensitivity CV | 0.3145 | 存在可分性 |
+| History confidence CV | 0.2798 | 中等可分性 |
+| Retrieval margin CV | 1.1712 | 强可分性 |
+| Prompt–confidence correlation | 0.2538 | 两信号不是同一维度 |
+| Prompt–margin correlation | -0.3953 | 弱到中等负相关 |
+
+Prompt sensitivity 定义为跨 prompt 的 query centroid 差异除以同 prompt 内时间差异，而不是
+不存在的 CFG cond/uncond 差值。这个结果说明在线功能信号具备继续实验的必要条件，但尚未
+证明按信号路由能提升视频。
+
+### 8.2 与 PF 标签的区别
+
+层 15–20 共 72 个 head。动态四角色与 PF `-1/1/2` 并不一一对应。例如 PF oscillating
+heads 被分配为：layout-memory 6、local-motion 7、prompt-driven 10、semantic-memory 4；
+PF stable heads 则横跨四类。这说明新信号不是 PF 标签的重命名。
+
+注意：四类当前使用每层中位数划分，必然生成各象限样本，不能作为“自然聚类存在”的证明。
+真正的证据必须来自 corrected v49b routing ablation：functional routing 相对 PF-static、
+confidence-only 和 no-routing 的最终视频/指标收益。
+
+## 9. 三 Prompt 30 秒初步 VBench
+
+| 方法 | Subject | Background | Aesthetic | Imaging | Motion | Dynamic |
+|---|---:|---:|---:|---:|---:|---:|
+| SF native | 0.91721 | 0.92701 | 0.55408 | 0.63610 | 0.95138 | 0.88889 |
+| PF | 0.93283 | 0.92584 | **0.60863** | 0.62708 | 0.96791 | 0.95556 |
+| PF + retrieval-only | 0.93804 | 0.93159 | 0.59321 | **0.64790** | 0.97309 | **0.97778** |
+| “full-guidance” archived run | **0.94130** | **0.93342** | 0.60539 | 0.64600 | **0.97383** | **0.97778** |
+
+Retrieval-only 相对 PF 提高 subject/background/imaging/motion/dynamic，但 aesthetic 下降约
+0.0154。`full-guidance` 不能用于证明 dynamic/per-head CFG，因为 few-step
+`CausalInferencePipeline` 不执行 CFG；其差异包含运行非确定性和其他 memory 配置影响。
+当前仅可得出：独立 full-frame retrieval 在三条 prompt 上有混合但可测的正信号，尚未达到
+论文级结论。
