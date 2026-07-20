@@ -137,5 +137,24 @@ motion +0.00215；imaging下降0.00870。说明K/V空间对齐携带有用内容
 5. 移植到原生SF/CF或证明archive/readout不依赖PF专属机制；
 6. 报告latency、archive显存/内存和readout开销。
 
-若32-prompt结果维持5/6指标Pareto趋势，CEMR可以作为初步可行、与PF有明确区别的论文候选；
-若不能维持，则回退为机制分析，不应强行投稿。
+## 8. 匹配32-prompt结果
+
+使用同一32条MovieGen prompts、相同seed与120 latent frames，按四个8-prompt shard在对应GPU
+运行PF与CEMR，并重新聚合评估：
+
+| 方法 | Subject | Background | Aesthetic | Imaging | Motion | Dynamic |
+|---|---:|---:|---:|---:|---:|---:|
+| PF | 0.97761 | 0.96548 | 0.64681 | 0.72195 | 0.98718 | **0.58750** |
+| CEMR | **0.97882** | **0.96671** | **0.64739** | **0.72667** | **0.98747** | 0.56250 |
+| Δ | +0.00121 | +0.00123 | +0.00058 | +0.00472 | +0.00029 | -0.02500 |
+
+CEMR在5个质量/一致性维度上保持小幅正增益，说明3-prompt趋势能扩展到32 prompts；但Dynamic
+Degree下降0.025，方法仍有保守生成倾向，绝对提升也偏小。因此现在可以称为**初步可行候选**，
+但还不能称为显著SOTA或完成投稿门槛。
+
+下一步必须依赖：
+
+1. seed1/2结果是否保持正方向；
+2. 人工review是否无新增冻结/动作回放；
+3. 真实scene-switch wrong-memory对照；
+4. 至少一个非PF backend。

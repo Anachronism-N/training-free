@@ -144,6 +144,16 @@ VBench-Long：subject/background/aesthetic/imaging/motion/dynamic；另加：
 - full-frame archive有CPU/GPU存储开销；
 - 需要更多seed和人工评审。
 
+### 4.6 Matched 32-prompt result
+
+| Method | Subject | Background | Aesthetic | Imaging | Motion | Dynamic |
+|---|---:|---:|---:|---:|---:|---:|
+| PF | 0.97761 | 0.96548 | 0.64681 | 0.72195 | 0.98718 | **0.58750** |
+| CEMR | **0.97882** | **0.96671** | **0.64739** | **0.72667** | **0.98747** | 0.56250 |
+
+CEMR在5个非dynamic维度上小幅提升，但dynamic下降0.025。论文必须把这描述为受限的质量-动态
+权衡，并通过多seed与人工review排除冻结因素。
+
 ## 6. Submission Gate
 
 只有满足以下条件才进入投稿：
