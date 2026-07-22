@@ -120,8 +120,14 @@ Current Q first selects top-k slots per head. Retrieval logits receive:
 
 Default values are anchor `+0.05`, summary `0.0`, and motion penalty `0.10`.
 The selected K/V then enters the existing independent memory attention branch.
-Recent 12 frames are excluded because they are already represented by native
-attention. Default top-k is 4.
+Recent 12 frames are excluded and default top-k is 4. The first calibration
+keeps a deliberate 9-frame overlap with SF's 21-frame native cache so memory
+can reinforce state before native eviction; a strict 21-frame exclusion is a
+required ablation.
+
+The target fusion gate is 0.15, beginning at frame 12 and linearly ramping for
+12 frames. This replaces the old ineffective `gate=0.05,start=36` setting and
+avoids a hard activation boundary. See `docs/72_lifecache_v3_post_review_optimization.md`.
 
 ## 3. Non-handcrafted head/layer routing
 
@@ -164,12 +170,16 @@ For each memory readout, compute per head:
 - candidate `delta_rms / native_rms`, reproducing RMS matching, confidence,
   acceptance and alignment weighting from the configured fusion mode.
 
-Each signal is converted to a within-layer percentile rank. Their equal-weight
-mean forms online utility. This avoids fixed semantic thresholds and remains
-scale-invariant across layers. A head is invalid when:
+Each signal is converted to a tie-aware within-layer percentile mid-rank, so
+equal evidence cannot be separated by head index. Their equal-weight
+mean forms online utility. Candidate effect receives an increasing rank inside
+a bounded safe range; the previous decreasing rank could prefer no-op heads.
+This avoids semantic thresholds and remains scale-invariant across layers. A
+head is invalid when:
 
 - retrieval already abstained;
 - native-memory alignment is below 0;
+- candidate intervention delta is below 0.005 of native RMS;
 - candidate intervention delta exceeds 0.08 of native RMS.
 
 Among valid heads, retain the top budget fraction. Default candidates are
@@ -230,6 +240,9 @@ single-prompt extrapolation.
 | Variable | Default | Meaning |
 |---|---:|---|
 | `STRUCTURED_MEMORY_ARCHIVE_POLICY` | `typed` in v3 scripts | Enable typed lifecycle |
+| `STRUCTURED_MEMORY_GATE` | `0.15` | Target memory fusion gate |
+| `STRUCTURED_MEMORY_MEMORY_START_FRAME` | `12` | Pre-emptive activation start |
+| `STRUCTURED_MEMORY_ACTIVATION_RAMP_FRAMES` | `12` | Linear target-gate ramp |
 | `STRUCTURED_MEMORY_ARCHIVE_MAX_FRAMES` | `16` | Hard total slot ceiling |
 | `STRUCTURED_MEMORY_TYPED_ANCHOR_FRAMES` | `4` | Exact anchor capacity |
 | `STRUCTURED_MEMORY_TYPED_SUMMARY_SLOTS` | `12` | Temporal summary capacity |
@@ -242,6 +255,7 @@ single-prompt extrapolation.
 | `STRUCTURED_MEMORY_TYPED_MOTION_PENALTY` | `0.10` | Stale-motion retrieval penalty |
 | `STRUCTURED_MEMORY_HEAD_ROUTING` | experiment-specific | `off`, `profile_group`, or intervention mode |
 | `STRUCTURED_MEMORY_INTERVENTION_HEAD_BUDGET_FRACTION` | `0.50` | Top valid head fraction |
+| `STRUCTURED_MEMORY_INTERVENTION_MIN_DELTA_TO_NATIVE` | `0.005` | Reject functionally ineffective heads |
 | `STRUCTURED_MEMORY_INTERVENTION_MAX_DELTA_TO_NATIVE` | `0.08` | Per-head perturbation ceiling |
 | `STRUCTURED_MEMORY_INTERVENTION_PROFILE_PATH` | empty | Offline profile JSON |
 
@@ -258,7 +272,7 @@ cd /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free
 # 4 seeds x SF/PF/Echo/current coverage = 16 jobs. Run once and freeze.
 bash scripts/run_v69_typed_cache_16gpu.sh baselines
 
-# One-seed cache composition, router budget, layer band and safety screen.
+# One-seed strength, activation, cache composition and router screen.
 bash scripts/run_v69_typed_cache_16gpu.sh screen
 
 # 4 layer bands x 4 head groups counterfactual intervention.
@@ -280,7 +294,7 @@ columns:
 ```text
 cell,prompt_id,seed,layer_start,layer_end,head_start,head_end,
 memory_mode,attention_call_index,dino,min_dino,arcface,motion,
-vbench_subject,vbench_dynamic,loop,flicker
+vbench_subject,vbench_dynamic,loop,flicker,temporal_jump
 ```
 
 Ranges in this CSV are inclusive. The launcher uses half-open ranges, so a
@@ -290,7 +304,7 @@ profile:
 
 ```bash
 python scripts/build_intervention_profile.py \
-  runs/v69_profile_12p_30s/intervention_metrics.csv \
+  runs/v72_profile_12p_30s/intervention_metrics.csv \
   configs/lifecache_v3_intervention_profile.json \
   --baseline-cell sf_native
 

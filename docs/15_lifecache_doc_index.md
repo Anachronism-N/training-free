@@ -2,6 +2,13 @@
 
 ## Current method (read first)
 
+- `docs/72_lifecache_v3_post_review_optimization.md`: newest response to the
+  first 30-second human review; replaces weak late activation with a smooth
+  measurable intervention band, revises the 16-GPU screen, adds temporal-jump
+  diagnostics, and defines promotion rules.
+- `docs/71_human_review_and_code_alignment.md`: historical first-run evidence:
+  native SF degrades, PF preserves identity but can jump, old ours cells were
+  functionally native, and Echo OOMed on a partially occupied H20.
 - `docs/70_lifecache_v3_typed_memory_intervention_routing.md`: proposed
   half-life-aware anchor/summary/recent cache, non-handcrafted offline/online
   intervention routing, explicit update rules, 16-GPU matrix, diagnostics and

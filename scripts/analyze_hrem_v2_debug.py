@@ -55,6 +55,8 @@ def _summarize_readouts(records: list[dict[str, Any]]) -> dict[str, Any]:
         "readouts": len(records),
         "delta_to_native_rms_median": _median(records, "delta_to_native_rms"),
         "effective_weight_mean": _mean(records, "effective_weight_mean"),
+        "effective_gate_mean": _mean(records, "effective_gate"),
+        "activation_ramp_scale_mean": _mean(records, "activation_ramp_scale"),
         "confidence_mean": _mean(records, "confidence_mean"),
         "retrieval_margin_mean": _mean(records, "retrieval_margin_mean"),
         "retrieval_entropy_mean": _mean(records, "retrieval_entropy_mean"),
@@ -290,10 +292,16 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     ]
     first_episode_block_gate = _mean(first_episode_block_readouts, "effective_gate")
     configured_episode_warmup = 0
+    configured_activation_ramp = 0
     if configs:
-        configured_episode_warmup = int(
-            ((configs[-1].get("readout") or {}).get("episode_warmup_blocks", 0))
-        )
+        readout_config = configs[-1].get("readout") or {}
+        configured_episode_warmup = int(readout_config.get("episode_warmup_blocks", 0))
+        configured_activation_ramp = int(readout_config.get("activation_ramp_frames", 0))
+    activation_ramp_values = [
+        float(record["activation_ramp_scale"])
+        for record in readouts
+        if record.get("activation_ramp_scale") is not None
+    ]
     accepted_fraction_values = [
         float(record["accepted_head_count"]) / max(1, int(record["head_count"]))
         for record in readouts
@@ -485,6 +493,34 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             f"Mean retrieval confidence is {confidence_mean:.4f}.",
             "Inspect visual score distributions and retrieval temperature.",
         ))
+    if delta_median is not None and delta_median < 0.003:
+        findings.append(_finding(
+            "WARNING", "memory_intervention_effect_too_small",
+            f"Median fused delta/native is only {delta_median:.6f}.",
+            "Treat this cell as functionally native; increase target gate or inspect alignment/selection before judging memory quality.",
+        ))
+    if delta_median is not None and delta_median > 0.10:
+        findings.append(_finding(
+            "WARNING", "memory_intervention_effect_too_large",
+            f"Median fused delta/native is {delta_median:.6f}.",
+            "Reduce target gate or tighten the intervention ceiling before quality comparison.",
+        ))
+    if configured_activation_ramp > 0 and readouts and not activation_ramp_values:
+        findings.append(_finding(
+            "ERROR", "activation_ramp_trace_missing",
+            "Activation ramp is configured but accepted readouts do not record its scale.",
+            "Verify the causal-model bridge and rerun before comparing smooth and hard activation.",
+        ))
+    elif (
+        configured_activation_ramp > 0
+        and activation_ramp_values
+        and min(activation_ramp_values) >= 1.0
+    ):
+        findings.append(_finding(
+            "WARNING", "activation_ramp_not_observed",
+            "Activation ramp was configured, but every accepted readout used full scale.",
+            "Check early retrieval abstention and memory_start_frame before attributing temporal smoothness to the ramp.",
+        ))
     if configured_episode_warmup > 0 and readouts and not episode_warmup_values:
         findings.append(_finding(
             "ERROR", "episode_warmup_trace_missing",
@@ -580,6 +616,17 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
                 max(episode_warmup_values) if episode_warmup_values else None
             ),
             "episode_first_block_effective_gate_mean": first_episode_block_gate,
+            "activation_ramp_frames": configured_activation_ramp,
+            "activation_ramp_scale_mean": (
+                statistics.fmean(activation_ramp_values)
+                if activation_ramp_values else None
+            ),
+            "activation_ramp_scale_min": (
+                min(activation_ramp_values) if activation_ramp_values else None
+            ),
+            "activation_ramp_scale_max": (
+                max(activation_ramp_values) if activation_ramp_values else None
+            ),
         },
         "per_layer": per_layer,
         "per_attention_call": per_attention_call,

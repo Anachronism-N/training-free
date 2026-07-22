@@ -27,7 +27,7 @@ fi
 FRAMES="${FRAMES:-120}"
 SEED="${SEED:-0}"
 PROFILE_PATH="${PROFILE_PATH:-$ROOT/configs/lifecache_v3_intervention_profile.json}"
-OUT_ROOT="${OUT_ROOT:-$ROOT/runs/v69_${MODE}_12p_30s}"
+OUT_ROOT="${OUT_ROOT:-$ROOT/runs/v72_${MODE}_12p_30s}"
 FORCE="${FORCE:-0}"
 GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}"
 REFINE_LAYER_START="${REFINE_LAYER_START:-15}"
@@ -81,6 +81,14 @@ video_count() {
     find "$output" -maxdepth 1 -type f -name '*.mp4' | wc -l
 }
 
+gpu_snapshot() {
+    local gpu="$1"
+    echo "[gpu-before] requested_device=$gpu"
+    nvidia-smi -i "$gpu" \
+        --query-gpu=index,name,memory.total,memory.used,memory.free,utilization.gpu \
+        --format=csv,noheader 2>&1 || true
+}
+
 run_native() {
     local name="$1" gpu="$2" seed="$3"
     local output="$OUT_ROOT/$name" log="$OUT_ROOT/logs/$name.log"
@@ -90,6 +98,7 @@ run_native() {
     fi
     mkdir -p "$output"
     (
+        gpu_snapshot "$gpu"
         cd "$SF" || exit 2
         export CUDA_VISIBLE_DEVICES="$gpu"
         export LIFECACHE_ENABLE=0 HEAD_ROLE_ENABLE=0 HEAD_ROLE_POOL_ENABLE=0
@@ -120,6 +129,7 @@ run_external() {
     fi
     mkdir -p "$output"
     (
+        gpu_snapshot "$gpu"
         cd "$repo" || exit 2
         export CUDA_VISIBLE_DEVICES="$gpu"
         export LIFECACHE_ENABLE=0 HEAD_ROLE_ENABLE=0 HEAD_ROLE_POOL_ENABLE=0
@@ -139,6 +149,11 @@ run_cell() {
     shift 9
     local budget="$1" max_delta="$2" motion_penalty="$3" top_k="$4"
     local head_start="$5" head_end="$6" target_call="$7"
+    local cell_gate="${CELL_GATE:-0.15}"
+    local memory_start_frame="${CELL_MEMORY_START_FRAME:-12}"
+    local activation_ramp_frames="${CELL_ACTIVATION_RAMP_FRAMES:-12}"
+    local recent_exclude_frames="${CELL_RECENT_EXCLUDE_FRAMES:-12}"
+    local min_delta="${CELL_MIN_DELTA_TO_NATIVE:-0.005}"
     local output="$OUT_ROOT/$name" log="$OUT_ROOT/logs/$name.log"
     local trace="$OUT_ROOT/traces/$name.jsonl"
     if [[ "$FORCE" != "1" && "$(video_count "$output")" -ge "$PROMPT_COUNT" && -s "$trace" ]]; then
@@ -152,6 +167,7 @@ run_cell() {
         archive_max=$((anchors + summaries))
     fi
     (
+        gpu_snapshot "$gpu"
         cd "$SF" || exit 2
         export CUDA_VISIBLE_DEVICES="$gpu"
         export HREM_RUN_COMMIT="$RUN_COMMIT" HREM_RUN_CELL="$name"
@@ -159,7 +175,7 @@ run_cell() {
         export HREM_RUN_PROMPT_PATH="$PROMPTS" HREM_RUN_PROMPT_SHA256="$PROMPT_SHA256"
         export HREM_PROMPT_SHA256="$PROMPT_SHA256"
         export LIFECACHE_ENABLE=0 HEAD_ROLE_ENABLE=0 HEAD_ROLE_POOL_ENABLE=0
-        export STRUCTURED_MEMORY_ENABLE=1 STRUCTURED_MEMORY_GATE=0.05
+        export STRUCTURED_MEMORY_ENABLE=1 STRUCTURED_MEMORY_GATE="$cell_gate"
         export STRUCTURED_MEMORY_ARCHIVE_POLICY="$policy"
         export STRUCTURED_MEMORY_ARCHIVE_MAX_FRAMES="$archive_max"
         export STRUCTURED_MEMORY_SPATIAL_STRIDE=4
@@ -174,7 +190,7 @@ run_cell() {
         export STRUCTURED_MEMORY_TYPED_SUMMARY_BIAS=0.0
         export STRUCTURED_MEMORY_TYPED_MOTION_PENALTY="$motion_penalty"
         export STRUCTURED_MEMORY_TOP_K_FRAMES="$top_k"
-        export STRUCTURED_MEMORY_RECENT_EXCLUDE_FRAMES=12
+        export STRUCTURED_MEMORY_RECENT_EXCLUDE_FRAMES="$recent_exclude_frames"
         export STRUCTURED_MEMORY_SELECTION_POLICY=query
         export STRUCTURED_MEMORY_SELECTION_SCOPE=per_head
         export STRUCTURED_MEMORY_RETRIEVAL_TEMPERATURE=0.20
@@ -189,6 +205,7 @@ run_cell() {
         export STRUCTURED_MEMORY_INTERVENTION_HEAD_BUDGET_FRACTION="$budget"
         export STRUCTURED_MEMORY_INTERVENTION_EMA_DECAY=0.90
         export STRUCTURED_MEMORY_INTERVENTION_MIN_ALIGNMENT=0.0
+        export STRUCTURED_MEMORY_INTERVENTION_MIN_DELTA_TO_NATIVE="$min_delta"
         export STRUCTURED_MEMORY_INTERVENTION_MAX_DELTA_TO_NATIVE="$max_delta"
         export STRUCTURED_MEMORY_INTERVENTION_MIN_UTILITY_SPREAD=0.02
         export STRUCTURED_MEMORY_INTERVENTION_MIN_OBSERVATIONS=2
@@ -201,7 +218,8 @@ run_cell() {
         export STRUCTURED_MEMORY_PROFILE_ATTENTION_CALL_INDEX="$target_call"
         export STRUCTURED_MEMORY_LAYER_START="$layer_start"
         export STRUCTURED_MEMORY_LAYER_END="$layer_end"
-        export STRUCTURED_MEMORY_MEMORY_START_FRAME=36
+        export STRUCTURED_MEMORY_MEMORY_START_FRAME="$memory_start_frame"
+        export STRUCTURED_MEMORY_ACTIVATION_RAMP_FRAMES="$activation_ramp_frames"
         export STRUCTURED_MEMORY_EPISODE_GATE_MODE=intra_episode
         export STRUCTURED_MEMORY_EPISODE_GATE_ACTIVATION_EPISODE=0
         export STRUCTURED_MEMORY_EPISODE_FRAME_PRIOR_MODE=off
@@ -221,21 +239,25 @@ run_cell() {
 
 launch_screen() {
     run_native sf_native "${GPUS[0]}" "$SEED" & PIDS+=("$!")
-    run_cell coverage_all "${GPUS[1]}" "$SEED" coverage off 15 22 4 12 1.0 1.0 0.0 4 0 12 -1 & PIDS+=("$!")
-    run_cell typed_all "${GPUS[2]}" "$SEED" typed off 15 22 4 12 1.0 1.0 0.10 4 0 12 -1 & PIDS+=("$!")
-    run_cell anchor_only "${GPUS[3]}" "$SEED" typed off 15 22 8 0 1.0 1.0 0.10 4 0 12 -1 & PIDS+=("$!")
-    run_cell summary_only "${GPUS[4]}" "$SEED" typed off 15 22 0 16 1.0 1.0 0.10 4 0 12 -1 & PIDS+=("$!")
-    run_cell online_b25 "${GPUS[5]}" "$SEED" typed intervention_online 15 22 4 12 0.25 0.08 0.10 4 0 12 -1 & PIDS+=("$!")
-    run_cell online_b50 "${GPUS[6]}" "$SEED" typed intervention_online 15 22 4 12 0.50 0.08 0.10 4 0 12 -1 & PIDS+=("$!")
-    run_cell online_b75 "${GPUS[7]}" "$SEED" typed intervention_online 15 22 4 12 0.75 0.08 0.10 4 0 12 -1 & PIDS+=("$!")
-    run_cell online_no_motion_penalty "${GPUS[8]}" "$SEED" typed intervention_online 15 22 4 12 0.50 0.08 0.0 4 0 12 -1 & PIDS+=("$!")
-    run_cell online_strict_delta "${GPUS[9]}" "$SEED" typed intervention_online 15 22 4 12 0.50 0.03 0.10 4 0 12 -1 & PIDS+=("$!")
-    run_cell online_loose_delta "${GPUS[10]}" "$SEED" typed intervention_online 15 22 4 12 0.50 0.15 0.10 4 0 12 -1 & PIDS+=("$!")
-    run_cell online_l0_10 "${GPUS[11]}" "$SEED" typed intervention_online 0 10 4 12 0.50 0.08 0.10 4 0 12 -1 & PIDS+=("$!")
-    run_cell online_l10_20 "${GPUS[12]}" "$SEED" typed intervention_online 10 20 4 12 0.50 0.08 0.10 4 0 12 -1 & PIDS+=("$!")
-    run_cell online_l20_30 "${GPUS[13]}" "$SEED" typed intervention_online 20 30 4 12 0.50 0.08 0.10 4 0 12 -1 & PIDS+=("$!")
-    run_cell online_top2 "${GPUS[14]}" "$SEED" typed intervention_online 15 22 4 12 0.50 0.08 0.10 2 0 12 -1 & PIDS+=("$!")
-    run_cell online_top6 "${GPUS[15]}" "$SEED" typed intervention_online 15 22 4 12 0.50 0.08 0.10 6 0 12 -1 & PIDS+=("$!")
+    CELL_GATE=0.05 CELL_MEMORY_START_FRAME=36 CELL_ACTIVATION_RAMP_FRAMES=0 \
+        run_cell coverage_legacy_g005_s36 "${GPUS[1]}" "$SEED" coverage off 15 22 4 12 1.0 1.0 0.0 4 0 12 -1 & PIDS+=("$!")
+    CELL_GATE=0.05 CELL_MEMORY_START_FRAME=36 CELL_ACTIVATION_RAMP_FRAMES=0 \
+        run_cell typed_legacy_g005_s36 "${GPUS[2]}" "$SEED" typed off 15 22 4 12 1.0 1.0 0.10 4 0 12 -1 & PIDS+=("$!")
+    CELL_GATE=0.10 run_cell typed_g010_r12 "${GPUS[3]}" "$SEED" typed off 15 22 4 12 1.0 1.0 0.10 4 0 12 -1 & PIDS+=("$!")
+    CELL_GATE=0.15 run_cell typed_g015_r12 "${GPUS[4]}" "$SEED" typed off 15 22 4 12 1.0 1.0 0.10 4 0 12 -1 & PIDS+=("$!")
+    CELL_GATE=0.20 run_cell typed_g020_r12 "${GPUS[5]}" "$SEED" typed off 15 22 4 12 1.0 1.0 0.10 4 0 12 -1 & PIDS+=("$!")
+    CELL_ACTIVATION_RAMP_FRAMES=0 run_cell typed_g015_hard_on "${GPUS[6]}" "$SEED" typed off 15 22 4 12 1.0 1.0 0.10 4 0 12 -1 & PIDS+=("$!")
+    CELL_MEMORY_START_FRAME=21 CELL_RECENT_EXCLUDE_FRAMES=21 \
+        run_cell typed_g015_nonoverlap "${GPUS[7]}" "$SEED" typed off 15 22 4 12 1.0 1.0 0.10 4 0 12 -1 & PIDS+=("$!")
+    run_cell anchor_only_g015 "${GPUS[8]}" "$SEED" typed off 15 22 8 0 1.0 1.0 0.10 4 0 12 -1 & PIDS+=("$!")
+    run_cell summary_only_g015 "${GPUS[9]}" "$SEED" typed off 15 22 0 16 1.0 1.0 0.10 4 0 12 -1 & PIDS+=("$!")
+    run_cell online_b25_g015 "${GPUS[10]}" "$SEED" typed intervention_online 15 22 4 12 0.25 0.08 0.10 4 0 12 -1 & PIDS+=("$!")
+    run_cell online_b50_g015 "${GPUS[11]}" "$SEED" typed intervention_online 15 22 4 12 0.50 0.08 0.10 4 0 12 -1 & PIDS+=("$!")
+    run_cell online_b75_g015 "${GPUS[12]}" "$SEED" typed intervention_online 15 22 4 12 0.75 0.08 0.10 4 0 12 -1 & PIDS+=("$!")
+    CELL_MIN_DELTA_TO_NATIVE=0 run_cell online_no_effect_floor "${GPUS[13]}" "$SEED" typed intervention_online 15 22 4 12 0.50 0.08 0.10 4 0 12 -1 & PIDS+=("$!")
+    CELL_MEMORY_START_FRAME=21 CELL_RECENT_EXCLUDE_FRAMES=21 \
+        run_cell online_recent21 "${GPUS[14]}" "$SEED" typed intervention_online 15 22 4 12 0.50 0.08 0.10 4 0 12 -1 & PIDS+=("$!")
+    run_cell online_no_motion_penalty "${GPUS[15]}" "$SEED" typed intervention_online 15 22 4 12 0.50 0.08 0.0 4 0 12 -1 & PIDS+=("$!")
 }
 
 launch_baselines() {
@@ -333,6 +355,15 @@ esac
 
 wait_batch
 status="$BATCH_STATUS"
+shopt -s nullglob
+for run_config in "$OUT_ROOT"/*/run_config.env; do
+    cell="$(basename "$(dirname "$run_config")")"
+    trace="$OUT_ROOT/traces/$cell.jsonl"
+    if [[ ! -s "$trace" ]]; then
+        echo "[error] missing required trace for $cell: $trace"
+        status=1
+    fi
+done
 for trace in "$OUT_ROOT"/traces/*.jsonl; do
     [[ -s "$trace" ]] || continue
     diagnosis="${trace%.jsonl}_diagnosis.json"

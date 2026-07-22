@@ -9,6 +9,11 @@ assert SPEC.loader is not None
 SPEC.loader.exec_module(MODULE)
 
 
+def test_percentile_ranks_use_midrank_for_ties():
+    assert MODULE._percentile_ranks([1.0, 1.0, 3.0]) == [0.25, 0.25, 1.0]
+    assert MODULE._percentile_ranks([2.0, 2.0, 2.0]) == [0.5, 0.5, 0.5]
+
+
 def test_profile_pairs_native_and_expands_groups():
     rows = []
     for seed in ("0", "1", "2"):

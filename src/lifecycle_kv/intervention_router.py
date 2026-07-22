@@ -15,6 +15,7 @@ class InterventionRoutingConfig:
     head_budget_fraction: float = 0.5
     ema_decay: float = 0.9
     min_alignment: float = 0.0
+    min_delta_to_native: float = 0.005
     max_delta_to_native: float = 0.08
     min_utility_spread: float = 0.02
     min_observations: int = 1
@@ -28,8 +29,10 @@ class InterventionRoutingConfig:
             raise ValueError("ema_decay must be in [0, 1)")
         if not -1.0 <= self.min_alignment < 1.0:
             raise ValueError("min_alignment must be in [-1, 1)")
-        if self.max_delta_to_native <= 0.0:
-            raise ValueError("max_delta_to_native must be positive")
+        if self.min_delta_to_native < 0.0:
+            raise ValueError("min_delta_to_native must be non-negative")
+        if self.max_delta_to_native <= self.min_delta_to_native:
+            raise ValueError("max_delta_to_native must exceed min_delta_to_native")
         if self.min_utility_spread < 0.0:
             raise ValueError("min_utility_spread must be non-negative")
         if self.min_observations < 0:
@@ -125,16 +128,20 @@ class OfflineInterventionProfile:
 
 
 def _rank01(values: torch.Tensor) -> torch.Tensor:
-    """Convert each batch row to deterministic percentile ranks."""
+    """Convert each batch row to tie-aware percentile mid-ranks."""
     if values.ndim != 2:
         raise ValueError("rank input must be [batch, head]")
     if values.shape[1] == 1:
-        return torch.ones_like(values)
-    order = torch.argsort(values, dim=-1, stable=True)
-    ranks = torch.empty_like(values)
-    base = torch.linspace(0.0, 1.0, values.shape[1], device=values.device)
-    ranks.scatter_(1, order, base.unsqueeze(0).expand_as(values))
-    return ranks
+        return torch.full_like(values, 0.5)
+    row_values = values.float()
+    less = (
+        row_values.unsqueeze(-1) > row_values.unsqueeze(-2)
+    ).sum(dim=-1)
+    equal = (
+        row_values.unsqueeze(-1) == row_values.unsqueeze(-2)
+    ).sum(dim=-1)
+    mid_rank = less.float() + 0.5 * (equal.float() - 1.0)
+    return (mid_rank / (values.shape[1] - 1)).to(values.dtype)
 
 
 def _query_stability(q: torch.Tensor, reference: torch.Tensor | None) -> torch.Tensor:
@@ -212,7 +219,7 @@ def route_memory_intervention(
             _rank01(1.0 - retrieval_entropy.float()),
             _rank01(query_stability),
             _rank01(alignment),
-            _rank01(-delta_to_native),
+            _rank01(delta_to_native),
         ],
         dim=0,
     )
@@ -250,6 +257,7 @@ def route_memory_intervention(
     valid = (
         accepted.bool()
         & (alignment >= config.min_alignment)
+        & (delta_to_native >= config.min_delta_to_native)
         & (delta_to_native <= config.max_delta_to_native)
     )
     if config.mode == "offline":

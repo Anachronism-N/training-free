@@ -11,6 +11,10 @@ counterfactual and online intervention utility rather than manually named head
 roles. Single-prompt 30s+ extrapolation is the primary task; scoped scene return
 is secondary. These mechanisms are hypotheses pending GPU experiments, not
 established quality improvements.
+The first 30-second human review and the resulting smooth-activation,
+effect-aware correction are recorded in
+`docs/71_human_review_and_code_alignment.md` and
+`docs/72_lifecache_v3_post_review_optimization.md`.
 The paper/code provenance ledger, license audit, high-overlap related work,
 and claim-safety rules are recorded in
 `docs/64_related_work_code_provenance_and_claims.md`.
@@ -39,7 +43,8 @@ Long AR video generation needs to answer four questions before using history:
   offline layer/head prior and current retrieval/alignment/error evidence for
   online safety routing. Do not assign semantic head labels by index.
 - **How to fuse?** Use a separate bounded memory-attention branch; never write
-  recalled K/V into the native cache.
+  recalled K/V into the native cache. Activate it with a measurable but bounded
+  effect and a temporal ramp instead of an abrupt cache switch.
 
 LifeCache-v1 and CEMR remain in the repository as prior prototypes and
 ablation infrastructure.
@@ -56,7 +61,9 @@ training-free/
 |   |-- 64_related_work_code_provenance_and_claims.md
 |   |-- 68_single_prompt_continuity_recall.md
 |   |-- 69_paper_alignment_canonical_experiments.md
-|   `-- 70_lifecache_v3_typed_memory_intervention_routing.md
+|   |-- 70_lifecache_v3_typed_memory_intervention_routing.md
+|   |-- 71_human_review_and_code_alignment.md
+|   `-- 72_lifecache_v3_post_review_optimization.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -65,6 +72,7 @@ training-free/
 |   |-- bootstrap_repos.sh
 |   |-- analyze_hrem_v2_debug.py
 |   |-- build_intervention_profile.py
+|   |-- compute_temporal_jump_diagnostic.py
 |   |-- run_v69_typed_cache_16gpu.sh
 |   `-- ...
 |-- src/
@@ -107,6 +115,8 @@ The LifeCache-v3 candidate is connected to the HREM-v2 side-memory path:
   diagnostics without conflating retrieval acceptance and role selection.
 - `scripts/build_intervention_profile.py`: converts paired native/intervention
   video metrics into a reliability-weighted layer/head/call profile.
+- `scripts/compute_temporal_jump_diagnostic.py`: paired appearance/flow jump
+  diagnostics for the PF discontinuity and smooth-activation ablation.
 - `scripts/run_v69_typed_cache_16gpu.sh`: 12-prompt, 16-GPU baseline, cache
   screen, counterfactual profile, hybrid and multiseed confirmation phases.
 
@@ -122,7 +132,7 @@ The canonical paper experiments are documented in:
 docs/69_paper_alignment_canonical_experiments.md
 ```
 
-The primary single-prompt matrix contains:
+The original 3-prompt matrix contained:
 
 ```text
 sf_native
@@ -132,9 +142,11 @@ ours_all_heads
 ours_role
 ```
 
-The original first pass uses three complex prompts. LifeCache-v3 expands method
-selection to 12 prompts and uses four seeds for baseline/confirmation phases,
-followed by blind human review, metrics, and trace analysis in that order.
+Its ours cells were functionally inconclusive because they used gate `0.05`,
+started at frame 36, and produced no useful head selectivity. The revised v3
+screen uses 12 disjoint calibration prompts, target gates `0.10/0.15/0.20`,
+smooth versus hard activation, typed-cache ablations, and effect-aware online
+routing. Frozen evaluation uses a different 12-prompt suite and four seeds.
 
 ## Third-Party Code
 

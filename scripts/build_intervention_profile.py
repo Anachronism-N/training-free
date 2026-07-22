@@ -19,7 +19,7 @@ from pathlib import Path
 
 IDENTITY_METRICS = ("dino", "min_dino", "arcface", "vbench_subject")
 DYNAMICS_METRICS = ("motion", "vbench_dynamic")
-LOWER_IS_BETTER = ("loop", "flicker")
+LOWER_IS_BETTER = ("loop", "flicker", "temporal_jump")
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,11 +51,18 @@ def _pair_key(row: dict[str, str]) -> tuple[str, str]:
 
 def _percentile_ranks(values: list[float]) -> list[float]:
     if len(values) <= 1:
-        return [1.0] * len(values)
+        return [0.5] * len(values)
     order = sorted(range(len(values)), key=lambda index: (values[index], index))
     result = [0.0] * len(values)
-    for rank, index in enumerate(order):
-        result[index] = rank / (len(values) - 1)
+    position = 0
+    while position < len(order):
+        end = position + 1
+        while end < len(order) and values[order[end]] == values[order[position]]:
+            end += 1
+        mid_rank = 0.5 * (position + end - 1) / (len(values) - 1)
+        for offset in range(position, end):
+            result[order[offset]] = mid_rank
+        position = end
     return result
 
 

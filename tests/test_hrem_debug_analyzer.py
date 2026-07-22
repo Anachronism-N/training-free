@@ -237,6 +237,37 @@ def test_episode_warmup_scale_is_reported() -> None:
     )
 
 
+def test_activation_ramp_and_ineffective_memory_are_reported() -> None:
+    records = [
+        {
+            "event": "config",
+            "readout": {"activation_ramp_frames": 12},
+        },
+        {"event": "commit", "layer": 15},
+        {
+            "event": "readout",
+            "layer": 15,
+            "current_episode_id": 0,
+            "accepted_head_count": 6,
+            "head_count": 12,
+            "confidence_mean": 0.4,
+            "head_gate_mean": 0.5,
+            "alignment_positive_fraction": 0.5,
+            "effective_weight_mean": 0.001,
+            "delta_to_native_rms": 0.001,
+            "activation_ramp_scale": 0.25,
+            "effective_gate": 0.0375,
+        },
+    ]
+
+    report = analyze_records(records)
+    assert report["metrics"]["activation_ramp_scale_min"] == 0.25
+    assert any(
+        finding["code"] == "memory_intervention_effect_too_small"
+        for finding in report["findings"]
+    )
+
+
 def test_empty_boundary_archive_snapshot_is_an_error() -> None:
     records = [
         {"event": "commit", "layer": 15},

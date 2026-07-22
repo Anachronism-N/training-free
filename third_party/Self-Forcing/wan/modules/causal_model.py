@@ -1293,6 +1293,9 @@ class CausalWanSelfAttention(nn.Module):
                 min_alignment=float(
                     config.get("intervention_min_alignment", 0.0)
                 ),
+                min_delta_to_native=float(
+                    config.get("intervention_min_delta_to_native", 0.005)
+                ),
                 max_delta_to_native=float(
                     config.get("intervention_max_delta_to_native", 0.08)
                 ),
@@ -1503,6 +1506,15 @@ class CausalWanSelfAttention(nn.Module):
         if warmup > 0:
             global_warmup_scale = min(1.0, (current_block + 1) / warmup)
             gate *= global_warmup_scale
+        activation_ramp_frames = int(config.get("activation_ramp_frames", 0))
+        activation_ramp_scale = 1.0
+        if activation_ramp_frames > 0:
+            activation_age = max(0, current_frame - memory_start_frame)
+            activation_ramp_scale = min(
+                1.0,
+                (activation_age + query_frames) / activation_ramp_frames,
+            )
+            gate *= activation_ramp_scale
         episode_warmup_blocks = int(config.get("episode_warmup_blocks", 0))
         episode_warmup = compute_episode_warmup(
             current_frame=current_frame,
@@ -1632,7 +1644,8 @@ class CausalWanSelfAttention(nn.Module):
                 f"routing={routing_mode} "
                 f"head_gate={fusion_diagnostics['head_gate_mean']:.4f} "
                 f"episode_block={episode_warmup.episode_block_index} "
-                f"ramp={episode_warmup.scale:.3f} "
+                f"activation_ramp={activation_ramp_scale:.3f} "
+                f"episode_ramp={episode_warmup.scale:.3f} "
                 f"margin={fusion_diagnostics['retrieval_margin_mean']:.4f} "
                 f"entropy={fusion_diagnostics['retrieval_entropy_mean']:.4f} "
                 f"gate_range={fusion_diagnostics['head_gate_p10']:.3f}:"
@@ -1661,6 +1674,8 @@ class CausalWanSelfAttention(nn.Module):
                 eligible_frame_count=eligible_frame_count,
                 base_gate=float(base_gate),
                 global_warmup_scale=float(global_warmup_scale),
+                activation_ramp_frames=activation_ramp_frames,
+                activation_ramp_scale=float(activation_ramp_scale),
                 episode_warmup_blocks=episode_warmup_blocks,
                 episode_warmup_scale=float(episode_warmup.scale),
                 episode_block_index=episode_warmup.episode_block_index,

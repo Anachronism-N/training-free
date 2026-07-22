@@ -462,6 +462,9 @@ class CausalInferencePipeline(torch.nn.Module):
             "memory_start_frame": _env_int(
                 "STRUCTURED_MEMORY_MEMORY_START_FRAME", 0
             ),
+            "activation_ramp_frames": _env_int(
+                "STRUCTURED_MEMORY_ACTIVATION_RAMP_FRAMES", 0
+            ),
             "dual_min_semantic_similarity": _env_float(
                 "STRUCTURED_MEMORY_DUAL_MIN_SEMANTIC_SIMILARITY", 0.20
             ),
@@ -506,6 +509,9 @@ class CausalInferencePipeline(torch.nn.Module):
             ),
             "intervention_min_alignment": _env_float(
                 "STRUCTURED_MEMORY_INTERVENTION_MIN_ALIGNMENT", 0.0
+            ),
+            "intervention_min_delta_to_native": _env_float(
+                "STRUCTURED_MEMORY_INTERVENTION_MIN_DELTA_TO_NATIVE", 0.005
             ),
             "intervention_max_delta_to_native": _env_float(
                 "STRUCTURED_MEMORY_INTERVENTION_MAX_DELTA_TO_NATIVE", 0.08
@@ -568,6 +574,9 @@ class CausalInferencePipeline(torch.nn.Module):
                 min_alignment=self.structured_memory_config[
                     "intervention_min_alignment"
                 ],
+                min_delta_to_native=self.structured_memory_config[
+                    "intervention_min_delta_to_native"
+                ],
                 max_delta_to_native=self.structured_memory_config[
                     "intervention_max_delta_to_native"
                 ],
@@ -617,6 +626,10 @@ class CausalInferencePipeline(torch.nn.Module):
             raise ValueError(
                 "STRUCTURED_MEMORY_MEMORY_START_FRAME must be non-negative"
             )
+        if self.structured_memory_config["activation_ramp_frames"] < 0:
+            raise ValueError(
+                "STRUCTURED_MEMORY_ACTIVATION_RAMP_FRAMES must be non-negative"
+            )
         print(f"[StructuredMemory] ========================================")
         print(f"[StructuredMemory] archives={self.num_transformer_blocks} "
               f"max_frames={archive_max_frames} policy={archive_policy} "
@@ -645,6 +658,8 @@ class CausalInferencePipeline(torch.nn.Module):
               f"{self.structured_memory_config['memory_start_episode']}")
         print(f"[StructuredMemory] memory_start_frame="
               f"{self.structured_memory_config['memory_start_frame']}")
+        print(f"[StructuredMemory] activation_ramp_frames="
+              f"{self.structured_memory_config['activation_ramp_frames']}")
         print(f"[StructuredMemory] warmup_blocks="
               f"{self.structured_memory_config['warmup_blocks']} "
               f"episode_warmup_blocks="
@@ -658,6 +673,7 @@ class CausalInferencePipeline(torch.nn.Module):
                 "[StructuredMemory] intervention_router="
                 f"mode:{intervention_modes[routing_mode]} "
                 f"head_budget:{self.structured_memory_config['intervention_head_budget_fraction']} "
+                f"min_delta:{self.structured_memory_config['intervention_min_delta_to_native']} "
                 f"max_delta:{self.structured_memory_config['intervention_max_delta_to_native']} "
                 f"profile:{profile_path or 'none'}"
             )
@@ -681,7 +697,7 @@ class CausalInferencePipeline(torch.nn.Module):
             trace_archive.write_trace(
                 "config",
                 method="lifecache",
-                method_version="3.0" if archive_policy == "typed" else "2.1",
+                method_version="3.1" if archive_policy == "typed" else "2.1",
                 recall_capabilities=["cross_episode", "intra_episode"],
                 active_layers=active_layers,
                 num_transformer_blocks=int(self.num_transformer_blocks),

@@ -6,6 +6,7 @@ from lifecycle_kv.intervention_router import (
     InterventionRouterState,
     InterventionRoutingConfig,
     OfflineInterventionProfile,
+    _rank01,
     route_memory_intervention,
 )
 
@@ -21,6 +22,11 @@ def _inputs(heads: int = 4):
     entropy = torch.tensor([[0.1, 0.2, 0.3, 0.4]])
     accepted = torch.ones(1, heads, dtype=torch.bool)
     return q, native, memory, confidence, margin, entropy, accepted
+
+
+def test_online_rank_is_tie_aware():
+    values = torch.tensor([[1.0, 1.0, 3.0]])
+    assert torch.allclose(_rank01(values), torch.tensor([[0.25, 0.25, 1.0]]))
 
 
 def test_online_router_selects_safe_high_utility_heads():
@@ -134,3 +140,35 @@ def test_router_abstains_when_heads_are_indistinguishable():
 
     assert not decision.selected.any()
     assert decision.abstain_reason == "insufficient_utility_spread"
+
+
+def test_router_rejects_ineffective_convex_intervention():
+    heads = 4
+    q = torch.ones(1, 2, heads, 2)
+    output = torch.ones_like(q)
+    equal = torch.full((1, heads), 0.5)
+    decision = route_memory_intervention(
+        q=q,
+        query_reference=None,
+        native_output=output,
+        memory_output=output,
+        confidence=equal,
+        retrieval_margin=equal,
+        retrieval_entropy=equal,
+        accepted=torch.ones(1, heads, dtype=torch.bool),
+        base_gate=0.15,
+        fusion_mode="convex",
+        layer_idx=0,
+        memory_mode="noisy",
+        attention_call_index=0,
+        config=InterventionRoutingConfig(
+            mode="online",
+            min_delta_to_native=0.005,
+            min_utility_spread=0.0,
+        ),
+        state=InterventionRouterState(),
+    )
+
+    assert not decision.valid.any()
+    assert not decision.selected.any()
+    assert decision.abstain_reason == "no_safe_intervention"
