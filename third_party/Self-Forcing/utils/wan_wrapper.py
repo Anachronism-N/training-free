@@ -46,7 +46,8 @@ class WanTextEncoder(torch.nn.Module):
             u[v:] = 0.0  # set padding to 0.0
 
         return {
-            "prompt_embeds": context
+            "prompt_embeds": context,
+            "prompt_mask": mask,
         }
 
 
@@ -227,6 +228,9 @@ class WanDiffusionWrapper(torch.nn.Module):
         aug_t: Optional[torch.Tensor] = None,
         cache_start: Optional[int] = None,
         lifecache_manager=None,
+        structured_memory_archives=None,
+        structured_memory_config=None,
+        structured_memory_mode: str = "noisy",
     ) -> torch.Tensor:
         prompt_embeds = conditional_dict["prompt_embeds"]
 
@@ -248,6 +252,9 @@ class WanDiffusionWrapper(torch.nn.Module):
                 current_start=current_start,
                 cache_start=cache_start,
                 lifecache_manager=lifecache_manager if lifecache_manager is not None else getattr(self, "lifecache_manager", None),
+                structured_memory_archives=structured_memory_archives,
+                structured_memory_config=structured_memory_config,
+                structured_memory_mode=structured_memory_mode,
             ).permute(0, 2, 1, 3, 4)
         else:
             if clean_x is not None:

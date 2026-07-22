@@ -34,6 +34,16 @@ from .structured_visual_memory import (
     StructuredVisualMemoryConfig,
     compress_structured_visual_memory,
 )
+from .episodic_archive import EpisodicArchive, EpisodicArchiveConfig
+from .role_episodic import (
+    EpisodeEvidenceDecision,
+    HeadRoleEvidence,
+    compute_head_role_evidence,
+    masked_prompt_descriptor,
+    query_frame_similarity,
+    select_dual_evidence_episode,
+    update_query_ema,
+)
 from .tokenset import CacheRegion, TokenSet
 
 __all__ = [
@@ -52,8 +62,12 @@ __all__ = [
     "CacheTraceWriter",
     "CompressionConfig",
     "CompressedVisualMemory",
+    "EpisodeEvidenceDecision",
+    "EpisodicArchive",
+    "EpisodicArchiveConfig",
     "HeadAwareCompressionConfig",
     "HeadProfile",
+    "HeadRoleEvidence",
     "HeadRole",
     "HeadRoleProfiler",
     "LifecycleKVCache",
@@ -71,13 +85,18 @@ __all__ = [
     "compress_head_aware_proxy",
     "compress_qk_proxy",
     "compress_structured_visual_memory",
+    "compute_head_role_evidence",
     "get_head_role",
     "load_head_roles",
     "make_trace_extra",
+    "masked_prompt_descriptor",
     "parse_head_role",
     "qk_proxy_scores",
     "query_conditioned_memory_readout",
+    "query_frame_similarity",
     "recall_tokens",
     "select_topk_tokens",
+    "select_dual_evidence_episode",
     "token_indices_to_frames",
+    "update_query_ema",
 ]

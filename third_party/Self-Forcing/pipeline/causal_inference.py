@@ -51,6 +51,14 @@ def _hrm_clear_texture_heads(kv_cache, head_labels):
             cache["v"][:, :local_end] = cache["v"][:, :local_end] * mask_4d
 
 
+def _reset_working_kv_at_scene_boundary(kv_cache, current_start_tokens):
+    """Start a fresh native working cache while leaving sidecar archives intact."""
+    for cache in kv_cache:
+        cache["global_end_index"].fill_(int(current_start_tokens))
+        cache["local_end_index"].zero_()
+        cache.pop("_lifecache_evicted_list", None)
+
+
 def _hrem_store_scene(pool, kv_cache1, head_labels, scene_id, frame_seqlen):
     """Compress and store the current scene's K/V in the episodic pool.
 
@@ -258,6 +266,9 @@ class CausalInferencePipeline(torch.nn.Module):
         archive_policy = str(
             os.environ.get("STRUCTURED_MEMORY_ARCHIVE_POLICY", "coverage")
         )
+        spatial_stride = int(
+            os.environ.get("STRUCTURED_MEMORY_SPATIAL_STRIDE", "4")
+        )
         episode_gate_mode = str(
             os.environ.get("STRUCTURED_MEMORY_EPISODE_GATE_MODE", "off")
         )
@@ -309,6 +320,7 @@ class CausalInferencePipeline(torch.nn.Module):
             head_dim=head_dim,
             archive_max_frames=archive_max_frames,
             archive_policy=archive_policy,
+            spatial_stride=spatial_stride,
             episode_gate_mode=episode_gate_mode,
             episode_gate_activation_episode=episode_gate_activation_episode,
             oracle_episode_id=oracle_episode_id,
@@ -401,10 +413,35 @@ class CausalInferencePipeline(torch.nn.Module):
             "memory_start_episode": _env_int(
                 "STRUCTURED_MEMORY_MEMORY_START_EPISODE", 0
             ),
+            "dual_min_semantic_similarity": _env_float(
+                "STRUCTURED_MEMORY_DUAL_MIN_SEMANTIC_SIMILARITY", 0.20
+            ),
+            "dual_min_visual_similarity": _env_float(
+                "STRUCTURED_MEMORY_DUAL_MIN_VISUAL_SIMILARITY", 0.00
+            ),
+            "dual_min_combined_score": _env_float(
+                "STRUCTURED_MEMORY_DUAL_MIN_COMBINED_SCORE", 0.55
+            ),
+            "dual_min_episode_margin": _env_float(
+                "STRUCTURED_MEMORY_DUAL_MIN_EPISODE_MARGIN", 0.05
+            ),
+            "dual_require_agreement": (
+                os.environ.get("STRUCTURED_MEMORY_DUAL_REQUIRE_AGREEMENT", "1") == "1"
+            ),
+            "dual_visual_head_fraction": _env_float(
+                "STRUCTURED_MEMORY_DUAL_VISUAL_HEAD_FRACTION", 0.25
+            ),
+            "role_threshold": _env_float(
+                "STRUCTURED_MEMORY_ROLE_THRESHOLD", 0.45
+            ),
+            "role_sharpness": _env_float(
+                "STRUCTURED_MEMORY_ROLE_SHARPNESS", 8.0
+            ),
         }
         print(f"[StructuredMemory] ========================================")
         print(f"[StructuredMemory] archives={self.num_transformer_blocks} "
-              f"max_frames={archive_max_frames} policy={archive_policy}")
+              f"max_frames={archive_max_frames} policy={archive_policy} "
+              f"spatial_stride={spatial_stride}")
         print(f"[StructuredMemory] gate={self.structured_memory_config['gate']} "
               f"head_routing={self.structured_memory_config['head_routing']}")
         print(f"[StructuredMemory] episode_gate_mode={episode_gate_mode} "
@@ -430,7 +467,10 @@ class CausalInferencePipeline(torch.nn.Module):
         embeds = conditioning.get("prompt_embeds")
         if not isinstance(embeds, torch.Tensor):
             return
-        descriptor = embeds.detach().float().mean(dim=1).squeeze(0)
+        from lifecycle_kv.role_episodic import masked_prompt_descriptor
+
+        prompt_mask = conditioning.get("prompt_mask")
+        descriptor = masked_prompt_descriptor(embeds, prompt_mask).squeeze(0)
         for archive in self.structured_memory_archives:
             archive.set_episode(episode_id, descriptor)
 
@@ -634,8 +674,20 @@ class CausalInferencePipeline(torch.nn.Module):
                     for cache in self.crossattn_cache:
                         cache["is_init"] = False
 
-                    # --- HREM: Store + Recall at scene boundary ---
-                    if getattr(self, "_head_role_enable", False) and self.kv_cache1 is not None:
+                    # Fair scene-formation control: all reset-based cells start
+                    # B/A2 with an empty native working cache, while structured
+                    # episodic archives survive. This is mutually exclusive with
+                    # the legacy in-place HREM prototype below.
+                    if (
+                        os.environ.get("SCENE_TRANSITION_RESET", "0") == "1"
+                        and self.kv_cache1 is not None
+                    ):
+                        _reset_working_kv_at_scene_boundary(
+                            self.kv_cache1,
+                            current_start_frame * self.frame_seq_length,
+                        )
+                    # --- Legacy HREM: Store + Recall at scene boundary ---
+                    elif getattr(self, "_head_role_enable", False) and self.kv_cache1 is not None:
                         # 1. If pool is active: compress and store current scene's K/V
                         if self._hrem_pool is not None:
                             _hrem_store_scene(
@@ -652,7 +704,7 @@ class CausalInferencePipeline(torch.nn.Module):
                             # v1: simple per-head clearing (no pool)
                             _hrm_clear_texture_heads(self.kv_cache1, self._head_role_labels)
                 conditional_dict = conditional_dicts[scene_index]
-                if self.structured_memory_archives is not None:
+                if self.structured_memory_archives is not None and scene_changed:
                     self._set_memory_episode(conditional_dict, scene_index)
 
             if profile:
@@ -680,6 +732,7 @@ class CausalInferencePipeline(torch.nn.Module):
                         current_start=current_start_frame * self.frame_seq_length,
                         structured_memory_archives=self.structured_memory_archives,
                         structured_memory_config=self.structured_memory_config,
+                        structured_memory_mode="noisy",
                     )
                     next_timestep = self.denoising_step_list[index + 1]
                     noisy_input = self.scheduler.add_noise(
@@ -699,6 +752,7 @@ class CausalInferencePipeline(torch.nn.Module):
                         current_start=current_start_frame * self.frame_seq_length,
                         structured_memory_archives=self.structured_memory_archives,
                         structured_memory_config=self.structured_memory_config,
+                        structured_memory_mode="noisy",
                     )
 
             # Step 3.2: record the model's output
@@ -729,6 +783,7 @@ class CausalInferencePipeline(torch.nn.Module):
                 current_start=current_start_frame * self.frame_seq_length,
                 structured_memory_archives=self.structured_memory_archives,
                 structured_memory_config=self.structured_memory_config,
+                structured_memory_mode="clean",
             )
             # LifeCache v2: end capture after context refresh
             if self.lifecache_manager is not None:
@@ -746,17 +801,14 @@ class CausalInferencePipeline(torch.nn.Module):
                 # not depend on a hardcoded 30x52.  For the default SF
                 # config (60x104 latent, patch=2) this yields 30x52=1560.
                 frame_seqlen = self.frame_seq_length
-                grid_h = 30
-                grid_w = frame_seqlen // grid_h
+                patch = tuple(getattr(self.generator.model, "patch_size", (1, 2, 2)))
+                grid_h = height // int(patch[1])
+                grid_w = width // int(patch[2])
                 if grid_h * grid_w != frame_seqlen:
-                    # Fall back to a square grid if the default does not
-                    # divide evenly.  The bridge only needs H*W to match
-                    # frame_seqlen for the reshape in ``_pool_spatial``.
-                    import math as _math
-                    grid_h = int(_math.isqrt(frame_seqlen))
-                    grid_w = grid_h
-                    while grid_h * grid_w < frame_seqlen:
-                        grid_w += 1
+                    raise RuntimeError(
+                        "structured-memory grid does not match frame_seq_length: "
+                        f"{grid_h}*{grid_w}!={frame_seqlen}"
+                    )
                 grid_sizes_tensor = torch.tensor(
                     [[current_num_frames, grid_h, grid_w]],
                     device=noise.device,

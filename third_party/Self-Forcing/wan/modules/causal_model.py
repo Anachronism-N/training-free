@@ -203,6 +203,9 @@ class CausalWanSelfAttention(nn.Module):
         current_start=0,
         cache_start=None,
         lifecache_manager=None,
+        structured_memory_archive=None,
+        structured_memory_config=None,
+        structured_memory_mode="noisy",
     ):
         r"""
         Args:
@@ -316,6 +319,11 @@ class CausalWanSelfAttention(nn.Module):
                 and block_index is not None
                 and lifecache_manager.runtime.should_enable_layer(block_index)
             )
+            structured_memory_active = (
+                structured_memory_archive is not None
+                and bool(getattr(structured_memory_archive, "_sm_active", True))
+            )
+            capture_pre_rope = lifecache_layer_enabled or structured_memory_active
             # --- Anchor-Adjacent RoPE (AAR) ---------------------------------
             # BUG (doc 102/103): sink frames are stored pre-roped at absolute
             # positions 0..sink-1 and never refreshed. As current_start_frame
@@ -427,7 +435,7 @@ class CausalWanSelfAttention(nn.Module):
                 kv_cache["k"][:, local_start_index:local_end_index] = k if fwaar else roped_key
                 kv_cache["v"][:, local_start_index:local_end_index] = v
                 # LifeCache: also write pre-RoPE K
-                if lifecache_layer_enabled:
+                if capture_pre_rope:
                     k_pre = kv_cache.setdefault("k_pre_rope",
                         torch.zeros_like(kv_cache["k"]))
                     k_pre[:, local_start_index:local_end_index] = k
@@ -449,7 +457,7 @@ class CausalWanSelfAttention(nn.Module):
                     kv_cache["k"][:, local_start_index:local_end_index] = roped_key
                 kv_cache["v"][:, local_start_index:local_end_index] = v
             # LifeCache: also write pre-RoPE K in all cases
-            if lifecache_layer_enabled:
+            if capture_pre_rope:
                 k_pre = kv_cache.setdefault("k_pre_rope",
                     torch.zeros_like(kv_cache["k"]))
                 k_pre[:, local_start_index:local_end_index] = k
@@ -766,6 +774,18 @@ class CausalWanSelfAttention(nn.Module):
                         kv_cache["k"][:, attn_start:local_end_index],
                         kv_cache["v"][:, attn_start:local_end_index]
                     )
+            if structured_memory_active:
+                x = self._fuse_episodic_memory(
+                    x,
+                    raw_q=q,
+                    archive=structured_memory_archive,
+                    config=structured_memory_config or {},
+                    memory_mode=structured_memory_mode,
+                    current_start=current_start,
+                    frame_seqlen=frame_seqlen,
+                    grid_sizes=grid_sizes,
+                    freqs=freqs,
+                )
             kv_cache["global_end_index"].fill_(current_end)
             kv_cache["local_end_index"].fill_(local_end_index)
 
@@ -773,6 +793,309 @@ class CausalWanSelfAttention(nn.Module):
         x = x.flatten(2)
         x = self.o(x)
         return x
+
+    def _fuse_episodic_memory(
+        self,
+        native_out,
+        *,
+        raw_q,
+        archive,
+        config,
+        memory_mode,
+        current_start,
+        frame_seqlen,
+        grid_sizes,
+        freqs,
+    ):
+        """HREM-v2: fail-closed episode and head-role gated memory readout."""
+        gate = float(config.get("gate", 0.0))
+        readout_mode = str(config.get("readout_mode", "all"))
+        mode_enabled = (
+            readout_mode == "all"
+            or (readout_mode == "clean_only" and memory_mode == "clean")
+            or (readout_mode == "noisy_only" and memory_mode == "noisy")
+        )
+        memory_k = getattr(archive, "structured_memory_k", None)
+        memory_v = getattr(archive, "structured_memory_v", None)
+        if gate <= 0.0 or not mode_enabled or memory_k is None or memory_v is None:
+            return native_out
+        current_episode = getattr(archive, "current_episode_id", None)
+        previous_episode = getattr(archive, "previous_episode_id", None)
+        if current_episode is None:
+            return native_out
+
+        from lifecycle_kv.attention_fusion import (
+            fuse_parallel_attention,
+            query_conditioned_memory_readout,
+            select_contrastive_episode,
+        )
+        from lifecycle_kv.role_episodic import (
+            compute_head_role_evidence,
+            query_frame_similarity,
+            select_dual_evidence_episode,
+            update_query_ema,
+        )
+
+        # Update once per generated block even when episode admission later
+        # abstains. The frozen reference lets all denoising calls for this block
+        # compare against the same preceding-block query state.
+        if getattr(archive, "_role_query_reference_start", None) != int(current_start):
+            archive._role_query_reference = getattr(archive, "_role_query_ema", None)
+            archive._role_query_reference_start = int(current_start)
+            archive._role_query_ema = update_query_ema(
+                raw_q,
+                getattr(archive, "_role_query_ema", None),
+                decay=float(config.get("query_ema_decay", 0.9)),
+            ).detach()
+            archive._role_query_ema_start = int(current_start)
+
+        if current_episode < int(config.get("memory_start_episode", 0)):
+            return native_out
+
+        episode_ids = getattr(archive, "structured_memory_episode_ids", None)
+        frame_prompts = getattr(archive, "structured_memory_prompt_descriptors", None)
+        current_prompt = getattr(archive, "current_prompt_descriptor", None)
+        previous_prompt = getattr(archive, "previous_prompt_descriptor", None)
+        gate_mode = str(getattr(archive.config, "episode_gate_mode", "off"))
+        activation_episode = int(
+            getattr(archive.config, "episode_gate_activation_episode", 1)
+        )
+        allowed_episode = None
+        forced_abstain_reason = None
+        episode_trace = None
+        if gate_mode != "off" and int(current_episode) < activation_episode:
+            return native_out
+        if gate_mode == "dual_evidence":
+            visual = query_frame_similarity(raw_q, memory_k)
+            decision = select_dual_evidence_episode(
+                current_prompt_descriptor=current_prompt,
+                frame_prompt_descriptors=frame_prompts,
+                episode_ids=episode_ids,
+                visual_similarity=visual,
+                current_episode_id=current_episode,
+                previous_episode_id=previous_episode,
+                min_semantic_similarity=float(
+                    config.get("dual_min_semantic_similarity", 0.20)
+                ),
+                min_visual_similarity=float(
+                    config.get("dual_min_visual_similarity", 0.00)
+                ),
+                min_combined_score=float(
+                    config.get("dual_min_combined_score", 0.55)
+                ),
+                min_episode_margin=float(
+                    config.get("dual_min_episode_margin", 0.05)
+                ),
+                require_cue_agreement=bool(
+                    config.get("dual_require_agreement", True)
+                ),
+                visual_head_fraction=float(
+                    config.get("dual_visual_head_fraction", 0.25)
+                ),
+            )
+            episode_trace = {
+                "winner_episode_id": decision.winner_episode_id,
+                "accepted": decision.accepted,
+                "abstain_reason": decision.abstain_reason,
+                "cue_agreement": decision.cue_agreement,
+                "semantic_margin": decision.semantic_margin,
+                "combined_margin": decision.combined_margin,
+                "semantic_scores": decision.semantic_scores,
+                "visual_scores": decision.visual_scores,
+                "combined_scores": decision.combined_scores,
+            }
+            if not decision.accepted:
+                archive.write_trace(
+                    "readout_abstain",
+                    current_start=int(current_start),
+                    current_episode_id=int(current_episode),
+                    memory_mode=memory_mode,
+                    episode_decision=episode_trace,
+                )
+                return native_out
+            allowed_episode = decision.winner_episode_id
+        elif gate_mode in {"contrastive_strict", "contrastive_relative"}:
+            decision = select_contrastive_episode(
+                current_prompt_descriptor=current_prompt,
+                previous_prompt_descriptor=previous_prompt,
+                frame_prompt_descriptors=frame_prompts,
+                episode_ids=episode_ids,
+                current_episode_id=current_episode,
+                previous_episode_id=previous_episode,
+                admission_policy=(
+                    "strict_positive"
+                    if gate_mode == "contrastive_strict"
+                    else "relative_winner"
+                ),
+            )
+            episode_trace = {
+                "winner_episode_id": decision.winner_episode_id,
+                "accepted": decision.accepted,
+                "abstain_reason": decision.abstain_reason,
+                "scores": decision.scores,
+            }
+            if not decision.accepted:
+                return native_out
+            allowed_episode = decision.winner_episode_id
+        elif gate_mode == "oracle":
+            oracle_episode = int(getattr(archive.config, "oracle_episode_id", -1))
+            if oracle_episode < 0:
+                return native_out
+            allowed_episode = oracle_episode
+        elif gate_mode != "off":
+            raise ValueError(f"unsupported structured-memory episode gate: {gate_mode}")
+
+        intervals = getattr(archive, "structured_memory_intervals", None)
+        eligible = None
+        recent_exclude = int(config.get("recent_exclude_frames", 0))
+        if intervals is not None and recent_exclude > 0:
+            current_frame = int(current_start // frame_seqlen)
+            eligible = intervals[:, 1] < (current_frame - recent_exclude)
+
+        frame_prior = None
+        prior_mode = str(config.get("episode_frame_prior_mode", "auto"))
+        prior_enabled = prior_mode == "on" or (prior_mode == "auto" and allowed_episode is None)
+        if (
+            prior_enabled
+            and frame_prompts is not None
+            and current_prompt is not None
+            and frame_prompts.shape[0] == memory_k.shape[0]
+        ):
+            prompt_query = torch.nn.functional.normalize(
+                current_prompt.detach().float().to(memory_k.device), dim=-1
+            ).view(1, -1)
+            prompt_memory = torch.nn.functional.normalize(
+                frame_prompts.detach().float().to(memory_k.device), dim=-1
+            )
+            frame_prior = prompt_query @ prompt_memory.transpose(0, 1)
+
+        position_mode = str(config.get("position_mode", "none"))
+        native_spatial = int(grid_sizes[0, 1].item() * grid_sizes[0, 2].item())
+        if position_mode == "local_grid" and memory_k.shape[1] != native_spatial:
+            archive.write_trace(
+                "readout_abstain",
+                current_start=int(current_start),
+                current_episode_id=int(current_episode),
+                memory_mode=memory_mode,
+                reason="local_grid_incompatible_with_spatial_pooling",
+            )
+            return native_out
+
+        memory = query_conditioned_memory_readout(
+            raw_q,
+            memory_k,
+            memory_v,
+            retrieval_temperature=float(config.get("retrieval_temperature", 0.1)),
+            confidence_threshold=float(config.get("confidence_threshold", 0.2)),
+            value_mode=str(config.get("value_mode", "full")),
+            eligible_frame_mask=eligible,
+            top_k_frames=int(config.get("top_k_frames", 0)),
+            selection_policy=str(config.get("selection_policy", "query")),
+            selection_scope=str(config.get("selection_scope", "shared")),
+            min_retrieval_margin=float(config.get("min_retrieval_margin", 0.0)),
+            max_retrieval_entropy=float(config.get("max_retrieval_entropy", 1.0)),
+            control_mode=str(config.get("control_mode", "normal")),
+            position_mode=position_mode,
+            rope_freqs=freqs,
+            grid_h=int(grid_sizes[0, 1].item()),
+            grid_w=int(grid_sizes[0, 2].item()),
+            frame_prior_scores=frame_prior,
+            frame_prior_weight=float(config.get("prompt_prior_weight", 0.0)),
+            frame_prior_enabled=prior_enabled,
+            episode_ids=episode_ids,
+            allowed_episode_id=allowed_episode,
+            current_episode_id=current_episode,
+            previous_episode_id=previous_episode,
+            reject_previous_episode=gate_mode != "off",
+            forced_abstain_reason=forced_abstain_reason,
+        )
+        archive._readout_calls += 1
+        if not bool(torch.any(memory.accepted)):
+            archive.write_trace(
+                "readout_abstain",
+                current_start=int(current_start),
+                current_episode_id=int(current_episode),
+                memory_mode=memory_mode,
+                reason=memory.abstain_reason,
+                episode_decision=episode_trace,
+            )
+            return native_out
+
+        routing_mode = str(config.get("head_routing", "role_evidence"))
+        head_mask = None
+        role_trace = None
+        if routing_mode == "confidence_adaptive":
+            sharpness = float(config.get("routing_sharpness", 5.0))
+            threshold = float(config.get("confidence_threshold", 0.2))
+            mask = torch.sigmoid(sharpness * (memory.confidence.float() - threshold))
+            head_mask = mask.mean(dim=0, keepdim=True)[:, None, :, None].to(native_out.dtype)
+        elif routing_mode == "functional_adaptive":
+            sharpness = float(config.get("routing_sharpness", 5.0))
+            threshold = float(config.get("margin_threshold", 0.10))
+            margin_gate = torch.sigmoid(
+                sharpness * (memory.retrieval_margin.float() - threshold)
+            )
+            head_mask = margin_gate.mean(dim=0, keepdim=True)[:, None, :, None].to(native_out.dtype)
+        elif routing_mode == "role_evidence":
+            selected = memory.selected_indices
+            selected_k = memory_k.index_select(0, selected.to(memory_k.device))
+            selected_v = memory_v.index_select(0, selected.to(memory_v.device))
+            role = compute_head_role_evidence(
+                raw_q,
+                selected_k,
+                selected_v,
+                query_ema=getattr(archive, "_role_query_reference", None),
+                threshold=float(config.get("role_threshold", 0.45)),
+                sharpness=float(config.get("role_sharpness", 8.0)),
+            )
+            head_mask = role.gate.mean(dim=0, keepdim=True)[:, None, :, None].to(native_out.dtype)
+            if bool(getattr(archive.config, "trace_enabled", False)):
+                role_trace = {
+                    "gate": role.gate[0].detach().float().cpu().tolist(),
+                    "key_persistence": role.key_persistence[0].detach().float().cpu().tolist(),
+                    "value_persistence": role.value_persistence[0].detach().float().cpu().tolist(),
+                    "query_stability": role.query_stability[0].detach().float().cpu().tolist(),
+                    "motion_risk": role.motion_risk[0].detach().float().cpu().tolist(),
+                    "role_codes": role.role_codes[0].detach().cpu().tolist(),
+                }
+        elif routing_mode not in {"static", "off"}:
+            raise ValueError(f"unsupported structured-memory head routing: {routing_mode}")
+
+        warmup = int(config.get("warmup_blocks", 0))
+        if warmup > 0:
+            query_frames = max(1, int(grid_sizes[0, 0].item()))
+            current_block = int(current_start // (frame_seqlen * query_frames))
+            gate *= min(1.0, (current_block + 1) / warmup)
+        fused = fuse_parallel_attention(
+            native_out,
+            memory.output,
+            gate=gate,
+            head_mask=head_mask,
+            rms_match=True,
+            alignment_gate=True,
+            alignment_threshold=0.0,
+            confidence=memory.confidence,
+            accepted=memory.accepted,
+            mode=str(config.get("fusion_mode", "residual")),
+        )
+        archive._accepted_calls += 1
+        if bool(getattr(archive.config, "trace_enabled", False)):
+            archive.write_trace(
+                "readout",
+                current_start=int(current_start),
+                current_episode_id=int(current_episode),
+                previous_episode_id=(None if previous_episode is None else int(previous_episode)),
+                memory_mode=memory_mode,
+                allowed_episode_id=allowed_episode,
+                effective_gate=float(gate),
+                selected_indices=memory.selected_indices.detach().cpu().tolist(),
+                confidence=memory.confidence[0].detach().float().cpu().tolist(),
+                retrieval_margin=memory.retrieval_margin[0].detach().float().cpu().tolist(),
+                retrieval_entropy=memory.retrieval_entropy[0].detach().float().cpu().tolist(),
+                episode_decision=episode_trace,
+                head_role=role_trace,
+            )
+        return fused
 
     def _build_hcp_bias(self, q_len, k_len, frame_seqlen, device, dtype):
         """Per-Head Cache Policy additive attention bias [H, q_len, k_len].
@@ -911,6 +1234,9 @@ class CausalWanAttentionBlock(nn.Module):
         current_start=0,
         cache_start=None,
         lifecache_manager=None,
+        structured_memory_archive=None,
+        structured_memory_config=None,
+        structured_memory_mode="noisy",
     ):
         r"""
         Args:
@@ -930,7 +1256,11 @@ class CausalWanAttentionBlock(nn.Module):
         y = self.self_attn(
             (self.norm1(x).unflatten(dim=1, sizes=(num_frames, frame_seqlen)) * (1 + e[1]) + e[0]).flatten(1, 2),
             seq_lens, grid_sizes,
-            freqs, block_mask, kv_cache, current_start, cache_start, lifecache_manager=lifecache_manager)
+            freqs, block_mask, kv_cache, current_start, cache_start,
+            lifecache_manager=lifecache_manager,
+            structured_memory_archive=structured_memory_archive,
+            structured_memory_config=structured_memory_config,
+            structured_memory_mode=structured_memory_mode)
 
         # with amp.autocast(dtype=torch.float32):
         x = x + (y.unflatten(dim=1, sizes=(num_frames, frame_seqlen)) * e[2]).flatten(1, 2)
@@ -1339,6 +1669,9 @@ class CausalWanModel(ModelMixin, ConfigMixin):
         current_start: int = 0,
         cache_start: int = 0,
         lifecache_manager=None,
+        structured_memory_archives=None,
+        structured_memory_config=None,
+        structured_memory_mode="noisy",
     ):
         r"""
         Run the diffusion model with kv caching.
@@ -1428,6 +1761,13 @@ class CausalWanModel(ModelMixin, ConfigMixin):
             return custom_forward
 
         for block_index, block in enumerate(self.blocks):
+            block_archive = None
+            if (
+                structured_memory_archives is not None
+                and block_index < len(structured_memory_archives)
+                and bool(getattr(structured_memory_archives[block_index], "_sm_active", True))
+            ):
+                block_archive = structured_memory_archives[block_index]
             if torch.is_grad_enabled() and self.gradient_checkpointing:
                 kwargs.update(
                     {
@@ -1435,6 +1775,9 @@ class CausalWanModel(ModelMixin, ConfigMixin):
                         "current_start": current_start,
                         "cache_start": cache_start,
                         "lifecache_manager": lifecache_manager,
+                        "structured_memory_archive": block_archive,
+                        "structured_memory_config": structured_memory_config,
+                        "structured_memory_mode": structured_memory_mode,
                     }
                 )
                 block.self_attn._block_index = block_index
@@ -1455,6 +1798,9 @@ class CausalWanModel(ModelMixin, ConfigMixin):
                         "current_start": current_start,
                         "cache_start": cache_start,
                         "lifecache_manager": lifecache_manager,
+                        "structured_memory_archive": block_archive,
+                        "structured_memory_config": structured_memory_config,
+                        "structured_memory_mode": structured_memory_mode,
                     }
                 )
                 x = block(x, **kwargs)

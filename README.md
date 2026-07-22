@@ -3,27 +3,27 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current method idea is **LifeCache-v1: Token-level Head-aware Cache Recall
-for Training-free Long AR Video Generation**. LifeCache does not add an external
-memory generator or train the base model. It changes inference-time K/V cache
-organization: selected historical K/V tokens are compressed into a bounded
-memory bank, recalled by current Q-K matching, and exposed through a
-head-aware active cache.
+The current method candidate is **HREM-v2: Head-Role Evidence-gated Episodic
+Memory for Training-free Long AR Video Generation**. It keeps a bounded,
+episode-balanced sidecar of clean pre-RoPE K/V frames, admits only non-recent
+episodes supported by both prompt and visual-query evidence, and routes the
+independent memory-attention output with online per-head persistence and motion
+evidence. Uncertain recall returns the native Self-Forcing output unchanged.
 
 ## Current Hypothesis
 
-Long AR video generation should not only retain a longer recent window. The
-generator needs a bounded cache policy that separates:
+Long AR video generation needs to answer two different questions before using
+history:
 
-- **RecentCache**: full K/V for short-term local continuity.
-- **AnchorCache**: small stable K/V token sets for identity, style, and layout.
-- **CompressedBank**: selected token-level historical K/V from evicted windows.
-- **MotionCache**: dynamic temporal tokens for action and boundary continuity.
-- **RecallView**: temporary query-dependent K/V selected for the current
-  attention call.
+- **Which episode?** Reject the current and immediately previous scene, then
+  require semantic and visual-query evidence to agree on a historical scene.
+- **Which heads?** Favor heads with persistent K/V and stable queries while
+  suppressing heads that show value variation or query drift.
+- **How to fuse?** Use a separate bounded memory-attention branch; never write
+  recalled K/V into the native cache.
 
-Important design correction: `recall` is a temporary active view, not a
-persistent storage class.
+LifeCache-v1 and CEMR remain in the repository as prior prototypes and
+ablation infrastructure.
 
 ## Repository Layout
 
@@ -33,17 +33,13 @@ training-free/
 |-- configs/
 |   `-- lifecache-v1-minimal.yaml
 |-- docs/
-|   |-- 11_lifecache_v1_design.md
-|   |-- 12_lifecache_experiment_plan.md
-|   |-- 13_lifecache_codex_implementation_prompt.md
-|   |-- 14_lifecache_design_changelog.md
 |   |-- 15_lifecache_doc_index.md
-|   |-- 16_lifecache_v1_implementation_status.md
-|   `-- 17_experiment_run_commands.md
+|   `-- 59_hrem_v2_evidence_gated_episodic_memory.md
 |-- prompts/
-|   `-- lifecache_v1_complex_3.txt
+|   `-- hrem_v2_aba_complex_3.txt
 |-- scripts/
-|   `-- bootstrap_repos.sh
+|   |-- bootstrap_repos.sh
+|   `-- run_hrem_v2_evidence.sh
 |-- src/
 |   `-- lifecycle_kv/
 `-- third_party/
@@ -54,43 +50,40 @@ training-free/
 
 ## Implementation Status
 
-Reusable LifeCache-v1 prototype modules live in `src/lifecycle_kv/`:
+The HREM-v2 path is connected end-to-end in Self-Forcing:
 
-- `tokenset.py`: `TokenSet` and cache-region payload abstraction.
-- `bank.py`: bounded TokenSet bank.
-- `compression.py`: Attention Participation top-k compression.
-- `recall.py`: TokenSet-level retrieval plus token-level Q-K recall.
-- `anchor.py`: fixed/dynamic anchor helpers.
-- `motion.py`: latent-delta and dynamic-K motion scoring helpers.
-- `head_roles.py`: head-role prior loader.
-- `active_cache.py`: head-aware active K/V composition.
-- `instrumentation.py`: cache trace and attention-region mass helpers.
+- `episodic_archive.py`: bounded episode-aware K/V archive.
+- `role_episodic.py`: dual-evidence episode admission and online head routing.
+- `attention_fusion.py`: query-conditioned readout and fail-closed fusion.
+- `third_party/Self-Forcing/.../causal_model.py`: pre-RoPE capture and the
+  independent memory-attention branch.
+- `third_party/Self-Forcing/pipeline/causal_inference.py`: episode lifecycle and
+  clean-context archive commits.
 
-`third_party/Self-Forcing` has not yet been patched to consume the LifeCache
-hook. The planned integration point is
-`third_party/Self-Forcing/wan/modules/causal_model.py`, inside
-`CausalWanSelfAttention.forward`, after RoPE is applied to Q/K and before the
-final attention call.
+The current machine has no configured PyTorch/GPU runtime, so the code has been
+syntax-checked but the new CUDA path still requires the server Stage-1 run.
 
 ## Experiment Entry Points
 
-The first comparison is documented in:
+The current causal comparison is documented in:
 
 ```text
-docs/17_experiment_run_commands.md
+docs/59_hrem_v2_evidence_gated_episodic_memory.md
 ```
 
-It defines three 120-frame inference runs using the shared prompt file:
+It defines five 120-frame inference cells using three complex A-B-A prompts:
 
 ```text
-prompts/lifecache_v1_complex_3.txt
+prompts/hrem_v2_aba_complex_3.txt
 ```
 
-The planned runs are:
+The cells are:
 
-1. native Self-Forcing;
-2. Self-Forcing + Pyramid Forcing;
-3. Self-Forcing + LifeCache-v1, after the hook is connected.
+1. raw native Self-Forcing schedule;
+2. native Self-Forcing with the shared scene-boundary reset control;
+3. oracle episode-0 memory;
+4. dual-evidence episode selection with all heads;
+5. full HREM-v2 with online head-role evidence.
 
 ## Third-Party Code
 
@@ -124,8 +117,9 @@ The original repositories referenced by this project are:
 
 ## Model Files
 
-Model weights are intentionally not committed. For the first experiments, place
-the required files as described in `docs/17_experiment_run_commands.md`:
+Model weights are intentionally not committed. For the current HREM-v2
+experiment, place the required files as described in
+`docs/59_hrem_v2_evidence_gated_episodic_memory.md`:
 
 ```text
 third_party/Self-Forcing/wan_models/Wan2.1-T2V-1.3B/
@@ -142,8 +136,17 @@ To clone or refresh reference repositories in a fresh workspace:
 bash scripts/bootstrap_repos.sh
 ```
 
-To inspect the current LifeCache design, read:
+To run the first HREM-v2 matrix:
 
-```text
-docs/15_lifecache_doc_index.md
+```bash
+bash scripts/run_hrem_v2_evidence.sh 0 1 2 3
+```
+
+Then audit routing and evaluate A-B-A return:
+
+```bash
+python scripts/summarize_hrem_v2_trace.py \
+  runs/hrem_v2_evidence_s0/traces/hrem_v2.jsonl --strict
+CUDA_VISIBLE_DEVICES=0 python scripts/evaluate_hrem_v2.py \
+  --run-root runs/hrem_v2_evidence_s0
 ```

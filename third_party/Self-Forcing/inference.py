@@ -77,6 +77,8 @@ parser.add_argument("--archive_max_frames", type=int, default=None,
 parser.add_argument("--archive_policy", type=str, default=None,
                     choices=("uniform", "coverage"),
                     help="Eviction policy when the archive overflows.")
+parser.add_argument("--archive_spatial_stride", type=int, default=None,
+                    help="Spatial pooling stride for archived full-frame K/V (default 4).")
 parser.add_argument("--top_k_frames", type=int, default=None,
                     help="Top-K frame selection budget (0 = use all eligible).")
 parser.add_argument("--recent_exclude_frames", type=int, default=None,
@@ -84,8 +86,8 @@ parser.add_argument("--recent_exclude_frames", type=int, default=None,
 parser.add_argument("--prompt_prior_weight", type=float, default=None,
                     help="Weight for the prompt-similarity prior in [0, 1].")
 parser.add_argument("--episode_gate_mode", type=str, default=None,
-                    choices=("off", "contrastive_strict", "contrastive_relative"),
-                    help="Contrastive episode gate mode.")
+                    choices=("off", "contrastive_strict", "contrastive_relative", "dual_evidence", "oracle"),
+                    help="Historical episode admission mode.")
 parser.add_argument("--episode_gate_activation_episode", type=int, default=None,
                     help="Episode id at which the contrastive gate activates.")
 parser.add_argument("--oracle_episode_id", type=int, default=None,
@@ -93,7 +95,7 @@ parser.add_argument("--oracle_episode_id", type=int, default=None,
 parser.add_argument("--trace_enabled", action="store_true", default=False,
                     help="Enable structured-memory trace logging.")
 parser.add_argument("--head_routing", type=str, default=None,
-                    choices=("static", "confidence_adaptive", "functional_adaptive", "off"),
+                    choices=("static", "confidence_adaptive", "functional_adaptive", "role_evidence", "off"),
                     help="Per-head routing mode (static = all-enabled in SF port).")
 parser.add_argument("--retrieval_temperature", type=float, default=None)
 parser.add_argument("--confidence_threshold", type=float, default=None)
@@ -131,7 +133,16 @@ parser.add_argument("--structured_memory_trace_path", type=str, default=None,
 parser.add_argument("--structured_memory_memory_start_episode", type=int, default=None,
                     help="Disable the memory branch entirely for episodes "
                          "with id < this value (archive commits still "
-                         "happen).  Default 0 = active on every episode.")
+                          "happen).  Default 0 = active on every episode.")
+parser.add_argument("--dual_min_semantic_similarity", type=float, default=None)
+parser.add_argument("--dual_min_visual_similarity", type=float, default=None)
+parser.add_argument("--dual_min_combined_score", type=float, default=None)
+parser.add_argument("--dual_min_episode_margin", type=float, default=None)
+parser.add_argument("--dual_visual_head_fraction", type=float, default=None)
+parser.add_argument("--dual_allow_disagreement", action="store_true", default=False,
+                    help="Ablation: allow semantic/visual cue winners to disagree.")
+parser.add_argument("--role_threshold", type=float, default=None)
+parser.add_argument("--role_sharpness", type=float, default=None)
 args = parser.parse_args()
 
 # --- Forward structured-memory CLI overrides into env -------------------
@@ -146,6 +157,7 @@ _CLI_ENV_MAP = {
     "memory_gate": "STRUCTURED_MEMORY_GATE",
     "archive_max_frames": "STRUCTURED_MEMORY_ARCHIVE_MAX_FRAMES",
     "archive_policy": "STRUCTURED_MEMORY_ARCHIVE_POLICY",
+    "archive_spatial_stride": "STRUCTURED_MEMORY_SPATIAL_STRIDE",
     "top_k_frames": "STRUCTURED_MEMORY_TOP_K_FRAMES",
     "recent_exclude_frames": "STRUCTURED_MEMORY_RECENT_EXCLUDE_FRAMES",
     "prompt_prior_weight": "STRUCTURED_MEMORY_PROMPT_PRIOR_WEIGHT",
@@ -173,6 +185,13 @@ _CLI_ENV_MAP = {
     "structured_memory_layer_end": "STRUCTURED_MEMORY_LAYER_END",
     "structured_memory_trace_path": "STRUCTURED_MEMORY_TRACE_PATH",
     "structured_memory_memory_start_episode": "STRUCTURED_MEMORY_MEMORY_START_EPISODE",
+    "dual_min_semantic_similarity": "STRUCTURED_MEMORY_DUAL_MIN_SEMANTIC_SIMILARITY",
+    "dual_min_visual_similarity": "STRUCTURED_MEMORY_DUAL_MIN_VISUAL_SIMILARITY",
+    "dual_min_combined_score": "STRUCTURED_MEMORY_DUAL_MIN_COMBINED_SCORE",
+    "dual_min_episode_margin": "STRUCTURED_MEMORY_DUAL_MIN_EPISODE_MARGIN",
+    "dual_visual_head_fraction": "STRUCTURED_MEMORY_DUAL_VISUAL_HEAD_FRACTION",
+    "role_threshold": "STRUCTURED_MEMORY_ROLE_THRESHOLD",
+    "role_sharpness": "STRUCTURED_MEMORY_ROLE_SHARPNESS",
 }
 for cli_name, env_name in _CLI_ENV_MAP.items():
     value = getattr(args, cli_name, None)
@@ -180,6 +199,8 @@ for cli_name, env_name in _CLI_ENV_MAP.items():
         os.environ[env_name] = str(value)
 if args.trace_enabled:
     os.environ["STRUCTURED_MEMORY_TRACE_ENABLED"] = "1"
+if args.dual_allow_disagreement:
+    os.environ["STRUCTURED_MEMORY_DUAL_REQUIRE_AGREEMENT"] = "0"
 
 # Initialize distributed inference
 if "LOCAL_RANK" in os.environ:

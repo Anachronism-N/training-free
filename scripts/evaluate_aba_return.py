@@ -64,9 +64,12 @@ def evaluate_video(path: Path) -> dict:
     for name, bg in (("full", False), ("background", True)):
         fa1, fb, fa2 = features(a1, bg), features(b, bg), features(a2, bg)
         return_sim = centroid_similarity(fa1, fa2)
+        a1_b = centroid_similarity(fa1, fb)
         leakage = centroid_similarity(fb, fa2)
         result[name] = {
             "a1_a2": return_sim,
+            "a1_b": a1_b,
+            "scene_separation": 1.0 - a1_b,
             "b_a2": leakage,
             "return_margin": return_sim - leakage,
         }
