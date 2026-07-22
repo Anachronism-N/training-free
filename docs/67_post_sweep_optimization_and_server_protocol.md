@@ -1,5 +1,7 @@
 # HREM-v2 Post-Sweep Optimization and Server Protocol
 
+> Update on 2026-07-22: this document remains the prompt-switch/return-recall protocol. Its statement that single-prompt inference is a no-op applies to commit `95c88e2` and earlier. The new explicit `intra_episode` continuity-recall path and its experiment protocol are documented in `docs/68_single_prompt_continuity_recall.md`.
+
 > 日期：2026-07-22
 >
 > 状态：代码与静态检查阶段；新增实验尚未在 GPU 服务器运行。

@@ -88,7 +88,7 @@ parser.add_argument("--recent_exclude_frames", type=int, default=None,
 parser.add_argument("--prompt_prior_weight", type=float, default=None,
                     help="Weight for the prompt-similarity prior in [0, 1].")
 parser.add_argument("--episode_gate_mode", type=str, default=None,
-                    choices=("off", "contrastive_strict", "contrastive_relative", "dual_evidence", "oracle"),
+                    choices=("off", "contrastive_strict", "contrastive_relative", "dual_evidence", "oracle", "intra_episode"),
                     help="Historical episode admission mode.")
 parser.add_argument("--episode_gate_activation_episode", type=int, default=None,
                     help="Episode id at which the contrastive gate activates.")
@@ -143,6 +143,9 @@ parser.add_argument("--structured_memory_memory_start_episode", type=int, defaul
                     help="Disable the memory branch entirely for episodes "
                          "with id < this value (archive commits still "
                           "happen).  Default 0 = active on every episode.")
+parser.add_argument("--structured_memory_memory_start_frame", type=int, default=None,
+                    help="For intra_episode mode, disable memory readout before "
+                         "this latent-frame index while archive commits continue.")
 parser.add_argument("--dual_min_semantic_similarity", type=float, default=None)
 parser.add_argument("--dual_min_visual_similarity", type=float, default=None)
 parser.add_argument("--dual_min_combined_score", type=float, default=None)
@@ -204,6 +207,7 @@ _CLI_ENV_MAP = {
     "structured_memory_debug_layers": "STRUCTURED_MEMORY_DEBUG_LAYERS",
     "structured_memory_debug_every_blocks": "STRUCTURED_MEMORY_DEBUG_EVERY_BLOCKS",
     "structured_memory_memory_start_episode": "STRUCTURED_MEMORY_MEMORY_START_EPISODE",
+    "structured_memory_memory_start_frame": "STRUCTURED_MEMORY_MEMORY_START_FRAME",
     "dual_min_semantic_similarity": "STRUCTURED_MEMORY_DUAL_MIN_SEMANTIC_SIMILARITY",
     "dual_min_visual_similarity": "STRUCTURED_MEMORY_DUAL_MIN_VISUAL_SIMILARITY",
     "dual_min_combined_score": "STRUCTURED_MEMORY_DUAL_MIN_COMBINED_SCORE",

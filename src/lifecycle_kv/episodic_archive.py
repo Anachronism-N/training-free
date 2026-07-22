@@ -35,6 +35,17 @@ class EpisodicArchiveConfig:
             raise ValueError("archive_policy must be uniform or coverage")
         if self.spatial_stride <= 0:
             raise ValueError("spatial_stride must be positive")
+        if self.episode_gate_mode not in {
+            "off",
+            "contrastive_strict",
+            "contrastive_relative",
+            "dual_evidence",
+            "oracle",
+            "intra_episode",
+        }:
+            raise ValueError("unsupported episode_gate_mode")
+        if self.episode_gate_activation_episode < 0:
+            raise ValueError("episode_gate_activation_episode must be non-negative")
         if self.trace_enabled and not self.trace_path:
             raise ValueError("trace_path is required when trace_enabled is true")
         if self.debug_every_blocks <= 0:

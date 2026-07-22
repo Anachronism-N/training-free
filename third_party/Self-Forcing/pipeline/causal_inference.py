@@ -438,6 +438,9 @@ class CausalInferencePipeline(torch.nn.Module):
             "memory_start_episode": _env_int(
                 "STRUCTURED_MEMORY_MEMORY_START_EPISODE", 0
             ),
+            "memory_start_frame": _env_int(
+                "STRUCTURED_MEMORY_MEMORY_START_FRAME", 0
+            ),
             "dual_min_semantic_similarity": _env_float(
                 "STRUCTURED_MEMORY_DUAL_MIN_SEMANTIC_SIMILARITY", 0.20
             ),
@@ -490,6 +493,14 @@ class CausalInferencePipeline(torch.nn.Module):
             raise ValueError(
                 "STRUCTURED_MEMORY_EPISODE_WARMUP_BLOCKS must be non-negative"
             )
+        if self.structured_memory_config["memory_start_episode"] < 0:
+            raise ValueError(
+                "STRUCTURED_MEMORY_MEMORY_START_EPISODE must be non-negative"
+            )
+        if self.structured_memory_config["memory_start_frame"] < 0:
+            raise ValueError(
+                "STRUCTURED_MEMORY_MEMORY_START_FRAME must be non-negative"
+            )
         print(f"[StructuredMemory] ========================================")
         print(f"[StructuredMemory] archives={self.num_transformer_blocks} "
               f"max_frames={archive_max_frames} policy={archive_policy} "
@@ -507,6 +518,8 @@ class CausalInferencePipeline(torch.nn.Module):
               f"every_blocks={debug_every_blocks}")
         print(f"[StructuredMemory] memory_start_episode="
               f"{self.structured_memory_config['memory_start_episode']}")
+        print(f"[StructuredMemory] memory_start_frame="
+              f"{self.structured_memory_config['memory_start_frame']}")
         print(f"[StructuredMemory] warmup_blocks="
               f"{self.structured_memory_config['warmup_blocks']} "
               f"episode_warmup_blocks="
@@ -528,6 +541,8 @@ class CausalInferencePipeline(torch.nn.Module):
             trace_archive.write_trace(
                 "config",
                 method="hrem_v2",
+                method_version="2.1",
+                recall_capabilities=["cross_episode", "intra_episode"],
                 active_layers=active_layers,
                 num_transformer_blocks=int(self.num_transformer_blocks),
                 archive={

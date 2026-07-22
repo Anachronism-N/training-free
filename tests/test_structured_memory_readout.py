@@ -150,6 +150,69 @@ def test_empty_eligible_history_returns_zero_confidence():
     assert torch.count_nonzero(result.confidence) == 0
 
 
+def test_current_episode_is_excluded_by_default():
+    q = torch.tensor([[[[1.0, 0.0]]]])
+    memory_k = torch.tensor([[[[1.0, 0.0]]], [[[1.0, 0.0]]]])
+    memory_v = torch.tensor([[[[3.0, 0.0]]], [[[7.0, 0.0]]]])
+
+    result = query_conditioned_memory_readout(
+        q,
+        memory_k,
+        memory_v,
+        episode_ids=torch.tensor([0, 1]),
+        allowed_episode_id=1,
+        current_episode_id=1,
+        confidence_threshold=-1.0,
+    )
+
+    assert not result.accepted.any()
+    assert result.abstain_reason == "no_eligible_frames"
+    assert torch.count_nonzero(result.output) == 0
+
+
+def test_intra_episode_readout_allows_only_same_episode_history():
+    q = torch.tensor([[[[1.0, 0.0]]]])
+    memory_k = torch.tensor([[[[1.0, 0.0]]], [[[1.0, 0.0]]]])
+    memory_v = torch.tensor([[[[3.0, 0.0]]], [[[7.0, 0.0]]]])
+
+    result = query_conditioned_memory_readout(
+        q,
+        memory_k,
+        memory_v,
+        episode_ids=torch.tensor([0, 1]),
+        allowed_episode_id=1,
+        current_episode_id=1,
+        allow_current_episode=True,
+        confidence_threshold=-1.0,
+    )
+
+    assert result.accepted.all()
+    assert result.selected_indices.tolist() == [1]
+    assert result.frame_weights[0, 0, 0] == 0
+    assert result.frame_weights[0, 0, 1] == 1
+    torch.testing.assert_close(result.output[0, 0, 0], torch.tensor([7.0, 0.0]))
+
+
+def test_current_episode_opt_in_fails_closed_without_matching_scope():
+    q = torch.tensor([[[[1.0, 0.0]]]])
+    memory_k = torch.tensor([[[[1.0, 0.0]]], [[[1.0, 0.0]]]])
+    memory_v = torch.tensor([[[[3.0, 0.0]]], [[[7.0, 0.0]]]])
+
+    result = query_conditioned_memory_readout(
+        q,
+        memory_k,
+        memory_v,
+        episode_ids=torch.tensor([0, 1]),
+        allowed_episode_id=0,
+        current_episode_id=1,
+        allow_current_episode=True,
+        confidence_threshold=-1.0,
+    )
+
+    assert not result.accepted.any()
+    assert result.abstain_reason == "no_eligible_frames"
+
+
 def test_frame_prior_can_override_visual_frame_ranking():
     q = torch.tensor([[[[1.0, 0.0]]]])
     memory_k = torch.tensor([[[[1.0, 0.0]]], [[[0.6, 0.8]]]])

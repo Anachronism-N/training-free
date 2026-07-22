@@ -1,5 +1,7 @@
 # SF 验证实验矩阵规划
 
+> 2026-07-22 更新: 本文保留为 CEMR+CEG 历史规划。单 prompt 长视频已升级为主任务, 当前可执行协议和显式 `intra_episode` continuity recall 见 `docs/68_single_prompt_continuity_recall.md`。
+
 > 状态：只读规划文档，未 commit/push。所有 phase 的门槛在生成前冻结，失败则保留为负结果。
 > 本文是 SF backend 上验证 CEMR+CEG 独立增量的权威矩阵，引用 `docs/55_cemr_ceg_full_idea_spec.md` 第 7.3 节投稿门槛。
 > 任何与 `docs/55` 冲突的旧 PF-only 结论，在 SF 阶段以本文为准。

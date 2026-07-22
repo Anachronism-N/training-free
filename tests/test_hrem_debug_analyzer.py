@@ -212,3 +212,76 @@ def test_empty_boundary_archive_snapshot_is_an_error() -> None:
         and finding["severity"] == "ERROR"
         for finding in report["findings"]
     )
+
+
+def test_nominal_intra_episode_trace_accepts_old_same_episode_frames() -> None:
+    records = [
+        {"event": "commit", "layer": 15},
+        {
+            "event": "readout",
+            "layer": 15,
+            "current_frame": 48,
+            "block_index": 16,
+            "current_episode_id": 0,
+            "previous_episode_id": None,
+            "recall_scope": "intra_episode",
+            "allow_current_episode": True,
+            "allowed_episode_id": 0,
+            "memory_start_frame": 36,
+            "recent_exclude_frames": 12,
+            "selected_indices_valid": True,
+            "interval_sidecar_valid": True,
+            "episode_sidecar_valid": True,
+            "selected_episode_ids": [0, 0],
+            "selected_frame_ages": [20, 32],
+            "episode_decision": {"winner_episode_id": 0},
+            "accepted_head_count": 8,
+            "head_count": 12,
+            "confidence_mean": 0.4,
+            "head_gate_mean": 1.0,
+            "effective_weight_mean": 0.02,
+            "alignment_positive_fraction": 0.6,
+            "delta_to_native_rms": 0.03,
+        },
+    ]
+
+    report = analyze_records(records)
+
+    assert not any(finding["severity"] == "ERROR" for finding in report["findings"])
+    assert report["metrics"]["intra_episode_readouts"] == 1
+    assert report["metrics"]["intra_selected_frame_age_median"] == 26
+
+
+def test_intra_episode_recent_or_foreign_selection_is_a_hard_error() -> None:
+    records = [
+        {"event": "commit", "layer": 15},
+        {
+            "event": "readout",
+            "layer": 15,
+            "current_frame": 48,
+            "block_index": 16,
+            "current_episode_id": 0,
+            "recall_scope": "intra_episode",
+            "allow_current_episode": True,
+            "allowed_episode_id": 0,
+            "memory_start_frame": 36,
+            "recent_exclude_frames": 12,
+            "selected_indices_valid": True,
+            "interval_sidecar_valid": True,
+            "episode_sidecar_valid": True,
+            "selected_episode_ids": [1],
+            "selected_frame_ages": [12],
+            "accepted_head_count": 1,
+            "head_count": 12,
+            "delta_to_native_rms": 0.01,
+        },
+    ]
+
+    report = analyze_records(records)
+
+    assert any(
+        finding["code"] == "causal_invariant_violation"
+        and finding["severity"] == "ERROR"
+        for finding in report["findings"]
+    )
+    assert len(report["violations"]) == 2

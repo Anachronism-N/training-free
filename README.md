@@ -3,33 +3,31 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current method candidate is **HREM-v2: Head-Role Evidence-gated Episodic
-Memory for Training-free Long AR Video Generation**. It keeps a bounded,
-episode-balanced sidecar of clean pre-RoPE K/V frames, admits only non-recent
-episodes supported by both prompt and visual-query evidence, and routes the
-independent memory-attention output with online per-head persistence and motion
-evidence. Uncertain recall returns the native Self-Forcing output unchanged.
-The paper-facing contribution is the factorized two-stage admission decision,
-not the archive or top-k retrieval components in isolation. The exact borrowed
-components, claim boundary, and falsifiable hypotheses are recorded in
-`docs/60_hrem_v2_novelty_and_debug_protocol.md`.
+The current method candidate is **HREM-v2.1: scope-conditioned historical
+recall for training-free long AR video generation**. It keeps a bounded sidecar
+of clean pre-RoPE K/V frames and supports two explicit recall scopes:
+intra-episode continuity recall for ordinary single-prompt long video, and
+cross-episode return recall for A-B-A style prompt switching. Both use an
+independent memory-attention branch, evidence-based abstention, optional online
+head routing, and native fallback. These mechanisms are hypotheses pending GPU
+experiments, not established quality improvements.
 The paper/code provenance ledger, license audit, high-overlap related work,
 and claim-safety rules are recorded in
 `docs/64_related_work_code_provenance_and_claims.md`.
-The latest post-sweep implementation decisions, corrected experiment scope,
-server matrix, and go/no-go rules are in
-`docs/67_post_sweep_optimization_and_server_protocol.md`.
-For the full method background and original runbook, read
-`docs/61_hrem_v2_review_and_runbook.md`; use `docs/67` for the latest server
-commands and post-sweep decisions.
+The latest single-prompt correction, server matrix, debug invariants, and
+go/no-go rules are in `docs/68_single_prompt_continuity_recall.md`.
+Use `docs/67_post_sweep_optimization_and_server_protocol.md` for the separate
+prompt-switch/return-recall branch.
 
 ## Current Hypothesis
 
-Long AR video generation needs to answer two different questions before using
-history:
+Long AR video generation needs to answer three questions before using history:
 
-- **Which episode?** Reject the current and immediately previous scene, then
-  require semantic and visual-query evidence to agree on a historical scene.
+- **Which scope?** For continuous generation, read only sufficiently old frames
+  from the current episode. For scene return, select a supported older episode
+  and reject the immediately previous scene.
+- **Which content?** Use current Q-K evidence and explicit abstention to choose
+  a bounded set of full spatial K/V frames.
 - **Which heads?** Favor heads with persistent K/V and stable queries while
   suppressing heads that show value variation or query drift.
 - **How to fuse?** Use a separate bounded memory-attention branch; never write
@@ -56,13 +54,17 @@ training-free/
    |   |-- 64_related_work_code_provenance_and_claims.md
    |   |-- 65_swift_collision_audit.md
    |   |-- 66_gate_sweep_results_and_review.md
-   |   `-- 67_post_sweep_optimization_and_server_protocol.md
+   |   |-- 67_post_sweep_optimization_and_server_protocol.md
+   |   `-- 68_single_prompt_continuity_recall.md
 |-- prompts/
-|   `-- hrem_v2_aba_complex_3.txt
+|   |-- hrem_v2_aba_complex_3.txt
+|   `-- hrem_v2_single_long_complex_3.txt
 |-- scripts/
 |   |-- bootstrap_repos.sh
    |   |-- analyze_hrem_v2_debug.py
-   |   `-- run_hrem_v2_evidence.sh
+   |   |-- run_hrem_v2_evidence.sh
+   |   |-- run_hrem_v2_single_prompt.sh
+   |   `-- run_vbench_hrem_v2_single_prompt.sh
 |-- src/
 |   `-- lifecycle_kv/
 `-- third_party/
@@ -83,7 +85,10 @@ The HREM-v2 path is connected end-to-end in Self-Forcing:
 - `third_party/Self-Forcing/pipeline/causal_inference.py`: episode lifecycle and
   clean-context archive commits.
 - `scripts/analyze_hrem_v2_debug.py`: structural diagnosis for archive,
-  admission, head routing, fusion strength, and causal invariants.
+  admission, selected frame age, head routing, fusion strength, and causal
+  invariants.
+- `scripts/run_hrem_v2_single_prompt.sh`: controlled native, capture-only,
+  intra-all-head, and intra-role 30-second single-prompt matrix.
 - `scripts/run_hrem_v2_role_ablation.sh`: single-GPU P0 matrix for absolute,
   relative, and hybrid head-role calibration.
 - `scripts/compare_hrem_role_ablation.py`: joins video metrics with mechanism
@@ -94,26 +99,24 @@ syntax-checked but the new CUDA path still requires the server Stage-1 run.
 
 ## Experiment Entry Points
 
-The current causal comparison is documented in:
+The primary single-prompt comparison is documented in:
 
 ```text
-docs/61_hrem_v2_review_and_runbook.md
-docs/59_hrem_v2_evidence_gated_episodic_memory.md
+docs/68_single_prompt_continuity_recall.md
 ```
 
-It defines five 120-frame inference cells using three complex A-B-A prompts:
+It defines four 120-frame cells using three complex continuous prompts:
 
 ```text
-prompts/hrem_v2_aba_complex_3.txt
+native
+capture_only
+intra_all_heads
+intra_role_hybrid
 ```
 
-The cells are:
-
-1. raw native Self-Forcing schedule;
-2. native Self-Forcing with the shared scene-boundary reset control;
-3. oracle episode-0 memory;
-4. dual-evidence episode selection with all heads;
-5. full HREM-v2 with online head-role evidence.
+The prompt-switch comparison remains documented in
+`docs/67_post_sweep_optimization_and_server_protocol.md` and
+`docs/61_hrem_v2_review_and_runbook.md`.
 
 ## Third-Party Code
 
@@ -152,13 +155,17 @@ The original repositories referenced by this project are:
 
 ## Model Files
 
-Model weights are intentionally not committed. For the current HREM-v2
-experiment, place the required files as described in
-`docs/59_hrem_v2_evidence_gated_episodic_memory.md`:
+Model weights are intentionally not committed. For the current Self-Forcing
+HREM-v2.1 experiment, place:
 
 ```text
 third_party/Self-Forcing/wan_models/Wan2.1-T2V-1.3B/
 third_party/Self-Forcing/checkpoints/self_forcing_dmd.pt
+```
+
+The older Pyramid-Forcing experiments additionally use:
+
+```text
 third_party/Pyramid-Forcing/wan_models/Wan2.1-T2V-1.3B/
 third_party/Pyramid-Forcing/checkpoints/self_forcing_dmd.pt
 ```
@@ -171,7 +178,19 @@ To keep existing vendored directories and clone only missing references:
 bash scripts/bootstrap_repos.sh
 ```
 
-To run the first HREM-v2 matrix:
+To run the primary single-prompt matrix on four GPUs:
+
+```bash
+RUN_EVAL=1 bash scripts/run_hrem_v2_single_prompt.sh 0 1 2 3
+```
+
+For one GPU, run the same cells sequentially:
+
+```bash
+PARALLEL=0 RUN_EVAL=1 bash scripts/run_hrem_v2_single_prompt.sh 0 0 0 0
+```
+
+To run the separate prompt-switch/return matrix:
 
 ```bash
 bash scripts/run_hrem_v2_evidence.sh 0 1 2 3

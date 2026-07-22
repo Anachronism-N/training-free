@@ -2,6 +2,7 @@
 
 ## Current method (read first)
 
+- `docs/68_single_prompt_continuity_recall.md`: latest correction that makes single-prompt long video a primary task, adds explicit intra-episode temporal recall, a 30-second controlled matrix, trace invariants, provenance, and go/no-go rules.
 - `docs/67_post_sweep_optimization_and_server_protocol.md`: latest post-sweep corrections, optional episode-local ramp, controlled server matrix, required logs, and go/no-go rules.
 - `docs/66_gate_sweep_results_and_review.md`: absolute-threshold sweep metrics and human-review observations; superseded by doc 67 for next-step decisions.
 - `docs/65_swift_collision_audit.md`: mechanism-level SWIFT overlap audit and remaining claim boundary.
@@ -16,7 +17,7 @@
 - `docs/55_cemr_ceg_full_idea_spec.md`: strongest CEMR/CEG evidence and unresolved episode-selection failure.
 - `docs/47_current_idea_full_description.md`: earlier structured-memory direction and experiment history.
 
-The current candidate is HREM-v2. Review `docs/61_hrem_v2_review_and_runbook.md` first. LifeCache-v1 below is retained as the original design history, not the recommended first experiment.
+The current candidate is HREM-v2.1 dual-scope historical recall. Review `docs/68_single_prompt_continuity_recall.md` first, then use `docs/67_post_sweep_optimization_and_server_protocol.md` for the prompt-switch branch. LifeCache-v1 below is retained as the original design history, not the recommended first experiment.
 
 ## Original LifeCache-v1 documents
 

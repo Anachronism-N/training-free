@@ -52,6 +52,10 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     commits = [record for record in records if record.get("event") == "commit"]
     boundaries = [record for record in records if record.get("event") == "boundary"]
     readouts = [record for record in records if record.get("event") == "readout"]
+    intra_readouts = [
+        record for record in readouts
+        if record.get("recall_scope") == "intra_episode"
+    ]
     abstains = [record for record in records if record.get("event") == "readout_abstain"]
     abstain_reasons = Counter()
     findings: list[dict[str, str]] = []
@@ -66,16 +70,44 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
         current = record.get("current_episode_id")
         previous = record.get("previous_episode_id")
         allowed = record.get("allowed_episode_id")
+        recall_scope = str(record.get("recall_scope", "cross_episode"))
         context = (
             f"trajectory={record.get('trajectory_id')} layer={_layer(record)} "
             f"block={record.get('block_index')}"
         )
-        if allowed is not None and current is not None and int(allowed) >= int(current):
-            violations.append(
-                f"{context}: allowed episode {allowed} is not historical relative to {current}"
-            )
-        if allowed is not None and previous is not None and int(allowed) == int(previous):
-            violations.append(f"{context}: immediately previous episode {previous} was admitted")
+        if recall_scope == "intra_episode":
+            if not bool(record.get("allow_current_episode", False)):
+                violations.append(f"{context}: intra-episode readout did not opt in to current episode")
+            if allowed is None or current is None or int(allowed) != int(current):
+                violations.append(
+                    f"{context}: intra-episode readout allowed {allowed}, expected current {current}"
+                )
+            selected_episodes = record.get("selected_episode_ids") or []
+            if current is not None and any(
+                int(episode) != int(current) for episode in selected_episodes
+            ):
+                violations.append(
+                    f"{context}: intra-episode readout selected a foreign episode"
+                )
+            recent_exclude = int(record.get("recent_exclude_frames", 0))
+            selected_ages = record.get("selected_frame_ages") or []
+            if any(int(age) <= recent_exclude for age in selected_ages):
+                violations.append(
+                    f"{context}: selected frame age violates recent exclusion {recent_exclude}"
+                )
+            start_frame = int(record.get("memory_start_frame", 0))
+            current_frame = record.get("current_frame")
+            if current_frame is not None and int(current_frame) < start_frame:
+                violations.append(
+                    f"{context}: intra-episode readout started at frame {current_frame} before {start_frame}"
+                )
+        else:
+            if allowed is not None and current is not None and int(allowed) >= int(current):
+                violations.append(
+                    f"{context}: allowed episode {allowed} is not historical relative to {current}"
+                )
+            if allowed is not None and previous is not None and int(allowed) == int(previous):
+                violations.append(f"{context}: immediately previous episode {previous} was admitted")
         decision = record.get("episode_decision") or {}
         winner = decision.get("winner_episode_id")
         if winner is not None and allowed is not None and int(winner) != int(allowed):
@@ -158,11 +190,30 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
                 "Inspect episode thresholds first, then frame confidence and margin thresholds.",
             ))
 
+    incomplete_intra_sidecars = [
+        record for record in intra_readouts
+        if not bool(record.get("selected_indices_valid", False))
+        or not bool(record.get("interval_sidecar_valid", False))
+        or not bool(record.get("episode_sidecar_valid", False))
+        or not (record.get("selected_frame_ages") or [])
+    ]
+    if incomplete_intra_sidecars:
+        findings.append(_finding(
+            "ERROR", "intra_episode_sidecar_missing",
+            f"{len(incomplete_intra_sidecars)} intra-episode readout(s) lack valid age/episode sidecars.",
+            "Do not evaluate the cell until selected intervals, ages, and episode IDs are traceable.",
+        ))
+
     delta_median = _median(readouts, "delta_to_native_rms")
     weight_mean = _mean(readouts, "effective_weight_mean")
     head_gate_mean = _mean(readouts, "head_gate_mean")
     alignment_positive = _mean(readouts, "alignment_positive_fraction")
     confidence_mean = _mean(readouts, "confidence_mean")
+    intra_selected_ages = [
+        float(age)
+        for record in intra_readouts
+        for age in (record.get("selected_frame_ages") or [])
+    ]
     episode_warmup_scale = _mean(readouts, "episode_warmup_scale")
     episode_warmup_values = [
         float(record["episode_warmup_scale"])
@@ -396,6 +447,17 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             "role_active_head_jaccard": role_active_jaccard,
             "alignment_positive_fraction": alignment_positive,
             "confidence_mean": confidence_mean,
+            "intra_episode_readouts": len(intra_readouts),
+            "intra_selected_frame_age_min": (
+                min(intra_selected_ages) if intra_selected_ages else None
+            ),
+            "intra_selected_frame_age_median": (
+                statistics.median(intra_selected_ages)
+                if intra_selected_ages else None
+            ),
+            "intra_selected_frame_age_max": (
+                max(intra_selected_ages) if intra_selected_ages else None
+            ),
             "episode_warmup_blocks": configured_episode_warmup,
             "episode_warmup_scale_mean": episode_warmup_scale,
             "episode_warmup_scale_min": (

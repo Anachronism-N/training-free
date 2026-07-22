@@ -870,6 +870,7 @@ class CausalWanSelfAttention(nn.Module):
             fuse_parallel_attention,
             query_conditioned_memory_readout,
             select_contrastive_episode,
+            summarize_episode_trace_sidecars,
         )
         from lifecycle_kv.role_episodic import (
             compute_episode_warmup,
@@ -892,33 +893,58 @@ class CausalWanSelfAttention(nn.Module):
             ).detach()
             archive._role_query_ema_start = int(current_start)
 
-        if current_episode < int(config.get("memory_start_episode", 0)):
-            _debug(
-                "inactive",
-                f"ep={current_episode} reason=before_memory_start "
-                f"threshold={int(config.get('memory_start_episode', 0))}",
-            )
-            return native_out
-
         episode_ids = getattr(archive, "structured_memory_episode_ids", None)
         frame_prompts = getattr(archive, "structured_memory_prompt_descriptors", None)
         current_prompt = getattr(archive, "current_prompt_descriptor", None)
         previous_prompt = getattr(archive, "previous_prompt_descriptor", None)
         gate_mode = str(getattr(archive.config, "episode_gate_mode", "off"))
+        recall_scope = (
+            "intra_episode" if gate_mode == "intra_episode" else "cross_episode"
+        )
+        allow_current_episode = gate_mode == "intra_episode"
+        memory_start_episode = int(config.get("memory_start_episode", 0))
+        memory_start_frame = int(config.get("memory_start_frame", 0))
+        if gate_mode == "intra_episode":
+            if current_frame < memory_start_frame:
+                _debug(
+                    "inactive",
+                    f"ep={current_episode} scope={recall_scope} "
+                    f"reason=before_memory_start_frame threshold={memory_start_frame}",
+                )
+                return native_out
+        elif current_episode < memory_start_episode:
+            _debug(
+                "inactive",
+                f"ep={current_episode} scope={recall_scope} "
+                f"reason=before_memory_start_episode threshold={memory_start_episode}",
+            )
+            return native_out
+
         activation_episode = int(
             getattr(archive.config, "episode_gate_activation_episode", 1)
         )
         allowed_episode = None
         forced_abstain_reason = None
         episode_trace = None
-        if gate_mode != "off" and int(current_episode) < activation_episode:
+        if (
+            gate_mode not in {"off", "intra_episode"}
+            and int(current_episode) < activation_episode
+        ):
             _debug(
                 "episode",
                 f"ep={current_episode} accepted=0 reason=before_gate_activation "
                 f"threshold={activation_episode}",
             )
             return native_out
-        if gate_mode == "dual_evidence":
+        if gate_mode == "intra_episode":
+            allowed_episode = int(current_episode)
+            episode_trace = {
+                "winner_episode_id": allowed_episode,
+                "accepted": True,
+                "abstain_reason": None,
+                "admission_policy": "same_episode_temporal",
+            }
+        elif gate_mode == "dual_evidence":
             visual = query_frame_similarity(raw_q, memory_k)
             decision = select_dual_evidence_episode(
                 current_prompt_descriptor=current_prompt,
@@ -1028,9 +1054,28 @@ class CausalWanSelfAttention(nn.Module):
         intervals = getattr(archive, "structured_memory_intervals", None)
         eligible = None
         recent_exclude = int(config.get("recent_exclude_frames", 0))
-        if intervals is not None and recent_exclude > 0:
+        interval_sidecar_valid = (
+            intervals is not None
+            and intervals.shape == (memory_k.shape[0], 2)
+        )
+        if gate_mode == "intra_episode" and not interval_sidecar_valid:
+            forced_abstain_reason = "invalid_interval_sidecar"
+            eligible = torch.zeros(
+                memory_k.shape[0], dtype=torch.bool, device=memory_k.device
+            )
+        elif recent_exclude > 0 and not interval_sidecar_valid:
+            forced_abstain_reason = "invalid_interval_sidecar"
+            eligible = torch.zeros(
+                memory_k.shape[0], dtype=torch.bool, device=memory_k.device
+            )
+        elif interval_sidecar_valid and recent_exclude > 0:
             current_frame = int(current_start // frame_seqlen)
             eligible = intervals[:, 1] < (current_frame - recent_exclude)
+        eligible_frame_count = (
+            int(memory_k.shape[0])
+            if eligible is None
+            else int(eligible.sum().item())
+        )
 
         frame_prior = None
         prior_mode = str(config.get("episode_frame_prior_mode", "auto"))
@@ -1094,14 +1139,40 @@ class CausalWanSelfAttention(nn.Module):
             allowed_episode_id=allowed_episode,
             current_episode_id=current_episode,
             previous_episode_id=previous_episode,
-            reject_previous_episode=gate_mode != "off",
+            reject_previous_episode=gate_mode not in {"off", "intra_episode"},
+            allow_current_episode=allow_current_episode,
             forced_abstain_reason=forced_abstain_reason,
         )
         archive._readout_calls += 1
+        readout_sidecars = summarize_episode_trace_sidecars(
+            memory.frame_weights,
+            memory.selected_indices,
+            intervals,
+            episode_ids,
+        )
+        selected_frame_ages = [
+            int(current_frame) - int(interval[1])
+            for interval in readout_sidecars["selected_intervals"]
+            if len(interval) == 2
+        ]
+        readout_sidecars.update({
+            "selected_frame_ages": selected_frame_ages,
+            "selected_frame_age_min": (
+                min(selected_frame_ages) if selected_frame_ages else None
+            ),
+            "selected_frame_age_mean": (
+                sum(selected_frame_ages) / len(selected_frame_ages)
+                if selected_frame_ages else None
+            ),
+            "selected_frame_age_max": (
+                max(selected_frame_ages) if selected_frame_ages else None
+            ),
+        })
         if not bool(torch.any(memory.accepted)):
             _debug(
                 "retrieval",
-                f"ep={current_episode} allowed={allowed_episode} accepted_heads=0 "
+                f"ep={current_episode} scope={recall_scope} "
+                f"allowed={allowed_episode} accepted_heads=0 "
                 f"reason={memory.abstain_reason} "
                 f"confidence_max={float(memory.confidence.max().item()):.4f} "
                 f"margin_max={float(memory.retrieval_margin.max().item()):.4f}",
@@ -1113,9 +1184,19 @@ class CausalWanSelfAttention(nn.Module):
                 block_index=current_block,
                 attention_call_index=attention_call_index,
                 current_episode_id=int(current_episode),
+                previous_episode_id=(
+                    None if previous_episode is None else int(previous_episode)
+                ),
                 memory_mode=memory_mode,
+                recall_scope=recall_scope,
+                allow_current_episode=allow_current_episode,
+                allowed_episode_id=allowed_episode,
+                memory_start_frame=memory_start_frame,
+                recent_exclude_frames=recent_exclude,
+                eligible_frame_count=eligible_frame_count,
                 reason=memory.abstain_reason,
                 episode_decision=episode_trace,
+                **readout_sidecars,
             )
             return native_out
 
@@ -1211,11 +1292,17 @@ class CausalWanSelfAttention(nn.Module):
                     ),
                     memory_mode=memory_mode,
                     head_routing=routing_mode,
+                    recall_scope=recall_scope,
+                    allow_current_episode=allow_current_episode,
                     allowed_episode_id=allowed_episode,
+                    memory_start_frame=memory_start_frame,
+                    recent_exclude_frames=recent_exclude,
+                    eligible_frame_count=eligible_frame_count,
                     reason="role_evidence_spread_below_min",
                     episode_decision=episode_trace,
                     head_role=role_trace,
                     **role_diagnostics,
+                    **readout_sidecars,
                 )
                 return native_out
         elif routing_mode not in {"static", "off"}:
@@ -1255,12 +1342,18 @@ class CausalWanSelfAttention(nn.Module):
                 ),
                 memory_mode=memory_mode,
                 head_routing=routing_mode,
+                recall_scope=recall_scope,
+                allow_current_episode=allow_current_episode,
                 allowed_episode_id=allowed_episode,
+                memory_start_frame=memory_start_frame,
+                recent_exclude_frames=recent_exclude,
+                eligible_frame_count=eligible_frame_count,
                 reason=episode_warmup.reason,
                 episode_warmup_blocks=episode_warmup_blocks,
                 episode_decision=episode_trace,
                 head_role=role_trace,
                 **role_diagnostics,
+                **readout_sidecars,
             )
             return native_out
         gate *= episode_warmup.scale
@@ -1334,7 +1427,8 @@ class CausalWanSelfAttention(nn.Module):
             }
             _debug(
                 "fusion",
-                f"ep={current_episode} prev={previous_episode} allow={allowed_episode} "
+                f"ep={current_episode} prev={previous_episode} scope={recall_scope} "
+                f"allow={allowed_episode} ages={selected_frame_ages} "
                 f"archive={memory_k.shape[0]} selected="
                 f"{memory.selected_indices.detach().cpu().tolist()} "
                 f"accepted_heads={accepted_heads}/{memory.accepted.numel()} "
@@ -1361,7 +1455,12 @@ class CausalWanSelfAttention(nn.Module):
                 previous_episode_id=(None if previous_episode is None else int(previous_episode)),
                 memory_mode=memory_mode,
                 head_routing=routing_mode,
+                recall_scope=recall_scope,
+                allow_current_episode=allow_current_episode,
                 allowed_episode_id=allowed_episode,
+                memory_start_frame=memory_start_frame,
+                recent_exclude_frames=recent_exclude,
+                eligible_frame_count=eligible_frame_count,
                 base_gate=float(base_gate),
                 global_warmup_scale=float(global_warmup_scale),
                 episode_warmup_blocks=episode_warmup_blocks,
@@ -1375,6 +1474,7 @@ class CausalWanSelfAttention(nn.Module):
                 episode_decision=episode_trace,
                 head_role=role_trace,
                 **fusion_diagnostics,
+                **readout_sidecars,
             )
         return fused
 

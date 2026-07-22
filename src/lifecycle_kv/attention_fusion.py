@@ -247,13 +247,20 @@ def build_episode_eligible_mask(
     current_episode_id: int | None = None,
     previous_episode_id: int | None = None,
     reject_previous_episode: bool = False,
+    allow_current_episode: bool = False,
     device: torch.device,
 ) -> torch.Tensor:
-    """Build a fail-closed scene-aware filter while preserving the default path."""
+    """Build a fail-closed episode filter while preserving historical defaults."""
     scene_aware = allowed_episode_id is not None or current_episode_id is not None
     if not scene_aware:
         return torch.ones(frame_count, dtype=torch.bool, device=device)
     if episode_ids is None or episode_ids.shape != (frame_count,):
+        return torch.zeros(frame_count, dtype=torch.bool, device=device)
+    if allow_current_episode and (
+        allowed_episode_id is None
+        or current_episode_id is None
+        or int(allowed_episode_id) != int(current_episode_id)
+    ):
         return torch.zeros(frame_count, dtype=torch.bool, device=device)
     if (
         reject_previous_episode
@@ -264,7 +271,7 @@ def build_episode_eligible_mask(
         return torch.zeros(frame_count, dtype=torch.bool, device=device)
     episode_ids = episode_ids.to(device=device, dtype=torch.long)
     eligible = torch.ones(frame_count, dtype=torch.bool, device=device)
-    if current_episode_id is not None:
+    if current_episode_id is not None and not allow_current_episode:
         eligible &= episode_ids != int(current_episode_id)
     if allowed_episode_id is not None:
         eligible &= episode_ids == int(allowed_episode_id)
@@ -472,6 +479,7 @@ def query_conditioned_memory_readout(
     current_episode_id: int | None = None,
     previous_episode_id: int | None = None,
     reject_previous_episode: bool = False,
+    allow_current_episode: bool = False,
     forced_abstain_reason: str | None = None,
     eps: float = 1e-6,
 ) -> StructuredMemoryReadout:
@@ -549,6 +557,7 @@ def query_conditioned_memory_readout(
         current_episode_id=current_episode_id,
         previous_episode_id=previous_episode_id,
         reject_previous_episode=reject_previous_episode,
+        allow_current_episode=allow_current_episode,
         device=memory_k.device,
     )
     if eligible_frame_mask is None:
