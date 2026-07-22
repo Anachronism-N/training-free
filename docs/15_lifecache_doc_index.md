@@ -2,6 +2,7 @@
 
 ## Current method (read first)
 
+- `docs/69_paper_alignment_canonical_experiments.md`: current top-paper alignment, single-prompt-first method story, PF/Echo distinction, canonical 3x30s generation/blind-review/metric commands, model locations, debug return package, and academic-integrity rules.
 - `docs/68_single_prompt_continuity_recall.md`: latest correction that makes single-prompt long video a primary task, adds explicit intra-episode temporal recall, a 30-second controlled matrix, trace invariants, provenance, and go/no-go rules.
 - `docs/67_post_sweep_optimization_and_server_protocol.md`: latest post-sweep corrections, optional episode-local ramp, controlled server matrix, required logs, and go/no-go rules.
 - `docs/66_gate_sweep_results_and_review.md`: absolute-threshold sweep metrics and human-review observations; superseded by doc 67 for next-step decisions.
@@ -17,7 +18,7 @@
 - `docs/55_cemr_ceg_full_idea_spec.md`: strongest CEMR/CEG evidence and unresolved episode-selection failure.
 - `docs/47_current_idea_full_description.md`: earlier structured-memory direction and experiment history.
 
-The current candidate is HREM-v2.1 dual-scope historical recall. Review `docs/68_single_prompt_continuity_recall.md` first, then use `docs/67_post_sweep_optimization_and_server_protocol.md` for the prompt-switch branch. LifeCache-v1 below is retained as the original design history, not the recommended first experiment.
+The current candidate is scope-conditioned evidence-gated historical recall. Review `docs/69_paper_alignment_canonical_experiments.md` first. Use `docs/68_single_prompt_continuity_recall.md` for implementation details and `docs/67_post_sweep_optimization_and_server_protocol.md` for the prompt-switch history. LifeCache-v1 below is retained as the original design history, not the recommended first experiment.
 
 ## Original LifeCache-v1 documents
 

@@ -3,8 +3,8 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current method candidate is **HREM-v2.1: scope-conditioned historical
-recall for training-free long AR video generation**. It keeps a bounded sidecar
+The current method candidate is **Scope-Conditioned Evidence-Gated Historical
+Recall for training-free long AR video generation**. It keeps a bounded sidecar
 of clean pre-RoPE K/V frames and supports two explicit recall scopes:
 intra-episode continuity recall for ordinary single-prompt long video, and
 cross-episode return recall for A-B-A style prompt switching. Both use an
@@ -16,6 +16,8 @@ and claim-safety rules are recorded in
 `docs/64_related_work_code_provenance_and_claims.md`.
 The latest single-prompt correction, server matrix, debug invariants, and
 go/no-go rules are in `docs/68_single_prompt_continuity_recall.md`.
+The current paper alignment, canonical PF/Echo baselines, review-first protocol,
+and server commands are in `docs/69_paper_alignment_canonical_experiments.md`.
 Use `docs/67_post_sweep_optimization_and_server_protocol.md` for the separate
 prompt-switch/return-recall branch.
 
@@ -55,16 +57,22 @@ training-free/
    |   |-- 65_swift_collision_audit.md
    |   |-- 66_gate_sweep_results_and_review.md
    |   |-- 67_post_sweep_optimization_and_server_protocol.md
-   |   `-- 68_single_prompt_continuity_recall.md
+   |   |-- 68_single_prompt_continuity_recall.md
+   |   `-- 69_paper_alignment_canonical_experiments.md
 |-- prompts/
 |   |-- hrem_v2_aba_complex_3.txt
-|   `-- hrem_v2_single_long_complex_3.txt
+|   |-- hrem_v2_single_long_complex_3.txt
+|   |-- paper_single_long_echo_3.txt
+|   |-- paper_scene_switch_sf_3.txt
+|   `-- paper_scene_switch_echo_3.txt
 |-- scripts/
 |   |-- bootstrap_repos.sh
    |   |-- analyze_hrem_v2_debug.py
-   |   |-- run_hrem_v2_evidence.sh
-   |   |-- run_hrem_v2_single_prompt.sh
-   |   `-- run_vbench_hrem_v2_single_prompt.sh
+   |   |-- prepare_blind_review.py
+   |   |-- validate_echo_prompts.py
+   |   |-- run_paper_single_prompt_30s.sh
+   |   |-- run_paper_scene_switch_30s.sh
+   |   `-- run_paper_metrics.sh
 |-- src/
 |   `-- lifecycle_kv/
 `-- third_party/
@@ -86,7 +94,13 @@ The HREM-v2 path is connected end-to-end in Self-Forcing:
   clean-context archive commits.
 - `scripts/analyze_hrem_v2_debug.py`: structural diagnosis for archive,
   admission, selected frame age, head routing, fusion strength, and causal
-  invariants.
+  invariants, factorized by layer and denoising call.
+- `scripts/run_paper_single_prompt_30s.sh`: canonical native SF, official PF,
+  official Echo, all-head recall, and role-routed recall matrix.
+- `scripts/run_paper_scene_switch_30s.sh`: canonical segmented SF, official Echo
+  recall, and our two mechanism cells for A-B-A return.
+- `scripts/prepare_blind_review.py` and `scripts/run_paper_metrics.sh`: enforce
+  blind human review before comprehensive and VBench-Long metrics.
 - `scripts/run_hrem_v2_single_prompt.sh`: controlled native, capture-only,
   intra-all-head, and intra-role 30-second single-prompt matrix.
 - `scripts/run_hrem_v2_role_ablation.sh`: single-GPU P0 matrix for absolute,
@@ -99,24 +113,25 @@ syntax-checked but the new CUDA path still requires the server Stage-1 run.
 
 ## Experiment Entry Points
 
-The primary single-prompt comparison is documented in:
+The canonical paper experiments are documented in:
 
 ```text
-docs/68_single_prompt_continuity_recall.md
+docs/69_paper_alignment_canonical_experiments.md
 ```
 
-It defines four 120-frame cells using three complex continuous prompts:
+The primary single-prompt matrix contains:
 
 ```text
-native
-capture_only
-intra_all_heads
-intra_role_hybrid
+sf_native
+sf_pyramid_forcing
+sf_echo_forcing
+ours_all_heads
+ours_role
 ```
 
-The prompt-switch comparison remains documented in
-`docs/67_post_sweep_optimization_and_server_protocol.md` and
-`docs/61_hrem_v2_review_and_runbook.md`.
+The first pass is always three complex prompts, one seed, and 120 latent frames
+(approximately 30 seconds), followed by blind human review, metrics, and trace
+analysis in that order.
 
 ## Third-Party Code
 
@@ -170,6 +185,13 @@ third_party/Pyramid-Forcing/wan_models/Wan2.1-T2V-1.3B/
 third_party/Pyramid-Forcing/checkpoints/self_forcing_dmd.pt
 ```
 
+Echo-Forcing uses the same model family and checkpoint at:
+
+```text
+third_party/Echo-Forcing/wan_models/Wan2.1-T2V-1.3B/
+third_party/Echo-Forcing/checkpoints/self_forcing_dmd.pt
+```
+
 ## Quick Start
 
 To keep existing vendored directories and clone only missing references:
@@ -178,32 +200,28 @@ To keep existing vendored directories and clone only missing references:
 bash scripts/bootstrap_repos.sh
 ```
 
-To run the primary single-prompt matrix on four GPUs:
+To run the canonical primary matrix on five GPUs:
 
 ```bash
-RUN_EVAL=1 bash scripts/run_hrem_v2_single_prompt.sh 0 1 2 3
+bash scripts/run_paper_single_prompt_30s.sh 0 1 2 3 4
 ```
 
 For one GPU, run the same cells sequentially:
 
 ```bash
-PARALLEL=0 RUN_EVAL=1 bash scripts/run_hrem_v2_single_prompt.sh 0 0 0 0
+PARALLEL=0 bash scripts/run_paper_single_prompt_30s.sh 0 0 0 0 0
 ```
 
-To run the separate prompt-switch/return matrix:
+To run the canonical scene-switch/return matrix:
 
 ```bash
-bash scripts/run_hrem_v2_evidence.sh 0 1 2 3
+bash scripts/run_paper_scene_switch_30s.sh 0 1 2 3
 ```
 
-Then audit routing and evaluate A-B-A return:
+Both generation scripts prepare a randomized blind-review directory. Freeze its
+`scorecard.csv`, then run metrics:
 
 ```bash
-python scripts/summarize_hrem_v2_trace.py \
-  runs/hrem_v2_evidence_s0/traces/hrem_v2.jsonl --strict
-python scripts/analyze_hrem_v2_debug.py \
-  runs/hrem_v2_evidence_s0/traces/hrem_v2.jsonl \
-  --strict --json-output runs/hrem_v2_evidence_s0/traces/hrem_v2_diagnosis.json
-CUDA_VISIBLE_DEVICES=0 python scripts/evaluate_hrem_v2.py \
-  --run-root runs/hrem_v2_evidence_s0
+HUMAN_REVIEW_DONE=1 bash scripts/run_paper_metrics.sh single 0
+HUMAN_REVIEW_DONE=1 bash scripts/run_paper_metrics.sh scene 0
 ```

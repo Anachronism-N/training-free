@@ -1400,11 +1400,17 @@ class CausalWanSelfAttention(nn.Module):
             )
             head_gate_flat = head_gate.reshape(-1)
             native_rms_value = float(native_rms.item())
+            retrieval_margin = memory.retrieval_margin.detach().float()
+            retrieval_entropy = memory.retrieval_entropy.detach().float()
             fusion_diagnostics = {
                 "accepted_head_count": accepted_heads,
                 "head_count": int(memory.accepted.numel()),
                 "confidence_mean": float(memory.confidence.float().mean().item()),
                 "confidence_max": float(memory.confidence.float().max().item()),
+                "retrieval_margin_mean": float(retrieval_margin.mean().item()),
+                "retrieval_margin_max": float(retrieval_margin.max().item()),
+                "retrieval_entropy_mean": float(retrieval_entropy.mean().item()),
+                "retrieval_entropy_max": float(retrieval_entropy.max().item()),
                 "head_gate_mean": float(head_gate.mean().item()),
                 "head_gate_std": float(head_gate.std(unbiased=False).item()),
                 "head_gate_min": float(head_gate.min().item()),
@@ -1437,6 +1443,8 @@ class CausalWanSelfAttention(nn.Module):
                 f"head_gate={fusion_diagnostics['head_gate_mean']:.4f} "
                 f"episode_block={episode_warmup.episode_block_index} "
                 f"ramp={episode_warmup.scale:.3f} "
+                f"margin={fusion_diagnostics['retrieval_margin_mean']:.4f} "
+                f"entropy={fusion_diagnostics['retrieval_entropy_mean']:.4f} "
                 f"gate_range={fusion_diagnostics['head_gate_p10']:.3f}:"
                 f"{fusion_diagnostics['head_gate_p90']:.3f} "
                 f"role_spread={fusion_diagnostics.get('role_evidence_spread', 0.0):.5f} "

@@ -46,6 +46,26 @@ def _layer(record: dict[str, Any]) -> int:
     return int(record.get("layer", record.get("layer_idx", -1)))
 
 
+def _call(record: dict[str, Any]) -> int:
+    return int(record.get("attention_call_index", -1))
+
+
+def _summarize_readouts(records: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "readouts": len(records),
+        "delta_to_native_rms_median": _median(records, "delta_to_native_rms"),
+        "effective_weight_mean": _mean(records, "effective_weight_mean"),
+        "confidence_mean": _mean(records, "confidence_mean"),
+        "retrieval_margin_mean": _mean(records, "retrieval_margin_mean"),
+        "retrieval_entropy_mean": _mean(records, "retrieval_entropy_mean"),
+        "head_gate_mean": _mean(records, "head_gate_mean"),
+        "head_gate_std": _mean(records, "head_gate_std"),
+        "head_gate_active_fraction": _mean(records, "head_gate_active_fraction"),
+        "role_evidence_spread_median": _median(records, "role_evidence_spread"),
+        "alignment_positive_fraction": _mean(records, "alignment_positive_fraction"),
+    }
+
+
 def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     events = Counter(str(record.get("event", "missing")) for record in records)
     configs = [record for record in records if record.get("event") == "config"]
@@ -413,20 +433,23 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     for record in readouts:
         grouped[_layer(record)].append(record)
     for layer, layer_records in sorted(grouped.items()):
-        per_layer[str(layer)] = {
-            "readouts": len(layer_records),
-            "delta_to_native_rms_median": _median(layer_records, "delta_to_native_rms"),
-            "effective_weight_mean": _mean(layer_records, "effective_weight_mean"),
-            "head_gate_mean": _mean(layer_records, "head_gate_mean"),
-            "head_gate_std": _mean(layer_records, "head_gate_std"),
-            "head_gate_active_fraction": _mean(
-                layer_records, "head_gate_active_fraction"
-            ),
-            "role_evidence_spread_median": _median(
-                layer_records, "role_evidence_spread"
-            ),
-            "alignment_positive_fraction": _mean(layer_records, "alignment_positive_fraction"),
-        }
+        per_layer[str(layer)] = _summarize_readouts(layer_records)
+
+    per_attention_call: dict[str, dict[str, Any]] = {}
+    grouped_calls: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for record in readouts:
+        grouped_calls[_call(record)].append(record)
+    for call, call_records in sorted(grouped_calls.items()):
+        per_attention_call[str(call)] = _summarize_readouts(call_records)
+
+    per_layer_attention_call: dict[str, dict[str, Any]] = {}
+    grouped_layer_calls: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
+    for record in readouts:
+        grouped_layer_calls[(_layer(record), _call(record))].append(record)
+    for (layer, call), cell_records in sorted(grouped_layer_calls.items()):
+        per_layer_attention_call[f"layer_{layer}/call_{call}"] = _summarize_readouts(
+            cell_records
+        )
 
     return {
         "record_count": len(records),
@@ -469,6 +492,8 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             "episode_first_block_effective_gate_mean": first_episode_block_gate,
         },
         "per_layer": per_layer,
+        "per_attention_call": per_attention_call,
+        "per_layer_attention_call": per_layer_attention_call,
         "violations": violations,
         "findings": findings,
     }

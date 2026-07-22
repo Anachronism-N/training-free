@@ -107,6 +107,47 @@ def test_role_and_retrieval_head_fractions_are_reported_separately() -> None:
     assert report["metrics"]["role_active_head_jaccard"] == 1.0
 
 
+def test_layer_and_denoising_call_diagnostics_are_factorized() -> None:
+    base = {
+        "event": "readout",
+        "trajectory_id": 0,
+        "current_start": 80,
+        "current_episode_id": 0,
+        "recall_scope": "intra_episode",
+        "allow_current_episode": True,
+        "allowed_episode_id": 0,
+        "selected_episode_ids": [0],
+        "selected_frame_ages": [20],
+        "recent_exclude_frames": 12,
+        "memory_start_frame": 36,
+        "current_frame": 80,
+        "selected_indices_valid": True,
+        "interval_sidecar_valid": True,
+        "episode_sidecar_valid": True,
+        "accepted_head_count": 2,
+        "head_count": 2,
+        "confidence_mean": 0.4,
+        "retrieval_margin_mean": 0.2,
+        "retrieval_entropy_mean": 0.6,
+        "head_gate_mean": 0.5,
+        "effective_weight_mean": 0.02,
+        "alignment_positive_fraction": 0.5,
+    }
+    records = [
+        {"event": "commit", "layer": 15},
+        {**base, "layer": 15, "attention_call_index": 0, "delta_to_native_rms": 0.01},
+        {**base, "layer": 15, "attention_call_index": 1, "delta_to_native_rms": 0.03},
+        {**base, "layer": 16, "attention_call_index": 0, "delta_to_native_rms": 0.05},
+    ]
+
+    report = analyze_records(records)
+
+    assert report["per_attention_call"]["0"]["readouts"] == 2
+    assert report["per_attention_call"]["1"]["delta_to_native_rms_median"] == 0.03
+    assert report["per_layer"]["15"]["retrieval_margin_mean"] == 0.2
+    assert report["per_layer_attention_call"]["layer_16/call_0"]["readouts"] == 1
+
+
 def test_low_role_evidence_spread_is_reported() -> None:
     records = [
         {"event": "commit", "layer": 15},
