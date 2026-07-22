@@ -4,6 +4,7 @@
 > 基座：Wan2.1-T2V-1.3B + Self-Forcing DMD。  
 > 目标：training-free 长视频中的场景回访、主体身份和布局恢复，同时避免历史记忆冻结运动。
 > 论文边界和服务器诊断见 `docs/60_hrem_v2_novelty_and_debug_protocol.md`。
+> 完整 review、论文故事和运行手册见 `docs/61_hrem_v2_review_and_runbook.md`。
 
 ## 1. 当前决策
 

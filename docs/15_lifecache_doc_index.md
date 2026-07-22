@@ -2,13 +2,14 @@
 
 ## Current method (read first)
 
+- `docs/61_hrem_v2_review_and_runbook.md`: single review entry for the current idea, paper story, implementation map, server usage, log interpretation, and go/no-go criteria.
 - `docs/60_hrem_v2_novelty_and_debug_protocol.md`: paper-facing novelty boundary, falsifiable story, debug fields, and server diagnosis loop.
 - `docs/59_hrem_v2_evidence_gated_episodic_memory.md`: current method, implementation, causal matrix, server commands, and promotion criteria.
 - `docs/58_hrem_v1_results.md`: HREM-v1 result and failure analysis.
 - `docs/55_cemr_ceg_full_idea_spec.md`: strongest CEMR/CEG evidence and unresolved episode-selection failure.
 - `docs/47_current_idea_full_description.md`: earlier structured-memory direction and experiment history.
 
-The current candidate is HREM-v2. LifeCache-v1 below is retained as the original design history, not the recommended first experiment.
+The current candidate is HREM-v2. Review `docs/61_hrem_v2_review_and_runbook.md` first. LifeCache-v1 below is retained as the original design history, not the recommended first experiment.
 
 ## Original LifeCache-v1 documents
 

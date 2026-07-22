@@ -13,6 +13,9 @@ The paper-facing contribution is the factorized two-stage admission decision,
 not the archive or top-k retrieval components in isolation. The exact borrowed
 components, claim boundary, and falsifiable hypotheses are recorded in
 `docs/60_hrem_v2_novelty_and_debug_protocol.md`.
+For a single review entry covering the idea, paper story, code changes, server
+commands, expected logs, and go/no-go criteria, start with
+`docs/61_hrem_v2_review_and_runbook.md`.
 
 ## Current Hypothesis
 
@@ -39,7 +42,8 @@ training-free/
 |-- docs/
 |   |-- 15_lifecache_doc_index.md
    |   |-- 59_hrem_v2_evidence_gated_episodic_memory.md
-   |   `-- 60_hrem_v2_novelty_and_debug_protocol.md
+   |   |-- 60_hrem_v2_novelty_and_debug_protocol.md
+   |   `-- 61_hrem_v2_review_and_runbook.md
 |-- prompts/
 |   `-- hrem_v2_aba_complex_3.txt
 |-- scripts/
@@ -76,6 +80,7 @@ syntax-checked but the new CUDA path still requires the server Stage-1 run.
 The current causal comparison is documented in:
 
 ```text
+docs/61_hrem_v2_review_and_runbook.md
 docs/59_hrem_v2_evidence_gated_episodic_memory.md
 ```
 
