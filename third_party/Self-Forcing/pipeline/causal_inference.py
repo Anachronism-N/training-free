@@ -340,6 +340,27 @@ class CausalInferencePipeline(torch.nn.Module):
             archive_max_frames=archive_max_frames,
             archive_policy=archive_policy,
             spatial_stride=spatial_stride,
+            typed_anchor_frames=_env_int(
+                "STRUCTURED_MEMORY_TYPED_ANCHOR_FRAMES", 4
+            ),
+            typed_summary_slots=_env_int(
+                "STRUCTURED_MEMORY_TYPED_SUMMARY_SLOTS", 12
+            ),
+            typed_anchor_min_gap_frames=_env_int(
+                "STRUCTURED_MEMORY_TYPED_ANCHOR_MIN_GAP_FRAMES", 6
+            ),
+            typed_anchor_motion_ceiling=_env_float(
+                "STRUCTURED_MEMORY_TYPED_ANCHOR_MOTION_CEILING", 0.35
+            ),
+            typed_anchor_replace_margin=_env_float(
+                "STRUCTURED_MEMORY_TYPED_ANCHOR_REPLACE_MARGIN", 0.05
+            ),
+            typed_summary_merge_similarity=_env_float(
+                "STRUCTURED_MEMORY_TYPED_SUMMARY_MERGE_SIMILARITY", 0.90
+            ),
+            typed_summary_count_cap=_env_int(
+                "STRUCTURED_MEMORY_TYPED_SUMMARY_COUNT_CAP", 8
+            ),
             episode_gate_mode=episode_gate_mode,
             episode_gate_activation_episode=episode_gate_activation_episode,
             oracle_episode_id=oracle_episode_id,
@@ -474,6 +495,45 @@ class CausalInferencePipeline(torch.nn.Module):
             "role_min_evidence_spread": _env_float(
                 "STRUCTURED_MEMORY_ROLE_MIN_EVIDENCE_SPREAD", 0.0
             ),
+            "intervention_profile_path": str(
+                os.environ.get("STRUCTURED_MEMORY_INTERVENTION_PROFILE_PATH", "")
+            ),
+            "intervention_head_budget_fraction": _env_float(
+                "STRUCTURED_MEMORY_INTERVENTION_HEAD_BUDGET_FRACTION", 0.50
+            ),
+            "intervention_ema_decay": _env_float(
+                "STRUCTURED_MEMORY_INTERVENTION_EMA_DECAY", 0.90
+            ),
+            "intervention_min_alignment": _env_float(
+                "STRUCTURED_MEMORY_INTERVENTION_MIN_ALIGNMENT", 0.0
+            ),
+            "intervention_max_delta_to_native": _env_float(
+                "STRUCTURED_MEMORY_INTERVENTION_MAX_DELTA_TO_NATIVE", 0.08
+            ),
+            "intervention_min_utility_spread": _env_float(
+                "STRUCTURED_MEMORY_INTERVENTION_MIN_UTILITY_SPREAD", 0.02
+            ),
+            "intervention_min_observations": _env_int(
+                "STRUCTURED_MEMORY_INTERVENTION_MIN_OBSERVATIONS", 1
+            ),
+            "typed_anchor_bias": _env_float(
+                "STRUCTURED_MEMORY_TYPED_ANCHOR_BIAS", 0.05
+            ),
+            "typed_summary_bias": _env_float(
+                "STRUCTURED_MEMORY_TYPED_SUMMARY_BIAS", 0.0
+            ),
+            "typed_motion_penalty": _env_float(
+                "STRUCTURED_MEMORY_TYPED_MOTION_PENALTY", 0.10
+            ),
+            "profile_head_start": _env_int(
+                "STRUCTURED_MEMORY_PROFILE_HEAD_START", 0
+            ),
+            "profile_head_end": _env_int(
+                "STRUCTURED_MEMORY_PROFILE_HEAD_END", num_heads
+            ),
+            "profile_attention_call_index": _env_int(
+                "STRUCTURED_MEMORY_PROFILE_ATTENTION_CALL_INDEX", -1
+            ),
         }
         if self.structured_memory_config["role_calibration"] not in {
             "absolute", "relative", "hybrid"
@@ -487,6 +547,62 @@ class CausalInferencePipeline(torch.nn.Module):
             raise ValueError(
                 "STRUCTURED_MEMORY_ROLE_MIN_EVIDENCE_SPREAD must be non-negative"
             )
+        from lifecycle_kv.intervention_router import (
+            InterventionRoutingConfig,
+            OfflineInterventionProfile,
+        )
+
+        routing_mode = self.structured_memory_config["head_routing"]
+        intervention_modes = {
+            "intervention_online": "online",
+            "intervention_offline": "offline",
+            "intervention_hybrid": "hybrid",
+        }
+        if routing_mode in intervention_modes:
+            InterventionRoutingConfig(
+                mode=intervention_modes[routing_mode],
+                head_budget_fraction=self.structured_memory_config[
+                    "intervention_head_budget_fraction"
+                ],
+                ema_decay=self.structured_memory_config["intervention_ema_decay"],
+                min_alignment=self.structured_memory_config[
+                    "intervention_min_alignment"
+                ],
+                max_delta_to_native=self.structured_memory_config[
+                    "intervention_max_delta_to_native"
+                ],
+                min_utility_spread=self.structured_memory_config[
+                    "intervention_min_utility_spread"
+                ],
+                min_observations=self.structured_memory_config[
+                    "intervention_min_observations"
+                ],
+            )
+        if routing_mode == "profile_group":
+            profile_head_start = self.structured_memory_config["profile_head_start"]
+            profile_head_end = self.structured_memory_config["profile_head_end"]
+            if not 0 <= profile_head_start < profile_head_end <= num_heads:
+                raise ValueError(
+                    "STRUCTURED_MEMORY_PROFILE_HEAD_START/END must define a "
+                    f"non-empty range within [0, {num_heads})"
+                )
+        profile = None
+        profile_path = self.structured_memory_config["intervention_profile_path"]
+        if profile_path:
+            if not os.path.isabs(profile_path):
+                profile_path = os.path.abspath(profile_path)
+                self.structured_memory_config["intervention_profile_path"] = profile_path
+            profile = OfflineInterventionProfile.load(profile_path)
+            if profile.num_layers != self.num_transformer_blocks or profile.num_heads != num_heads:
+                raise ValueError(
+                    "intervention profile shape does not match the current model: "
+                    f"profile={profile.num_layers}x{profile.num_heads} "
+                    f"model={self.num_transformer_blocks}x{num_heads}"
+                )
+        if routing_mode in {"intervention_offline", "intervention_hybrid"} and profile is None:
+            raise ValueError(f"{routing_mode} requires STRUCTURED_MEMORY_INTERVENTION_PROFILE_PATH")
+        for archive in self.structured_memory_archives:
+            archive._intervention_profile = profile
         if self.structured_memory_config["warmup_blocks"] < 0:
             raise ValueError("STRUCTURED_MEMORY_WARMUP_BLOCKS must be non-negative")
         if self.structured_memory_config["episode_warmup_blocks"] < 0:
@@ -505,6 +621,15 @@ class CausalInferencePipeline(torch.nn.Module):
         print(f"[StructuredMemory] archives={self.num_transformer_blocks} "
               f"max_frames={archive_max_frames} policy={archive_policy} "
               f"spatial_stride={spatial_stride}")
+        if archive_policy == "typed":
+            print(
+                "[StructuredMemory] typed_cache="
+                f"anchor:{config.typed_anchor_frames} "
+                f"summary:{config.typed_summary_slots} "
+                f"anchor_gap:{config.typed_anchor_min_gap_frames} "
+                f"anchor_motion_ceiling:{config.typed_anchor_motion_ceiling} "
+                f"summary_merge:{config.typed_summary_merge_similarity}"
+            )
         print(f"[StructuredMemory] gate={self.structured_memory_config['gate']} "
               f"head_routing={self.structured_memory_config['head_routing']}")
         print(f"[StructuredMemory] episode_gate_mode={episode_gate_mode} "
@@ -528,6 +653,21 @@ class CausalInferencePipeline(torch.nn.Module):
               f"{self.structured_memory_config['role_calibration']} "
               f"keep_fraction={self.structured_memory_config['role_keep_fraction']} "
               f"min_spread={self.structured_memory_config['role_min_evidence_spread']}")
+        if routing_mode in intervention_modes:
+            print(
+                "[StructuredMemory] intervention_router="
+                f"mode:{intervention_modes[routing_mode]} "
+                f"head_budget:{self.structured_memory_config['intervention_head_budget_fraction']} "
+                f"max_delta:{self.structured_memory_config['intervention_max_delta_to_native']} "
+                f"profile:{profile_path or 'none'}"
+            )
+        elif routing_mode == "profile_group":
+            print(
+                "[StructuredMemory] profile_group="
+                f"heads:[{self.structured_memory_config['profile_head_start']},"
+                f"{self.structured_memory_config['profile_head_end']}) "
+                f"call:{self.structured_memory_config['profile_attention_call_index']}"
+            )
         print(f"[StructuredMemory] ========================================")
         trace_archive = next(
             (
@@ -540,8 +680,8 @@ class CausalInferencePipeline(torch.nn.Module):
         if trace_archive is not None:
             trace_archive.write_trace(
                 "config",
-                method="hrem_v2",
-                method_version="2.1",
+                method="lifecache",
+                method_version="3.0" if archive_policy == "typed" else "2.1",
                 recall_capabilities=["cross_episode", "intra_episode"],
                 active_layers=active_layers,
                 num_transformer_blocks=int(self.num_transformer_blocks),
@@ -549,6 +689,13 @@ class CausalInferencePipeline(torch.nn.Module):
                     "max_frames": archive_max_frames,
                     "policy": archive_policy,
                     "spatial_stride": spatial_stride,
+                    "typed_anchor_frames": config.typed_anchor_frames,
+                    "typed_summary_slots": config.typed_summary_slots,
+                    "typed_anchor_min_gap_frames": config.typed_anchor_min_gap_frames,
+                    "typed_anchor_motion_ceiling": config.typed_anchor_motion_ceiling,
+                    "typed_anchor_replace_margin": config.typed_anchor_replace_margin,
+                    "typed_summary_merge_similarity": config.typed_summary_merge_similarity,
+                    "typed_summary_count_cap": config.typed_summary_count_cap,
                     "episode_gate_mode": episode_gate_mode,
                     "episode_gate_activation_episode": episode_gate_activation_episode,
                     "oracle_episode_id": oracle_episode_id,
@@ -559,7 +706,11 @@ class CausalInferencePipeline(torch.nn.Module):
                     "run_cell": os.environ.get("HREM_RUN_CELL"),
                     "run_seed": os.environ.get("HREM_RUN_SEED"),
                     "run_frames": os.environ.get("HREM_RUN_FRAMES"),
-                    "prompt_sha256": os.environ.get("HREM_PROMPT_SHA256"),
+                    "prompt_path": os.environ.get("HREM_RUN_PROMPT_PATH"),
+                    "prompt_sha256": os.environ.get(
+                        "HREM_RUN_PROMPT_SHA256",
+                        os.environ.get("HREM_PROMPT_SHA256"),
+                    ),
                     "scene_transition_reset": os.environ.get(
                         "SCENE_TRANSITION_RESET", "0"
                     ) == "1",

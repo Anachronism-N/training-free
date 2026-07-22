@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Diagnose HREM-v2 archive, admission, routing, and fusion from JSONL traces."""
+"""Diagnose HREM/LifeCache archive, routing, and fusion from JSONL traces."""
 
 from __future__ import annotations
 
@@ -62,6 +62,13 @@ def _summarize_readouts(records: list[dict[str, Any]]) -> dict[str, Any]:
         "head_gate_std": _mean(records, "head_gate_std"),
         "head_gate_active_fraction": _mean(records, "head_gate_active_fraction"),
         "role_evidence_spread_median": _median(records, "role_evidence_spread"),
+        "intervention_utility_mean": _mean(records, "intervention_utility_mean"),
+        "intervention_utility_spread": _mean(records, "intervention_utility_spread"),
+        "intervention_valid_fraction": _mean(records, "intervention_valid_fraction"),
+        "intervention_selected_fraction": _mean(records, "intervention_selected_fraction"),
+        "intervention_delta_to_native_mean": _mean(
+            records, "intervention_delta_to_native_mean"
+        ),
         "alignment_positive_fraction": _mean(records, "alignment_positive_fraction"),
     }
 
@@ -69,7 +76,13 @@ def _summarize_readouts(records: list[dict[str, Any]]) -> dict[str, Any]:
 def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     events = Counter(str(record.get("event", "missing")) for record in records)
     configs = [record for record in records if record.get("event") == "config"]
-    commits = [record for record in records if record.get("event") == "commit"]
+    commits = [
+        record for record in records
+        if record.get("event") in {"commit", "typed_commit"}
+    ]
+    typed_commits = [
+        record for record in records if record.get("event") == "typed_commit"
+    ]
     boundaries = [record for record in records if record.get("event") == "boundary"]
     readouts = [record for record in records if record.get("event") == "readout"]
     intra_readouts = [
@@ -80,6 +93,15 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     abstain_reasons = Counter()
     findings: list[dict[str, str]] = []
     violations: list[str] = []
+
+    typed_actions: Counter[str] = Counter()
+    for record in typed_commits:
+        for update in record.get("updates") or []:
+            typed_actions[f"anchor:{update.get('anchor_action', 'missing')}"] += 1
+            typed_actions[f"summary:{update.get('summary_action', 'missing')}"] += 1
+    typed_final_occupancy = (
+        typed_commits[-1].get("occupancy") if typed_commits else None
+    )
 
     for record in abstains:
         decision = record.get("episode_decision") or {}
@@ -146,6 +168,29 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             "No clean K/V blocks were committed to the episodic archive.",
             "Inspect the clean-pass bridge and active layer range before tuning retrieval.",
         ))
+
+    archive_policy = (
+        ((configs[-1].get("archive") or {}).get("policy")) if configs else None
+    )
+    if archive_policy == "typed" and not typed_commits:
+        findings.append(_finding(
+            "ERROR", "no_typed_commits",
+            "Typed archive policy is configured but no typed_commit event was recorded.",
+            "Check TypedMemoryBank initialization and the clean-context commit path.",
+        ))
+    if typed_final_occupancy:
+        if int(typed_final_occupancy.get("anchor", 0)) <= 0:
+            findings.append(_finding(
+                "WARNING", "typed_anchor_empty",
+                "The final typed cache has no exact anchor.",
+                "Check anchor capacity and admission actions before evaluating identity retention.",
+            ))
+        if int(typed_final_occupancy.get("summary", 0)) <= 0:
+            findings.append(_finding(
+                "WARNING", "typed_summary_empty",
+                "The final typed cache has no temporal summary.",
+                "Check summary capacity and merge/update actions.",
+            ))
 
     if commits:
         last_by_layer: dict[int, dict[str, Any]] = {}
@@ -281,6 +326,28 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
         statistics.fmean(calibration_valid_values)
         if calibration_valid_values else None
     )
+    intervention_readouts = [
+        record
+        for record in readouts
+        if str(record.get("head_routing", "")).startswith("intervention_")
+    ]
+    intervention_diagnostics = intervention_readouts + [
+        record
+        for record in abstains
+        if str(record.get("head_routing", "")).startswith("intervention_")
+    ]
+    intervention_utility_spread = _median(
+        intervention_diagnostics, "intervention_utility_spread"
+    )
+    intervention_valid_fraction = _mean(
+        intervention_readouts, "intervention_valid_fraction"
+    )
+    intervention_selected_fraction = _mean(
+        intervention_readouts, "intervention_selected_fraction"
+    )
+    intervention_delta_mean = _mean(
+        intervention_readouts, "intervention_delta_to_native_mean"
+    )
 
     role_groups: dict[tuple[int, int, int, str], list[dict[str, Any]]] = defaultdict(list)
     for record in role_readouts:
@@ -387,6 +454,25 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             f"Mean active-head Jaccard across denoising calls is {role_active_jaccard:.3f}.",
             "Do not assign semantic head roles until active identities stabilize across calls.",
         ))
+    if intervention_readouts and intervention_selected_fraction is not None:
+        if intervention_selected_fraction < 0.05:
+            findings.append(_finding(
+                "WARNING", "intervention_router_over_suppressed",
+                f"Only {intervention_selected_fraction:.1%} of heads are selected.",
+                "Inspect alignment and delta safety masks before loosening the head budget.",
+            ))
+        elif intervention_selected_fraction > 0.90:
+            findings.append(_finding(
+                "WARNING", "intervention_router_not_selective",
+                f"{intervention_selected_fraction:.1%} of heads are selected.",
+                "Verify the configured budget and do not claim selective routing.",
+            ))
+    if intervention_utility_spread is not None and intervention_utility_spread < 0.02:
+        findings.append(_finding(
+            "WARNING", "intervention_utility_not_discriminative",
+            f"Median intervention utility spread is {intervention_utility_spread:.6f}.",
+            "Treat online head ranking as uninformative and evaluate the offline profile.",
+        ))
     if alignment_positive is not None and alignment_positive < 0.10:
         findings.append(_finding(
             "WARNING", "memory_native_conflict",
@@ -468,6 +554,10 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             "role_calibration_valid_fraction": role_calibration_valid_fraction,
             "role_gate_temporal_range_mean": role_gate_temporal_range,
             "role_active_head_jaccard": role_active_jaccard,
+            "intervention_utility_spread_median": intervention_utility_spread,
+            "intervention_valid_fraction": intervention_valid_fraction,
+            "intervention_selected_fraction": intervention_selected_fraction,
+            "intervention_delta_to_native_mean": intervention_delta_mean,
             "alignment_positive_fraction": alignment_positive,
             "confidence_mean": confidence_mean,
             "intra_episode_readouts": len(intra_readouts),
@@ -494,17 +584,23 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
         "per_layer": per_layer,
         "per_attention_call": per_attention_call,
         "per_layer_attention_call": per_layer_attention_call,
+        "typed_cache": {
+            "commits": len(typed_commits),
+            "final_occupancy": typed_final_occupancy,
+            "actions": dict(sorted(typed_actions.items())),
+        },
         "violations": violations,
         "findings": findings,
     }
 
 
 def _print_report(report: dict[str, Any]) -> None:
-    print("HREM-v2 diagnostic report")
+    print("HREM/LifeCache diagnostic report")
     print(f"records: {report['record_count']}")
     print(f"events: {json.dumps(report['event_counts'], sort_keys=True)}")
     print(f"abstains: {json.dumps(report['abstain_reasons'], sort_keys=True)}")
     print(f"metrics: {json.dumps(report['metrics'], sort_keys=True)}")
+    print(f"typed_cache: {json.dumps(report['typed_cache'], sort_keys=True)}")
     for finding in report["findings"]:
         print(
             f"[{finding['severity']}] {finding['code']}: {finding['message']} "

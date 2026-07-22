@@ -3,14 +3,14 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current method candidate is **Scope-Conditioned Evidence-Gated Historical
-Recall for training-free long AR video generation**. It keeps a bounded sidecar
-of clean pre-RoPE K/V frames and supports two explicit recall scopes:
-intra-episode continuity recall for ordinary single-prompt long video, and
-cross-episode return recall for A-B-A style prompt switching. Both use an
-independent memory-attention branch, evidence-based abstention, optional online
-head routing, and native fallback. These mechanisms are hypotheses pending GPU
-experiments, not established quality improvements.
+The newest method candidate is **LifeCache-v3: Half-Life-Aware Typed Historical
+Memory with Intervention Routing**. It keeps exact appearance/state anchors,
+temporally aggregated state summaries, and the native Self-Forcing recent
+window under separate update rules. Historical memory is routed by measured
+counterfactual and online intervention utility rather than manually named head
+roles. Single-prompt 30s+ extrapolation is the primary task; scoped scene return
+is secondary. These mechanisms are hypotheses pending GPU experiments, not
+established quality improvements.
 The paper/code provenance ledger, license audit, high-overlap related work,
 and claim-safety rules are recorded in
 `docs/64_related_work_code_provenance_and_claims.md`.
@@ -18,20 +18,26 @@ The latest single-prompt correction, server matrix, debug invariants, and
 go/no-go rules are in `docs/68_single_prompt_continuity_recall.md`.
 The current paper alignment, canonical PF/Echo baselines, review-first protocol,
 and server commands are in `docs/69_paper_alignment_canonical_experiments.md`.
+The explicit v3 cache lifecycle, data-driven profiling method, 16-GPU matrix,
+and go/no-go rules are in
+`docs/70_lifecache_v3_typed_memory_intervention_routing.md`.
 Use `docs/67_post_sweep_optimization_and_server_protocol.md` for the separate
 prompt-switch/return-recall branch.
 
 ## Current Hypothesis
 
-Long AR video generation needs to answer three questions before using history:
+Long AR video generation needs to answer four questions before using history:
 
 - **Which scope?** For continuous generation, read only sufficiently old frames
   from the current episode. For scene return, select a supported older episode
   and reject the immediately previous scene.
+- **Which lifecycle?** Keep exact slow-changing anchors, aggregate medium-term
+  state summaries, and leave fast recent dynamics in the native cache.
 - **Which content?** Use current Q-K evidence and explicit abstention to choose
-  a bounded set of full spatial K/V frames.
-- **Which heads?** Favor heads with persistent K/V and stable queries while
-  suppressing heads that show value variation or query drift.
+  a bounded set of typed historical slots.
+- **Which intervention sites?** Use paired counterfactual video metrics for an
+  offline layer/head prior and current retrieval/alignment/error evidence for
+  online safety routing. Do not assign semantic head labels by index.
 - **How to fuse?** Use a separate bounded memory-attention branch; never write
   recalled K/V into the native cache.
 
@@ -47,32 +53,20 @@ training-free/
 |   `-- lifecache-v1-minimal.yaml
 |-- docs/
 |   |-- 15_lifecache_doc_index.md
-   |   |-- 59_hrem_v2_evidence_gated_episodic_memory.md
-   |   |-- 60_hrem_v2_novelty_and_debug_protocol.md
-   |   |-- 61_hrem_v2_review_and_runbook.md
-   |   |-- 62_aaai_provisional_title_abstract.md
-   |   |-- 62_hrem_v2_results_and_iteration.md
-   |   |-- 63_hrem_v2_p0_role_calibration.md
-   |   |-- 64_related_work_code_provenance_and_claims.md
-   |   |-- 65_swift_collision_audit.md
-   |   |-- 66_gate_sweep_results_and_review.md
-   |   |-- 67_post_sweep_optimization_and_server_protocol.md
-   |   |-- 68_single_prompt_continuity_recall.md
-   |   `-- 69_paper_alignment_canonical_experiments.md
+|   |-- 64_related_work_code_provenance_and_claims.md
+|   |-- 68_single_prompt_continuity_recall.md
+|   |-- 69_paper_alignment_canonical_experiments.md
+|   `-- 70_lifecache_v3_typed_memory_intervention_routing.md
 |-- prompts/
-|   |-- hrem_v2_aba_complex_3.txt
-|   |-- hrem_v2_single_long_complex_3.txt
-|   |-- paper_single_long_echo_3.txt
-|   |-- paper_scene_switch_sf_3.txt
-|   `-- paper_scene_switch_echo_3.txt
+|   |-- lifecache_v3_calibration_complex_12.txt
+|   |-- lifecache_v3_single_long_complex_12.txt
+|   `-- ...
 |-- scripts/
 |   |-- bootstrap_repos.sh
-   |   |-- analyze_hrem_v2_debug.py
-   |   |-- prepare_blind_review.py
-   |   |-- validate_echo_prompts.py
-   |   |-- run_paper_single_prompt_30s.sh
-   |   |-- run_paper_scene_switch_30s.sh
-   |   `-- run_paper_metrics.sh
+|   |-- analyze_hrem_v2_debug.py
+|   |-- build_intervention_profile.py
+|   |-- run_v69_typed_cache_16gpu.sh
+|   `-- ...
 |-- src/
 |   `-- lifecycle_kv/
 `-- third_party/
@@ -83,9 +77,13 @@ training-free/
 
 ## Implementation Status
 
-The HREM-v2 path is connected end-to-end in Self-Forcing:
+The LifeCache-v3 candidate is connected to the HREM-v2 side-memory path:
 
-- `episodic_archive.py`: bounded episode-aware K/V archive.
+- `typed_memory.py`: exact-anchor and temporal-summary state machine with
+  explicit budgets, admission, replacement, merge and scope rules.
+- `episodic_archive.py`: bounded episode-aware K/V archive and typed sidecars.
+- `intervention_router.py`: offline profile lookup, online rank calibration,
+  safety constraints, top-budget routing and abstention.
 - `role_episodic.py`: dual-evidence episode admission and online head routing.
 - `attention_fusion.py`: query-conditioned readout and fail-closed fusion.
 - `third_party/Self-Forcing/.../causal_model.py`: pre-RoPE capture and the
@@ -107,9 +105,14 @@ The HREM-v2 path is connected end-to-end in Self-Forcing:
   relative, and hybrid head-role calibration.
 - `scripts/compare_hrem_role_ablation.py`: joins video metrics with mechanism
   diagnostics without conflating retrieval acceptance and role selection.
+- `scripts/build_intervention_profile.py`: converts paired native/intervention
+  video metrics into a reliability-weighted layer/head/call profile.
+- `scripts/run_v69_typed_cache_16gpu.sh`: 12-prompt, 16-GPU baseline, cache
+  screen, counterfactual profile, hybrid and multiseed confirmation phases.
 
-The current machine has no configured PyTorch/GPU runtime, so the code has been
-syntax-checked but the new CUDA path still requires the server Stage-1 run.
+The current machine has no configured PyTorch/GPU runtime, so only tests that do
+not import PyTorch and static compilation can run here. The new tensor/CUDA path
+still requires the server `screen` phase.
 
 ## Experiment Entry Points
 
@@ -129,9 +132,9 @@ ours_all_heads
 ours_role
 ```
 
-The first pass is always three complex prompts, one seed, and 120 latent frames
-(approximately 30 seconds), followed by blind human review, metrics, and trace
-analysis in that order.
+The original first pass uses three complex prompts. LifeCache-v3 expands method
+selection to 12 prompts and uses four seeds for baseline/confirmation phases,
+followed by blind human review, metrics, and trace analysis in that order.
 
 ## Third-Party Code
 
@@ -216,6 +219,15 @@ To run the canonical scene-switch/return matrix:
 
 ```bash
 bash scripts/run_paper_scene_switch_30s.sh 0 1 2 3
+```
+
+To launch the LifeCache-v3 16-GPU phases:
+
+```bash
+bash scripts/run_v69_typed_cache_16gpu.sh baselines
+bash scripts/run_v69_typed_cache_16gpu.sh screen
+bash scripts/run_v69_typed_cache_16gpu.sh profile
+REFINE_LAYER_START=15 REFINE_LAYER_END=22 bash scripts/run_v69_typed_cache_16gpu.sh refine
 ```
 
 Both generation scripts prepare a randomized blind-review directory. Freeze its

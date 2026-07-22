@@ -1094,6 +1094,40 @@ class CausalWanSelfAttention(nn.Module):
             )
             frame_prior = prompt_query @ prompt_memory.transpose(0, 1)
 
+        memory_types = getattr(archive, "structured_memory_types", None)
+        memory_motion_scores = getattr(
+            archive, "structured_memory_motion_scores", None
+        )
+        frame_score_bias = None
+        typed_sidecars_valid = (
+            memory_types is not None
+            and memory_motion_scores is not None
+            and memory_types.shape == (memory_k.shape[0],)
+            and memory_motion_scores.shape == (memory_k.shape[0],)
+        )
+        if typed_sidecars_valid:
+            anchor_bias = float(config.get("typed_anchor_bias", 0.05))
+            summary_bias = float(config.get("typed_summary_bias", 0.0))
+            motion_penalty = float(config.get("typed_motion_penalty", 0.10))
+            frame_score_bias = torch.where(
+                memory_types.to(memory_k.device) == 0,
+                torch.full(
+                    (memory_k.shape[0],),
+                    anchor_bias,
+                    device=memory_k.device,
+                    dtype=torch.float32,
+                ),
+                torch.full(
+                    (memory_k.shape[0],),
+                    summary_bias,
+                    device=memory_k.device,
+                    dtype=torch.float32,
+                ),
+            )
+            frame_score_bias = frame_score_bias - motion_penalty * memory_motion_scores.to(
+                device=memory_k.device, dtype=torch.float32
+            )
+
         position_mode = str(config.get("position_mode", "none"))
         native_spatial = int(grid_sizes[0, 1].item() * grid_sizes[0, 2].item())
         if position_mode == "local_grid" and memory_k.shape[1] != native_spatial:
@@ -1135,6 +1169,7 @@ class CausalWanSelfAttention(nn.Module):
             frame_prior_scores=frame_prior,
             frame_prior_weight=float(config.get("prompt_prior_weight", 0.0)),
             frame_prior_enabled=prior_enabled,
+            frame_score_bias=frame_score_bias,
             episode_ids=episode_ids,
             allowed_episode_id=allowed_episode,
             current_episode_id=current_episode,
@@ -1168,6 +1203,24 @@ class CausalWanSelfAttention(nn.Module):
                 max(selected_frame_ages) if selected_frame_ages else None
             ),
         })
+        if typed_sidecars_valid:
+            selected_for_types = memory.selected_indices.to(memory_types.device)
+            selected_memory_types = memory_types.index_select(
+                0, selected_for_types
+            ).detach().cpu().tolist()
+            readout_sidecars.update({
+                "typed_sidecars_valid": True,
+                "selected_memory_types": selected_memory_types,
+                "selected_memory_type_names": [
+                    "anchor" if value == 0 else "summary"
+                    for value in selected_memory_types
+                ],
+                "selected_motion_scores": memory_motion_scores.index_select(
+                    0, selected_for_types
+                ).detach().float().cpu().tolist(),
+            })
+        else:
+            readout_sidecars["typed_sidecars_valid"] = False
         if not bool(torch.any(memory.accepted)):
             _debug(
                 "retrieval",
@@ -1203,6 +1256,7 @@ class CausalWanSelfAttention(nn.Module):
         routing_mode = str(config.get("head_routing", "role_evidence"))
         head_mask = None
         role_trace = None
+        intervention_trace = None
         role_diagnostics = {}
         if routing_mode == "confidence_adaptive":
             sharpness = float(config.get("routing_sharpness", 5.0))
@@ -1216,6 +1270,141 @@ class CausalWanSelfAttention(nn.Module):
                 sharpness * (memory.retrieval_margin.float() - threshold)
             )
             head_mask = margin_gate.mean(dim=0, keepdim=True)[:, None, :, None].to(native_out.dtype)
+        elif routing_mode in {
+            "intervention_online",
+            "intervention_offline",
+            "intervention_hybrid",
+        }:
+            from lifecycle_kv.intervention_router import (
+                InterventionRouterState,
+                InterventionRoutingConfig,
+                route_memory_intervention,
+            )
+
+            if getattr(archive, "_intervention_router_state", None) is None:
+                archive._intervention_router_state = InterventionRouterState()
+            router_mode = routing_mode.removeprefix("intervention_")
+            router_config = InterventionRoutingConfig(
+                mode=router_mode,
+                head_budget_fraction=float(
+                    config.get("intervention_head_budget_fraction", 0.50)
+                ),
+                ema_decay=float(config.get("intervention_ema_decay", 0.90)),
+                min_alignment=float(
+                    config.get("intervention_min_alignment", 0.0)
+                ),
+                max_delta_to_native=float(
+                    config.get("intervention_max_delta_to_native", 0.08)
+                ),
+                min_utility_spread=float(
+                    config.get("intervention_min_utility_spread", 0.02)
+                ),
+                min_observations=int(
+                    config.get("intervention_min_observations", 1)
+                ),
+            )
+            intervention = route_memory_intervention(
+                q=raw_q,
+                query_reference=getattr(archive, "_role_query_reference", None),
+                native_output=native_out,
+                memory_output=memory.output,
+                confidence=memory.confidence,
+                retrieval_margin=memory.retrieval_margin,
+                retrieval_entropy=memory.retrieval_entropy,
+                accepted=memory.accepted,
+                base_gate=gate,
+                fusion_mode=str(config.get("fusion_mode", "residual")),
+                layer_idx=int(getattr(archive, "layer_idx", -1)),
+                memory_mode=memory_mode,
+                attention_call_index=attention_call_index,
+                config=router_config,
+                state=archive._intervention_router_state,
+                offline_profile=getattr(archive, "_intervention_profile", None),
+            )
+            head_mask = intervention.gate.mean(
+                dim=0, keepdim=True
+            )[:, None, :, None].to(native_out.dtype)
+            intervention_trace = {
+                "mode": router_mode,
+                "utility": intervention.utility[0].detach().float().cpu().tolist(),
+                "online_utility": intervention.online_utility[0].detach().float().cpu().tolist(),
+                "offline_utility": (
+                    None
+                    if intervention.offline_utility is None
+                    else intervention.offline_utility[0].detach().float().cpu().tolist()
+                ),
+                "query_stability": intervention.query_stability[0].detach().float().cpu().tolist(),
+                "alignment": intervention.alignment[0].detach().float().cpu().tolist(),
+                "delta_to_native": intervention.delta_to_native[0].detach().float().cpu().tolist(),
+                "valid": intervention.valid[0].detach().cpu().tolist(),
+                "selected": intervention.selected[0].detach().cpu().tolist(),
+                "utility_spread": float(intervention.utility_spread[0].item()),
+                "observations": intervention.observations,
+                "abstain_reason": intervention.abstain_reason,
+            }
+            role_diagnostics = {
+                "intervention_utility_mean": float(intervention.utility.mean().item()),
+                "intervention_utility_std": float(
+                    intervention.utility.std(unbiased=False).item()
+                ),
+                "intervention_utility_spread": float(
+                    intervention.utility_spread.mean().item()
+                ),
+                "intervention_valid_fraction": float(
+                    intervention.valid.float().mean().item()
+                ),
+                "intervention_selected_fraction": float(
+                    intervention.selected.float().mean().item()
+                ),
+                "intervention_delta_to_native_mean": float(
+                    intervention.delta_to_native.mean().item()
+                ),
+                "intervention_alignment_mean": float(
+                    intervention.alignment.mean().item()
+                ),
+            }
+            if not bool(torch.any(intervention.selected)):
+                _debug(
+                    "intervention",
+                    f"ep={current_episode} accepted_heads=0 "
+                    f"reason={intervention.abstain_reason} "
+                    f"spread={float(intervention.utility_spread.mean().item()):.5f} "
+                    f"valid={float(intervention.valid.float().mean().item()):.3f}",
+                )
+                archive.write_trace(
+                    "readout_abstain",
+                    current_start=int(current_start),
+                    current_frame=current_frame,
+                    block_index=current_block,
+                    attention_call_index=attention_call_index,
+                    current_episode_id=int(current_episode),
+                    memory_mode=memory_mode,
+                    head_routing=routing_mode,
+                    reason=intervention.abstain_reason,
+                    intervention_router=intervention_trace,
+                    **readout_sidecars,
+                )
+                return native_out
+        elif routing_mode == "profile_group":
+            head_start = int(config.get("profile_head_start", 0))
+            head_end = int(config.get("profile_head_end", native_out.shape[2]))
+            target_call = int(config.get("profile_attention_call_index", -1))
+            if not 0 <= head_start < head_end <= native_out.shape[2]:
+                raise ValueError("invalid profile_group head range")
+            if target_call >= 0 and attention_call_index != target_call:
+                return native_out
+            profile_mask = torch.zeros(
+                native_out.shape[2], device=native_out.device, dtype=native_out.dtype
+            )
+            profile_mask[head_start:head_end] = 1
+            head_mask = profile_mask.view(1, 1, -1, 1)
+            intervention_trace = {
+                "mode": "counterfactual_profile_group",
+                "head_start": head_start,
+                "head_end": head_end,
+                "attention_call_index": attention_call_index,
+                "target_attention_call_index": target_call,
+            }
         elif routing_mode == "role_evidence":
             selected = memory.selected_indices
             selected_k = memory_k.index_select(0, selected.to(memory_k.device))
@@ -1352,6 +1541,7 @@ class CausalWanSelfAttention(nn.Module):
                 episode_warmup_blocks=episode_warmup_blocks,
                 episode_decision=episode_trace,
                 head_role=role_trace,
+                intervention_router=intervention_trace,
                 **role_diagnostics,
                 **readout_sidecars,
             )

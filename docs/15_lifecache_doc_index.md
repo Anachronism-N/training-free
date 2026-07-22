@@ -2,6 +2,11 @@
 
 ## Current method (read first)
 
+- `docs/70_lifecache_v3_typed_memory_intervention_routing.md`: proposed
+  half-life-aware anchor/summary/recent cache, non-handcrafted offline/online
+  intervention routing, explicit update rules, 16-GPU matrix, diagnostics and
+  promotion criteria. This is the newest implementation candidate and is not
+  yet an experimentally validated replacement for HREM-v2.
 - `docs/69_paper_alignment_canonical_experiments.md`: current top-paper alignment, single-prompt-first method story, PF/Echo distinction, canonical 3x30s generation/blind-review/metric commands, model locations, debug return package, and academic-integrity rules.
 - `docs/68_single_prompt_continuity_recall.md`: latest correction that makes single-prompt long video a primary task, adds explicit intra-episode temporal recall, a 30-second controlled matrix, trace invariants, provenance, and go/no-go rules.
 - `docs/67_post_sweep_optimization_and_server_protocol.md`: latest post-sweep corrections, optional episode-local ramp, controlled server matrix, required logs, and go/no-go rules.

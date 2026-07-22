@@ -474,6 +474,7 @@ def query_conditioned_memory_readout(
     frame_prior_scores: torch.Tensor | None = None,
     frame_prior_weight: float = 0.0,
     frame_prior_enabled: bool = True,
+    frame_score_bias: torch.Tensor | None = None,
     episode_ids: torch.Tensor | None = None,
     allowed_episode_id: int | None = None,
     current_episode_id: int | None = None,
@@ -525,6 +526,12 @@ def query_conditioned_memory_readout(
     visual_similarity = torch.einsum("bhd,mhd->bhm", query_summary, frame_summary)
     frame_similarity = visual_similarity
     frame_count = memory_k.shape[0]
+    if frame_score_bias is not None:
+        if frame_score_bias.shape != (frame_count,):
+            raise ValueError(f"frame_score_bias must have shape {(frame_count,)}")
+        frame_similarity = frame_similarity + frame_score_bias.to(
+            device=frame_similarity.device, dtype=frame_similarity.dtype
+        )[None, None, :]
     prompt_similarity = None
     if frame_prior_enabled and frame_prior_scores is not None and frame_prior_weight > 0.0:
         if frame_prior_scores.shape != (q.shape[0], frame_count):
