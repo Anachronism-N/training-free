@@ -2,6 +2,7 @@
 
 ## Current method (read first)
 
+- `docs/62_aaai_provisional_title_abstract.md`: modification-friendly AAAI registration title, result-free abstract, and post-experiment replacement templates.
 - `docs/61_hrem_v2_review_and_runbook.md`: single review entry for the current idea, paper story, implementation map, server usage, log interpretation, and go/no-go criteria.
 - `docs/60_hrem_v2_novelty_and_debug_protocol.md`: paper-facing novelty boundary, falsifiable story, debug fields, and server diagnosis loop.
 - `docs/59_hrem_v2_evidence_gated_episodic_memory.md`: current method, implementation, causal matrix, server commands, and promotion criteria.

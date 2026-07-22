@@ -43,7 +43,8 @@ training-free/
 |   |-- 15_lifecache_doc_index.md
    |   |-- 59_hrem_v2_evidence_gated_episodic_memory.md
    |   |-- 60_hrem_v2_novelty_and_debug_protocol.md
-   |   `-- 61_hrem_v2_review_and_runbook.md
+   |   |-- 61_hrem_v2_review_and_runbook.md
+   |   `-- 62_aaai_provisional_title_abstract.md
 |-- prompts/
 |   `-- hrem_v2_aba_complex_3.txt
 |-- scripts/
