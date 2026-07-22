@@ -18,7 +18,11 @@ OUT_ROOT="${OUT_ROOT:-$ROOT/runs/hrem_v2_evidence_s0}"
 FRAMES="${FRAMES:-120}"
 SEED="${SEED:-0}"
 
-source /apdcephfs_gy2/share_303214315/cedricnie/activate_conda_gy2.sh longlive || {
+source /apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh || {
+    echo "[error] failed to source conda.sh"
+    exit 2
+}
+conda activate longlive || {
     echo "[error] failed to activate longlive"
     exit 2
 }
