@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 import torch
@@ -46,6 +47,17 @@ def _apply_local_grid_rope(
 
 
 @dataclass(frozen=True)
+class EpisodeGateDecision:
+    winner_episode_id: int | None
+    accepted: bool
+    abstain_reason: str | None
+    admission_policy: str
+    winner_vs_previous_gap: float | None
+    scores: dict[int, dict[str, float]]
+    survivor_counts: dict[int, int]
+
+
+@dataclass(frozen=True)
 class StructuredMemoryReadout:
     output: torch.Tensor
     frame_weights: torch.Tensor
@@ -53,6 +65,477 @@ class StructuredMemoryReadout:
     retrieval_margin: torch.Tensor
     retrieval_entropy: torch.Tensor
     accepted: torch.Tensor
+    visual_scores: torch.Tensor
+    prompt_scores: torch.Tensor | None
+    combined_scores: torch.Tensor
+    selected_indices: torch.Tensor
+    episode_sidecar_valid: bool
+    selected_episode_missing_payload: bool
+    previous_episode_rejected: bool
+    abstain_reason: str | None
+
+
+def select_contrastive_episode(
+    *,
+    current_prompt_descriptor: torch.Tensor | None,
+    previous_prompt_descriptor: torch.Tensor | None,
+    frame_prompt_descriptors: torch.Tensor | None,
+    episode_ids: torch.Tensor | None,
+    current_episode_id: int | None,
+    previous_episode_id: int | None,
+    admission_policy: str = "strict_positive",
+    eps: float = 1e-6,
+) -> EpisodeGateDecision:
+    """Select a historical episode by current-vs-previous prompt contrast.
+
+    Prompt descriptors are aggregated over the archive frames that survive for
+    each episode. The previous episode participates in the competition but is
+    rejected if it wins. No fallback to frame-level visual retrieval is made.
+    """
+    if admission_policy not in {"strict_positive", "relative_winner"}:
+        raise ValueError("admission_policy must be strict_positive or relative_winner")
+    empty = EpisodeGateDecision(
+        None,
+        False,
+        "missing_episode_metadata",
+        admission_policy,
+        None,
+        {},
+        {},
+    )
+    if (
+        current_prompt_descriptor is None
+        or previous_prompt_descriptor is None
+        or frame_prompt_descriptors is None
+        or episode_ids is None
+        or current_episode_id is None
+        or previous_episode_id is None
+        or int(current_episode_id) <= 0
+        or int(previous_episode_id) >= int(current_episode_id)
+    ):
+        return empty
+    if frame_prompt_descriptors.ndim != 2 or episode_ids.shape != (
+        frame_prompt_descriptors.shape[0],
+    ):
+        return EpisodeGateDecision(
+            None, False, "invalid_episode_metadata", admission_policy, None, {}, {}
+        )
+
+    device = frame_prompt_descriptors.device
+    current = current_prompt_descriptor.detach().float().to(device).reshape(-1)
+    previous = previous_prompt_descriptor.detach().float().to(device).reshape(-1)
+    if current.shape != previous.shape or current.shape[0] != frame_prompt_descriptors.shape[1]:
+        return EpisodeGateDecision(
+            None,
+            False,
+            "invalid_prompt_descriptor_shape",
+            admission_policy,
+            None,
+            {},
+            {},
+        )
+    current = torch.nn.functional.normalize(current, dim=0, eps=eps)
+    previous = torch.nn.functional.normalize(previous, dim=0, eps=eps)
+    ids = episode_ids.to(device=device, dtype=torch.long)
+    candidates = torch.unique(ids[ids < int(current_episode_id)], sorted=True)
+    if candidates.numel() == 0:
+        return EpisodeGateDecision(
+            None, False, "no_historical_episode", admission_policy, None, {}, {}
+        )
+
+    scores: dict[int, dict[str, float]] = {}
+    survivors: dict[int, int] = {}
+    winner: int | None = None
+    winner_score = float("-inf")
+    descriptors = frame_prompt_descriptors.detach().float().to(device)
+    for episode_tensor in candidates:
+        episode = int(episode_tensor.item())
+        mask = ids == episode
+        count = int(mask.sum().item())
+        survivors[episode] = count
+        if count <= 0:
+            continue
+        descriptor = torch.nn.functional.normalize(
+            descriptors[mask].mean(dim=0), dim=0, eps=eps
+        )
+        s_current = float(torch.dot(current, descriptor).item())
+        s_previous = float(torch.dot(previous, descriptor).item())
+        contrast = s_current - s_previous
+        scores[episode] = {
+            "s_current": s_current,
+            "s_previous": s_previous,
+            "contrast": contrast,
+        }
+        if contrast > winner_score:
+            winner = episode
+            winner_score = contrast
+
+    previous_score = scores.get(int(previous_episode_id), {}).get("contrast")
+    winner_vs_previous_gap = (
+        winner_score - previous_score if previous_score is not None else None
+    )
+    if winner is None or survivors.get(winner, 0) <= 0:
+        return EpisodeGateDecision(
+            winner,
+            False,
+            "selected_episode_missing_payload",
+            admission_policy,
+            winner_vs_previous_gap,
+            scores,
+            survivors,
+        )
+    if winner == int(previous_episode_id):
+        return EpisodeGateDecision(
+            winner,
+            False,
+            "previous_episode_winner",
+            admission_policy,
+            0.0,
+            scores,
+            survivors,
+        )
+    if admission_policy == "strict_positive" and winner_score <= 0.0:
+        return EpisodeGateDecision(
+            winner,
+            False,
+            "nonpositive_contrast",
+            admission_policy,
+            winner_vs_previous_gap,
+            scores,
+            survivors,
+        )
+    if admission_policy == "relative_winner" and (
+        previous_score is None or winner_score <= previous_score
+    ):
+        return EpisodeGateDecision(
+            winner,
+            False,
+            "not_better_than_previous",
+            admission_policy,
+            winner_vs_previous_gap,
+            scores,
+            survivors,
+        )
+    return EpisodeGateDecision(
+        winner,
+        True,
+        None,
+        admission_policy,
+        winner_vs_previous_gap,
+        scores,
+        survivors,
+    )
+
+
+def episode_gate_is_active(
+    gate_mode: str,
+    current_episode_id: int,
+    activation_episode: int = 1,
+) -> bool:
+    """Return whether a configured contrastive gate is active for this episode."""
+    return (
+        gate_mode in {"contrastive_strict", "contrastive_relative"}
+        and int(current_episode_id) >= max(0, int(activation_episode))
+    )
+
+
+def build_episode_eligible_mask(
+    frame_count: int,
+    episode_ids: torch.Tensor | None,
+    allowed_episode_id: int | None,
+    *,
+    current_episode_id: int | None = None,
+    previous_episode_id: int | None = None,
+    reject_previous_episode: bool = False,
+    device: torch.device,
+) -> torch.Tensor:
+    """Build a fail-closed scene-aware filter while preserving the default path."""
+    scene_aware = allowed_episode_id is not None or current_episode_id is not None
+    if not scene_aware:
+        return torch.ones(frame_count, dtype=torch.bool, device=device)
+    if episode_ids is None or episode_ids.shape != (frame_count,):
+        return torch.zeros(frame_count, dtype=torch.bool, device=device)
+    if (
+        reject_previous_episode
+        and allowed_episode_id is not None
+        and previous_episode_id is not None
+        and int(allowed_episode_id) == int(previous_episode_id)
+    ):
+        return torch.zeros(frame_count, dtype=torch.bool, device=device)
+    episode_ids = episode_ids.to(device=device, dtype=torch.long)
+    eligible = torch.ones(frame_count, dtype=torch.bool, device=device)
+    if current_episode_id is not None:
+        eligible &= episode_ids != int(current_episode_id)
+    if allowed_episode_id is not None:
+        eligible &= episode_ids == int(allowed_episode_id)
+    return eligible
+
+
+def compute_effective_fusion_weight(
+    *,
+    gate: float,
+    confidence: torch.Tensor,
+    alignment: torch.Tensor,
+    head_mask: torch.Tensor | None,
+    mode: str,
+) -> torch.Tensor:
+    """Reconstruct the coefficient applied by ``fuse_parallel_attention``."""
+    if mode not in {"residual", "convex"}:
+        raise ValueError("mode must be residual or convex")
+    weight = gate * confidence[:, None, :, None].to(alignment) * alignment
+    if head_mask is not None:
+        weight = weight * head_mask.to(weight)
+    return weight.clamp(0.0, 1.0) if mode == "convex" else weight
+
+
+def _trace_sample_positions(numel: int, sample_count: int) -> list[int]:
+    """Return evenly spaced int positions without float rounding at large sizes."""
+    numel = int(numel)
+    sample_count = int(sample_count)
+    if numel <= 0 or sample_count <= 0:
+        return []
+    if numel == 1 or sample_count == 1:
+        return [0] * sample_count
+    return [int(step * (numel - 1) // (sample_count - 1)) for step in range(sample_count)]
+
+
+def summarize_tensor_state(tensor: torch.Tensor | None) -> dict:
+    """Return a deterministic, copy-light summary of a tensor for trace records.
+
+    The summary always carries a ``present`` flag so callers can distinguish a
+    missing tensor from a present one. When present, the record includes a
+    ``weighted_checksum`` (SHA-256 prefix of an evenly spaced sample) plus shape,
+    dtype, numel, sample_count, mean and rms. ``sample_sha256`` is kept as an
+    alias for backwards-compatible trace readers.
+    """
+    if tensor is None:
+        return {"present": False}
+    detached = tensor.detach()
+    flat = detached.reshape(-1)
+    sample_count = min(64, flat.numel())
+    if sample_count:
+        indices = _trace_sample_positions(flat.numel(), sample_count)
+        sample = flat[torch.as_tensor(indices, device=flat.device, dtype=torch.long)].float().cpu().numpy()
+        checksum = hashlib.sha256(sample.tobytes()).hexdigest()[:16]
+        values = detached.float()
+        mean = float(values.mean().item())
+        rms = float(values.square().mean().sqrt().item())
+    else:
+        checksum = hashlib.sha256(b"").hexdigest()[:16]
+        mean = 0.0
+        rms = 0.0
+    return {
+        "present": True,
+        "shape": list(detached.shape),
+        "dtype": str(detached.dtype),
+        "numel": int(flat.numel()),
+        "sample_count": sample_count,
+        "weighted_checksum": checksum,
+        "sample_sha256": checksum,
+        "mean": mean,
+        "rms": rms,
+    }
+
+
+def summarize_episode_boundary_state(
+    caches: list,
+    *,
+    current_episode_id: int,
+    previous_episode_id: int,
+    current_start_frame: int,
+    committed_history_latents: torch.Tensor | None = None,
+    current_noisy_block_input: torch.Tensor | None = None,
+) -> dict:
+    """Build a reusable, pure-data snapshot of the episode boundary.
+
+    This is the canonical helper consumed by both the production transition
+    trace writer (``_write_episode_transition_trace``) and offline tests. It
+    avoids duplicating the archive-summary logic across call sites and keeps
+    the checksum field naming consistent with the #129 spec
+    (``weighted_checksum``).
+    """
+    archive_layers: list[dict] = []
+    for cache in caches:
+        intervals = getattr(cache, "structured_memory_intervals", None)
+        episode_ids = getattr(cache, "structured_memory_episode_ids", None)
+        archive_k = getattr(cache, "structured_memory_k", None)
+        archive_v = getattr(cache, "structured_memory_v", None)
+        layer_record: dict = {
+            "layer": int(getattr(cache, "layer_idx", -1)),
+            "archive_intervals": (
+                intervals.detach().cpu().tolist() if intervals is not None else []
+            ),
+            "archive_episode_ids": (
+                episode_ids.detach().cpu().tolist() if episode_ids is not None else []
+            ),
+            "archive_k": summarize_tensor_state(archive_k),
+            "archive_v": summarize_tensor_state(archive_v),
+            "latest_clean_block_input": getattr(
+                cache, "_latest_clean_block_input_summary", None
+            ),
+            "episode_gate_mode": getattr(cache, "structured_memory_episode_gate_mode", None),
+            "episode_gate_activation_episode": getattr(
+                cache, "structured_memory_episode_gate_activation_episode", None
+            ),
+        }
+        archive_layers.append(layer_record)
+    return {
+        "current_episode_id": int(current_episode_id),
+        "previous_episode_id": int(previous_episode_id),
+        "current_start_frame": int(current_start_frame),
+        "archive_layers": archive_layers,
+        "committed_history_latents": summarize_tensor_state(committed_history_latents),
+        "current_noisy_block_input": summarize_tensor_state(current_noisy_block_input),
+    }
+
+
+def summarize_tensor_state(tensor: torch.Tensor | None) -> dict[str, object]:
+    """Return a deterministic, sidecar-safe summary of an arbitrary tensor.
+
+    Used both by production episode-transition traces and by offline audits.
+    The returned dict always contains ``present``; when ``present`` is True it
+    also contains ``shape``, ``dtype``, ``numel``, ``weighted_checksum`` (the
+    sha256 of a small evenly-spaced sample, named per spec #129) and the legacy
+    alias ``sample_sha256`` so existing trace consumers keep working.
+    """
+    if tensor is None:
+        return {"present": False}
+    detached = tensor.detach()
+    flat = detached.reshape(-1)
+    numel = int(flat.numel())
+    sample_count = min(64, numel)
+    if sample_count:
+        if numel == 1 or sample_count == 1:
+            indices = torch.zeros(sample_count, dtype=torch.long, device=flat.device)
+        else:
+            steps = torch.arange(sample_count, dtype=torch.long, device=flat.device)
+            indices = steps * (numel - 1) // (sample_count - 1)
+        sample = flat.index_select(0, indices).float().cpu().numpy()
+        import hashlib
+
+        checksum = hashlib.sha256(sample.tobytes()).hexdigest()[:16]
+        values = detached.float()
+        mean = float(values.mean().item())
+        rms = float(values.square().mean().sqrt().item())
+    else:
+        import hashlib
+
+        checksum = hashlib.sha256(b"").hexdigest()[:16]
+        mean = 0.0
+        rms = 0.0
+    return {
+        "present": True,
+        "shape": list(detached.shape),
+        "dtype": str(detached.dtype),
+        "numel": numel,
+        "sample_count": sample_count,
+        "weighted_checksum": checksum,
+        "sample_sha256": checksum,
+        "mean": mean,
+        "rms": rms,
+    }
+
+
+def summarize_episode_boundary_state(
+    caches: list,
+    *,
+    current_episode_id: int,
+    previous_episode_id: int | None,
+    current_start_frame: int,
+    committed_history_latents: torch.Tensor | None,
+    current_noisy_block_input: torch.Tensor | None,
+) -> dict[str, object]:
+    """Pure helper: summarize per-layer archive state at an episode boundary.
+
+    This is the single source of truth for the ``episode_transition`` record
+    emitted by the pipeline. Caches are expected to expose the structured
+    memory sidecar attributes (``structured_memory_intervals`` etc.); any
+    missing attribute is reported as empty/absent rather than raising, so the
+    helper can be used both online and in offline audits.
+    """
+    archive_layers: list[dict[str, object]] = []
+    for cache in caches:
+        if not getattr(cache, "structured_memory_enabled", False) and not getattr(
+            cache, "structured_memory_trace_enabled", False
+        ):
+            continue
+        intervals = getattr(cache, "structured_memory_intervals", None)
+        episode_ids = getattr(cache, "structured_memory_episode_ids", None)
+        k_tensor = getattr(cache, "structured_memory_k", None)
+        v_tensor = getattr(cache, "structured_memory_v", None)
+        archive_layers.append({
+            "layer": int(getattr(cache, "layer_idx", -1)),
+            "archive_intervals": (
+                intervals.detach().cpu().tolist()
+                if intervals is not None else []
+            ),
+            "archive_episode_ids": (
+                episode_ids.detach().cpu().tolist()
+                if episode_ids is not None else []
+            ),
+            "archive_k": summarize_tensor_state(k_tensor),
+            "archive_v": summarize_tensor_state(v_tensor),
+            "latest_clean_block_input": getattr(
+                cache, "_latest_clean_block_input_summary", None
+            ),
+            "episode_gate_mode": getattr(cache, "structured_memory_episode_gate_mode", None),
+            "episode_gate_activation_episode": getattr(
+                cache, "structured_memory_episode_gate_activation_episode", None
+            ),
+        })
+    return {
+        "current_episode_id": int(current_episode_id),
+        "previous_episode_id": previous_episode_id,
+        "current_start_frame": int(current_start_frame),
+        "archive_layers": archive_layers,
+        "committed_history_latents": summarize_tensor_state(committed_history_latents),
+        "current_noisy_block_input": summarize_tensor_state(current_noisy_block_input),
+    }
+
+
+def summarize_episode_trace_sidecars(
+    frame_weights: torch.Tensor,
+    selected_indices: torch.Tensor,
+    intervals: torch.Tensor | None,
+    episode_ids: torch.Tensor | None,
+) -> dict[str, object]:
+    """Safely map readout diagnostics back to archive-global sidecars."""
+    if frame_weights.ndim != 3:
+        raise ValueError("frame_weights must be [batch, head, frame]")
+    frame_count = frame_weights.shape[-1]
+    selected = selected_indices.to(dtype=torch.long)
+    selected_valid = bool(
+        selected.ndim == 1
+        and (selected.numel() == 0 or bool(torch.all((selected >= 0) & (selected < frame_count))))
+    )
+    interval_valid = intervals is not None and intervals.shape == (frame_count, 2)
+    episode_valid = episode_ids is not None and episode_ids.shape == (frame_count,)
+    weights = frame_weights.detach().float().mean(dim=(0, 1))
+    selected_intervals: list[list[int]] = []
+    selected_episode_ids: list[int] = []
+    episode_weight_mass: dict[str, float] = {}
+    if selected_valid and interval_valid:
+        selected_intervals = intervals.index_select(
+            0, selected.to(intervals.device)
+        ).detach().cpu().tolist()
+    if selected_valid and episode_valid:
+        selected_episode_ids = episode_ids.index_select(
+            0, selected.to(episode_ids.device)
+        ).detach().cpu().tolist()
+    if episode_valid:
+        episode_ids_on_weights = episode_ids.to(weights.device)
+        episode_weight_mass = {
+            str(int(episode)): float(weights[episode_ids_on_weights == episode].sum().item())
+            for episode in torch.unique(episode_ids_on_weights).tolist()
+        }
+    return {
+        "selected_indices_valid": selected_valid,
+        "interval_sidecar_valid": interval_valid,
+        "episode_sidecar_valid": episode_valid,
+        "selected_intervals": selected_intervals,
+        "selected_episode_ids": selected_episode_ids,
+        "episode_weight_mass": episode_weight_mass,
+    }
 
 
 def query_conditioned_memory_readout(
@@ -76,6 +559,13 @@ def query_conditioned_memory_readout(
     grid_w: int | None = None,
     frame_prior_scores: torch.Tensor | None = None,
     frame_prior_weight: float = 0.0,
+    frame_prior_enabled: bool = True,
+    episode_ids: torch.Tensor | None = None,
+    allowed_episode_id: int | None = None,
+    current_episode_id: int | None = None,
+    previous_episode_id: int | None = None,
+    reject_previous_episode: bool = False,
+    forced_abstain_reason: str | None = None,
     eps: float = 1e-6,
 ) -> StructuredMemoryReadout:
     """Read structured history through a separate query-conditioned attention.
@@ -117,25 +607,65 @@ def query_conditioned_memory_readout(
     frame_summary = torch.nn.functional.normalize(
         memory_k.float().mean(dim=1), dim=-1, eps=eps
     )
-    frame_similarity = torch.einsum("bhd,mhd->bhm", query_summary, frame_summary)
+    visual_similarity = torch.einsum("bhd,mhd->bhm", query_summary, frame_summary)
+    frame_similarity = visual_similarity
     frame_count = memory_k.shape[0]
-    if frame_prior_scores is not None and frame_prior_weight > 0.0:
+    prompt_similarity = None
+    if frame_prior_enabled and frame_prior_scores is not None and frame_prior_weight > 0.0:
         if frame_prior_scores.shape != (q.shape[0], frame_count):
             raise ValueError(
                 f"frame_prior_scores must have shape {(q.shape[0], frame_count)}"
             )
         weight = float(max(0.0, min(1.0, frame_prior_weight)))
+        prompt_similarity = frame_prior_scores[:, None, :].to(frame_similarity)
         frame_similarity = (
             (1.0 - weight) * frame_similarity
-            + weight * frame_prior_scores[:, None, :].to(frame_similarity)
+            + weight * prompt_similarity
         )
+    scene_aware = allowed_episode_id is not None or current_episode_id is not None
+    episode_sidecar_valid = episode_ids is not None and episode_ids.shape == (frame_count,)
+    selected_episode_missing_payload = bool(
+        allowed_episode_id is not None
+        and episode_sidecar_valid
+        and not torch.any(episode_ids == int(allowed_episode_id)).item()
+    )
+    previous_episode_rejected = bool(
+        reject_previous_episode
+        and allowed_episode_id is not None
+        and previous_episode_id is not None
+        and int(allowed_episode_id) == int(previous_episode_id)
+    )
+    episode_eligible = build_episode_eligible_mask(
+        frame_count,
+        episode_ids,
+        allowed_episode_id,
+        current_episode_id=current_episode_id,
+        previous_episode_id=previous_episode_id,
+        reject_previous_episode=reject_previous_episode,
+        device=memory_k.device,
+    )
     if eligible_frame_mask is None:
-        eligible = torch.ones(frame_count, dtype=torch.bool, device=memory_k.device)
+        eligible = episode_eligible
     else:
         if eligible_frame_mask.shape != (frame_count,):
             raise ValueError(f"eligible_frame_mask must have shape {(frame_count,)}")
-        eligible = eligible_frame_mask.to(device=memory_k.device, dtype=torch.bool)
+        eligible = (
+            eligible_frame_mask.to(device=memory_k.device, dtype=torch.bool)
+            & episode_eligible
+        )
+    if forced_abstain_reason is not None:
+        eligible = torch.zeros_like(eligible)
     if not bool(torch.any(eligible)):
+        if forced_abstain_reason is not None:
+            abstain_reason = forced_abstain_reason
+        elif scene_aware and not episode_sidecar_valid:
+            abstain_reason = "invalid_episode_sidecar"
+        elif previous_episode_rejected:
+            abstain_reason = "previous_episode_rejected"
+        elif selected_episode_missing_payload:
+            abstain_reason = "selected_episode_missing_payload"
+        else:
+            abstain_reason = "no_eligible_frames"
         zeros = q.new_zeros((q.shape[0], q.shape[2]))
         return StructuredMemoryReadout(
             output=torch.zeros_like(q),
@@ -144,6 +674,14 @@ def query_conditioned_memory_readout(
             retrieval_margin=zeros,
             retrieval_entropy=zeros,
             accepted=torch.zeros_like(zeros, dtype=torch.bool),
+            visual_scores=visual_similarity,
+            prompt_scores=prompt_similarity,
+            combined_scores=frame_similarity,
+            selected_indices=torch.empty(0, dtype=torch.long, device=memory_k.device),
+            episode_sidecar_valid=episode_sidecar_valid,
+            selected_episode_missing_payload=selected_episode_missing_payload,
+            previous_episode_rejected=previous_episode_rejected,
+            abstain_reason=abstain_reason,
         )
 
     if selection_scope == "per_head":
@@ -273,6 +811,12 @@ def query_conditioned_memory_readout(
     if control_mode == "abstain":
         accepted = torch.zeros_like(accepted)
     effective_confidence = confidence * accepted.to(confidence.dtype)
+    if control_mode == "abstain":
+        abstain_reason = "control_abstain"
+    elif not bool(torch.any(accepted)):
+        abstain_reason = "retrieval_admission_rejected"
+    else:
+        abstain_reason = None
     # Fusion applies confidence exactly once. The readout only hard-zeros
     # rejected heads so medium-confidence memory is not accidentally squared.
     output = output * accepted[:, None, :, None].to(output.dtype)
@@ -283,6 +827,14 @@ def query_conditioned_memory_readout(
         retrieval_margin=retrieval_margin,
         retrieval_entropy=retrieval_entropy,
         accepted=accepted,
+        visual_scores=visual_similarity,
+        prompt_scores=prompt_similarity,
+        combined_scores=frame_similarity,
+        selected_indices=active_indices,
+        episode_sidecar_valid=episode_sidecar_valid,
+        selected_episode_missing_payload=selected_episode_missing_payload,
+        previous_episode_rejected=previous_episode_rejected,
+        abstain_reason=abstain_reason,
     )
 
 
@@ -297,9 +849,20 @@ def fuse_parallel_attention(
     alignment_gate: bool = False,
     alignment_threshold: float = 0.0,
     confidence: torch.Tensor | None = None,
+    accepted: torch.Tensor | None = None,
     mode: str = "residual",
 ) -> torch.Tensor:
-    """Fuse native and memory attention outputs shaped [B, T, H, D]."""
+    """Fuse native and memory attention outputs shaped [B, T, H, D].
+
+    Args:
+        accepted: Optional per-(batch, head) boolean mask of shape
+            ``[B, H]`` indicating which heads have an admitted memory
+            readout.  When provided and *all* entries are ``False`` the
+            memory branch is fully abstained: the function returns
+            ``x_recent`` unchanged (bitwise equal to the native path).
+            When ``None`` (the legacy default) the abstention check is
+            skipped and behaviour matches the pre-fix path.
+    """
     if x_recent.shape != x_memory.shape or x_recent.ndim != 4:
         raise ValueError("attention outputs must share shape [B, T, H, D]")
     if gate < 0:
@@ -309,6 +872,25 @@ def fuse_parallel_attention(
     if mode not in {"residual", "convex"}:
         raise ValueError("mode must be residual or convex")
     if gate == 0:
+        return x_recent
+
+    # ------------------------------------------------------------------
+    # Abstention short-circuit
+    # ------------------------------------------------------------------
+    # When the readout abstains (all-zero memory output, or an explicit
+    # ``accepted`` mask with no admitted head) the memory branch must not
+    # contribute *anything* to the fused output.  Returning
+    # ``x_recent * (1 - gate) + 0 * gate`` in convex mode silently
+    # attenuates the native attention (``x_recent * 0.925`` for gate=0.075),
+    # which compounds across layers and destroys B-formation.  Returning
+    # ``x_recent`` unchanged is the bitwise-correct abstention semantics.
+    memory_is_zero = bool(
+        x_memory.abs().sum().item() == 0
+    ) if x_memory.numel() > 0 else True
+    accepted_all_false = (
+        accepted is not None and not bool(torch.any(accepted))
+    )
+    if memory_is_zero or accepted_all_false:
         return x_recent
 
     memory = x_memory

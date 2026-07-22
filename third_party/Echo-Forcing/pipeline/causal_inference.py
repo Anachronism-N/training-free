@@ -9,6 +9,13 @@ from utils.wan_wrapper import WanDiffusionWrapper, WanTextEncoder, WanVAEWrapper
 
 from utils.memory import gpu, get_cuda_free_memory_gb, move_model_to_device_with_memory_preservation
 
+# --- Head-Role-Aware Memory (training-free) ---
+HEAD_ROLE_LAYOUT = 0
+HEAD_ROLE_TEXTURE = 1
+HEAD_ROLE_MOTION = 2
+HEAD_ROLE_DYNAMIC = 3
+_ROLE_NAMES = {0: "layout", 1: "texture", 2: "motion", 3: "dynamic"}
+
 
 def _debug_print(*args, **kwargs):
     if os.environ.get("ECHO_VERBOSE", "0") == "1":
@@ -75,6 +82,45 @@ class CausalInferencePipeline(torch.nn.Module):
 
         if self.num_frame_per_block > 1:
             self.generator.model.num_frame_per_block = self.num_frame_per_block
+
+        # --- Head-Role-Aware Memory init ---
+        self._head_role_enable = os.environ.get("HEAD_ROLE_ENABLE", "0") == "1"
+        self._head_role_classified = False
+        self._head_role_classifier = None  # HeadClassifier (lazy import)
+        self._head_role_labels: Optional[dict] = None  # {layer_id: [12] tensor}
+
+        if self._head_role_enable:
+            split_mode = os.environ.get("HEAD_ROLE_SPLIT_MODE", "fixed")
+            self._head_role_split_mode = split_mode.lower()
+            if self._head_role_split_mode == "fixed":
+                # Fixed split: heads [0:4]=layout, [4:8]=texture, [8:12]=motion
+                self._head_role_labels = self._build_fixed_split()
+                self._head_role_classified = True
+                labels = self._head_role_labels[15]  # tensor
+                role_str = ",".join(f"{_ROLE_NAMES[r]}={int((labels == r).sum().item())}"
+                                    for r in range(4))
+                print(f"[HeadRole] fixed split on 30 layers: {role_str} per layer")
+            elif self._head_role_split_mode == "statistical":
+                from lifecycle_kv.head_classifier import HeadClassifier
+                self._head_role_classifier = HeadClassifier(
+                    num_heads=12, num_layers=30,
+                    classify_layers=(
+                        int(os.environ.get("HEAD_ROLE_LAYER_START", "15")),
+                        int(os.environ.get("HEAD_ROLE_LAYER_END", "21")),
+                    ),
+                )
+                print("[HeadRole] statistical mode — collecting Q/K during scene A")
+
+    def _build_fixed_split(self) -> dict:
+        """Fixed head split: [0:4]=layout, [4:8]=texture, [8:12]=motion."""
+        labels = {}
+        for layer_id in range(self.num_transformer_blocks):
+            t = torch.zeros(12, dtype=torch.long)
+            t[0:4] = HEAD_ROLE_LAYOUT
+            t[4:8] = HEAD_ROLE_TEXTURE
+            t[8:12] = HEAD_ROLE_MOTION
+            labels[layer_id] = t
+        return labels
 
     def _seconds_to_blocks(self, duration_seconds: Optional[float]) -> int:
         if duration_seconds is None:
@@ -1425,17 +1471,44 @@ class CausalInferencePipeline(torch.nn.Module):
                 if old_recall_tokens > 0:
                     cache["k"][:, :old_recall_tokens] = cache["old_memory_k"][:, :old_recall_tokens].clone()
                     cache["v"][:, :old_recall_tokens] = cache["old_memory_v"][:, :old_recall_tokens].clone()
+
+                    # --- Head-Role: zero old memory for texture / dynamic heads ---
+                    if self._head_role_enable and self._head_role_classified:
+                        layer_id = i
+                        keep_mask = torch.ones(12, device=device)
+                        # Texture and Dynamic heads: do NOT carry old scene K/V
+                        for role in (HEAD_ROLE_TEXTURE, HEAD_ROLE_DYNAMIC):
+                            labels = self._head_role_labels.get(layer_id, torch.zeros(12))
+                            role_mask = (labels.to(device) != role).float()
+                            keep_mask = keep_mask * role_mask
+                        # Apply: shape [1, tokens, 12, dim] * [1, 1, 12, 1]
+                        mask_4d = keep_mask.view(1, 1, 12, 1)
+                        cache["k"][:, :old_recall_tokens] = cache["k"][:, :old_recall_tokens] * mask_4d
+                        cache["v"][:, :old_recall_tokens] = cache["v"][:, :old_recall_tokens] * mask_4d
+
                     old_memory_write_index += old_recall_tokens
 
                 if transition_mode == "smooth" and old_recent_tokens > 0:
                     old_recent_start = local_end_index - old_recent_tokens
-                    # 😡
                     cache["k"][:, old_memory_write_index:old_memory_write_index + old_recent_tokens] = cache["k"][
                         :, old_recent_start:local_end_index
                     ].clone()
                     cache["v"][:, old_memory_write_index:old_memory_write_index + old_recent_tokens] = cache["v"][
                         :, old_recent_start:local_end_index
                     ].clone()
+
+                    # --- Head-Role: zero recent tokens for texture / dynamic heads ---
+                    if self._head_role_enable and self._head_role_classified:
+                        keep_mask = torch.ones(12, device=device)
+                        for role in (HEAD_ROLE_TEXTURE, HEAD_ROLE_DYNAMIC):
+                            labels = self._head_role_labels.get(i, torch.zeros(12))
+                            role_mask = (labels.to(device) != role).float()
+                            keep_mask = keep_mask * role_mask
+                        mask_4d = keep_mask.view(1, 1, 12, 1)
+                        recent_slice = slice(old_memory_write_index, old_memory_write_index + old_recent_tokens)
+                        cache["k"][:, recent_slice] = cache["k"][:, recent_slice] * mask_4d
+                        cache["v"][:, recent_slice] = cache["v"][:, recent_slice] * mask_4d
+
                     old_memory_write_index += old_recent_tokens
 
                 cache["local_end_index"] = torch.tensor([old_memory_write_index], dtype=torch.long, device=device)

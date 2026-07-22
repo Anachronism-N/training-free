@@ -1,4 +1,5 @@
 from typing import List, Optional
+import os
 import time
 import torch
 
@@ -6,6 +7,41 @@ from utils.wan_wrapper import WanDiffusionWrapper, WanTextEncoder, WanVAEWrapper
 
 from demo_utils.memory import gpu, get_cuda_free_memory_gb, DynamicSwapInstaller, move_model_to_device_with_memory_preservation
 import tqdm
+
+# --- Head-Role-Aware Memory helpers (shared with Self-Forcing) ---
+HEAD_ROLE_LAYOUT = 0
+HEAD_ROLE_TEXTURE = 1
+HEAD_ROLE_MOTION = 2
+HEAD_ROLE_DYNAMIC = 3
+
+
+def _hrm_cf_build_fixed_split(num_layers=30, num_heads=12):
+    labels = {}
+    for lid in range(num_layers):
+        t = torch.zeros(num_heads, dtype=torch.long)
+        t[0:4] = HEAD_ROLE_LAYOUT
+        t[4:8] = HEAD_ROLE_TEXTURE
+        t[8:12] = HEAD_ROLE_MOTION
+        labels[lid] = t
+    return labels
+
+
+def _hrm_cf_clear_texture_heads(kv_cache, head_labels, layer_range=None):
+    """Zero K/V for texture/dynamic heads (periodic refresh)."""
+    for lid, cache in enumerate(kv_cache):
+        if layer_range and (lid < layer_range[0] or lid >= layer_range[1]):
+            continue
+        labels = head_labels.get(lid)
+        if labels is None:
+            continue
+        refresh_mask = (labels == HEAD_ROLE_TEXTURE) | (labels == HEAD_ROLE_DYNAMIC)
+        if not refresh_mask.any():
+            continue
+        mask_4d = (~refresh_mask).float().to(cache["k"].device).view(1, 1, 12, 1)
+        local_end = int(cache["local_end_index"].item())
+        if local_end > 0:
+            cache["k"][:, :local_end] *= mask_4d
+            cache["v"][:, :local_end] *= mask_4d
 
 class CausalInferencePipeline(torch.nn.Module):
     def __init__(
@@ -58,6 +94,14 @@ class CausalInferencePipeline(torch.nn.Module):
         self.first_chunk_time = None
 
         print(f"KV inference with {self.num_frame_per_block} frames per block")
+
+        # --- Head-Role-Aware Memory (HREM) for Causal-Forcing ---
+        self._head_role_enable = os.environ.get("HEAD_ROLE_ENABLE", "0") == "1"
+        self._head_role_labels = None
+        self._hrem_period = int(os.environ.get("HEAD_ROLE_PERIOD_BLOCKS", "10"))
+        if self._head_role_enable:
+            self._head_role_labels = _hrm_cf_build_fixed_split(num_layers=30, num_heads=12)
+            print(f"[HeadRole] CF periodic mode: clear texture/dynamic every {self._hrem_period} blocks, on 30 layers")
 
         if self.num_frame_per_block > 1:
             self.generator.model.num_frame_per_block = self.num_frame_per_block
@@ -291,6 +335,11 @@ class CausalInferencePipeline(torch.nn.Module):
 
             # Step 3.4: update the start and end frame indices
             current_start_frame += current_num_frames
+
+            # --- HREM: Periodic per-head KV cache refresh ---
+            if self._head_role_enable and self._head_role_labels and self.kv_cache1:
+                if (block_index + 1) % self._hrem_period == 0:
+                    _hrm_cf_clear_texture_heads(self.kv_cache1, self._head_role_labels)
 
         if profile:
             # End diffusion timing and synchronize CUDA

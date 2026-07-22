@@ -5,11 +5,34 @@ import re
 import time
 from omegaconf import OmegaConf
 from torchvision import transforms
-from torchvision.io import write_video
 from einops import rearrange
 import torch.distributed as dist
 from torch.utils.data import DataLoader, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
+
+# write_video fallback for torchvision >= 0.21
+try:
+    from torchvision.io import write_video
+except ImportError:
+    def write_video(filename, video_array, fps):
+        import av
+        video_array = video_array.cpu().numpy()
+        if video_array.dtype.name == 'float32':
+            video_array = (video_array * 255).astype('uint8')
+        T, H, W, C = video_array.shape
+        container = av.open(filename, mode='w')
+        stream = container.add_stream('h264', rate=fps)
+        stream.width = W
+        stream.height = H
+        stream.pix_fmt = 'yuv420p'
+        stream.options = {'crf': '23', 'preset': 'fast'}
+        for i in range(T):
+            frame = av.VideoFrame.from_ndarray(video_array[i], format='rgb24')
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode():
+            container.mux(packet)
+        container.close()
 
 from pipeline import (
     CausalDiffusionInferencePipeline,

@@ -4,11 +4,36 @@ import os
 from omegaconf import OmegaConf
 from tqdm import tqdm
 from torchvision import transforms
-from torchvision.io import write_video
 from einops import rearrange
 import torch.distributed as dist
 from torch.utils.data import DataLoader, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
+
+# write_video fallback: torchvision >= 0.21 removed write_video from io
+try:
+    from torchvision.io import write_video
+except ImportError:
+    def write_video(filename, video_array, fps):
+        """Fallback video writer using pyav."""
+        import av
+        import numpy as np
+        video_array = video_array.cpu().numpy()
+        if video_array.dtype == np.float32:
+            video_array = (video_array * 255).astype(np.uint8)
+        T, H, W, C = video_array.shape
+        container = av.open(filename, mode='w')
+        stream = container.add_stream('h264', rate=fps)
+        stream.width = W
+        stream.height = H
+        stream.pix_fmt = 'yuv420p'
+        stream.options = {'crf': '23', 'preset': 'fast'}
+        for i in range(T):
+            frame = av.VideoFrame.from_ndarray(video_array[i], format='rgb24')
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode():
+            container.mux(packet)
+        container.close()
 
 from pipeline import (
     CausalDiffusionInferencePipeline,
@@ -33,7 +58,128 @@ parser.add_argument("--seed", type=int, default=0, help="Random seed")
 parser.add_argument("--num_samples", type=int, default=1, help="Number of samples to generate per prompt")
 parser.add_argument("--save_with_index", action="store_true",
                     help="Whether to save the video using the index or prompt as the filename")
+
+# --- Structured memory (EpisodicArchive) CLI ---------------------
+# The archive is a training-free sidecar ported from Pyramid-Forcing.
+# All hyper-parameters are read from env by the pipeline (see
+# ``CausalInferencePipeline._init_structured_memory``); the CLI only flips
+# the master switch and forwards overrides.  Parameter names mirror the
+# PF CLI (without the ``pyramidkv_`` prefix) so experiment matrices stay
+# comparable.
+parser.add_argument("--structured_memory_enable", action="store_true", default=False,
+                    help="Enable the EpisodicArchive sidecar. Mutually exclusive "
+                         "with LIFECACHE_ENABLE. When off, the path is bitwise "
+                         "equivalent to native Self-Forcing.")
+parser.add_argument("--memory_gate", type=float, default=None,
+                    help="Fusion gate (0 = native equivalent, >0 = memory readout active).")
+parser.add_argument("--archive_max_frames", type=int, default=None,
+                    help="Hard budget for the per-layer archive.")
+parser.add_argument("--archive_policy", type=str, default=None,
+                    choices=("uniform", "coverage"),
+                    help="Eviction policy when the archive overflows.")
+parser.add_argument("--top_k_frames", type=int, default=None,
+                    help="Top-K frame selection budget (0 = use all eligible).")
+parser.add_argument("--recent_exclude_frames", type=int, default=None,
+                    help="Exclude the N most-recent archive frames from readout.")
+parser.add_argument("--prompt_prior_weight", type=float, default=None,
+                    help="Weight for the prompt-similarity prior in [0, 1].")
+parser.add_argument("--episode_gate_mode", type=str, default=None,
+                    choices=("off", "contrastive_strict", "contrastive_relative"),
+                    help="Contrastive episode gate mode.")
+parser.add_argument("--episode_gate_activation_episode", type=int, default=None,
+                    help="Episode id at which the contrastive gate activates.")
+parser.add_argument("--oracle_episode_id", type=int, default=None,
+                    help="Force-allow a single historical episode (-1 = off).")
+parser.add_argument("--trace_enabled", action="store_true", default=False,
+                    help="Enable structured-memory trace logging.")
+parser.add_argument("--head_routing", type=str, default=None,
+                    choices=("static", "confidence_adaptive", "functional_adaptive", "off"),
+                    help="Per-head routing mode (static = all-enabled in SF port).")
+parser.add_argument("--retrieval_temperature", type=float, default=None)
+parser.add_argument("--confidence_threshold", type=float, default=None)
+parser.add_argument("--min_retrieval_margin", type=float, default=None)
+parser.add_argument("--max_retrieval_entropy", type=float, default=None)
+parser.add_argument("--position_mode", type=str, default=None,
+                    choices=("none", "local_grid"))
+parser.add_argument("--fusion_mode", type=str, default=None,
+                    choices=("residual", "convex"))
+parser.add_argument("--warmup_blocks", type=int, default=None)
+parser.add_argument("--structured_memory_readout_mode", type=str, default=None,
+                    choices=("all", "clean_only", "noisy_only"))
+parser.add_argument("--structured_memory_value_mode", type=str, default=None,
+                    choices=("full", "spatial_detail"))
+parser.add_argument("--structured_memory_control_mode", type=str, default=None,
+                    choices=("normal", "shuffled_v", "abstain"))
+parser.add_argument("--structured_memory_selection_policy", type=str, default=None,
+                    choices=("query", "least_similar", "oldest", "newest"))
+parser.add_argument("--structured_memory_selection_scope", type=str, default=None,
+                    choices=("shared", "per_head"))
+parser.add_argument("--structured_memory_episode_frame_prior_mode", type=str, default=None,
+                    choices=("auto", "on", "off"))
+parser.add_argument("--structured_memory_routing_sharpness", type=float, default=None)
+parser.add_argument("--structured_memory_margin_threshold", type=float, default=None)
+parser.add_argument("--structured_memory_query_ema_decay", type=float, default=None)
+parser.add_argument("--structured_memory_layer_start", type=int, default=None,
+                    help="Inclusive lower layer index for archive+fusion (default 0).")
+parser.add_argument("--structured_memory_layer_end", type=int, default=None,
+                    help="Exclusive upper layer index for archive+fusion "
+                         "(-1 or unset = all layers).")
+parser.add_argument("--structured_memory_trace_path", type=str, default=None,
+                    help="Path to write JSONL trace of archive commits and "
+                         "episode transitions.  Only used when "
+                         "--trace_enabled is also passed.")
+parser.add_argument("--structured_memory_memory_start_episode", type=int, default=None,
+                    help="Disable the memory branch entirely for episodes "
+                         "with id < this value (archive commits still "
+                         "happen).  Default 0 = active on every episode.")
 args = parser.parse_args()
+
+# --- Forward structured-memory CLI overrides into env -------------------
+# The pipeline reads all hyper-parameters from env (see
+# ``CausalInferencePipeline._init_structured_memory``).  CLI values, when
+# provided, take precedence over the raw environment so users can override
+# a wrapper script without editing it.
+if args.structured_memory_enable:
+    os.environ["STRUCTURED_MEMORY_ENABLE"] = "1"
+
+_CLI_ENV_MAP = {
+    "memory_gate": "STRUCTURED_MEMORY_GATE",
+    "archive_max_frames": "STRUCTURED_MEMORY_ARCHIVE_MAX_FRAMES",
+    "archive_policy": "STRUCTURED_MEMORY_ARCHIVE_POLICY",
+    "top_k_frames": "STRUCTURED_MEMORY_TOP_K_FRAMES",
+    "recent_exclude_frames": "STRUCTURED_MEMORY_RECENT_EXCLUDE_FRAMES",
+    "prompt_prior_weight": "STRUCTURED_MEMORY_PROMPT_PRIOR_WEIGHT",
+    "episode_gate_mode": "STRUCTURED_MEMORY_EPISODE_GATE_MODE",
+    "episode_gate_activation_episode": "STRUCTURED_MEMORY_EPISODE_GATE_ACTIVATION_EPISODE",
+    "oracle_episode_id": "STRUCTURED_MEMORY_ORACLE_EPISODE_ID",
+    "head_routing": "STRUCTURED_MEMORY_HEAD_ROUTING",
+    "retrieval_temperature": "STRUCTURED_MEMORY_RETRIEVAL_TEMPERATURE",
+    "confidence_threshold": "STRUCTURED_MEMORY_CONFIDENCE_THRESHOLD",
+    "min_retrieval_margin": "STRUCTURED_MEMORY_MIN_RETRIEVAL_MARGIN",
+    "max_retrieval_entropy": "STRUCTURED_MEMORY_MAX_RETRIEVAL_ENTROPY",
+    "position_mode": "STRUCTURED_MEMORY_POSITION_MODE",
+    "fusion_mode": "STRUCTURED_MEMORY_FUSION_MODE",
+    "warmup_blocks": "STRUCTURED_MEMORY_WARMUP_BLOCKS",
+    "structured_memory_readout_mode": "STRUCTURED_MEMORY_READOUT_MODE",
+    "structured_memory_value_mode": "STRUCTURED_MEMORY_VALUE_MODE",
+    "structured_memory_control_mode": "STRUCTURED_MEMORY_CONTROL_MODE",
+    "structured_memory_selection_policy": "STRUCTURED_MEMORY_SELECTION_POLICY",
+    "structured_memory_selection_scope": "STRUCTURED_MEMORY_SELECTION_SCOPE",
+    "structured_memory_episode_frame_prior_mode": "STRUCTURED_MEMORY_EPISODE_FRAME_PRIOR_MODE",
+    "structured_memory_routing_sharpness": "STRUCTURED_MEMORY_ROUTING_SHARPNESS",
+    "structured_memory_margin_threshold": "STRUCTURED_MEMORY_MARGIN_THRESHOLD",
+    "structured_memory_query_ema_decay": "STRUCTURED_MEMORY_QUERY_EMA_DECAY",
+    "structured_memory_layer_start": "STRUCTURED_MEMORY_LAYER_START",
+    "structured_memory_layer_end": "STRUCTURED_MEMORY_LAYER_END",
+    "structured_memory_trace_path": "STRUCTURED_MEMORY_TRACE_PATH",
+    "structured_memory_memory_start_episode": "STRUCTURED_MEMORY_MEMORY_START_EPISODE",
+}
+for cli_name, env_name in _CLI_ENV_MAP.items():
+    value = getattr(args, cli_name, None)
+    if value is not None:
+        os.environ[env_name] = str(value)
+if args.trace_enabled:
+    os.environ["STRUCTURED_MEMORY_TRACE_ENABLED"] = "1"
 
 # Initialize distributed inference
 if "LOCAL_RANK" in os.environ:
@@ -173,6 +319,21 @@ for i, batch_data in tqdm(enumerate(dataloader), disable=(local_rank != 0)):
     current_video = rearrange(video, 'b t c h w -> b t h w c').cpu()
     all_video.append(current_video)
     num_generated_frames += latents.shape[1]
+
+    # --- K-Stability Calibration ---
+    # When CALIBRATE_K_PATH is set, save per-layer K tensors from kv_cache1
+    # for cross-seed head stability analysis.
+    calibrate_k_path = os.environ.get("CALIBRATE_K_PATH")
+    if calibrate_k_path and pipeline.kv_cache1 is not None:
+        k_data = {}
+        for lid, cache in enumerate(pipeline.kv_cache1):
+            le = int(cache["local_end_index"].item())
+            if le > 0:
+                # Take last frame's K, mean across tokens → [12, 128]
+                k = cache["k"][:, max(0, le - pipeline.frame_seq_length):le]
+                k_data[str(lid)] = k.mean(dim=(0, 1)).cpu()
+        torch.save(k_data, calibrate_k_path)
+        print(f"[Calibrate] K tensors saved to {calibrate_k_path}")
 
     # Final output video
     video = 255.0 * torch.cat(all_video, dim=1)
