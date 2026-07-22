@@ -129,7 +129,14 @@ parser.add_argument("--structured_memory_layer_end", type=int, default=None,
 parser.add_argument("--structured_memory_trace_path", type=str, default=None,
                     help="Path to write JSONL trace of archive commits and "
                          "episode transitions.  Only used when "
-                         "--trace_enabled is also passed.")
+                          "--trace_enabled is also passed.")
+parser.add_argument("--structured_memory_debug", action="store_true", default=False,
+                    help="Print bounded HREM-v2 diagnostics to stdout.")
+parser.add_argument("--structured_memory_debug_layers", type=str, default=None,
+                    help="Comma-separated transformer layers to debug. Defaults to "
+                         "the first and last active structured-memory layers.")
+parser.add_argument("--structured_memory_debug_every_blocks", type=int, default=None,
+                    help="Emit stdout diagnostics every N generated blocks.")
 parser.add_argument("--structured_memory_memory_start_episode", type=int, default=None,
                     help="Disable the memory branch entirely for episodes "
                          "with id < this value (archive commits still "
@@ -184,6 +191,8 @@ _CLI_ENV_MAP = {
     "structured_memory_layer_start": "STRUCTURED_MEMORY_LAYER_START",
     "structured_memory_layer_end": "STRUCTURED_MEMORY_LAYER_END",
     "structured_memory_trace_path": "STRUCTURED_MEMORY_TRACE_PATH",
+    "structured_memory_debug_layers": "STRUCTURED_MEMORY_DEBUG_LAYERS",
+    "structured_memory_debug_every_blocks": "STRUCTURED_MEMORY_DEBUG_EVERY_BLOCKS",
     "structured_memory_memory_start_episode": "STRUCTURED_MEMORY_MEMORY_START_EPISODE",
     "dual_min_semantic_similarity": "STRUCTURED_MEMORY_DUAL_MIN_SEMANTIC_SIMILARITY",
     "dual_min_visual_similarity": "STRUCTURED_MEMORY_DUAL_MIN_VISUAL_SIMILARITY",
@@ -199,6 +208,8 @@ for cli_name, env_name in _CLI_ENV_MAP.items():
         os.environ[env_name] = str(value)
 if args.trace_enabled:
     os.environ["STRUCTURED_MEMORY_TRACE_ENABLED"] = "1"
+if args.structured_memory_debug:
+    os.environ["STRUCTURED_MEMORY_DEBUG"] = "1"
 if args.dual_allow_disagreement:
     os.environ["STRUCTURED_MEMORY_DUAL_REQUIRE_AGREEMENT"] = "0"
 

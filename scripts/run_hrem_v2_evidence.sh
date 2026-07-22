@@ -137,7 +137,10 @@ run_cell hrem_v2 "$GPU_HREM" \
     STRUCTURED_MEMORY_ROLE_SHARPNESS=8.0 \
     STRUCTURED_MEMORY_DUAL_REQUIRE_AGREEMENT=1 \
     STRUCTURED_MEMORY_TRACE_ENABLED=1 \
-    STRUCTURED_MEMORY_TRACE_PATH="$TRACE_PATH" &
+    STRUCTURED_MEMORY_TRACE_PATH="$TRACE_PATH" \
+    STRUCTURED_MEMORY_DEBUG=1 \
+    STRUCTURED_MEMORY_DEBUG_LAYERS=15,20 \
+    STRUCTURED_MEMORY_DEBUG_EVERY_BLOCKS=1 &
 p3=$!
 
 status=0
@@ -145,7 +148,16 @@ for pid in "$p0" "$p1" "$p2" "$p3"; do
     wait "$pid" || status=1
 done
 
+if [[ -s "$TRACE_PATH" ]]; then
+    python "$ROOT/scripts/analyze_hrem_v2_debug.py" "$TRACE_PATH" \
+        --strict \
+        --json-output "$OUT_ROOT/traces/hrem_v2_diagnosis.json" || status=1
+else
+    echo "[warning] no HREM-v2 trace found at $TRACE_PATH"
+fi
+
 echo "[done] outputs: $OUT_ROOT"
 echo "[next] python $ROOT/scripts/evaluate_hrem_v2.py --run-root $OUT_ROOT"
 echo "[audit] python $ROOT/scripts/summarize_hrem_v2_trace.py $OUT_ROOT/traces/hrem_v2.jsonl --strict"
+echo "[diagnose] python $ROOT/scripts/analyze_hrem_v2_debug.py $OUT_ROOT/traces/hrem_v2.jsonl --strict --json-output $OUT_ROOT/traces/hrem_v2_diagnosis.json"
 exit "$status"

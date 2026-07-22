@@ -278,6 +278,7 @@ def compute_effective_fusion_weight(
     alignment: torch.Tensor,
     head_mask: torch.Tensor | None,
     mode: str,
+    accepted: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Reconstruct the coefficient applied by ``fuse_parallel_attention``."""
     if mode not in {"residual", "convex"}:
@@ -285,6 +286,8 @@ def compute_effective_fusion_weight(
     weight = gate * confidence[:, None, :, None].to(alignment) * alignment
     if head_mask is not None:
         weight = weight * head_mask.to(weight)
+    if accepted is not None:
+        weight = weight * accepted[:, None, :, None].to(weight)
     return weight.clamp(0.0, 1.0) if mode == "convex" else weight
 
 
@@ -857,11 +860,9 @@ def fuse_parallel_attention(
     Args:
         accepted: Optional per-(batch, head) boolean mask of shape
             ``[B, H]`` indicating which heads have an admitted memory
-            readout.  When provided and *all* entries are ``False`` the
-            memory branch is fully abstained: the function returns
-            ``x_recent`` unchanged (bitwise equal to the native path).
-            When ``None`` (the legacy default) the abstention check is
-            skipped and behaviour matches the pre-fix path.
+            readout. Rejected heads stay bitwise native; when all entries
+            are ``False`` the function returns ``x_recent`` unchanged.
+            When ``None`` (the legacy default) no acceptance mask is used.
     """
     if x_recent.shape != x_memory.shape or x_recent.ndim != 4:
         raise ValueError("attention outputs must share shape [B, T, H, D]")
@@ -906,6 +907,13 @@ def fuse_parallel_attention(
         if tuple(confidence.shape) != expected:
             raise ValueError(f"confidence must have shape {expected}, got {tuple(confidence.shape)}")
         weight = weight * confidence[:, None, :, None].to(
+            device=x_recent.device, dtype=x_recent.dtype
+        )
+    if accepted is not None:
+        expected = (x_recent.shape[0], x_recent.shape[2])
+        if tuple(accepted.shape) != expected:
+            raise ValueError(f"accepted must have shape {expected}, got {tuple(accepted.shape)}")
+        weight = weight * accepted[:, None, :, None].to(
             device=x_recent.device, dtype=x_recent.dtype
         )
 

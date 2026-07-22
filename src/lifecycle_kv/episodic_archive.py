@@ -22,6 +22,9 @@ class EpisodicArchiveConfig:
     oracle_episode_id: int = -1
     trace_enabled: bool = False
     trace_path: str | None = None
+    debug_enabled: bool = False
+    debug_layers: tuple[int, ...] = ()
+    debug_every_blocks: int = 1
 
     def __post_init__(self) -> None:
         if self.num_heads <= 0 or self.head_dim <= 0:
@@ -34,6 +37,8 @@ class EpisodicArchiveConfig:
             raise ValueError("spatial_stride must be positive")
         if self.trace_enabled and not self.trace_path:
             raise ValueError("trace_path is required when trace_enabled is true")
+        if self.debug_every_blocks <= 0:
+            raise ValueError("debug_every_blocks must be positive")
 
 
 class EpisodicArchive:
@@ -69,6 +74,34 @@ class EpisodicArchive:
         self._role_query_reference_start: int | None = None
         self._readout_calls = 0
         self._accepted_calls = 0
+        self._debug_once_keys: set[tuple[object, ...]] = set()
+
+    def debug_is_enabled(self) -> bool:
+        return (
+            self._sm_active
+            and self.config.debug_enabled
+            and (
+                not self.config.debug_layers
+                or self.layer_idx in self.config.debug_layers
+            )
+        )
+
+    def debug(
+        self,
+        event: str,
+        message: str,
+        *,
+        once_key: tuple[object, ...] | None = None,
+    ) -> None:
+        """Emit one concise, grep-friendly stdout diagnostic when requested."""
+        if not self.debug_is_enabled():
+            return
+        if once_key is not None:
+            key = (event, *once_key)
+            if key in self._debug_once_keys:
+                return
+            self._debug_once_keys.add(key)
+        print(f"[HREMv2][{event}][L{self.layer_idx}] {message}", flush=True)
 
     def set_episode(self, episode_id: int, prompt_descriptor: torch.Tensor) -> None:
         descriptor = F.normalize(
@@ -215,6 +248,40 @@ class EpisodicArchive:
         self.structured_memory_episode_ids = episode_ids.index_select(0, keep)
         self.structured_memory_prompt_descriptors = prompts.index_select(0, keep)
         self._committed_blocks.add(key)
+        diagnostics_requested = bool(self.config.trace_enabled) or self.debug_is_enabled()
+        episode_counts: dict[int, int] = {}
+        if diagnostics_requested:
+            unique_episodes, counts = torch.unique(
+                self.structured_memory_episode_ids,
+                return_counts=True,
+            )
+            episode_counts = {
+                int(episode): int(count)
+                for episode, count in zip(
+                    unique_episodes.detach().cpu().tolist(),
+                    counts.detach().cpu().tolist(),
+                )
+            }
+        diagnostics: dict[str, object] = {}
+        if self.debug_is_enabled():
+            k_rms = float(
+                self.structured_memory_k.float().square().mean().sqrt().item()
+            )
+            v_rms = float(
+                self.structured_memory_v.float().square().mean().sqrt().item()
+            )
+            diagnostics = {"archive_k_rms": k_rms, "archive_v_rms": v_rms}
+            start_frame = int(current_start // frame_seqlen)
+            block_index = start_frame // max(1, frames)
+            if block_index % self.config.debug_every_blocks == 0:
+                self.debug(
+                    "archive",
+                    f"ep={self.current_episode_id} start_frame={start_frame} "
+                    f"added={frames} kept={self.structured_memory_k.shape[0]} "
+                    f"spatial={self.structured_memory_k.shape[1]} "
+                    f"episodes={episode_counts} k_rms={k_rms:.5f} v_rms={v_rms:.5f}",
+                    once_key=(int(current_start),),
+                )
         self.write_trace(
             "commit",
             episode_id=self.current_episode_id,
@@ -222,6 +289,8 @@ class EpisodicArchive:
             committed_frames=frames,
             archive_frames=int(self.structured_memory_k.shape[0]),
             archive_spatial_tokens=int(self.structured_memory_k.shape[1]),
+            episode_counts=episode_counts,
+            **diagnostics,
         )
         return True
 

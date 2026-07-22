@@ -271,3 +271,20 @@ def test_convex_head_mask_leaves_disallowed_heads_native():
 
     torch.testing.assert_close(output[0, 0, 0], torch.tensor([1.0, 1.0]))
     torch.testing.assert_close(output[0, 0, 1], recent[0, 0, 1])
+
+
+def test_partially_rejected_heads_do_not_receive_memory():
+    recent = torch.ones(1, 2, 2, 1)
+    memory = torch.full_like(recent, 3.0)
+    output = fuse_parallel_attention(
+        recent,
+        memory,
+        gate=0.5,
+        rms_match=False,
+        confidence=torch.ones(1, 2),
+        accepted=torch.tensor([[True, False]]),
+        mode="convex",
+    )
+
+    torch.testing.assert_close(output[:, :, 1], recent[:, :, 1])
+    torch.testing.assert_close(output[:, :, 0], torch.full_like(output[:, :, 0], 2.0))

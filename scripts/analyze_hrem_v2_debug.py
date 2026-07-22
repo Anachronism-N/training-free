@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""Diagnose HREM-v2 archive, admission, routing, and fusion from JSONL traces."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import statistics
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Any, Iterable
+
+
+def load_records(path: Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"invalid JSON at {path}:{line_number}: {exc}") from exc
+            if not isinstance(record, dict):
+                raise ValueError(f"expected object at {path}:{line_number}")
+            records.append(record)
+    return records
+
+
+def _mean(records: Iterable[dict[str, Any]], field: str) -> float | None:
+    values = [float(record[field]) for record in records if record.get(field) is not None]
+    return statistics.fmean(values) if values else None
+
+
+def _median(records: Iterable[dict[str, Any]], field: str) -> float | None:
+    values = [float(record[field]) for record in records if record.get(field) is not None]
+    return statistics.median(values) if values else None
+
+
+def _finding(severity: str, code: str, message: str, action: str) -> dict[str, str]:
+    return {"severity": severity, "code": code, "message": message, "action": action}
+
+
+def _layer(record: dict[str, Any]) -> int:
+    return int(record.get("layer", record.get("layer_idx", -1)))
+
+
+def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
+    events = Counter(str(record.get("event", "missing")) for record in records)
+    commits = [record for record in records if record.get("event") == "commit"]
+    boundaries = [record for record in records if record.get("event") == "boundary"]
+    readouts = [record for record in records if record.get("event") == "readout"]
+    abstains = [record for record in records if record.get("event") == "readout_abstain"]
+    abstain_reasons = Counter()
+    findings: list[dict[str, str]] = []
+    violations: list[str] = []
+
+    for record in abstains:
+        decision = record.get("episode_decision") or {}
+        reason = record.get("reason") or decision.get("abstain_reason") or "unknown"
+        abstain_reasons[str(reason)] += 1
+
+    for record in readouts:
+        current = record.get("current_episode_id")
+        previous = record.get("previous_episode_id")
+        allowed = record.get("allowed_episode_id")
+        context = f"layer={_layer(record)} block={record.get('block_index')}"
+        if allowed is not None and current is not None and int(allowed) >= int(current):
+            violations.append(
+                f"{context}: allowed episode {allowed} is not historical relative to {current}"
+            )
+        if allowed is not None and previous is not None and int(allowed) == int(previous):
+            violations.append(f"{context}: immediately previous episode {previous} was admitted")
+        decision = record.get("episode_decision") or {}
+        winner = decision.get("winner_episode_id")
+        if winner is not None and allowed is not None and int(winner) != int(allowed):
+            violations.append(
+                f"{context}: episode winner {winner} differs from allowed episode {allowed}"
+            )
+
+    if not records:
+        findings.append(_finding(
+            "ERROR", "empty_trace", "The trace contains no records.",
+            "Check STRUCTURED_MEMORY_TRACE_ENABLED and STRUCTURED_MEMORY_TRACE_PATH.",
+        ))
+    elif not commits:
+        findings.append(_finding(
+            "ERROR", "no_archive_commits",
+            "No clean K/V blocks were committed to the episodic archive.",
+            "Inspect the clean-pass bridge and active layer range before tuning retrieval.",
+        ))
+
+    if commits:
+        last_by_layer: dict[int, dict[str, Any]] = {}
+        for record in commits:
+            last_by_layer[_layer(record)] = record
+        empty_kv = [
+            layer for layer, record in last_by_layer.items()
+            if float(record.get("archive_k_rms", 1.0)) <= 1e-8
+            or float(record.get("archive_v_rms", 1.0)) <= 1e-8
+        ]
+        if empty_kv:
+            findings.append(_finding(
+                "ERROR", "zero_archive_signal",
+                f"Archive K/V RMS is zero in layers {empty_kv}.",
+                "Verify pre-RoPE K/V capture and clean-pass commit tensors.",
+            ))
+
+    if boundaries and any(not bool(record.get("archive_preserved", False)) for record in boundaries):
+        findings.append(_finding(
+            "ERROR", "archive_lost_at_boundary",
+            "At least one scene boundary did not preserve the episodic archive.",
+            "Keep native working-cache reset separate from EpisodicArchive.reset().",
+        ))
+
+    if commits and not readouts:
+        dominant = abstain_reasons.most_common(1)
+        suffix = f" Dominant abstention: {dominant[0][0]}." if dominant else ""
+        findings.append(_finding(
+            "ERROR", "no_accepted_readout",
+            "The archive was populated but no memory readout reached fusion." + suffix,
+            "Inspect episode thresholds first, then frame confidence and margin thresholds.",
+        ))
+
+    delta_median = _median(readouts, "delta_to_native_rms")
+    weight_mean = _mean(readouts, "effective_weight_mean")
+    head_gate_mean = _mean(readouts, "head_gate_mean")
+    alignment_positive = _mean(readouts, "alignment_positive_fraction")
+    confidence_mean = _mean(readouts, "confidence_mean")
+    accepted_fraction_values = [
+        float(record["accepted_head_count"]) / max(1, int(record["head_count"]))
+        for record in readouts
+        if record.get("accepted_head_count") is not None and record.get("head_count") is not None
+    ]
+    accepted_head_fraction = (
+        statistics.fmean(accepted_fraction_values) if accepted_fraction_values else None
+    )
+
+    if delta_median is not None and delta_median < 1e-4:
+        findings.append(_finding(
+            "WARNING", "fusion_effect_negligible",
+            f"Median delta/native RMS is only {delta_median:.6f}.",
+            "Check alignment, confidence, and role gates before increasing the global gate.",
+        ))
+    if delta_median is not None and delta_median > 0.25:
+        findings.append(_finding(
+            "WARNING", "fusion_effect_too_large",
+            f"Median delta/native RMS is {delta_median:.4f}, above the conservative range.",
+            "Reduce STRUCTURED_MEMORY_GATE or tighten role/admission thresholds.",
+        ))
+    if head_gate_mean is not None and head_gate_mean < 0.05:
+        findings.append(_finding(
+            "WARNING", "role_gate_over_suppressed",
+            f"Mean role gate is {head_gate_mean:.4f}.",
+            "Lower ROLE_THRESHOLD or inspect K/V persistence and query stability per head.",
+        ))
+    if head_gate_mean is not None and head_gate_mean > 0.90:
+        findings.append(_finding(
+            "WARNING", "role_gate_not_selective",
+            f"Mean role gate is {head_gate_mean:.4f}.",
+            "Raise ROLE_THRESHOLD; compare with the episode-only ablation before claiming head awareness.",
+        ))
+    if alignment_positive is not None and alignment_positive < 0.10:
+        findings.append(_finding(
+            "WARNING", "memory_native_conflict",
+            f"Only {alignment_positive:.1%} of token-head outputs have positive alignment.",
+            "Inspect positional convention and archive quality; do not increase the gate.",
+        ))
+    if confidence_mean is not None and confidence_mean < 0.10:
+        findings.append(_finding(
+            "WARNING", "weak_frame_retrieval",
+            f"Mean retrieval confidence is {confidence_mean:.4f}.",
+            "Inspect visual score distributions and retrieval temperature.",
+        ))
+    if violations:
+        findings.append(_finding(
+            "ERROR", "causal_invariant_violation",
+            f"Detected {len(violations)} historical-selection invariant violation(s).",
+            "Stop evaluation and fix episode filtering before using generated results.",
+        ))
+    if records and not findings:
+        findings.append(_finding(
+            "INFO", "diagnostics_nominal",
+            "No structural failure was detected in the trace.",
+            "Proceed to video metrics and causal ablations; trace health alone does not prove quality.",
+        ))
+
+    per_layer: dict[str, dict[str, Any]] = {}
+    grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for record in readouts:
+        grouped[_layer(record)].append(record)
+    for layer, layer_records in sorted(grouped.items()):
+        per_layer[str(layer)] = {
+            "readouts": len(layer_records),
+            "delta_to_native_rms_median": _median(layer_records, "delta_to_native_rms"),
+            "effective_weight_mean": _mean(layer_records, "effective_weight_mean"),
+            "head_gate_mean": _mean(layer_records, "head_gate_mean"),
+            "alignment_positive_fraction": _mean(layer_records, "alignment_positive_fraction"),
+        }
+
+    return {
+        "record_count": len(records),
+        "event_counts": dict(sorted(events.items())),
+        "abstain_reasons": dict(abstain_reasons.most_common()),
+        "metrics": {
+            "delta_to_native_rms_median": delta_median,
+            "effective_weight_mean": weight_mean,
+            "head_gate_mean": head_gate_mean,
+            "accepted_head_fraction": accepted_head_fraction,
+            "alignment_positive_fraction": alignment_positive,
+            "confidence_mean": confidence_mean,
+        },
+        "per_layer": per_layer,
+        "violations": violations,
+        "findings": findings,
+    }
+
+
+def _print_report(report: dict[str, Any]) -> None:
+    print("HREM-v2 diagnostic report")
+    print(f"records: {report['record_count']}")
+    print(f"events: {json.dumps(report['event_counts'], sort_keys=True)}")
+    print(f"abstains: {json.dumps(report['abstain_reasons'], sort_keys=True)}")
+    print(f"metrics: {json.dumps(report['metrics'], sort_keys=True)}")
+    for finding in report["findings"]:
+        print(
+            f"[{finding['severity']}] {finding['code']}: {finding['message']} "
+            f"Next: {finding['action']}"
+        )
+    for violation in report["violations"]:
+        print(f"[VIOLATION] {violation}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("trace", type=Path, help="HREM-v2 JSONL trace")
+    parser.add_argument("--json-output", type=Path, default=None)
+    parser.add_argument(
+        "--strict", action="store_true",
+        help="Exit non-zero when an ERROR finding or invariant violation is present.",
+    )
+    args = parser.parse_args()
+    report = analyze_records(load_records(args.trace))
+    _print_report(report)
+    if args.json_output is not None:
+        args.json_output.parent.mkdir(parents=True, exist_ok=True)
+        args.json_output.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    has_error = any(finding["severity"] == "ERROR" for finding in report["findings"])
+    return 1 if args.strict and has_error else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

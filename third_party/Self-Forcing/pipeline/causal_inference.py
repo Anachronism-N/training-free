@@ -314,6 +314,25 @@ class CausalInferencePipeline(torch.nn.Module):
             layer_end = self.num_transformer_blocks
         layer_start = max(0, min(layer_start, self.num_transformer_blocks))
         layer_end = max(layer_start, min(layer_end, self.num_transformer_blocks))
+        debug_enabled = os.environ.get("STRUCTURED_MEMORY_DEBUG", "0") == "1"
+        raw_debug_layers = os.environ.get("STRUCTURED_MEMORY_DEBUG_LAYERS", "").strip()
+        if raw_debug_layers:
+            debug_layers = tuple(
+                sorted({int(value.strip()) for value in raw_debug_layers.split(",") if value.strip()})
+            )
+        elif layer_start < layer_end:
+            debug_layers = tuple(dict.fromkeys((layer_start, layer_end - 1)))
+        else:
+            debug_layers = ()
+        invalid_debug_layers = [
+            layer for layer in debug_layers if not 0 <= layer < self.num_transformer_blocks
+        ]
+        if invalid_debug_layers:
+            raise ValueError(
+                "STRUCTURED_MEMORY_DEBUG_LAYERS contains invalid layer indices: "
+                f"{invalid_debug_layers}"
+            )
+        debug_every_blocks = _env_int("STRUCTURED_MEMORY_DEBUG_EVERY_BLOCKS", 1)
 
         config = EpisodicArchiveConfig(
             num_heads=num_heads,
@@ -326,6 +345,9 @@ class CausalInferencePipeline(torch.nn.Module):
             oracle_episode_id=oracle_episode_id,
             trace_enabled=trace_enabled,
             trace_path=trace_path,
+            debug_enabled=debug_enabled,
+            debug_layers=debug_layers,
+            debug_every_blocks=debug_every_blocks,
         )
         self.structured_memory_archives = [
             EpisodicArchive(
@@ -451,6 +473,8 @@ class CausalInferencePipeline(torch.nn.Module):
               f"active_layers={active_layers}")
         print(f"[StructuredMemory] trace_enabled={trace_enabled} "
               f"trace_path={trace_path}")
+        print(f"[StructuredMemory] debug={debug_enabled} layers={list(debug_layers)} "
+              f"every_blocks={debug_every_blocks}")
         print(f"[StructuredMemory] memory_start_episode="
               f"{self.structured_memory_config['memory_start_episode']}")
         print(f"[StructuredMemory] ========================================")
@@ -671,6 +695,7 @@ class CausalInferencePipeline(torch.nn.Module):
                 if scene_changed:
                     prev_scene = active_scene_index
                     active_scene_index = scene_index
+                    working_cache_reset = False
                     for cache in self.crossattn_cache:
                         cache["is_init"] = False
 
@@ -686,6 +711,7 @@ class CausalInferencePipeline(torch.nn.Module):
                             self.kv_cache1,
                             current_start_frame * self.frame_seq_length,
                         )
+                        working_cache_reset = True
                     # --- Legacy HREM: Store + Recall at scene boundary ---
                     elif getattr(self, "_head_role_enable", False) and self.kv_cache1 is not None:
                         # 1. If pool is active: compress and store current scene's K/V
@@ -706,6 +732,31 @@ class CausalInferencePipeline(torch.nn.Module):
                 conditional_dict = conditional_dicts[scene_index]
                 if self.structured_memory_archives is not None and scene_changed:
                     self._set_memory_episode(conditional_dict, scene_index)
+                    active_archive = next(
+                        (
+                            archive
+                            for archive in self.structured_memory_archives
+                            if bool(getattr(archive, "_sm_active", True))
+                        ),
+                        None,
+                    )
+                    if active_archive is not None:
+                        active_archive.write_trace(
+                            "boundary",
+                            previous_episode_id=int(prev_scene),
+                            current_episode_id=int(scene_index),
+                            current_start_frame=int(current_start_frame),
+                            working_cache_reset=working_cache_reset,
+                            archive_preserved=True,
+                        )
+                    if os.environ.get("STRUCTURED_MEMORY_DEBUG", "0") == "1":
+                        print(
+                            "[HREMv2][boundary] "
+                            f"frame={current_start_frame} episode={prev_scene}->{scene_index} "
+                            f"working_cache_reset={int(working_cache_reset)} "
+                            "archive_preserved=1",
+                            flush=True,
+                        )
 
             if profile:
                 block_start.record()

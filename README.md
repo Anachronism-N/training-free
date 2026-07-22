@@ -9,6 +9,10 @@ episode-balanced sidecar of clean pre-RoPE K/V frames, admits only non-recent
 episodes supported by both prompt and visual-query evidence, and routes the
 independent memory-attention output with online per-head persistence and motion
 evidence. Uncertain recall returns the native Self-Forcing output unchanged.
+The paper-facing contribution is the factorized two-stage admission decision,
+not the archive or top-k retrieval components in isolation. The exact borrowed
+components, claim boundary, and falsifiable hypotheses are recorded in
+`docs/60_hrem_v2_novelty_and_debug_protocol.md`.
 
 ## Current Hypothesis
 
@@ -34,12 +38,14 @@ training-free/
 |   `-- lifecache-v1-minimal.yaml
 |-- docs/
 |   |-- 15_lifecache_doc_index.md
-|   `-- 59_hrem_v2_evidence_gated_episodic_memory.md
+   |   |-- 59_hrem_v2_evidence_gated_episodic_memory.md
+   |   `-- 60_hrem_v2_novelty_and_debug_protocol.md
 |-- prompts/
 |   `-- hrem_v2_aba_complex_3.txt
 |-- scripts/
 |   |-- bootstrap_repos.sh
-|   `-- run_hrem_v2_evidence.sh
+   |   |-- analyze_hrem_v2_debug.py
+   |   `-- run_hrem_v2_evidence.sh
 |-- src/
 |   `-- lifecycle_kv/
 `-- third_party/
@@ -59,6 +65,8 @@ The HREM-v2 path is connected end-to-end in Self-Forcing:
   independent memory-attention branch.
 - `third_party/Self-Forcing/pipeline/causal_inference.py`: episode lifecycle and
   clean-context archive commits.
+- `scripts/analyze_hrem_v2_debug.py`: structural diagnosis for archive,
+  admission, head routing, fusion strength, and causal invariants.
 
 The current machine has no configured PyTorch/GPU runtime, so the code has been
 syntax-checked but the new CUDA path still requires the server Stage-1 run.
@@ -147,6 +155,9 @@ Then audit routing and evaluate A-B-A return:
 ```bash
 python scripts/summarize_hrem_v2_trace.py \
   runs/hrem_v2_evidence_s0/traces/hrem_v2.jsonl --strict
+python scripts/analyze_hrem_v2_debug.py \
+  runs/hrem_v2_evidence_s0/traces/hrem_v2.jsonl \
+  --strict --json-output runs/hrem_v2_evidence_s0/traces/hrem_v2_diagnosis.json
 CUDA_VISIBLE_DEVICES=0 python scripts/evaluate_hrem_v2.py \
   --run-root runs/hrem_v2_evidence_s0
 ```

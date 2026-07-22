@@ -3,6 +3,7 @@
 > 状态：代码完成，等待 GPU 服务器首轮实验。  
 > 基座：Wan2.1-T2V-1.3B + Self-Forcing DMD。  
 > 目标：training-free 长视频中的场景回访、主体身份和布局恢复，同时避免历史记忆冻结运动。
+> 论文边界和服务器诊断见 `docs/60_hrem_v2_novelty_and_debug_protocol.md`。
 
 ## 1. 当前决策
 
@@ -157,6 +158,7 @@ archive 不写回 `kv_cache["k"]` 或 `kv_cache["v"]`，因此不会出现旧 HR
 | `scripts/run_hrem_v2_evidence.sh` | raw-native/reset-native/oracle/episode-only/full 五 cell 矩阵 |
 | `scripts/evaluate_hrem_v2.py` | A1-A2、B-A2、return margin |
 | `scripts/summarize_hrem_v2_trace.py` | episode route 因果审计 |
+| `scripts/analyze_hrem_v2_debug.py` | archive/admission/head/fusion 根因诊断 |
 
 ## 5. Stage-1 因果矩阵
 
@@ -178,10 +180,14 @@ git pull --ff-only
 PYTHONPATH=src pytest -q \
   tests/test_episodic_archive.py \
   tests/test_role_episodic.py \
-  tests/test_structured_memory_readout.py
+  tests/test_structured_memory_readout.py \
+  tests/test_hrem_debug_analyzer.py
 bash scripts/run_hrem_v2_evidence.sh 0 1 2 3
 python scripts/summarize_hrem_v2_trace.py \
   runs/hrem_v2_evidence_s0/traces/hrem_v2.jsonl --strict
+python scripts/analyze_hrem_v2_debug.py \
+  runs/hrem_v2_evidence_s0/traces/hrem_v2.jsonl \
+  --strict --json-output runs/hrem_v2_evidence_s0/traces/hrem_v2_diagnosis.json
 CUDA_VISIBLE_DEVICES=0 python scripts/evaluate_hrem_v2.py \
   --run-root runs/hrem_v2_evidence_s0
 ```

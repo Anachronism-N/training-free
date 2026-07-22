@@ -2,6 +2,7 @@
 
 ## Current method (read first)
 
+- `docs/60_hrem_v2_novelty_and_debug_protocol.md`: paper-facing novelty boundary, falsifiable story, debug fields, and server diagnosis loop.
 - `docs/59_hrem_v2_evidence_gated_episodic_memory.md`: current method, implementation, causal matrix, server commands, and promotion criteria.
 - `docs/58_hrem_v1_results.md`: HREM-v1 result and failure analysis.
 - `docs/55_cemr_ceg_full_idea_spec.md`: strongest CEMR/CEG evidence and unresolved episode-selection failure.

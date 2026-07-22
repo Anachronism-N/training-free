@@ -815,14 +815,52 @@ class CausalWanSelfAttention(nn.Module):
             or (readout_mode == "clean_only" and memory_mode == "clean")
             or (readout_mode == "noisy_only" and memory_mode == "noisy")
         )
+        current_episode = getattr(archive, "current_episode_id", None)
+        previous_episode = getattr(archive, "previous_episode_id", None)
+        debug_enabled = bool(archive.debug_is_enabled())
+        trace_enabled = bool(getattr(archive.config, "trace_enabled", False))
+        query_frames = None
+        current_frame = None
+        current_block = None
+
+        def _ensure_location():
+            nonlocal query_frames, current_frame, current_block
+            if current_block is None:
+                query_frames = max(1, int(grid_sizes[0, 0].item()))
+                current_frame = int(current_start // frame_seqlen)
+                current_block = int(current_start // (frame_seqlen * query_frames))
+
+        if debug_enabled:
+            _ensure_location()
+
+        def _debug(event, message):
+            if (
+                debug_enabled
+                and current_block % int(archive.config.debug_every_blocks) == 0
+            ):
+                archive.debug(
+                    event,
+                    f"block={current_block} frame={current_frame} {message}",
+                    once_key=(int(current_start), memory_mode),
+                )
+
         memory_k = getattr(archive, "structured_memory_k", None)
         memory_v = getattr(archive, "structured_memory_v", None)
         if gate <= 0.0 or not mode_enabled or memory_k is None or memory_v is None:
+            reason = (
+                "gate_zero" if gate <= 0.0 else
+                "readout_mode_filtered" if not mode_enabled else
+                "archive_empty"
+            )
+            _debug("inactive", f"ep={current_episode} mode={memory_mode} reason={reason}")
             return native_out
-        current_episode = getattr(archive, "current_episode_id", None)
-        previous_episode = getattr(archive, "previous_episode_id", None)
         if current_episode is None:
+            _debug("inactive", "ep=None reason=episode_unset")
             return native_out
+        _ensure_location()
+        debug_due = debug_enabled and (
+            current_block % int(archive.config.debug_every_blocks) == 0
+        )
 
         from lifecycle_kv.attention_fusion import (
             fuse_parallel_attention,
@@ -850,6 +888,11 @@ class CausalWanSelfAttention(nn.Module):
             archive._role_query_ema_start = int(current_start)
 
         if current_episode < int(config.get("memory_start_episode", 0)):
+            _debug(
+                "inactive",
+                f"ep={current_episode} reason=before_memory_start "
+                f"threshold={int(config.get('memory_start_episode', 0))}",
+            )
             return native_out
 
         episode_ids = getattr(archive, "structured_memory_episode_ids", None)
@@ -864,6 +907,11 @@ class CausalWanSelfAttention(nn.Module):
         forced_abstain_reason = None
         episode_trace = None
         if gate_mode != "off" and int(current_episode) < activation_episode:
+            _debug(
+                "episode",
+                f"ep={current_episode} accepted=0 reason=before_gate_activation "
+                f"threshold={activation_episode}",
+            )
             return native_out
         if gate_mode == "dual_evidence":
             visual = query_frame_similarity(raw_q, memory_k)
@@ -905,9 +953,18 @@ class CausalWanSelfAttention(nn.Module):
                 "combined_scores": decision.combined_scores,
             }
             if not decision.accepted:
+                _debug(
+                    "episode",
+                    f"ep={current_episode} prev={previous_episode} winner="
+                    f"{decision.winner_episode_id} accepted=0 "
+                    f"reason={decision.abstain_reason} agree={int(decision.cue_agreement)} "
+                    f"combined_margin={decision.combined_margin:.4f}",
+                )
                 archive.write_trace(
                     "readout_abstain",
                     current_start=int(current_start),
+                    current_frame=current_frame,
+                    block_index=current_block,
                     current_episode_id=int(current_episode),
                     memory_mode=memory_mode,
                     episode_decision=episode_trace,
@@ -935,11 +992,27 @@ class CausalWanSelfAttention(nn.Module):
                 "scores": decision.scores,
             }
             if not decision.accepted:
+                _debug(
+                    "episode",
+                    f"ep={current_episode} prev={previous_episode} winner="
+                    f"{decision.winner_episode_id} accepted=0 "
+                    f"reason={decision.abstain_reason}",
+                )
+                archive.write_trace(
+                    "readout_abstain",
+                    current_start=int(current_start),
+                    current_frame=current_frame,
+                    block_index=current_block,
+                    current_episode_id=int(current_episode),
+                    memory_mode=memory_mode,
+                    episode_decision=episode_trace,
+                )
                 return native_out
             allowed_episode = decision.winner_episode_id
         elif gate_mode == "oracle":
             oracle_episode = int(getattr(archive.config, "oracle_episode_id", -1))
             if oracle_episode < 0:
+                _debug("episode", f"ep={current_episode} accepted=0 reason=oracle_unset")
                 return native_out
             allowed_episode = oracle_episode
         elif gate_mode != "off":
@@ -972,9 +1045,16 @@ class CausalWanSelfAttention(nn.Module):
         position_mode = str(config.get("position_mode", "none"))
         native_spatial = int(grid_sizes[0, 1].item() * grid_sizes[0, 2].item())
         if position_mode == "local_grid" and memory_k.shape[1] != native_spatial:
+            _debug(
+                "retrieval",
+                f"ep={current_episode} allowed={allowed_episode} accepted_heads=0 "
+                "reason=local_grid_incompatible_with_spatial_pooling",
+            )
             archive.write_trace(
                 "readout_abstain",
                 current_start=int(current_start),
+                current_frame=current_frame,
+                block_index=current_block,
                 current_episode_id=int(current_episode),
                 memory_mode=memory_mode,
                 reason="local_grid_incompatible_with_spatial_pooling",
@@ -1011,9 +1091,18 @@ class CausalWanSelfAttention(nn.Module):
         )
         archive._readout_calls += 1
         if not bool(torch.any(memory.accepted)):
+            _debug(
+                "retrieval",
+                f"ep={current_episode} allowed={allowed_episode} accepted_heads=0 "
+                f"reason={memory.abstain_reason} "
+                f"confidence_max={float(memory.confidence.max().item()):.4f} "
+                f"margin_max={float(memory.retrieval_margin.max().item()):.4f}",
+            )
             archive.write_trace(
                 "readout_abstain",
                 current_start=int(current_start),
+                current_frame=current_frame,
+                block_index=current_block,
                 current_episode_id=int(current_episode),
                 memory_mode=memory_mode,
                 reason=memory.abstain_reason,
@@ -1049,7 +1138,7 @@ class CausalWanSelfAttention(nn.Module):
                 sharpness=float(config.get("role_sharpness", 8.0)),
             )
             head_mask = role.gate.mean(dim=0, keepdim=True)[:, None, :, None].to(native_out.dtype)
-            if bool(getattr(archive.config, "trace_enabled", False)):
+            if trace_enabled or debug_due:
                 role_trace = {
                     "gate": role.gate[0].detach().float().cpu().tolist(),
                     "key_persistence": role.key_persistence[0].detach().float().cpu().tolist(),
@@ -1063,8 +1152,6 @@ class CausalWanSelfAttention(nn.Module):
 
         warmup = int(config.get("warmup_blocks", 0))
         if warmup > 0:
-            query_frames = max(1, int(grid_sizes[0, 0].item()))
-            current_block = int(current_start // (frame_seqlen * query_frames))
             gate *= min(1.0, (current_block + 1) / warmup)
         fused = fuse_parallel_attention(
             native_out,
@@ -1079,10 +1166,70 @@ class CausalWanSelfAttention(nn.Module):
             mode=str(config.get("fusion_mode", "residual")),
         )
         archive._accepted_calls += 1
-        if bool(getattr(archive.config, "trace_enabled", False)):
+        fusion_diagnostics = {}
+        if trace_enabled or debug_due:
+            native_float = native_out.detach().float()
+            memory_float = memory.output.detach().float()
+            fused_float = fused.detach().float()
+            native_rms = native_float.square().mean().sqrt()
+            memory_rms = memory_float.square().mean().sqrt()
+            fused_rms = fused_float.square().mean().sqrt()
+            delta_rms = (fused_float - native_float).square().mean().sqrt()
+            alignment = torch.nn.functional.cosine_similarity(
+                native_float,
+                memory_float,
+                dim=-1,
+            )
+            effective_weight = (
+                gate
+                * memory.confidence.detach().float()[:, None, :, None]
+                * alignment.clamp(0.0, 1.0).unsqueeze(-1)
+                * memory.accepted.detach()[:, None, :, None].float()
+            )
+            if head_mask is not None:
+                effective_weight = effective_weight * head_mask.detach().float()
+            accepted_heads = int(memory.accepted.sum().item())
+            head_gate = (
+                torch.ones_like(memory.confidence.detach().float())
+                if head_mask is None
+                else head_mask.detach().float().reshape(1, -1)
+            )
+            native_rms_value = float(native_rms.item())
+            fusion_diagnostics = {
+                "accepted_head_count": accepted_heads,
+                "head_count": int(memory.accepted.numel()),
+                "confidence_mean": float(memory.confidence.float().mean().item()),
+                "confidence_max": float(memory.confidence.float().max().item()),
+                "head_gate_mean": float(head_gate.mean().item()),
+                "head_gate_active_count": int((head_gate >= 0.5).sum().item()),
+                "effective_weight_mean": float(effective_weight.mean().item()),
+                "effective_weight_max": float(effective_weight.max().item()),
+                "alignment_mean": float(alignment.mean().item()),
+                "alignment_positive_fraction": float((alignment > 0.0).float().mean().item()),
+                "native_rms": native_rms_value,
+                "memory_rms": float(memory_rms.item()),
+                "fused_rms": float(fused_rms.item()),
+                "delta_rms": float(delta_rms.item()),
+                "delta_to_native_rms": float(delta_rms.item()) / max(native_rms_value, 1e-8),
+            }
+            _debug(
+                "fusion",
+                f"ep={current_episode} prev={previous_episode} allow={allowed_episode} "
+                f"archive={memory_k.shape[0]} selected="
+                f"{memory.selected_indices.detach().cpu().tolist()} "
+                f"accepted_heads={accepted_heads}/{memory.accepted.numel()} "
+                f"conf={fusion_diagnostics['confidence_mean']:.4f} "
+                f"head_gate={fusion_diagnostics['head_gate_mean']:.4f} "
+                f"weight={fusion_diagnostics['effective_weight_mean']:.5f} "
+                f"delta/native={fusion_diagnostics['delta_to_native_rms']:.5f} "
+                f"align_pos={fusion_diagnostics['alignment_positive_fraction']:.3f}",
+            )
+        if trace_enabled:
             archive.write_trace(
                 "readout",
                 current_start=int(current_start),
+                current_frame=current_frame,
+                block_index=current_block,
                 current_episode_id=int(current_episode),
                 previous_episode_id=(None if previous_episode is None else int(previous_episode)),
                 memory_mode=memory_mode,
@@ -1094,6 +1241,7 @@ class CausalWanSelfAttention(nn.Module):
                 retrieval_entropy=memory.retrieval_entropy[0].detach().float().cpu().tolist(),
                 episode_decision=episode_trace,
                 head_role=role_trace,
+                **fusion_diagnostics,
             )
         return fused
 
