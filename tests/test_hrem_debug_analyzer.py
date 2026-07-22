@@ -73,3 +73,89 @@ def test_populated_archive_without_readout_reports_gate_failure() -> None:
     assert any(
         finding["code"] == "no_accepted_readout" for finding in report["findings"]
     )
+
+
+def test_role_and_retrieval_head_fractions_are_reported_separately() -> None:
+    base = {
+        "event": "readout",
+        "layer": 15,
+        "trajectory_id": 0,
+        "current_start": 80,
+        "block_index": 20,
+        "current_episode_id": 2,
+        "previous_episode_id": 1,
+        "allowed_episode_id": 0,
+        "head_routing": "role_evidence",
+        "accepted_head_count": 2,
+        "head_count": 2,
+        "head_gate_mean": 0.5,
+        "head_gate_std": 0.3,
+        "head_gate_active_fraction": 0.5,
+        "role_evidence_spread": 0.2,
+        "role_calibration_valid": True,
+        "confidence_mean": 0.4,
+        "alignment_positive_fraction": 0.5,
+        "effective_weight_mean": 0.02,
+        "delta_to_native_rms": 0.03,
+    }
+    first = {**base, "attention_call_index": 0, "head_role": {"gate": [0.8, 0.2]}}
+    second = {**base, "attention_call_index": 1, "head_role": {"gate": [0.7, 0.3]}}
+    report = analyze_records([{"event": "commit", "layer": 15}, first, second])
+
+    assert report["metrics"]["retrieval_accepted_head_fraction"] == 1.0
+    assert report["metrics"]["role_active_head_fraction"] == 0.5
+    assert report["metrics"]["role_active_head_jaccard"] == 1.0
+
+
+def test_low_role_evidence_spread_is_reported() -> None:
+    records = [
+        {"event": "commit", "layer": 15},
+        {
+            "event": "readout",
+            "layer": 15,
+            "current_start": 80,
+            "block_index": 20,
+            "current_episode_id": 2,
+            "previous_episode_id": 1,
+            "allowed_episode_id": 0,
+            "head_routing": "role_evidence",
+            "accepted_head_count": 2,
+            "head_count": 2,
+            "head_gate_mean": 0.5,
+            "head_gate_std": 0.001,
+            "head_gate_active_fraction": 0.5,
+            "role_evidence_spread": 0.001,
+            "role_calibration_valid": True,
+            "confidence_mean": 0.4,
+            "alignment_positive_fraction": 0.5,
+            "effective_weight_mean": 0.02,
+            "delta_to_native_rms": 0.03,
+            "head_role": {"gate": [0.501, 0.499]},
+        },
+    ]
+    report = analyze_records(records)
+    codes = {finding["code"] for finding in report["findings"]}
+    assert "role_gate_low_contrast" in codes
+    assert "role_evidence_not_discriminative" in codes
+
+
+def test_fail_closed_role_abstain_contributes_to_calibration_validity() -> None:
+    records = [
+        {"event": "commit", "layer": 15},
+        {
+            "event": "readout_abstain",
+            "layer": 15,
+            "current_start": 80,
+            "current_episode_id": 2,
+            "head_routing": "role_evidence",
+            "reason": "role_evidence_spread_below_min",
+            "role_evidence_spread": 0.001,
+            "role_calibration_valid": False,
+        },
+    ]
+    report = analyze_records(records)
+    codes = {finding["code"] for finding in report["findings"]}
+    assert report["metrics"]["role_calibration_valid_fraction"] == 0.0
+    assert "role_calibration_often_invalid" in codes
+    assert "role_calibration_rejected_all" in codes
+    assert "no_accepted_readout" not in codes

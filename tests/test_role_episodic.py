@@ -104,3 +104,58 @@ def test_head_role_single_frame_is_finite():
 
     assert torch.isfinite(evidence.gate).all()
     assert ((0.0 <= evidence.gate) & (evidence.gate <= 1.0)).all()
+
+
+def test_relative_role_calibration_selects_top_evidence_head():
+    q = torch.tensor([[[[1.0, 0.0]] * 4]])
+    memory_k = torch.tensor(
+        [
+            [[[1.0, 0.0]] * 4],
+            [[[1.0, 0.0], [1.0, 0.0], [1.0, 0.0], [-1.0, 0.0]]],
+            [[[1.0, 0.0]] * 4],
+        ]
+    )
+    memory_v = torch.tensor(
+        [
+            [[[1.0, 0.0]] * 4],
+            [[[1.0, 0.0], [-1.0, 0.0], [1.0, 0.0], [1.0, 0.0]]],
+            [[[1.0, 0.0]] * 4],
+        ]
+    )
+    query_ema = torch.tensor(
+        [[[1.0, 0.0], [1.0, 0.0], [-1.0, 0.0], [1.0, 0.0]]]
+    )
+
+    evidence = compute_head_role_evidence(
+        q,
+        memory_k,
+        memory_v,
+        query_ema=query_ema,
+        calibration="relative",
+        keep_fraction=0.25,
+        min_evidence_spread=0.01,
+    )
+
+    assert evidence.calibration_valid.item()
+    assert evidence.gate[0, 0] > 0.5
+    assert int((evidence.gate >= 0.5).sum().item()) == 1
+    assert evidence.persistent_evidence[0, 0] > evidence.persistent_evidence[0, 1]
+
+
+def test_role_calibration_fails_closed_without_evidence_spread():
+    q = torch.tensor([[[[1.0, 0.0]] * 3]])
+    memory_k = torch.tensor([[[[1.0, 0.0]] * 3]] * 3)
+    memory_v = memory_k.clone()
+    query_ema = torch.tensor([[[1.0, 0.0]] * 3])
+
+    evidence = compute_head_role_evidence(
+        q,
+        memory_k,
+        memory_v,
+        query_ema=query_ema,
+        calibration="hybrid",
+        min_evidence_spread=0.01,
+    )
+
+    assert not evidence.calibration_valid.item()
+    assert torch.count_nonzero(evidence.gate) == 0

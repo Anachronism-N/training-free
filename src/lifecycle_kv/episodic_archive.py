@@ -55,6 +55,7 @@ class EpisodicArchive:
         self.layer_idx = int(layer_idx)
         self.device = device
         self._sm_active = True
+        self._trace_trajectory_id: int | None = None
         self.reset()
 
     def reset(self) -> None:
@@ -74,7 +75,18 @@ class EpisodicArchive:
         self._role_query_reference_start: int | None = None
         self._readout_calls = 0
         self._accepted_calls = 0
+        self._attention_call_counts: dict[tuple[int, str], int] = {}
         self._debug_once_keys: set[tuple[object, ...]] = set()
+
+    def register_attention_call(self, current_start: int, memory_mode: str) -> int:
+        """Return a zero-based call index for one block and clean/noisy path."""
+        key = (int(current_start), str(memory_mode))
+        index = self._attention_call_counts.get(key, 0)
+        self._attention_call_counts[key] = index + 1
+        return index
+
+    def set_trace_trajectory(self, trajectory_id: int) -> None:
+        self._trace_trajectory_id = int(trajectory_id)
 
     def debug_is_enabled(self) -> bool:
         return (
@@ -303,6 +315,9 @@ class EpisodicArchive:
             return
         path = Path(self.config.trace_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        record = {"event": event, "layer": self.layer_idx, **payload}
+        record = {"event": event, "layer": self.layer_idx}
+        if self._trace_trajectory_id is not None:
+            record["trajectory_id"] = self._trace_trajectory_id
+        record.update(payload)
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=True, sort_keys=True) + "\n")

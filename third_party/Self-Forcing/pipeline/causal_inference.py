@@ -459,7 +459,28 @@ class CausalInferencePipeline(torch.nn.Module):
             "role_sharpness": _env_float(
                 "STRUCTURED_MEMORY_ROLE_SHARPNESS", 8.0
             ),
+            "role_calibration": str(
+                os.environ.get("STRUCTURED_MEMORY_ROLE_CALIBRATION", "absolute")
+            ),
+            "role_keep_fraction": _env_float(
+                "STRUCTURED_MEMORY_ROLE_KEEP_FRACTION", 0.5
+            ),
+            "role_min_evidence_spread": _env_float(
+                "STRUCTURED_MEMORY_ROLE_MIN_EVIDENCE_SPREAD", 0.0
+            ),
         }
+        if self.structured_memory_config["role_calibration"] not in {
+            "absolute", "relative", "hybrid"
+        }:
+            raise ValueError(
+                "STRUCTURED_MEMORY_ROLE_CALIBRATION must be absolute, relative, or hybrid"
+            )
+        if not 0.0 < self.structured_memory_config["role_keep_fraction"] <= 1.0:
+            raise ValueError("STRUCTURED_MEMORY_ROLE_KEEP_FRACTION must be in (0, 1]")
+        if self.structured_memory_config["role_min_evidence_spread"] < 0.0:
+            raise ValueError(
+                "STRUCTURED_MEMORY_ROLE_MIN_EVIDENCE_SPREAD must be non-negative"
+            )
         print(f"[StructuredMemory] ========================================")
         print(f"[StructuredMemory] archives={self.num_transformer_blocks} "
               f"max_frames={archive_max_frames} policy={archive_policy} "
@@ -477,7 +498,50 @@ class CausalInferencePipeline(torch.nn.Module):
               f"every_blocks={debug_every_blocks}")
         print(f"[StructuredMemory] memory_start_episode="
               f"{self.structured_memory_config['memory_start_episode']}")
+        print(f"[StructuredMemory] role_calibration="
+              f"{self.structured_memory_config['role_calibration']} "
+              f"keep_fraction={self.structured_memory_config['role_keep_fraction']} "
+              f"min_spread={self.structured_memory_config['role_min_evidence_spread']}")
         print(f"[StructuredMemory] ========================================")
+        trace_archive = next(
+            (
+                archive
+                for archive in self.structured_memory_archives
+                if bool(getattr(archive, "_sm_active", True))
+            ),
+            None,
+        )
+        if trace_archive is not None:
+            trace_archive.write_trace(
+                "config",
+                method="hrem_v2",
+                active_layers=active_layers,
+                num_transformer_blocks=int(self.num_transformer_blocks),
+                archive={
+                    "max_frames": archive_max_frames,
+                    "policy": archive_policy,
+                    "spatial_stride": spatial_stride,
+                    "episode_gate_mode": episode_gate_mode,
+                    "episode_gate_activation_episode": episode_gate_activation_episode,
+                    "oracle_episode_id": oracle_episode_id,
+                },
+                readout=dict(self.structured_memory_config),
+                runtime={
+                    "scene_transition_reset": os.environ.get(
+                        "SCENE_TRANSITION_RESET", "0"
+                    ) == "1",
+                    "lifecache_enable": os.environ.get("LIFECACHE_ENABLE", "0") == "1",
+                    "head_role_enable": os.environ.get("HEAD_ROLE_ENABLE", "0") == "1",
+                    "head_role_pool_enable": os.environ.get(
+                        "HEAD_ROLE_POOL_ENABLE", "0"
+                    ) == "1",
+                },
+                debug={
+                    "enabled": debug_enabled,
+                    "layers": list(debug_layers),
+                    "every_blocks": debug_every_blocks,
+                },
+            )
 
     def _set_memory_episode(self, conditioning: dict, episode_id: int) -> None:
         """Propagate prompt descriptor + episode id to every layer archive.
@@ -526,6 +590,9 @@ class CausalInferencePipeline(torch.nn.Module):
         batch_size, num_frames, num_channels, height, width = noise.shape
         trace_video_index = self._latent_trace_video_index
         self._latent_trace_video_index += 1
+        if self.structured_memory_archives is not None:
+            for archive in self.structured_memory_archives:
+                archive.set_trace_trajectory(trace_video_index)
         if self.latent_trace is not None:
             self.latent_trace.write({
                 "event": "video_start",

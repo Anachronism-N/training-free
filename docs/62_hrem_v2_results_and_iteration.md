@@ -3,6 +3,7 @@
 > 日期: 2026-07-22  
 > Base: Self-Forcing (Wan2.1-T2V-1.3B, DMD蒸馏)  
 > 实验: 3 prompts × 5 cells × 120 frames, seed 0
+> P0 head-role 校准实现与服务器命令见 `docs/63_hrem_v2_p0_role_calibration.md`。
 
 ## 1. 代码依赖说明
 
@@ -12,15 +13,15 @@
 |---|---|---|---|
 | Wan2.1-T2V-1.3B | Alibaba Wan-AI | 预训练视频扩散 transformer | 模型 backbone |
 | Self-Forcing DMD | `third_party/Self-Forcing/` | 第三方 repo (distilled AR inference) | 推理管线 |
-| **EpisodicArchive** | `src/lifecycle_kv/episodic_archive.py` | **本项目原创** | bounded episodic memory |
-| **RoleEpisodic** | `src/lifecycle_kv/role_episodic.py` | **本项目原创** | dual-evidence episode selector + online head gate |
-| **AttentionFusion** | `src/lifecycle_kv/attention_fusion.py` | **本项目原创** | memory attention + bounded convex fusion |
+| **EpisodicArchive** | `src/lifecycle_kv/episodic_archive.py` | **本项目实现** | bounded episodic memory |
+| **RoleEpisodic** | `src/lifecycle_kv/role_episodic.py` | **本项目实现** | dual-evidence episode selector + online head gate |
+| **AttentionFusion** | `src/lifecycle_kv/attention_fusion.py` | **本项目实现** | memory attention + bounded convex fusion |
 | **SF Pipeline Bridge** | `third_party/Self-Forcing/pipeline/causal_inference.py` (修改) | 本项目对 SF 的集成修改 | episode生命周期、clean commit、scene boundary |
 | **SF Model Bridge** | `third_party/Self-Forcing/wan/modules/causal_model.py` (修改) | 本项目对 SF 的集成修改 | pre-RoPE capture、memory readout、head gate |
 
 ### 可借鉴的基础设施
 
-本项目的原创模块 (archive/gate/fusion) 构成了训练无关 episodic memory 的"插件"。理论上可移植到任何 AR video DiT：
+本项目新增的 archive/gate/fusion 模块构成了 training-free episodic-memory 插件。Archive、Q-K retrieval 和 memory attention 等单项均有相关工作，最终原创性声明应聚焦 factorized episode/head admission，并等待完整文献检索和消融。该实现理论上可移植到其他 AR video DiT：
 - **Self-Forcing** (当前已集成，验证通过)
 - **Echo-Forcing** (scene pool 概念可对比)
 - **Pyramid-Forcing** (head specialization 概念可对比)
@@ -49,7 +50,7 @@
 | dual_episode_only | 0.61 | +0.43 |
 | **hrem_v2** | **0.68** | **+0.50** |
 
-**HREM 显著优于 native_reset**，A1-A2 +0.06，margin +0.06。A2 成功回归到陶艺工作室。
+**在该 prompt、该 seed 上 HREM 优于 native_reset**，A1-A2 +0.06，margin +0.06。A2 成功回归到陶艺工作室；单样本差值不能称为统计显著。
 
 #### Prompt 1 (天文台→温室→天文台) — native_reset 最优
 
@@ -107,6 +108,8 @@ HREM 退化。可能原因：head gate 干扰了 native_reset 已有效的场景
 
 **现象**：diagnostic 显示 `head_gate_mean=0.93`, `accepted_head_fraction=0.99`
 
+**字段校正**：`accepted_head_fraction` 来自 retrieval admission，不是 role gate active fraction。后续 trace 已拆分为 `retrieval_accepted_head_fraction` 与 `role_active_head_fraction`；`head_gate_mean=0.93` 仍足以说明旧 role gate 过强。
+
 **原因**：threshold=0.45/sharpness=8.0 组合下几乎所有 head 都通过。head gate 几乎没有过滤作用。
 
 **迭代方向**：
@@ -148,7 +151,7 @@ HREM 退化。可能原因：head gate 干扰了 native_reset 已有效的场景
 
 1. **Head gate 选择性修复** — 提高 threshold，运行 ablation sweep
 2. **Multi-seed 验证** — seed 1, 2 重跑 5 cells
-3. **Position mode 实验** — local_grid vs none 对比
+3. **Position mode 实验准备** — 当前 stride-4 archive 与 local_grid 不兼容；先完成 head gate P0，再实现 pooled-grid position 或运行 stride-1 上界
 
 ### P1 (下周)
 
@@ -167,7 +170,7 @@ HREM 退化。可能原因：head gate 干扰了 native_reset 已有效的场景
 - ✅ `SCENE_TRANSITION_RESET` 机制有效 — 正确 baseline 建立
 - ✅ Episode admission (dual evidence) 在 3 prompts 上 route 100% 正确 (2→0)
 - ✅ Trace audit 0 violations
-- ✅ HREM 在 Prompt 0 上显著优于 native_reset (+0.06 A1-A2)
+- ✅ HREM 在 Prompt 0、seed 0 上优于 native_reset (+0.06 A1-A2)，尚不构成统计显著性
 - ⚠️ Head gate 尚未发挥区分作用 (mean 0.93)
 - ⚠️ A2 identity 回归不完全（人工 review 确认）
 - ⚠️ 场景切换存在伪影

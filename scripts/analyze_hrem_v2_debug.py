@@ -48,6 +48,7 @@ def _layer(record: dict[str, Any]) -> int:
 
 def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     events = Counter(str(record.get("event", "missing")) for record in records)
+    configs = [record for record in records if record.get("event") == "config"]
     commits = [record for record in records if record.get("event") == "commit"]
     boundaries = [record for record in records if record.get("event") == "boundary"]
     readouts = [record for record in records if record.get("event") == "readout"]
@@ -65,7 +66,10 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
         current = record.get("current_episode_id")
         previous = record.get("previous_episode_id")
         allowed = record.get("allowed_episode_id")
-        context = f"layer={_layer(record)} block={record.get('block_index')}"
+        context = (
+            f"trajectory={record.get('trajectory_id')} layer={_layer(record)} "
+            f"block={record.get('block_index')}"
+        )
         if allowed is not None and current is not None and int(allowed) >= int(current):
             violations.append(
                 f"{context}: allowed episode {allowed} is not historical relative to {current}"
@@ -117,11 +121,22 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     if commits and not readouts:
         dominant = abstain_reasons.most_common(1)
         suffix = f" Dominant abstention: {dominant[0][0]}." if dominant else ""
-        findings.append(_finding(
-            "ERROR", "no_accepted_readout",
-            "The archive was populated but no memory readout reached fusion." + suffix,
-            "Inspect episode thresholds first, then frame confidence and margin thresholds.",
-        ))
+        expected_role_rejection = (
+            bool(abstain_reasons)
+            and set(abstain_reasons) == {"role_evidence_spread_below_min"}
+        )
+        if expected_role_rejection:
+            findings.append(_finding(
+                "WARNING", "role_calibration_rejected_all",
+                "All role-gated calls failed closed because head evidence lacked spread.",
+                "Treat this cell as a negative mechanism result and retain its native output for evaluation.",
+            ))
+        else:
+            findings.append(_finding(
+                "ERROR", "no_accepted_readout",
+                "The archive was populated but no memory readout reached fusion." + suffix,
+                "Inspect episode thresholds first, then frame confidence and margin thresholds.",
+            ))
 
     delta_median = _median(readouts, "delta_to_native_rms")
     weight_mean = _mean(readouts, "effective_weight_mean")
@@ -136,6 +151,68 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     accepted_head_fraction = (
         statistics.fmean(accepted_fraction_values) if accepted_fraction_values else None
     )
+    role_readouts = [
+        record
+        for record in readouts
+        if record.get("head_routing") == "role_evidence"
+        or record.get("head_role") is not None
+    ]
+    role_diagnostic_records = role_readouts + [
+        record
+        for record in abstains
+        if record.get("head_routing") == "role_evidence"
+        and record.get("role_calibration_valid") is not None
+    ]
+    role_gate_std = _mean(role_readouts, "head_gate_std")
+    role_active_head_fraction = _mean(role_readouts, "head_gate_active_fraction")
+    role_evidence_spread = _median(role_diagnostic_records, "role_evidence_spread")
+    calibration_valid_values = [
+        float(bool(record["role_calibration_valid"]))
+        for record in role_diagnostic_records
+        if record.get("role_calibration_valid") is not None
+    ]
+    role_calibration_valid_fraction = (
+        statistics.fmean(calibration_valid_values)
+        if calibration_valid_values else None
+    )
+
+    role_groups: dict[tuple[int, int, int, str], list[dict[str, Any]]] = defaultdict(list)
+    for record in role_readouts:
+        if record.get("trajectory_id") is None or record.get("attention_call_index") is None:
+            continue
+        role_groups[(
+            int(record["trajectory_id"]),
+            _layer(record),
+            int(record.get("current_start", -1)),
+            str(record.get("memory_mode", "unknown")),
+        )].append(record)
+    temporal_gate_ranges: list[float] = []
+    temporal_active_jaccards: list[float] = []
+    for group in role_groups.values():
+        ordered = sorted(group, key=lambda item: int(item.get("attention_call_index", 0)))
+        gate_vectors = [
+            (record.get("head_role") or {}).get("gate")
+            for record in ordered
+        ]
+        gate_vectors = [vector for vector in gate_vectors if vector]
+        if len(gate_vectors) < 2:
+            continue
+        gate_means = [statistics.fmean(float(value) for value in vector) for vector in gate_vectors]
+        temporal_gate_ranges.append(max(gate_means) - min(gate_means))
+        for previous, current in zip(gate_vectors, gate_vectors[1:]):
+            previous_active = {index for index, value in enumerate(previous) if float(value) >= 0.5}
+            current_active = {index for index, value in enumerate(current) if float(value) >= 0.5}
+            union = previous_active | current_active
+            temporal_active_jaccards.append(
+                len(previous_active & current_active) / len(union) if union else 1.0
+            )
+    role_gate_temporal_range = (
+        statistics.fmean(temporal_gate_ranges) if temporal_gate_ranges else None
+    )
+    role_active_jaccard = (
+        statistics.fmean(temporal_active_jaccards)
+        if temporal_active_jaccards else None
+    )
 
     if delta_median is not None and delta_median < 1e-4:
         findings.append(_finding(
@@ -149,17 +226,60 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             f"Median delta/native RMS is {delta_median:.4f}, above the conservative range.",
             "Reduce STRUCTURED_MEMORY_GATE or tighten role/admission thresholds.",
         ))
-    if head_gate_mean is not None and head_gate_mean < 0.05:
+    if role_readouts and head_gate_mean is not None and head_gate_mean < 0.05:
         findings.append(_finding(
             "WARNING", "role_gate_over_suppressed",
             f"Mean role gate is {head_gate_mean:.4f}.",
             "Lower ROLE_THRESHOLD or inspect K/V persistence and query stability per head.",
         ))
-    if head_gate_mean is not None and head_gate_mean > 0.90:
+    if role_readouts and (
+        (role_active_head_fraction is not None and role_active_head_fraction > 0.90)
+        or (head_gate_mean is not None and head_gate_mean > 0.90)
+    ):
+        gate_mean_text = "missing" if head_gate_mean is None else f"{head_gate_mean:.4f}"
+        active_fraction_text = (
+            "missing"
+            if role_active_head_fraction is None
+            else f"{role_active_head_fraction:.3f}"
+        )
         findings.append(_finding(
             "WARNING", "role_gate_not_selective",
-            f"Mean role gate is {head_gate_mean:.4f}.",
-            "Raise ROLE_THRESHOLD; compare with the episode-only ablation before claiming head awareness.",
+            f"Mean role gate is {gate_mean_text}; active-head fraction is "
+            f"{active_fraction_text}.",
+            "Use absolute-threshold and relative/hybrid calibration ablations before claiming head awareness.",
+        ))
+    if role_gate_std is not None and role_gate_std < 0.02:
+        findings.append(_finding(
+            "WARNING", "role_gate_low_contrast",
+            f"Mean within-call role-gate standard deviation is only {role_gate_std:.5f}.",
+            "Inspect raw evidence spread; a lower gate mean alone does not establish head selectivity.",
+        ))
+    if role_evidence_spread is not None and role_evidence_spread < 0.01:
+        findings.append(_finding(
+            "WARNING", "role_evidence_not_discriminative",
+            f"Median max-min role evidence spread is only {role_evidence_spread:.6f}.",
+            "Treat relative ranking as unreliable or enable fail-closed minimum-spread gating.",
+        ))
+    if (
+        role_calibration_valid_fraction is not None
+        and role_calibration_valid_fraction < 0.90
+    ):
+        findings.append(_finding(
+            "WARNING", "role_calibration_often_invalid",
+            f"Only {role_calibration_valid_fraction:.1%} of role calls pass the spread check.",
+            "Review per-layer evidence before lowering the minimum spread.",
+        ))
+    if role_gate_temporal_range is not None and role_gate_temporal_range > 0.25:
+        findings.append(_finding(
+            "WARNING", "role_gate_denoise_instability",
+            f"Mean within-block gate-mean range is {role_gate_temporal_range:.4f}.",
+            "Inspect attention_call_index traces and consider timestep-stable calibration.",
+        ))
+    if role_active_jaccard is not None and role_active_jaccard < 0.50:
+        findings.append(_finding(
+            "WARNING", "role_identity_denoise_instability",
+            f"Mean active-head Jaccard across denoising calls is {role_active_jaccard:.3f}.",
+            "Do not assign semantic head roles until active identities stabilize across calls.",
         ))
     if alignment_positive is not None and alignment_positive < 0.10:
         findings.append(_finding(
@@ -196,11 +316,19 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             "delta_to_native_rms_median": _median(layer_records, "delta_to_native_rms"),
             "effective_weight_mean": _mean(layer_records, "effective_weight_mean"),
             "head_gate_mean": _mean(layer_records, "head_gate_mean"),
+            "head_gate_std": _mean(layer_records, "head_gate_std"),
+            "head_gate_active_fraction": _mean(
+                layer_records, "head_gate_active_fraction"
+            ),
+            "role_evidence_spread_median": _median(
+                layer_records, "role_evidence_spread"
+            ),
             "alignment_positive_fraction": _mean(layer_records, "alignment_positive_fraction"),
         }
 
     return {
         "record_count": len(records),
+        "config": configs[-1] if configs else None,
         "event_counts": dict(sorted(events.items())),
         "abstain_reasons": dict(abstain_reasons.most_common()),
         "metrics": {
@@ -208,6 +336,13 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             "effective_weight_mean": weight_mean,
             "head_gate_mean": head_gate_mean,
             "accepted_head_fraction": accepted_head_fraction,
+            "retrieval_accepted_head_fraction": accepted_head_fraction,
+            "role_gate_std": role_gate_std,
+            "role_active_head_fraction": role_active_head_fraction,
+            "role_evidence_spread_median": role_evidence_spread,
+            "role_calibration_valid_fraction": role_calibration_valid_fraction,
+            "role_gate_temporal_range_mean": role_gate_temporal_range,
+            "role_active_head_jaccard": role_active_jaccard,
             "alignment_positive_fraction": alignment_positive,
             "confidence_mean": confidence_mean,
         },

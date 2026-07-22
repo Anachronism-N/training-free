@@ -32,6 +32,13 @@ class HeadRoleEvidence:
     value_persistence: torch.Tensor
     query_stability: torch.Tensor
     motion_risk: torch.Tensor
+    persistent_evidence: torch.Tensor
+    relative_evidence: torch.Tensor
+    calibration_threshold: torch.Tensor
+    relative_threshold: torch.Tensor
+    relative_rank_threshold: torch.Tensor
+    evidence_spread: torch.Tensor
+    calibration_valid: torch.Tensor
     role_codes: torch.Tensor
 
 
@@ -218,6 +225,9 @@ def compute_head_role_evidence(
     query_ema: torch.Tensor | None = None,
     threshold: float = 0.45,
     sharpness: float = 8.0,
+    calibration: str = "absolute",
+    keep_fraction: float = 0.5,
+    min_evidence_spread: float = 0.0,
     eps: float = 1e-6,
 ) -> HeadRoleEvidence:
     """Infer persistent, motion-sensitive and refresh heads without labels.
@@ -234,6 +244,12 @@ def compute_head_role_evidence(
         raise ValueError("sharpness must be positive")
     if not 0.0 <= threshold <= 1.0:
         raise ValueError("threshold must be in [0, 1]")
+    if calibration not in {"absolute", "relative", "hybrid"}:
+        raise ValueError("calibration must be absolute, relative, or hybrid")
+    if not 0.0 < keep_fraction <= 1.0:
+        raise ValueError("keep_fraction must be in (0, 1]")
+    if min_evidence_spread < 0.0:
+        raise ValueError("min_evidence_spread must be non-negative")
 
     # Preserve the pooled spatial pattern. A plain spatial mean can cancel
     # signed activations and make a stable layout head look random.
@@ -258,7 +274,52 @@ def compute_head_role_evidence(
         0.5 * (1.0 - value_persistence_b) + 0.5 * (1.0 - query_stability)
     ).clamp(0.0, 1.0)
     evidence = (persistent_memory * query_stability * (1.0 - motion_risk)).clamp(0.0, 1.0)
-    gate = torch.sigmoid(sharpness * (evidence - threshold))
+    evidence_min = evidence.amin(dim=-1, keepdim=True)
+    evidence_max = evidence.amax(dim=-1, keepdim=True)
+    evidence_spread = evidence_max - evidence_min
+    relative_evidence = (evidence - evidence_min) / evidence_spread.clamp_min(eps)
+    # Equal evidence carries no relative role information. Keeping it at 0.5
+    # avoids assigning an arbitrary rank before the spread validity check.
+    relative_evidence = torch.where(
+        evidence_spread > eps,
+        relative_evidence,
+        torch.full_like(relative_evidence, 0.5),
+    )
+
+    absolute_gate = torch.sigmoid(sharpness * (evidence - threshold))
+    quantile = max(0.0, min(1.0, 1.0 - keep_fraction))
+    relative_threshold = torch.quantile(
+        evidence,
+        quantile,
+        dim=-1,
+        keepdim=True,
+    )
+    relative_rank_threshold = torch.quantile(
+        relative_evidence,
+        quantile,
+        dim=-1,
+        keepdim=True,
+    )
+    relative_gate = torch.sigmoid(
+        sharpness * (relative_evidence - relative_rank_threshold)
+    )
+    if calibration == "absolute":
+        gate = absolute_gate
+        calibration_threshold = torch.full_like(relative_threshold, threshold)
+    elif calibration == "relative":
+        gate = relative_gate
+        calibration_threshold = relative_threshold
+    else:
+        # Relative selectivity cannot rescue heads whose absolute persistence
+        # evidence is weak. The product is therefore a conservative hybrid.
+        gate = absolute_gate * relative_gate
+        calibration_threshold = torch.maximum(
+            relative_threshold,
+            torch.full_like(relative_threshold, threshold),
+        )
+    calibration_valid = evidence_spread >= min_evidence_spread
+    if min_evidence_spread > 0.0:
+        gate = gate * calibration_valid.to(gate.dtype)
 
     role_codes = torch.full_like(gate, 2, dtype=torch.long)
     role_codes[motion_risk >= 0.5] = 1
@@ -269,6 +330,13 @@ def compute_head_role_evidence(
         value_persistence=value_persistence_b,
         query_stability=query_stability,
         motion_risk=motion_risk,
+        persistent_evidence=evidence,
+        relative_evidence=relative_evidence,
+        calibration_threshold=calibration_threshold,
+        relative_threshold=relative_threshold,
+        relative_rank_threshold=relative_rank_threshold,
+        evidence_spread=evidence_spread,
+        calibration_valid=calibration_valid,
         role_codes=role_codes,
     )
 

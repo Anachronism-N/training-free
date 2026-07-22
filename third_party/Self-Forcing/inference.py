@@ -150,6 +150,14 @@ parser.add_argument("--dual_allow_disagreement", action="store_true", default=Fa
                     help="Ablation: allow semantic/visual cue winners to disagree.")
 parser.add_argument("--role_threshold", type=float, default=None)
 parser.add_argument("--role_sharpness", type=float, default=None)
+parser.add_argument("--role_calibration", type=str, default=None,
+                    choices=("absolute", "relative", "hybrid"),
+                    help="Calibrate role gates by an absolute threshold, relative "
+                         "per-call evidence, or their conservative product.")
+parser.add_argument("--role_keep_fraction", type=float, default=None,
+                    help="Target top-head fraction for relative/hybrid calibration.")
+parser.add_argument("--role_min_evidence_spread", type=float, default=None,
+                    help="Fail closed when per-head role evidence spread is below this value.")
 args = parser.parse_args()
 
 # --- Forward structured-memory CLI overrides into env -------------------
@@ -201,6 +209,9 @@ _CLI_ENV_MAP = {
     "dual_visual_head_fraction": "STRUCTURED_MEMORY_DUAL_VISUAL_HEAD_FRACTION",
     "role_threshold": "STRUCTURED_MEMORY_ROLE_THRESHOLD",
     "role_sharpness": "STRUCTURED_MEMORY_ROLE_SHARPNESS",
+    "role_calibration": "STRUCTURED_MEMORY_ROLE_CALIBRATION",
+    "role_keep_fraction": "STRUCTURED_MEMORY_ROLE_KEEP_FRACTION",
+    "role_min_evidence_spread": "STRUCTURED_MEMORY_ROLE_MIN_EVIDENCE_SPREAD",
 }
 for cli_name, env_name in _CLI_ENV_MAP.items():
     value = getattr(args, cli_name, None)

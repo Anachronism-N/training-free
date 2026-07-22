@@ -2,6 +2,8 @@
 
 ## Current method (read first)
 
+- `docs/63_hrem_v2_p0_role_calibration.md`: current P0 implementation, role-gate ablation matrix, trace fields, server commands, and decision rules.
+- `docs/62_hrem_v2_results_and_iteration.md`: first HREM-v2 server results and iteration priorities.
 - `docs/62_aaai_provisional_title_abstract.md`: modification-friendly AAAI registration title, result-free abstract, and post-experiment replacement templates.
 - `docs/61_hrem_v2_review_and_runbook.md`: single review entry for the current idea, paper story, implementation map, server usage, log interpretation, and go/no-go criteria.
 - `docs/60_hrem_v2_novelty_and_debug_protocol.md`: paper-facing novelty boundary, falsifiable story, debug fields, and server diagnosis loop.

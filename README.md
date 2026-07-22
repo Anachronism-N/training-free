@@ -44,7 +44,9 @@ training-free/
    |   |-- 59_hrem_v2_evidence_gated_episodic_memory.md
    |   |-- 60_hrem_v2_novelty_and_debug_protocol.md
    |   |-- 61_hrem_v2_review_and_runbook.md
-   |   `-- 62_aaai_provisional_title_abstract.md
+   |   |-- 62_aaai_provisional_title_abstract.md
+   |   |-- 62_hrem_v2_results_and_iteration.md
+   |   `-- 63_hrem_v2_p0_role_calibration.md
 |-- prompts/
 |   `-- hrem_v2_aba_complex_3.txt
 |-- scripts/
@@ -72,6 +74,10 @@ The HREM-v2 path is connected end-to-end in Self-Forcing:
   clean-context archive commits.
 - `scripts/analyze_hrem_v2_debug.py`: structural diagnosis for archive,
   admission, head routing, fusion strength, and causal invariants.
+- `scripts/run_hrem_v2_role_ablation.sh`: single-GPU P0 matrix for absolute,
+  relative, and hybrid head-role calibration.
+- `scripts/compare_hrem_role_ablation.py`: joins video metrics with mechanism
+  diagnostics without conflating retrieval acceptance and role selection.
 
 The current machine has no configured PyTorch/GPU runtime, so the code has been
 syntax-checked but the new CUDA path still requires the server Stage-1 run.

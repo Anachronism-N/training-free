@@ -858,6 +858,10 @@ class CausalWanSelfAttention(nn.Module):
             _debug("inactive", "ep=None reason=episode_unset")
             return native_out
         _ensure_location()
+        attention_call_index = archive.register_attention_call(
+            int(current_start),
+            memory_mode,
+        )
         debug_due = debug_enabled and (
             current_block % int(archive.config.debug_every_blocks) == 0
         )
@@ -965,6 +969,7 @@ class CausalWanSelfAttention(nn.Module):
                     current_start=int(current_start),
                     current_frame=current_frame,
                     block_index=current_block,
+                    attention_call_index=attention_call_index,
                     current_episode_id=int(current_episode),
                     memory_mode=memory_mode,
                     episode_decision=episode_trace,
@@ -1003,6 +1008,7 @@ class CausalWanSelfAttention(nn.Module):
                     current_start=int(current_start),
                     current_frame=current_frame,
                     block_index=current_block,
+                    attention_call_index=attention_call_index,
                     current_episode_id=int(current_episode),
                     memory_mode=memory_mode,
                     episode_decision=episode_trace,
@@ -1055,6 +1061,7 @@ class CausalWanSelfAttention(nn.Module):
                 current_start=int(current_start),
                 current_frame=current_frame,
                 block_index=current_block,
+                attention_call_index=attention_call_index,
                 current_episode_id=int(current_episode),
                 memory_mode=memory_mode,
                 reason="local_grid_incompatible_with_spatial_pooling",
@@ -1103,6 +1110,7 @@ class CausalWanSelfAttention(nn.Module):
                 current_start=int(current_start),
                 current_frame=current_frame,
                 block_index=current_block,
+                attention_call_index=attention_call_index,
                 current_episode_id=int(current_episode),
                 memory_mode=memory_mode,
                 reason=memory.abstain_reason,
@@ -1113,6 +1121,7 @@ class CausalWanSelfAttention(nn.Module):
         routing_mode = str(config.get("head_routing", "role_evidence"))
         head_mask = None
         role_trace = None
+        role_diagnostics = {}
         if routing_mode == "confidence_adaptive":
             sharpness = float(config.get("routing_sharpness", 5.0))
             threshold = float(config.get("confidence_threshold", 0.2))
@@ -1136,17 +1145,78 @@ class CausalWanSelfAttention(nn.Module):
                 query_ema=getattr(archive, "_role_query_reference", None),
                 threshold=float(config.get("role_threshold", 0.45)),
                 sharpness=float(config.get("role_sharpness", 8.0)),
+                calibration=str(config.get("role_calibration", "absolute")),
+                keep_fraction=float(config.get("role_keep_fraction", 0.5)),
+                min_evidence_spread=float(
+                    config.get("role_min_evidence_spread", 0.0)
+                ),
             )
             head_mask = role.gate.mean(dim=0, keepdim=True)[:, None, :, None].to(native_out.dtype)
             if trace_enabled or debug_due:
+                role_evidence = role.persistent_evidence[0].detach().float()
+                role_diagnostics = {
+                    "role_calibration": str(config.get("role_calibration", "absolute")),
+                    "role_keep_fraction": float(config.get("role_keep_fraction", 0.5)),
+                    "role_evidence_mean": float(role_evidence.mean().item()),
+                    "role_evidence_std": float(role_evidence.std(unbiased=False).item()),
+                    "role_evidence_min": float(role_evidence.min().item()),
+                    "role_evidence_max": float(role_evidence.max().item()),
+                    "role_evidence_spread": float(role.evidence_spread[0, 0].item()),
+                    "role_calibration_threshold": float(
+                        role.calibration_threshold[0, 0].item()
+                    ),
+                    "role_relative_threshold": float(
+                        role.relative_threshold[0, 0].item()
+                    ),
+                    "role_relative_rank_threshold": float(
+                        role.relative_rank_threshold[0, 0].item()
+                    ),
+                    "role_calibration_valid": bool(
+                        role.calibration_valid[0, 0].item()
+                    ),
+                }
                 role_trace = {
                     "gate": role.gate[0].detach().float().cpu().tolist(),
                     "key_persistence": role.key_persistence[0].detach().float().cpu().tolist(),
                     "value_persistence": role.value_persistence[0].detach().float().cpu().tolist(),
                     "query_stability": role.query_stability[0].detach().float().cpu().tolist(),
                     "motion_risk": role.motion_risk[0].detach().float().cpu().tolist(),
+                    "persistent_evidence": role.persistent_evidence[0].detach().float().cpu().tolist(),
+                    "relative_evidence": role.relative_evidence[0].detach().float().cpu().tolist(),
+                    "calibration_threshold": role.calibration_threshold[0].detach().float().cpu().tolist(),
+                    "relative_threshold": role.relative_threshold[0].detach().float().cpu().tolist(),
+                    "relative_rank_threshold": role.relative_rank_threshold[0].detach().float().cpu().tolist(),
+                    "evidence_spread": role.evidence_spread[0].detach().float().cpu().tolist(),
+                    "calibration_valid": role.calibration_valid[0].detach().cpu().tolist(),
                     "role_codes": role.role_codes[0].detach().cpu().tolist(),
                 }
+            if not bool(torch.any(role.calibration_valid)):
+                _debug(
+                    "role",
+                    f"ep={current_episode} allowed={allowed_episode} accepted_heads=0 "
+                    "reason=role_evidence_spread_below_min "
+                    f"spread={float(role.evidence_spread.max().item()):.6f} "
+                    f"min={float(config.get('role_min_evidence_spread', 0.0)):.6f}",
+                )
+                archive.write_trace(
+                    "readout_abstain",
+                    current_start=int(current_start),
+                    current_frame=current_frame,
+                    block_index=current_block,
+                    attention_call_index=attention_call_index,
+                    current_episode_id=int(current_episode),
+                    previous_episode_id=(
+                        None if previous_episode is None else int(previous_episode)
+                    ),
+                    memory_mode=memory_mode,
+                    head_routing=routing_mode,
+                    allowed_episode_id=allowed_episode,
+                    reason="role_evidence_spread_below_min",
+                    episode_decision=episode_trace,
+                    head_role=role_trace,
+                    **role_diagnostics,
+                )
+                return native_out
         elif routing_mode not in {"static", "off"}:
             raise ValueError(f"unsupported structured-memory head routing: {routing_mode}")
 
@@ -1194,6 +1264,7 @@ class CausalWanSelfAttention(nn.Module):
                 if head_mask is None
                 else head_mask.detach().float().reshape(1, -1)
             )
+            head_gate_flat = head_gate.reshape(-1)
             native_rms_value = float(native_rms.item())
             fusion_diagnostics = {
                 "accepted_head_count": accepted_heads,
@@ -1201,7 +1272,14 @@ class CausalWanSelfAttention(nn.Module):
                 "confidence_mean": float(memory.confidence.float().mean().item()),
                 "confidence_max": float(memory.confidence.float().max().item()),
                 "head_gate_mean": float(head_gate.mean().item()),
+                "head_gate_std": float(head_gate.std(unbiased=False).item()),
+                "head_gate_min": float(head_gate.min().item()),
+                "head_gate_max": float(head_gate.max().item()),
+                "head_gate_p10": float(torch.quantile(head_gate_flat, 0.10).item()),
+                "head_gate_p50": float(torch.quantile(head_gate_flat, 0.50).item()),
+                "head_gate_p90": float(torch.quantile(head_gate_flat, 0.90).item()),
                 "head_gate_active_count": int((head_gate >= 0.5).sum().item()),
+                "head_gate_active_fraction": float((head_gate >= 0.5).float().mean().item()),
                 "effective_weight_mean": float(effective_weight.mean().item()),
                 "effective_weight_max": float(effective_weight.max().item()),
                 "alignment_mean": float(alignment.mean().item()),
@@ -1211,6 +1289,7 @@ class CausalWanSelfAttention(nn.Module):
                 "fused_rms": float(fused_rms.item()),
                 "delta_rms": float(delta_rms.item()),
                 "delta_to_native_rms": float(delta_rms.item()) / max(native_rms_value, 1e-8),
+                **role_diagnostics,
             }
             _debug(
                 "fusion",
@@ -1218,8 +1297,12 @@ class CausalWanSelfAttention(nn.Module):
                 f"archive={memory_k.shape[0]} selected="
                 f"{memory.selected_indices.detach().cpu().tolist()} "
                 f"accepted_heads={accepted_heads}/{memory.accepted.numel()} "
-                f"conf={fusion_diagnostics['confidence_mean']:.4f} "
+                f"call={attention_call_index} conf={fusion_diagnostics['confidence_mean']:.4f} "
+                f"routing={routing_mode} "
                 f"head_gate={fusion_diagnostics['head_gate_mean']:.4f} "
+                f"gate_range={fusion_diagnostics['head_gate_p10']:.3f}:"
+                f"{fusion_diagnostics['head_gate_p90']:.3f} "
+                f"role_spread={fusion_diagnostics.get('role_evidence_spread', 0.0):.5f} "
                 f"weight={fusion_diagnostics['effective_weight_mean']:.5f} "
                 f"delta/native={fusion_diagnostics['delta_to_native_rms']:.5f} "
                 f"align_pos={fusion_diagnostics['alignment_positive_fraction']:.3f}",
@@ -1230,9 +1313,11 @@ class CausalWanSelfAttention(nn.Module):
                 current_start=int(current_start),
                 current_frame=current_frame,
                 block_index=current_block,
+                attention_call_index=attention_call_index,
                 current_episode_id=int(current_episode),
                 previous_episode_id=(None if previous_episode is None else int(previous_episode)),
                 memory_mode=memory_mode,
+                head_routing=routing_mode,
                 allowed_episode_id=allowed_episode,
                 effective_gate=float(gate),
                 selected_indices=memory.selected_indices.detach().cpu().tolist(),
