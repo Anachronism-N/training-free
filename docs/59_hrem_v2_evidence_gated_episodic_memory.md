@@ -24,7 +24,7 @@ HREM-v2 =
 1. CEMR oracle 实验已经说明正确的旧 K/V payload 能改善 scene return；主要问题是 episode selection，而不是 archive 中完全没有有效信息。
 2. 32-prompt 结果中 CEMR 在 5/6 指标上有小幅正向信号，但 Dynamic Degree 下降，说明历史记忆需要按 head 控制，不能全 head 注入。
 3. HREM-v1 的固定清理改变了 A2 的身份细节，但 return margin 下降，说明 head specialization 有作用，固定 head index 和原地 cache 操作不可靠。
-4. Pyramid-Forcing 的独立 memory-attention + fail-closed fusion 路径已经证明工程上可实现；Self-Forcing 缺失的是完整 bridge、episode sidecar 和在线路由。
+4. Pyramid-Forcing 已证明 per-head 异构 cache 与 ragged-cache attention 在该 backbone 上可实现；本项目另外实现独立 side readout、episode sidecar、在线路由和 fail-closed fusion。
 
 因此论文问题可表述为：
 
@@ -35,7 +35,7 @@ HREM-v2 =
 | 参考实现 | 借鉴内容 | HREM-v2 的区别 |
 |---|---|---|
 | Self-Forcing | 原生 AR 生成和 rolling K/V | HREM-v2 是不修改 native K/V 的 sidecar branch |
-| Pyramid-Forcing | head-aware cache、独立 memory attention | PF 使用静态 head label；本方法在线计算连续 head-role evidence，并显式选择 episode |
+| Pyramid-Forcing | head specialization、per-head 异构 cache、ragged-cache attention | PF 使用静态 head label；本方法在线计算连续 head-role evidence，并显式选择 episode；独立 side readout 不是 PF 的贡献 |
 | Echo-Forcing | preserve/recall/forget 与 scene pool | Echo 的 scene memory 对 head 基本一致；本方法对每个 head 单独门控，且不依赖手工 recall id |
 | Forcing-KV | static/dynamic head 分工 | 本方法不预设固定 head index，不训练 classifier |
 | MemRoPE | pre-RoPE payload 与位置安全原则 | 首轮采用 position-free independent branch；不把旧 K 写回绝对位置 cache |

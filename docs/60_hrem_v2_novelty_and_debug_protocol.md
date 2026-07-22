@@ -3,6 +3,7 @@
 > 状态：方法与诊断代码已实现，等待 GPU 服务器验证。
 > 实现代号：HREM-v2。
 > 论文核心：Factorized Evidence-Gated Episodic Recall，即先决定“哪段历史可用”，再决定“哪些 head 可用”。
+> 论文/代码来源、许可证与安全 claim 以 `docs/64_related_work_code_provenance_and_claims.md` 为准。
 
 ## 1. 最终 idea 的边界
 
@@ -23,7 +24,7 @@ historical archive
 | 来源 | 借鉴内容 | 在 HREM-v2 中的处理 |
 |---|---|---|
 | Self-Forcing | AR 生成、rolling K/V、clean/noisy forward | 保持为 native branch 和主要 baseline |
-| Pyramid-Forcing | head specialization、独立 memory attention | 取消固定 head label，改为在线连续证据 |
+| Pyramid-Forcing | head specialization、per-head 异构 cache、ragged-cache attention | 取消固定 head label，改为在线连续证据；本项目另行实现独立 side readout |
 | Echo-Forcing | episode preserve/recall/forget | 不使用手工 recall id，增加可拒绝的 episode admission |
 | Forcing-KV | static/dynamic head 差异 | 不预设 head index，也不训练分类器 |
 | MemRoPE | pre-RoPE payload、位置安全原则 | 首轮采用 position-free side branch，绝不回写旧位置 K/V |

@@ -546,8 +546,9 @@ class CausalInferencePipeline(torch.nn.Module):
     def _set_memory_episode(self, conditioning: dict, episode_id: int) -> None:
         """Propagate prompt descriptor + episode id to every layer archive.
 
-        Ported from Pyramid-Forcing ``_set_memory_episode``.  No-op when the
-        archive is not initialised.
+        Ported from this repository's earlier structured-memory prototype in
+        the vendored Pyramid-Forcing tree, not from upstream PF. No-op when
+        the archive is not initialised.
         """
 
         if self.structured_memory_archives is None:
@@ -613,7 +614,8 @@ class CausalInferencePipeline(torch.nn.Module):
         # Controlled scene schedule: a single prompt may contain block-aligned
         # segments separated by `||`, e.g. A1 || B || A2.  The archive persists
         # across segments while cross-attention is invalidated at boundaries.
-        # Ported from Pyramid-Forcing causal_inference.py L336-356.
+        # Ported from this repository's earlier A-B-A prototype in the
+        # vendored PF tree; this schedule is not an upstream PF paper feature.
         scene_prompts = None
         if len(text_prompts) == 1 and "||" in text_prompts[0]:
             scene_prompts = [
@@ -752,7 +754,8 @@ class CausalInferencePipeline(torch.nn.Module):
         for block_index, current_num_frames in enumerate(all_num_frames, start=1):
             # Controlled scene schedule: switch conditional_dict and
             # invalidate cross-attention when the block crosses a `||`
-            # boundary.  Ported from PF causal_inference.py L612-637.
+            # boundary. Ported from this repository's modified vendored-PF
+            # prototype, not from the upstream PF implementation.
             if conditional_dicts is not None:
                 scene_index = min(
                     (block_index * len(conditional_dicts)) // total_denoise_blocks,

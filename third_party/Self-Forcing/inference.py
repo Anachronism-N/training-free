@@ -60,12 +60,14 @@ parser.add_argument("--save_with_index", action="store_true",
                     help="Whether to save the video using the index or prompt as the filename")
 
 # --- Structured memory (EpisodicArchive) CLI ---------------------
-# The archive is a training-free sidecar ported from Pyramid-Forcing.
+# The archive sidecar was ported from this repository's earlier prototype
+# integrated into the vendored Pyramid-Forcing tree. It is not an upstream
+# Pyramid-Forcing paper feature; PF remains the host/cache-policy reference.
 # All hyper-parameters are read from env by the pipeline (see
 # ``CausalInferencePipeline._init_structured_memory``); the CLI only flips
 # the master switch and forwards overrides.  Parameter names mirror the
-# PF CLI (without the ``pyramidkv_`` prefix) so experiment matrices stay
-# comparable.
+# earlier local PF-prototype CLI (without the ``pyramidkv_`` prefix) so
+# experiment matrices stay comparable.
 parser.add_argument("--structured_memory_enable", action="store_true", default=False,
                     help="Enable the EpisodicArchive sidecar. Mutually exclusive "
                          "with LIFECACHE_ENABLE. When off, the path is bitwise "

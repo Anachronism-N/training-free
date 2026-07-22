@@ -13,6 +13,9 @@ The paper-facing contribution is the factorized two-stage admission decision,
 not the archive or top-k retrieval components in isolation. The exact borrowed
 components, claim boundary, and falsifiable hypotheses are recorded in
 `docs/60_hrem_v2_novelty_and_debug_protocol.md`.
+The paper/code provenance ledger, license audit, high-overlap related work,
+and claim-safety rules are recorded in
+`docs/64_related_work_code_provenance_and_claims.md`.
 For a single review entry covering the idea, paper story, code changes, server
 commands, expected logs, and go/no-go criteria, start with
 `docs/61_hrem_v2_review_and_runbook.md`.
@@ -46,7 +49,8 @@ training-free/
    |   |-- 61_hrem_v2_review_and_runbook.md
    |   |-- 62_aaai_provisional_title_abstract.md
    |   |-- 62_hrem_v2_results_and_iteration.md
-   |   `-- 63_hrem_v2_p0_role_calibration.md
+   |   |-- 63_hrem_v2_p0_role_calibration.md
+   |   `-- 64_related_work_code_provenance_and_claims.md
 |-- prompts/
 |   `-- hrem_v2_aba_complex_3.txt
 |-- scripts/
@@ -107,9 +111,14 @@ The cells are:
 
 ## Third-Party Code
 
-The `third_party/` directory is vendored source code in this repository, not
-Git submodules. Large model checkpoints, generated videos, logs, and Python
-cache files should stay out of Git.
+Most directories under `third_party/` are vendored source code, not Git
+submodules. `third_party/Forcing-KV/` is currently an empty placeholder and
+must not be described as a local reproduction. Large model checkpoints,
+generated videos, logs, and Python cache files should stay out of Git.
+
+The detailed paper, code-path, license, and claim-boundary audit is in
+`docs/64_related_work_code_provenance_and_claims.md`. A repository link in the
+table below does not imply that its code is used by HREM-v2.
 
 The original repositories referenced by this project are:
 
@@ -120,7 +129,7 @@ The original repositories referenced by this project are:
 | `third_party/RollingForcing` | [TencentARC/RollingForcing](https://github.com/TencentARC/RollingForcing) | Rolling-window and sink/anchor cache reference. |
 | `third_party/DeepForcing` | [cvlab-kaist/DeepForcing](https://github.com/cvlab-kaist/DeepForcing) | Deep sink and participative compression reference. |
 | `third_party/Pyramid-Forcing` | [if-lab-pku/Pyramid-Forcing](https://github.com/if-lab-pku/Pyramid-Forcing) | Head-aware cache policy and head labels. |
-| `third_party/Forcing-KV` | [zju-jiyicheng/Forcing-KV](https://github.com/zju-jiyicheng/Forcing-KV) | Static/dynamic head split and motion-oriented K/V cache reference. |
+| `third_party/Forcing-KV` | [zju-jiyicheng/Forcing-KV](https://github.com/zju-jiyicheng/Forcing-KV) | Empty local placeholder; paper-level static/dynamic head reference only. |
 | `third_party/MemRoPE` | [YoungRaeKimm/MemRoPE](https://github.com/YoungRaeKimm/MemRoPE) | RoPE-safe memory and temporal/spatial position indexing reference. |
 | `third_party/LongLive-RAG` | [qixinhu11/LongLive-RAG](https://github.com/qixinhu11/LongLive-RAG) | Offloaded history and temporary recall-view reference. |
 | `third_party/Echo-Forcing` | [mingqiangWu/Echo-Forcing](https://github.com/mingqiangWu/Echo-Forcing) | Preserve/recall/forget scene memory reference. |
@@ -150,7 +159,7 @@ third_party/Pyramid-Forcing/checkpoints/self_forcing_dmd.pt
 
 ## Quick Start
 
-To clone or refresh reference repositories in a fresh workspace:
+To keep existing vendored directories and clone only missing references:
 
 ```bash
 bash scripts/bootstrap_repos.sh

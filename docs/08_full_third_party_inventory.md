@@ -11,20 +11,20 @@ This repository contains a broader `third_party/` collection than the initial Li
 | RollingForcing | Anchor/sink + rolling recent cache implementation | S | verified |
 | DeepForcing | Deep sink and participative compression baseline | S | verified |
 | Pyramid-Forcing | Head-aware cache policy and head labels | S | verified |
-| Forcing-KV | Static/dynamic head split; dynamic temporal cache; motion slot reference | S | verified |
+| Forcing-KV | Static/dynamic head split; dynamic temporal cache; motion slot reference | S | canonical URL verified; local directory empty |
 | MemRoPE | RoPE-safe memory, pre/post-RoPE distinction, temporal/spatial indexing | S | verified |
 | LongLive-RAG | Compressed/offloaded history and temporary recall view | S | verified |
 | Echo-Forcing | Preserve/recall/forget scene memory and decay/stale semantics | S | verified |
 | IAMFlow | Entity/state memory, LLM/VLM verification, agentic memory table | A | verified |
 | infinity-rope | RoPE/position extrapolation reference for recall legality | A | verified |
 | FreePCA | Low-rank/PCA-style compressed memory reference | B | verified |
-| DiT-Extrapolation | Positional/DiT extrapolation reference | B | local directory; URL pending |
-| FreeLOC | Layer-adaptive OOD/position correction reference | B | local directory; URL pending |
-| MIGA | Infinite-frame / alignment / consistency reference | B | local directory; URL pending |
-| LongVideoSparseAttention | Sparse attention and budgeted long-context reference | B | local directory; URL pending |
-| MotionCache | Motion-aware cache/reuse reference | B | local directory; URL pending |
-| FlowCache | Flow or motion-guided cache reference | B | local directory; URL pending |
-| SWIFT | Semantic injection cache / prompt-adaptive memory reference | B | local directory; URL pending |
+| DiT-Extrapolation | Positional/DiT extrapolation reference | B | verified: `thu-ml/DiT-Extrapolation` |
+| FreeLOC | Layer-adaptive OOD/position correction reference | B | verified: `Westlake-AGI-Lab/FreeLOC` |
+| MIGA | Infinite-frame / alignment / consistency reference | B | verified: `XiaokunFeng/MIGA` |
+| LongVideoSparseAttention | Sparse attention and budgeted long-context reference | B | verified: `JiusiServe/LongVideoSparseAttention` |
+| MotionCache | Motion-aware cache/reuse reference | B | verified: `MAC-AutoML/MotionCache` |
+| FlowCache | Flow or motion-guided cache reference | B | verified: `mikeallen39/FlowCache` |
+| SWIFT | Semantic injection cache / prompt-adaptive memory reference | B | verified: `ShanwenTan/SWIFT` |
 
 ## How to read the inventory
 
@@ -72,6 +72,13 @@ Read these first and keep line-level notes:
 - `third_party/FlowCache/*`
 - `third_party/SWIFT/*`
 
-## Notes about uncertain repositories
+## Provenance and license status
 
-The screenshot shows several local directories whose canonical public URLs were not reliably identified through GitHub search. They are still useful if their source code is present locally. Avoid overwriting these directories with guessed URLs. Once the canonical URL is verified, add it to `scripts/bootstrap_repos.sh`.
+Canonical URLs for the current inventory were rechecked on 2026-07-22 and are
+recorded in `docs/64_related_work_code_provenance_and_claims.md`. That document
+also distinguishes direct code ports, idea-level influence, unused candidates,
+and missing top-level licenses.
+
+`third_party/Forcing-KV/` is currently empty. Forcing-KV must remain a paper and
+upstream-code reference until its source and license are actually vendored and
+audited. Do not infer local review or reproduction from the directory name.

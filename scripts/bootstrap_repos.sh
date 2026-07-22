@@ -7,7 +7,9 @@ clone_if_missing () {
   local name="$1"
   local url="$2"
   if [ -d "$name/.git" ]; then
-    echo "[skip] $name already exists"
+    echo "[skip] $name is already a Git checkout"
+  elif [ -d "$name" ] && [ -n "$(find "$name" -mindepth 1 -print -quit)" ]; then
+    echo "[keep] $name contains vendored files; not overwriting with a Git clone"
   else
     echo "[clone] $name <- $url"
     git clone "$url" "$name" || echo "[warn] failed to clone $name; check URL or access"
@@ -36,13 +38,11 @@ clone_if_missing infinity-rope https://github.com/yesiltepe-hidir/infinity-rope.
 # Spectral / PCA-style direct extension references.
 clone_if_missing FreePCA https://github.com/JosephTiTan/FreePCA.git
 
-# The following directories appear in our third_party inventory but their canonical
-# public repositories still need manual verification. Keep their local clones if
-# they already exist; do not overwrite them with guessed URLs.
-for name in DiT-Extrapolation FlowCache FreeLOC LongVideoSparseAttention MIGA MotionCache SWIFT; do
-  if [ -d "$name" ]; then
-    echo "[keep] $name exists locally; canonical URL pending verification"
-  else
-    echo "[todo] $name canonical GitHub URL not verified; add clone_if_missing once confirmed"
-  fi
-done
+# Additional verified references. Existing vendored trees are intentionally kept.
+clone_if_missing DiT-Extrapolation https://github.com/thu-ml/DiT-Extrapolation.git
+clone_if_missing FlowCache https://github.com/mikeallen39/FlowCache.git
+clone_if_missing FreeLOC https://github.com/Westlake-AGI-Lab/FreeLOC.git
+clone_if_missing LongVideoSparseAttention https://github.com/JiusiServe/LongVideoSparseAttention.git
+clone_if_missing MIGA https://github.com/XiaokunFeng/MIGA.git
+clone_if_missing MotionCache https://github.com/MAC-AutoML/MotionCache.git
+clone_if_missing SWIFT https://github.com/ShanwenTan/SWIFT.git

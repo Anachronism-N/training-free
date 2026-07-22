@@ -3,6 +3,7 @@
 > 当前权威 review 入口。方法实现、论文故事、代码使用、日志判读和晋级标准均以本文为准。
 > 核心实现提交基线：`f19a6bd26d6794e6b4e0919c3bcfb49d3cb7a7af`；本文档会形成后续独立提交。
 > 状态：代码与静态检查完成，HREM-v2 尚未在 GPU 服务器完成首轮实验。
+> 相关工作、代码 provenance、许可证和 claim 红线见 `docs/64_related_work_code_provenance_and_claims.md`；发生冲突时以该台账为准。
 
 ## 1. 一句话 idea
 
@@ -153,7 +154,7 @@ O_final = (1 - w) * O_native + w * rms_match(O_memory)
 | 工作 | 借鉴 | HREM-v2 的区别 |
 |---|---|---|
 | Self-Forcing | AR backbone 与 rolling cache | 增加不修改 native cache 的 episodic side branch |
-| Pyramid-Forcing | 独立 memory attention、head specialization | 不使用静态 head label；显式选择 episode 并在线计算连续 head evidence |
+| Pyramid-Forcing | head specialization、per-head 异构 cache、ragged-cache attention | 不使用静态 head label；显式选择 episode 并在线计算连续 head evidence；独立 side readout 为本项目实现选择 |
 | Echo-Forcing | preserve/recall/forget | 不依赖手工 recall id；episode 可因证据不足拒绝；head 不统一处理 |
 | Forcing-KV | static/dynamic head 差异 | 不固定 head index，不训练分类器 |
 | MemRoPE | pre-RoPE 与位置安全 | 首轮使用 position-free branch，不把旧 K 填入绝对位置 cache |

@@ -2,6 +2,7 @@
 
 ## Current method (read first)
 
+- `docs/64_related_work_code_provenance_and_claims.md`: authoritative paper/code provenance ledger, related-work collision audit, license status, safe claim language, and future-use priorities.
 - `docs/63_hrem_v2_p0_role_calibration.md`: current P0 implementation, role-gate ablation matrix, trace fields, server commands, and decision rules.
 - `docs/62_hrem_v2_results_and_iteration.md`: first HREM-v2 server results and iteration priorities.
 - `docs/62_aaai_provisional_title_abstract.md`: modification-friendly AAAI registration title, result-free abstract, and post-experiment replacement templates.
