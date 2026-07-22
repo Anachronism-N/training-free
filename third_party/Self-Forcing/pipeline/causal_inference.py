@@ -248,9 +248,9 @@ class CausalInferencePipeline(torch.nn.Module):
         """Build per-layer :class:`EpisodicArchive` and bridge config from env.
 
         All knobs are env-driven so the CLI simply flips
-        ``STRUCTURED_MEMORY_ENABLE``.  Hyper-parameter names mirror the
-        Pyramid-Forcing CLI (without the ``pyramidkv_`` prefix) so the
-        experiment matrices stay comparable.
+        ``STRUCTURED_MEMORY_ENABLE``. The names retain compatibility with this
+        repository's earlier prototype in the vendored PF tree; they are not
+        an upstream Pyramid-Forcing interface.
         """
 
         from lifecycle_kv.episodic_archive import (
@@ -429,6 +429,9 @@ class CausalInferencePipeline(torch.nn.Module):
                 )
             ),
             "warmup_blocks": _env_int("STRUCTURED_MEMORY_WARMUP_BLOCKS", 0),
+            "episode_warmup_blocks": _env_int(
+                "STRUCTURED_MEMORY_EPISODE_WARMUP_BLOCKS", 0
+            ),
             "fusion_mode": str(
                 os.environ.get("STRUCTURED_MEMORY_FUSION_MODE", "residual")
             ),
@@ -481,6 +484,12 @@ class CausalInferencePipeline(torch.nn.Module):
             raise ValueError(
                 "STRUCTURED_MEMORY_ROLE_MIN_EVIDENCE_SPREAD must be non-negative"
             )
+        if self.structured_memory_config["warmup_blocks"] < 0:
+            raise ValueError("STRUCTURED_MEMORY_WARMUP_BLOCKS must be non-negative")
+        if self.structured_memory_config["episode_warmup_blocks"] < 0:
+            raise ValueError(
+                "STRUCTURED_MEMORY_EPISODE_WARMUP_BLOCKS must be non-negative"
+            )
         print(f"[StructuredMemory] ========================================")
         print(f"[StructuredMemory] archives={self.num_transformer_blocks} "
               f"max_frames={archive_max_frames} policy={archive_policy} "
@@ -498,6 +507,10 @@ class CausalInferencePipeline(torch.nn.Module):
               f"every_blocks={debug_every_blocks}")
         print(f"[StructuredMemory] memory_start_episode="
               f"{self.structured_memory_config['memory_start_episode']}")
+        print(f"[StructuredMemory] warmup_blocks="
+              f"{self.structured_memory_config['warmup_blocks']} "
+              f"episode_warmup_blocks="
+              f"{self.structured_memory_config['episode_warmup_blocks']}")
         print(f"[StructuredMemory] role_calibration="
               f"{self.structured_memory_config['role_calibration']} "
               f"keep_fraction={self.structured_memory_config['role_keep_fraction']} "
@@ -527,6 +540,11 @@ class CausalInferencePipeline(torch.nn.Module):
                 },
                 readout=dict(self.structured_memory_config),
                 runtime={
+                    "run_commit": os.environ.get("HREM_RUN_COMMIT"),
+                    "run_cell": os.environ.get("HREM_RUN_CELL"),
+                    "run_seed": os.environ.get("HREM_RUN_SEED"),
+                    "run_frames": os.environ.get("HREM_RUN_FRAMES"),
+                    "prompt_sha256": os.environ.get("HREM_PROMPT_SHA256"),
                     "scene_transition_reset": os.environ.get(
                         "SCENE_TRANSITION_RESET", "0"
                     ) == "1",
@@ -543,7 +561,13 @@ class CausalInferencePipeline(torch.nn.Module):
                 },
             )
 
-    def _set_memory_episode(self, conditioning: dict, episode_id: int) -> None:
+    def _set_memory_episode(
+        self,
+        conditioning: dict,
+        episode_id: int,
+        *,
+        start_frame: int | None = None,
+    ) -> None:
         """Propagate prompt descriptor + episode id to every layer archive.
 
         Ported from this repository's earlier structured-memory prototype in
@@ -561,7 +585,7 @@ class CausalInferencePipeline(torch.nn.Module):
         prompt_mask = conditioning.get("prompt_mask")
         descriptor = masked_prompt_descriptor(embeds, prompt_mask).squeeze(0)
         for archive in self.structured_memory_archives:
-            archive.set_episode(episode_id, descriptor)
+            archive.set_episode(episode_id, descriptor, start_frame=start_frame)
 
     def inference(
         self,
@@ -649,7 +673,7 @@ class CausalInferencePipeline(torch.nn.Module):
         if self.structured_memory_archives is not None:
             for archive in self.structured_memory_archives:
                 archive.reset()
-            self._set_memory_episode(conditional_dict, 0)
+            self._set_memory_episode(conditional_dict, 0, start_frame=0)
 
         if low_memory:
             gpu_memory_preservation = get_cuda_free_memory_gb(gpu) + 5
@@ -801,7 +825,11 @@ class CausalInferencePipeline(torch.nn.Module):
                             _hrm_clear_texture_heads(self.kv_cache1, self._head_role_labels)
                 conditional_dict = conditional_dicts[scene_index]
                 if self.structured_memory_archives is not None and scene_changed:
-                    self._set_memory_episode(conditional_dict, scene_index)
+                    self._set_memory_episode(
+                        conditional_dict,
+                        scene_index,
+                        start_frame=int(current_start_frame),
+                    )
                     active_archive = next(
                         (
                             archive
@@ -811,6 +839,18 @@ class CausalInferencePipeline(torch.nn.Module):
                         None,
                     )
                     if active_archive is not None:
+                        boundary_archive_state = None
+                        if bool(active_archive.config.trace_enabled):
+                            from lifecycle_kv.attention_fusion import (
+                                summarize_episode_boundary_state,
+                            )
+
+                            boundary_archive_state = summarize_episode_boundary_state(
+                                self.structured_memory_archives,
+                                current_episode_id=int(scene_index),
+                                previous_episode_id=int(prev_scene),
+                                current_start_frame=int(current_start_frame),
+                            )
                         active_archive.write_trace(
                             "boundary",
                             previous_episode_id=int(prev_scene),
@@ -818,6 +858,7 @@ class CausalInferencePipeline(torch.nn.Module):
                             current_start_frame=int(current_start_frame),
                             working_cache_reset=working_cache_reset,
                             archive_preserved=True,
+                            archive_state=boundary_archive_state,
                         )
                     if os.environ.get("STRUCTURED_MEMORY_DEBUG", "0") == "1":
                         print(

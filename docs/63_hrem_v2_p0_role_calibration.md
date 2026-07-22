@@ -3,6 +3,7 @@
 > 基于 `docs/62_hrem_v2_results_and_iteration.md` 的首轮服务器结果。
 > 目标：先证明 head gate 具有可重复的选择性，再讨论 identity、position mode 或更大 archive。
 > 当前机器不运行 PyTorch/CUDA；所有机制判断依赖服务器 trace 与视频反馈。
+> `docs/67_post_sweep_optimization_and_server_protocol.md` 在本矩阵上增加了 episode-local ramp 对照，并修正了实验范围解释；最新运行以 docs/67 为准。
 
 ## 1. 首轮结果带来的决策
 
@@ -126,6 +127,7 @@ Analyzer 新增：
 | `role_abs_075` | absolute | threshold 0.75 | 强 absolute 筛选 |
 | `role_relative_050` | relative | top 50%, no spread rejection | 相对排名是否有用 |
 | `role_hybrid_050` | hybrid | top 50%, min spread 0.01 | 保守、可拒绝的相对筛选 |
+| `role_hybrid_050_ramp2` | hybrid | 与上一 cell 相同；episode ramp=2 | 仅隔离 memory 首块突然激活 |
 
 该矩阵仍使用相同三个复杂 A-B-A prompts、120 frames 和 seed 0。
 
@@ -158,7 +160,7 @@ GPU=1 SEED=0 FORCE=1 RUN_EVAL=0 \
 CUDA_VISIBLE_DEVICES=1 python scripts/evaluate_hrem_v2.py \
   --run-root runs/hrem_v2_role_s0 \
   --methods native_reset dual_all_heads role_abs_060 role_abs_075 \
-            role_relative_050 role_hybrid_050 \
+            role_relative_050 role_hybrid_050 role_hybrid_050_ramp2 \
   --baseline native_reset \
   --output runs/hrem_v2_role_s0/metrics_role_ablation.json
 

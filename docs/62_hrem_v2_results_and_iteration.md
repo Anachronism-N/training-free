@@ -4,6 +4,7 @@
 > Base: Self-Forcing (Wan2.1-T2V-1.3B, DMD蒸馏)  
 > 实验: 3 prompts × 5 cells × 120 frames, seed 0
 > P0 head-role 校准实现与服务器命令见 `docs/63_hrem_v2_p0_role_calibration.md`。
+> 最新 gate sweep 复盘与下一轮受控协议见 `docs/66_gate_sweep_results_and_review.md` 和 `docs/67_post_sweep_optimization_and_server_protocol.md`；本文保留首轮结果，不再作为最新运行入口。
 
 ## 1. 代码依赖说明
 

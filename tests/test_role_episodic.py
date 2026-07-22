@@ -1,10 +1,50 @@
 import torch
 
 from lifecycle_kv.role_episodic import (
+    compute_episode_warmup,
     compute_head_role_evidence,
     masked_prompt_descriptor,
     select_dual_evidence_episode,
 )
+
+
+def test_episode_warmup_is_local_to_scene_boundary():
+    first = compute_episode_warmup(
+        current_frame=80,
+        episode_start_frame=80,
+        query_frames=3,
+        warmup_blocks=2,
+    )
+    second = compute_episode_warmup(
+        current_frame=83,
+        episode_start_frame=80,
+        query_frames=3,
+        warmup_blocks=2,
+    )
+    full = compute_episode_warmup(
+        current_frame=86,
+        episode_start_frame=80,
+        query_frames=3,
+        warmup_blocks=2,
+    )
+
+    assert first.episode_block_index == 0
+    assert first.scale == 1 / 3
+    assert second.scale == 2 / 3
+    assert full.scale == 1.0
+
+
+def test_episode_warmup_fails_closed_without_start_metadata():
+    state = compute_episode_warmup(
+        current_frame=80,
+        episode_start_frame=None,
+        query_frames=3,
+        warmup_blocks=2,
+    )
+
+    assert not state.valid
+    assert state.scale == 0.0
+    assert state.reason == "missing_episode_start_frame"
 
 
 def test_masked_prompt_descriptor_ignores_padding():

@@ -117,6 +117,26 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             "At least one scene boundary did not preserve the episodic archive.",
             "Keep native working-cache reset separate from EpisodicArchive.reset().",
         ))
+    boundary_snapshots = [
+        record.get("archive_state")
+        for record in boundaries
+        if record.get("archive_state") is not None
+    ]
+    if boundaries and not boundary_snapshots:
+        findings.append(_finding(
+            "WARNING", "boundary_archive_snapshot_missing",
+            "Boundary events do not include the archive checksum snapshot.",
+            "Rerun with the current bridge before diagnosing archive corruption.",
+        ))
+    elif any(
+        not isinstance(snapshot, dict) or not (snapshot.get("archive_layers") or [])
+        for snapshot in boundary_snapshots
+    ):
+        findings.append(_finding(
+            "ERROR", "boundary_archive_snapshot_empty",
+            "At least one boundary snapshot contains no active archive layer.",
+            "Check the structured-memory layer mask and archive summary bridge.",
+        ))
 
     if commits and not readouts:
         dominant = abstain_reasons.most_common(1)
@@ -143,6 +163,21 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     head_gate_mean = _mean(readouts, "head_gate_mean")
     alignment_positive = _mean(readouts, "alignment_positive_fraction")
     confidence_mean = _mean(readouts, "confidence_mean")
+    episode_warmup_scale = _mean(readouts, "episode_warmup_scale")
+    episode_warmup_values = [
+        float(record["episode_warmup_scale"])
+        for record in readouts
+        if record.get("episode_warmup_scale") is not None
+    ]
+    first_episode_block_readouts = [
+        record for record in readouts if record.get("episode_block_index") == 0
+    ]
+    first_episode_block_gate = _mean(first_episode_block_readouts, "effective_gate")
+    configured_episode_warmup = 0
+    if configs:
+        configured_episode_warmup = int(
+            ((configs[-1].get("readout") or {}).get("episode_warmup_blocks", 0))
+        )
     accepted_fraction_values = [
         float(record["accepted_head_count"]) / max(1, int(record["head_count"]))
         for record in readouts
@@ -293,6 +328,22 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             f"Mean retrieval confidence is {confidence_mean:.4f}.",
             "Inspect visual score distributions and retrieval temperature.",
         ))
+    if configured_episode_warmup > 0 and readouts and not episode_warmup_values:
+        findings.append(_finding(
+            "ERROR", "episode_warmup_trace_missing",
+            "Episode warmup is configured but accepted readouts do not record its scale.",
+            "Verify the causal-model bridge and rerun before comparing transition cells.",
+        ))
+    elif (
+        configured_episode_warmup > 0
+        and episode_warmup_values
+        and min(episode_warmup_values) >= 1.0
+    ):
+        findings.append(_finding(
+            "WARNING", "episode_warmup_not_observed",
+            "Episode warmup was configured, but every accepted readout used full scale.",
+            "Check episode_start_frame and early-block abstentions before judging the ramp.",
+        ))
     if violations:
         findings.append(_finding(
             "ERROR", "causal_invariant_violation",
@@ -345,6 +396,15 @@ def analyze_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             "role_active_head_jaccard": role_active_jaccard,
             "alignment_positive_fraction": alignment_positive,
             "confidence_mean": confidence_mean,
+            "episode_warmup_blocks": configured_episode_warmup,
+            "episode_warmup_scale_mean": episode_warmup_scale,
+            "episode_warmup_scale_min": (
+                min(episode_warmup_values) if episode_warmup_values else None
+            ),
+            "episode_warmup_scale_max": (
+                max(episode_warmup_values) if episode_warmup_values else None
+            ),
+            "episode_first_block_effective_gate_mean": first_episode_block_gate,
         },
         "per_layer": per_layer,
         "violations": violations,

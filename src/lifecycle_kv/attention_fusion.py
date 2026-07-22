@@ -344,27 +344,33 @@ def summarize_episode_boundary_state(
     caches: list,
     *,
     current_episode_id: int,
-    previous_episode_id: int,
+    previous_episode_id: int | None,
     current_start_frame: int,
     committed_history_latents: torch.Tensor | None = None,
     current_noisy_block_input: torch.Tensor | None = None,
 ) -> dict:
     """Build a reusable, pure-data snapshot of the episode boundary.
 
-    This is the canonical helper consumed by both the production transition
-    trace writer (``_write_episode_transition_trace``) and offline tests. It
-    avoids duplicating the archive-summary logic across call sites and keeps
-    the checksum field naming consistent with the #129 spec
-    (``weighted_checksum``).
+    The helper accepts the current ``EpisodicArchive`` objects directly. It is
+    intentionally pure data so a production transition writer and offline
+    tests can share the same checksum and sidecar semantics.
     """
     archive_layers: list[dict] = []
     for cache in caches:
+        if hasattr(cache, "_sm_active") and not bool(cache._sm_active):
+            continue
         intervals = getattr(cache, "structured_memory_intervals", None)
         episode_ids = getattr(cache, "structured_memory_episode_ids", None)
         archive_k = getattr(cache, "structured_memory_k", None)
         archive_v = getattr(cache, "structured_memory_v", None)
+        config = getattr(cache, "config", None)
         layer_record: dict = {
             "layer": int(getattr(cache, "layer_idx", -1)),
+            "current_episode_id": getattr(cache, "current_episode_id", None),
+            "previous_episode_id": getattr(cache, "previous_episode_id", None),
+            "current_episode_start_frame": getattr(
+                cache, "current_episode_start_frame", None
+            ),
             "archive_intervals": (
                 intervals.detach().cpu().tolist() if intervals is not None else []
             ),
@@ -376,119 +382,17 @@ def summarize_episode_boundary_state(
             "latest_clean_block_input": getattr(
                 cache, "_latest_clean_block_input_summary", None
             ),
-            "episode_gate_mode": getattr(cache, "structured_memory_episode_gate_mode", None),
+            "episode_gate_mode": getattr(config, "episode_gate_mode", None),
             "episode_gate_activation_episode": getattr(
-                cache, "structured_memory_episode_gate_activation_episode", None
+                config, "episode_gate_activation_episode", None
             ),
         }
         archive_layers.append(layer_record)
     return {
         "current_episode_id": int(current_episode_id),
-        "previous_episode_id": int(previous_episode_id),
-        "current_start_frame": int(current_start_frame),
-        "archive_layers": archive_layers,
-        "committed_history_latents": summarize_tensor_state(committed_history_latents),
-        "current_noisy_block_input": summarize_tensor_state(current_noisy_block_input),
-    }
-
-
-def summarize_tensor_state(tensor: torch.Tensor | None) -> dict[str, object]:
-    """Return a deterministic, sidecar-safe summary of an arbitrary tensor.
-
-    Used both by production episode-transition traces and by offline audits.
-    The returned dict always contains ``present``; when ``present`` is True it
-    also contains ``shape``, ``dtype``, ``numel``, ``weighted_checksum`` (the
-    sha256 of a small evenly-spaced sample, named per spec #129) and the legacy
-    alias ``sample_sha256`` so existing trace consumers keep working.
-    """
-    if tensor is None:
-        return {"present": False}
-    detached = tensor.detach()
-    flat = detached.reshape(-1)
-    numel = int(flat.numel())
-    sample_count = min(64, numel)
-    if sample_count:
-        if numel == 1 or sample_count == 1:
-            indices = torch.zeros(sample_count, dtype=torch.long, device=flat.device)
-        else:
-            steps = torch.arange(sample_count, dtype=torch.long, device=flat.device)
-            indices = steps * (numel - 1) // (sample_count - 1)
-        sample = flat.index_select(0, indices).float().cpu().numpy()
-        import hashlib
-
-        checksum = hashlib.sha256(sample.tobytes()).hexdigest()[:16]
-        values = detached.float()
-        mean = float(values.mean().item())
-        rms = float(values.square().mean().sqrt().item())
-    else:
-        import hashlib
-
-        checksum = hashlib.sha256(b"").hexdigest()[:16]
-        mean = 0.0
-        rms = 0.0
-    return {
-        "present": True,
-        "shape": list(detached.shape),
-        "dtype": str(detached.dtype),
-        "numel": numel,
-        "sample_count": sample_count,
-        "weighted_checksum": checksum,
-        "sample_sha256": checksum,
-        "mean": mean,
-        "rms": rms,
-    }
-
-
-def summarize_episode_boundary_state(
-    caches: list,
-    *,
-    current_episode_id: int,
-    previous_episode_id: int | None,
-    current_start_frame: int,
-    committed_history_latents: torch.Tensor | None,
-    current_noisy_block_input: torch.Tensor | None,
-) -> dict[str, object]:
-    """Pure helper: summarize per-layer archive state at an episode boundary.
-
-    This is the single source of truth for the ``episode_transition`` record
-    emitted by the pipeline. Caches are expected to expose the structured
-    memory sidecar attributes (``structured_memory_intervals`` etc.); any
-    missing attribute is reported as empty/absent rather than raising, so the
-    helper can be used both online and in offline audits.
-    """
-    archive_layers: list[dict[str, object]] = []
-    for cache in caches:
-        if not getattr(cache, "structured_memory_enabled", False) and not getattr(
-            cache, "structured_memory_trace_enabled", False
-        ):
-            continue
-        intervals = getattr(cache, "structured_memory_intervals", None)
-        episode_ids = getattr(cache, "structured_memory_episode_ids", None)
-        k_tensor = getattr(cache, "structured_memory_k", None)
-        v_tensor = getattr(cache, "structured_memory_v", None)
-        archive_layers.append({
-            "layer": int(getattr(cache, "layer_idx", -1)),
-            "archive_intervals": (
-                intervals.detach().cpu().tolist()
-                if intervals is not None else []
-            ),
-            "archive_episode_ids": (
-                episode_ids.detach().cpu().tolist()
-                if episode_ids is not None else []
-            ),
-            "archive_k": summarize_tensor_state(k_tensor),
-            "archive_v": summarize_tensor_state(v_tensor),
-            "latest_clean_block_input": getattr(
-                cache, "_latest_clean_block_input_summary", None
-            ),
-            "episode_gate_mode": getattr(cache, "structured_memory_episode_gate_mode", None),
-            "episode_gate_activation_episode": getattr(
-                cache, "structured_memory_episode_gate_activation_episode", None
-            ),
-        })
-    return {
-        "current_episode_id": int(current_episode_id),
-        "previous_episode_id": previous_episode_id,
+        "previous_episode_id": (
+            None if previous_episode_id is None else int(previous_episode_id)
+        ),
         "current_start_frame": int(current_start_frame),
         "archive_layers": archive_layers,
         "committed_history_latents": summarize_tensor_state(committed_history_latents),

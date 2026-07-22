@@ -159,3 +159,56 @@ def test_fail_closed_role_abstain_contributes_to_calibration_validity() -> None:
     assert "role_calibration_often_invalid" in codes
     assert "role_calibration_rejected_all" in codes
     assert "no_accepted_readout" not in codes
+
+
+def test_episode_warmup_scale_is_reported() -> None:
+    records = [
+        {
+            "event": "config",
+            "readout": {"episode_warmup_blocks": 2},
+        },
+        {"event": "commit", "layer": 15},
+        {
+            "event": "readout",
+            "layer": 15,
+            "current_episode_id": 2,
+            "previous_episode_id": 1,
+            "allowed_episode_id": 0,
+            "accepted_head_count": 6,
+            "head_count": 12,
+            "confidence_mean": 0.4,
+            "head_gate_mean": 0.5,
+            "alignment_positive_fraction": 0.5,
+            "effective_weight_mean": 0.01,
+            "delta_to_native_rms": 0.02,
+            "episode_block_index": 0,
+            "episode_warmup_scale": 1 / 3,
+            "effective_gate": 1 / 30,
+        },
+    ]
+
+    report = analyze_records(records)
+    assert report["metrics"]["episode_warmup_scale_min"] == 1 / 3
+    assert report["metrics"]["episode_first_block_effective_gate_mean"] == 1 / 30
+    assert not any(
+        finding["code"] == "episode_warmup_not_observed"
+        for finding in report["findings"]
+    )
+
+
+def test_empty_boundary_archive_snapshot_is_an_error() -> None:
+    records = [
+        {"event": "commit", "layer": 15},
+        {
+            "event": "boundary",
+            "archive_preserved": True,
+            "archive_state": {"archive_layers": []},
+        },
+    ]
+
+    report = analyze_records(records)
+    assert any(
+        finding["code"] == "boundary_archive_snapshot_empty"
+        and finding["severity"] == "ERROR"
+        for finding in report["findings"]
+    )

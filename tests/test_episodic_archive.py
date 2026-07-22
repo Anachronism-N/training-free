@@ -74,7 +74,8 @@ def test_archive_reset_clears_payload_and_episode_state():
     archive = EpisodicArchive(
         EpisodicArchiveConfig(num_heads=2, head_dim=2), layer_idx=0
     )
-    archive.set_episode(0, torch.tensor([1.0, 0.0]))
+    archive.set_episode(0, torch.tensor([1.0, 0.0]), start_frame=12)
+    assert archive.current_episode_start_frame == 12
     k, v = _block(1.0)
     archive.commit(
         k,
@@ -89,3 +90,19 @@ def test_archive_reset_clears_payload_and_episode_state():
     assert archive.structured_memory_k is None
     assert archive.structured_memory_episode_ids is None
     assert archive.current_episode_id is None
+    assert archive.current_episode_start_frame is None
+
+
+def test_episode_start_frame_changes_only_at_episode_boundary():
+    archive = EpisodicArchive(
+        EpisodicArchiveConfig(num_heads=2, head_dim=2), layer_idx=0
+    )
+    descriptor = torch.tensor([1.0, 0.0])
+
+    archive.set_episode(0, descriptor, start_frame=0)
+    archive.set_episode(0, descriptor, start_frame=99)
+    assert archive.current_episode_start_frame == 0
+
+    archive.set_episode(1, descriptor, start_frame=40)
+    assert archive.previous_episode_id == 0
+    assert archive.current_episode_start_frame == 40

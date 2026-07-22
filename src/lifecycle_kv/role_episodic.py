@@ -42,6 +42,47 @@ class HeadRoleEvidence:
     role_codes: torch.Tensor
 
 
+@dataclass(frozen=True)
+class EpisodeWarmupState:
+    """Episode-local fusion ramp state for one generated block."""
+
+    episode_block_index: int | None
+    scale: float
+    valid: bool
+    reason: str | None
+
+
+def compute_episode_warmup(
+    *,
+    current_frame: int,
+    episode_start_frame: int | None,
+    query_frames: int,
+    warmup_blocks: int,
+) -> EpisodeWarmupState:
+    """Return an episode-local gate scale without changing the default path.
+
+    ``warmup_blocks=N`` keeps the first N blocks below full strength. For
+    example, N=2 yields scales 1/3, 2/3, then 1. Missing or inconsistent
+    episode-start metadata fails closed when the ramp is enabled.
+    """
+    if query_frames <= 0:
+        raise ValueError("query_frames must be positive")
+    if warmup_blocks < 0:
+        raise ValueError("warmup_blocks must be non-negative")
+    if episode_start_frame is None:
+        if warmup_blocks == 0:
+            return EpisodeWarmupState(None, 1.0, True, None)
+        return EpisodeWarmupState(None, 0.0, False, "missing_episode_start_frame")
+    frame_offset = int(current_frame) - int(episode_start_frame)
+    if frame_offset < 0:
+        return EpisodeWarmupState(None, 0.0, False, "current_frame_before_episode_start")
+    block_index = frame_offset // int(query_frames)
+    if warmup_blocks == 0:
+        return EpisodeWarmupState(block_index, 1.0, True, None)
+    scale = min(1.0, float(block_index + 1) / float(warmup_blocks + 1))
+    return EpisodeWarmupState(block_index, scale, True, None)
+
+
 def masked_prompt_descriptor(
     prompt_embeds: torch.Tensor,
     prompt_mask: torch.Tensor | None = None,

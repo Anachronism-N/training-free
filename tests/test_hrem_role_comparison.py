@@ -1,6 +1,25 @@
 import json
 
-from scripts.compare_hrem_role_ablation import build_comparison
+from scripts.compare_hrem_role_ablation import (
+    _controlled_config,
+    _different_paths,
+    build_comparison,
+)
+
+
+def test_controlled_config_ignores_cell_name_but_keeps_run_identity() -> None:
+    left = _controlled_config({
+        "runtime": {"run_cell": "dual_all_heads", "run_commit": "abc", "run_seed": "0"}
+    })
+    right = _controlled_config({
+        "runtime": {"run_cell": "role_hybrid_050", "run_commit": "abc", "run_seed": "0"}
+    })
+    drift = _controlled_config({
+        "runtime": {"run_cell": "role_hybrid_050", "run_commit": "def", "run_seed": "0"}
+    })
+
+    assert _different_paths(left, right) == []
+    assert _different_paths(left, drift) == ["runtime.run_commit"]
 
 
 def test_build_comparison_keeps_retrieval_and_role_metrics_separate(tmp_path) -> None:

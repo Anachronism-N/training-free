@@ -66,6 +66,7 @@ class EpisodicArchive:
         self.structured_memory_episode_ids: torch.Tensor | None = None
         self.current_episode_id: int | None = None
         self.previous_episode_id: int | None = None
+        self.current_episode_start_frame: int | None = None
         self.current_prompt_descriptor: torch.Tensor | None = None
         self.previous_prompt_descriptor: torch.Tensor | None = None
         self._committed_blocks: set[tuple[int, int]] = set()
@@ -115,20 +116,34 @@ class EpisodicArchive:
             self._debug_once_keys.add(key)
         print(f"[HREMv2][{event}][L{self.layer_idx}] {message}", flush=True)
 
-    def set_episode(self, episode_id: int, prompt_descriptor: torch.Tensor) -> None:
+    def set_episode(
+        self,
+        episode_id: int,
+        prompt_descriptor: torch.Tensor,
+        *,
+        start_frame: int | None = None,
+    ) -> None:
         descriptor = F.normalize(
             prompt_descriptor.detach().float().reshape(-1), dim=0
         )
         episode_id = int(episode_id)
-        if self.current_episode_id is not None and episode_id != self.current_episode_id:
+        episode_changed = (
+            self.current_episode_id is None or episode_id != self.current_episode_id
+        )
+        if self.current_episode_id is not None and episode_changed:
             self.previous_episode_id = self.current_episode_id
             self.previous_prompt_descriptor = self.current_prompt_descriptor
+        if episode_changed:
+            self.current_episode_start_frame = (
+                None if start_frame is None else int(start_frame)
+            )
         self.current_episode_id = episode_id
         self.current_prompt_descriptor = descriptor
         self.write_trace(
             "episode",
             previous_episode_id=self.previous_episode_id,
             current_episode_id=self.current_episode_id,
+            current_episode_start_frame=self.current_episode_start_frame,
         )
 
     def _pool_spatial(

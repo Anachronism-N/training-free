@@ -1,9 +1,10 @@
 # HREM-v2 Review Guide and Experiment Runbook
 
-> 当前权威 review 入口。方法实现、论文故事、代码使用、日志判读和晋级标准均以本文为准。
+> 方法背景 review 入口。方法实现、论文故事、代码使用和原始日志判读见本文；最新实验决策见 docs/67。
 > 核心实现提交基线：`f19a6bd26d6794e6b4e0919c3bcfb49d3cb7a7af`；本文档会形成后续独立提交。
-> 状态：代码与静态检查完成，HREM-v2 尚未在 GPU 服务器完成首轮实验。
+> 状态：首轮 HREM-v2 与 absolute gate sweep 已完成；relative/hybrid 与 ramp 对照待运行。
 > 相关工作、代码 provenance、许可证和 claim 红线见 `docs/64_related_work_code_provenance_and_claims.md`；发生冲突时以该台账为准。
+> 结果更新后的实验范围校正、episode-local ramp 和最新服务器矩阵见 `docs/67_post_sweep_optimization_and_server_protocol.md`；后续运行决策以 docs/67 为准。
 
 ## 1. 一句话 idea
 

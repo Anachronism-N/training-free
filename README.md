@@ -16,9 +16,12 @@ components, claim boundary, and falsifiable hypotheses are recorded in
 The paper/code provenance ledger, license audit, high-overlap related work,
 and claim-safety rules are recorded in
 `docs/64_related_work_code_provenance_and_claims.md`.
-For a single review entry covering the idea, paper story, code changes, server
-commands, expected logs, and go/no-go criteria, start with
-`docs/61_hrem_v2_review_and_runbook.md`.
+The latest post-sweep implementation decisions, corrected experiment scope,
+server matrix, and go/no-go rules are in
+`docs/67_post_sweep_optimization_and_server_protocol.md`.
+For the full method background and original runbook, read
+`docs/61_hrem_v2_review_and_runbook.md`; use `docs/67` for the latest server
+commands and post-sweep decisions.
 
 ## Current Hypothesis
 
@@ -50,7 +53,10 @@ training-free/
    |   |-- 62_aaai_provisional_title_abstract.md
    |   |-- 62_hrem_v2_results_and_iteration.md
    |   |-- 63_hrem_v2_p0_role_calibration.md
-   |   `-- 64_related_work_code_provenance_and_claims.md
+   |   |-- 64_related_work_code_provenance_and_claims.md
+   |   |-- 65_swift_collision_audit.md
+   |   |-- 66_gate_sweep_results_and_review.md
+   |   `-- 67_post_sweep_optimization_and_server_protocol.md
 |-- prompts/
 |   `-- hrem_v2_aba_complex_3.txt
 |-- scripts/

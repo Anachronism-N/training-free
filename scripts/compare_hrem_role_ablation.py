@@ -25,6 +25,7 @@ _ALLOWED_ROLE_CONFIG_DIFFERENCES = {
     "role_sharpness",
     "role_keep_fraction",
     "role_min_evidence_spread",
+    "episode_warmup_blocks",
 }
 
 
@@ -34,11 +35,13 @@ def _controlled_config(config: dict[str, Any] | None) -> dict[str, Any] | None:
     readout = dict(config.get("readout") or {})
     for key in _ALLOWED_ROLE_CONFIG_DIFFERENCES:
         readout.pop(key, None)
+    runtime = dict(config.get("runtime") or {})
+    runtime.pop("run_cell", None)
     return {
         "active_layers": config.get("active_layers"),
         "archive": config.get("archive"),
         "readout": readout,
-        "runtime": config.get("runtime"),
+        "runtime": runtime,
     }
 
 
@@ -137,6 +140,12 @@ def build_comparison(run_root: Path) -> dict[str, Any]:
             "fusion_delta_to_native_rms": mechanism.get(
                 "delta_to_native_rms_median"
             ),
+            "episode_warmup_scale_mean": mechanism.get(
+                "episode_warmup_scale_mean"
+            ),
+            "episode_first_block_effective_gate_mean": mechanism.get(
+                "episode_first_block_effective_gate_mean"
+            ),
             "findings": findings,
             "unexpected_config_differences": unexpected_config_differences,
             "structurally_eligible_for_visual_review": structurally_eligible,
@@ -177,6 +186,8 @@ def print_comparison(report: dict[str, Any]) -> None:
         "role_calibration_valid_fraction",
         "role_active_head_jaccard",
         "fusion_delta_to_native_rms",
+        "episode_warmup_scale_mean",
+        "episode_first_block_effective_gate_mean",
         "structurally_eligible_for_visual_review",
     ]
     print("\t".join(columns))

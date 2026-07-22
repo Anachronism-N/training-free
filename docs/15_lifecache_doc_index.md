@@ -2,6 +2,9 @@
 
 ## Current method (read first)
 
+- `docs/67_post_sweep_optimization_and_server_protocol.md`: latest post-sweep corrections, optional episode-local ramp, controlled server matrix, required logs, and go/no-go rules.
+- `docs/66_gate_sweep_results_and_review.md`: absolute-threshold sweep metrics and human-review observations; superseded by doc 67 for next-step decisions.
+- `docs/65_swift_collision_audit.md`: mechanism-level SWIFT overlap audit and remaining claim boundary.
 - `docs/64_related_work_code_provenance_and_claims.md`: authoritative paper/code provenance ledger, related-work collision audit, license status, safe claim language, and future-use priorities.
 - `docs/63_hrem_v2_p0_role_calibration.md`: current P0 implementation, role-gate ablation matrix, trace fields, server commands, and decision rules.
 - `docs/62_hrem_v2_results_and_iteration.md`: first HREM-v2 server results and iteration priorities.

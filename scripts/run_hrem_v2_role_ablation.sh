@@ -37,8 +37,20 @@ export PYTHONPATH="$ROOT/src:$SF/scripts:${PYTHONPATH:-}"
 }
 python -c "import torch; from lifecycle_kv.role_episodic import compute_head_role_evidence; print('[preflight] python/torch', torch.__version__)" || exit 2
 
+RUN_COMMIT="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf 'unknown')"
+if command -v sha256sum >/dev/null 2>&1; then
+    PROMPT_SHA256="$(sha256sum "$PROMPTS" | awk '{print $1}')"
+else
+    PROMPT_SHA256="unavailable"
+fi
+export HREM_RUN_COMMIT="$RUN_COMMIT"
+export HREM_RUN_SEED="$SEED"
+export HREM_RUN_FRAMES="$FRAMES"
+export HREM_PROMPT_SHA256="$PROMPT_SHA256"
+
 mkdir -p "$OUT_ROOT/logs" "$OUT_ROOT/traces"
-echo "[config] seed=$SEED gpu=$GPU frames=$FRAMES out=$OUT_ROOT force=$FORCE"
+echo "[config] commit=$RUN_COMMIT seed=$SEED gpu=$GPU frames=$FRAMES out=$OUT_ROOT force=$FORCE"
+echo "[config] prompts=$PROMPTS sha256=$PROMPT_SHA256"
 
 COMMON_MEMORY=(
     STRUCTURED_MEMORY_ENABLE=1
@@ -64,6 +76,7 @@ COMMON_MEMORY=(
     STRUCTURED_MEMORY_POSITION_MODE=none
     STRUCTURED_MEMORY_FUSION_MODE=convex
     STRUCTURED_MEMORY_WARMUP_BLOCKS=0
+    STRUCTURED_MEMORY_EPISODE_WARMUP_BLOCKS=0
     STRUCTURED_MEMORY_LAYER_START=15
     STRUCTURED_MEMORY_LAYER_END=21
     STRUCTURED_MEMORY_MEMORY_START_EPISODE=2
@@ -97,9 +110,22 @@ run_cell() {
     if [[ -d "$out" ]]; then
         completed="$(find "$out" -maxdepth 1 -type f -name '*_ema.mp4' | wc -l)"
     fi
-    if [[ "$FORCE" != "1" && "$completed" -ge "$EXPECTED_VIDEOS" ]]; then
+    local diagnostics_complete=0
+    if [[ "$name" == "native_reset" ]]; then
+        diagnostics_complete=1
+    elif [[ -s "$trace" && -s "$diagnosis" ]]; then
+        diagnostics_complete=1
+    fi
+    if [[
+        "$FORCE" != "1"
+        && "$completed" -ge "$EXPECTED_VIDEOS"
+        && "$diagnostics_complete" -eq 1
+    ]]; then
         echo "[skip] $name already has $completed videos"
         return 0
+    fi
+    if [[ "$completed" -ge "$EXPECTED_VIDEOS" && "$diagnostics_complete" -eq 0 ]]; then
+        echo "[rerun] $name has videos but is missing a trace or diagnosis"
     fi
 
     mkdir -p "$out"
@@ -108,6 +134,7 @@ run_cell() {
     (
         cd "$SF"
         export CUDA_VISIBLE_DEVICES="$GPU"
+        export HREM_RUN_CELL="$name"
         export LIFECACHE_ENABLE=0 HEAD_ROLE_ENABLE=0 HEAD_ROLE_POOL_ENABLE=0
         export STRUCTURED_MEMORY_ENABLE=0 SCENE_TRANSITION_RESET=1
         for assignment in "$@"; do export "$assignment"; done
@@ -192,6 +219,20 @@ run_cell role_hybrid_050 \
     STRUCTURED_MEMORY_ROLE_SHARPNESS=8.0 \
     STRUCTURED_MEMORY_TRACE_PATH="$OUT_ROOT/traces/role_hybrid_050.jsonl"
 
+# Diagnostic transition cell: identical hybrid role gate, but the memory
+# contribution reaches full strength only after two episode-local blocks.
+run_cell role_hybrid_050_ramp2 \
+    "${COMMON_MEMORY[@]}" \
+    "${TRACE_COMMON[@]}" \
+    STRUCTURED_MEMORY_HEAD_ROUTING=role_evidence \
+    STRUCTURED_MEMORY_ROLE_CALIBRATION=hybrid \
+    STRUCTURED_MEMORY_ROLE_THRESHOLD=0.45 \
+    STRUCTURED_MEMORY_ROLE_KEEP_FRACTION=0.50 \
+    STRUCTURED_MEMORY_ROLE_MIN_EVIDENCE_SPREAD=0.01 \
+    STRUCTURED_MEMORY_ROLE_SHARPNESS=8.0 \
+    STRUCTURED_MEMORY_EPISODE_WARMUP_BLOCKS=2 \
+    STRUCTURED_MEMORY_TRACE_PATH="$OUT_ROOT/traces/role_hybrid_050_ramp2.jsonl"
+
 if [[ "$RUN_EVAL" == "1" && "$status" -eq 0 ]]; then
     CUDA_VISIBLE_DEVICES="$GPU" python "$ROOT/scripts/evaluate_hrem_v2.py" \
         --run-root "$OUT_ROOT" \
@@ -202,6 +243,7 @@ if [[ "$RUN_EVAL" == "1" && "$status" -eq 0 ]]; then
             role_abs_075 \
             role_relative_050 \
             role_hybrid_050 \
+            role_hybrid_050_ramp2 \
         --baseline native_reset \
         --output "$OUT_ROOT/metrics_role_ablation.json" || status=1
     if [[ "$status" -eq 0 ]]; then
@@ -213,6 +255,7 @@ fi
 
 echo "[done] outputs=$OUT_ROOT status=$status"
 echo "[review] grep -E '\[HREMv2\]' $OUT_ROOT/logs/role_hybrid_050.log | tail -n 160"
+echo "[review-ramp] grep -E '\[HREMv2\]' $OUT_ROOT/logs/role_hybrid_050_ramp2.log | tail -n 160"
 echo "[metrics] $OUT_ROOT/metrics_role_ablation.json"
 echo "[comparison] $OUT_ROOT/role_ablation_comparison.json"
 exit "$status"

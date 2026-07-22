@@ -1,9 +1,39 @@
+from types import SimpleNamespace
+
 import torch
 
 from lifecycle_kv.attention_fusion import (
     fuse_parallel_attention,
     query_conditioned_memory_readout,
+    summarize_episode_boundary_state,
 )
+
+
+def test_boundary_summary_accepts_current_archive_shape():
+    cache = SimpleNamespace(
+        _sm_active=True,
+        layer_idx=15,
+        structured_memory_intervals=torch.tensor([[0, 0]]),
+        structured_memory_episode_ids=torch.tensor([0]),
+        structured_memory_k=torch.ones(1, 1, 1, 2),
+        structured_memory_v=torch.full((1, 1, 1, 2), 2.0),
+        config=SimpleNamespace(
+            episode_gate_mode="dual_evidence",
+            episode_gate_activation_episode=2,
+        ),
+    )
+
+    summary = summarize_episode_boundary_state(
+        [cache],
+        current_episode_id=2,
+        previous_episode_id=1,
+        current_start_frame=80,
+    )
+
+    assert len(summary["archive_layers"]) == 1
+    assert summary["archive_layers"][0]["layer"] == 15
+    assert summary["archive_layers"][0]["archive_k"]["present"]
+    assert summary["archive_layers"][0]["episode_gate_mode"] == "dual_evidence"
 
 
 def test_query_retrieves_matching_memory_frame():

@@ -1,8 +1,12 @@
 # HREM-v2 Gate Sweep 结果与人工 Review 反馈
 
-> 日期: 2026-07-22  
-> 实验: head gate threshold sweep (0.45/0.55/0.65/0.75/0.85) × 3 prompts × seed 0  
+> 日期: 2026-07-22
+>
+> 实验: head gate threshold sweep (0.45/0.55/0.65/0.75/0.85) × 3 prompts × seed 0
+>
 > 人工 Review: 用户已完成视频观看
+>
+> 后续实现与服务器协议见 `docs/67_post_sweep_optimization_and_server_protocol.md`。
 
 ## 1. Gate Sweep 定量结果
 
@@ -23,6 +27,7 @@
 |---|---|---|---|---|
 | native_reset | 0.6233 | 0.5196 | 0.6918 | 0.6116 |
 | t=0.45 | **0.6848** | 0.4665 | 0.6891 | 0.6135 |
+| t=0.55 | 未单独记录 | 未单独记录 | 未单独记录 | 未单独记录 |
 | t=0.65 | 0.6311 | 0.5260 | **0.7074** | **0.6215** |
 | t=0.75 | 0.6515 | 0.5218 | 0.6836 | 0.6190 |
 | t=0.85 | 0.6204 | **0.5269** | 0.6925 | 0.6133 |
@@ -33,10 +38,10 @@
 
 **现象**: `||` 边界处出现短暂重影、纹理粘连、闪烁。
 
-**原因分析**:
-- `SCENE_TRANSITION_RESET=1` → working cache 硬清零，没有 smooth transition
-- Memory branch 在 B→A2 时突然激活（`memory_start_episode=2`）
-- Fusion gate=0.10 可能导致 memory contribution 不足以平滑过渡
+**待验证假设**:
+- `SCENE_TRANSITION_RESET=1` 在边界清空 native working K/V，可能造成所有 reset-based cell 的突变；
+- Memory branch 在 B→A2 首块立即达到完整强度，可能增加 HREM-specific 突变；
+- 必须分别比较 native_reset 的 A→B/B→A 和 HREM 的 B→A，才能把伪影归因给 reset 或 memory。`gate=0.10` 太小/太大都不能在没有对照时直接作为原因。
 
 **影响**: 所有 threshold 配置都有此问题，t=0.75 肉眼与其他 threshold 无明显区别。
 
@@ -44,10 +49,10 @@
 
 **现象**: A2 虽然回到了 A1 的场景布局（陶艺工作室/天文台/餐车），但人物着装、姿态、外观细节与 A1 不同。
 
-**原因分析**:
-- `readout_mode=noisy_only` → 只读取 noisy 层 K/V，可能丢失 identity 信息
-- `position_mode=none` → pre-RoPE K/V 没有位置对应，无法精确恢复人物位置
-- Archive budget=36 帧分布在 3 个 episode 中，identity 关键帧可能被 evict
+**待验证假设**:
+- `readout_mode=noisy_only` 可能没有覆盖承载 identity 的 readout 时机；
+- `position_mode=none` 缺少显式空间对应，但当前结果不能单独证明它是 identity 变化的原因；
+- Archive budget、选帧和 DINO 场景级指标都可能掩盖 identity payload 是否被保留。
 - DINOv2 指标无法检测 identity 问题（DINO 更关注场景整体相似度）
 
 ### 2.3 DINOv2 指标的局限性
@@ -61,12 +66,12 @@
 
 ### 2.4 实验范围局限
 
-**当前实验**: 仅做了 A-B-A 场景切换实验（3段×10s拼接），**未做单纯长视频实验**。
+**当前实验**: 仅做了单次 AR trajectory 内约三段等长的 A-B-A 场景切换实验，边界 reset working cache；**未做无 reset 的单 prompt 连续长视频实验**。
 
 **问题**:
-- A-B-A 相当于 3 次独立 10s 推理的拼接，不是真正的长视频生成
-- 无法验证 HREM 在连续长视频（如 30s/60s 单场景）中是否有效
-- 论文需要同时覆盖 scene transition 和 long video consistency 两类任务
+- 当前 A-B-A 是**一次 AR inference** 中按 block 切换 conditioning；边界会 reset native working cache，但 structured archive 持续存在。它不是三次独立推理后拼接；
+- 该协议是受控 episodic-return 任务，不等价于无 reset 的单场景连续长视频；
+- 当前配置 `memory_start_episode=2`，单 prompt 连续视频始终处于 episode 0，memory readout 不会激活。因此 30s/60s 单 prompt 只能验证 sidecar 无副作用与开销，不能验证 recall 有效。
 
 ## 3. 实验配置记录
 
@@ -103,7 +108,7 @@ STRUCTURED_MEMORY_ROLE_THRESHOLD={0.45, 0.55, 0.65, 0.75, 0.85}
 SCENE_TRANSITION_RESET=1
 ```
 
-## 4. 当前实验的 4 个主要局限
+## 4. 当前实验的主要局限
 
 | 局限 | 严重程度 | 修复方向 |
 |---|---|---|
@@ -113,6 +118,7 @@ SCENE_TRANSITION_RESET=1
 | **Identity 不保持** | 🟡 中 | readout_mode=all / position_mode=local_grid / 增大 archive |
 | **t=0.75 肉眼无区别** | 🟡 中 | threshold sweep 在 DINO 上有差异但视觉不明显 |
 | **仅 1 seed** | 🟡 中 | 需要 3 seeds 统计验证 |
+| **部分 threshold 结果来自不同 run root** | 🟡 中 | 用 config trace 和同批 runner 重建受控矩阵 |
 
 ## 5. 代码变更记录
 
@@ -134,13 +140,13 @@ SCENE_TRANSITION_RESET=1
 
 ### P0: 必须完成
 
-1. **VBench-Long 评估** — 在 32 prompts 上跑 native_reset vs HREM t=0.75，用 VBench-Long 6 维度评估
-2. **纯长视频实验** — 30s/60s 单场景连续生成，验证 HREM 不降质
-3. **Multi-seed** — t=0.75 × seed 0,1,2 × 3 prompts 统计验证
+1. **完成 role calibration P0** — 同批运行 all-head、relative、hybrid；`t=0.75` 不能因 +0.014 单 seed 均值直接晋级
+2. **Multi-seed** — 只对通过 trace、return 和人工 motion review 的候选运行 seed 1/2
+3. **边界归因对照** — native_reset vs hybrid no-ramp vs hybrid ramp2，分离 hard reset 与 memory activation
 
 ### P1: 应该完成
 
-4. **场景切换伪影修复** — smooth transition 或 temporal blending
+4. **VBench-Long 评估** — 候选确定后再扩展，避免对未成立机制投入大规模评估
 5. **Identity 保持改进** — readout_mode sweep / position_mode=local_grid
 6. **SWIFT ablation 对比** — 同 archive，head evidence 用 alignment vs persistence
 
@@ -163,6 +169,8 @@ SCENE_TRANSITION_RESET=1
 ### 建议调整
 
 1. **主指标改为 VBench-Long**（subject consistency, background consistency, aesthetic, imaging, motion smoothness, dynamic degree）
-2. **增加纯长视频实验**（30s 单场景，证明 HREM 不降质）
+2. **增加任务匹配的长视频实验**：单 prompt 用于 no-op/开销检查，多 prompt 或多候选 return 用于 recall 有效性
 3. **A-B-A 作为辅助分析**（diagnostic，不是主 claim）
 4. **如果 VBench-Long 无显著改善 → 降级到 Story C（diagnostic paper）**
+
+当前不能宣布 `t=0.75` 为 winner。它只是在 3 prompts、seed 0、DINO return margin 上的弱候选，且人工观察没有明显区别。

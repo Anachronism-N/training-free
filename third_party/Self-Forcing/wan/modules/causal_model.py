@@ -872,6 +872,7 @@ class CausalWanSelfAttention(nn.Module):
             select_contrastive_episode,
         )
         from lifecycle_kv.role_episodic import (
+            compute_episode_warmup,
             compute_head_role_evidence,
             query_frame_similarity,
             select_dual_evidence_episode,
@@ -1220,9 +1221,49 @@ class CausalWanSelfAttention(nn.Module):
         elif routing_mode not in {"static", "off"}:
             raise ValueError(f"unsupported structured-memory head routing: {routing_mode}")
 
+        base_gate = gate
         warmup = int(config.get("warmup_blocks", 0))
+        global_warmup_scale = 1.0
         if warmup > 0:
-            gate *= min(1.0, (current_block + 1) / warmup)
+            global_warmup_scale = min(1.0, (current_block + 1) / warmup)
+            gate *= global_warmup_scale
+        episode_warmup_blocks = int(config.get("episode_warmup_blocks", 0))
+        episode_warmup = compute_episode_warmup(
+            current_frame=current_frame,
+            episode_start_frame=getattr(
+                archive, "current_episode_start_frame", None
+            ),
+            query_frames=query_frames,
+            warmup_blocks=episode_warmup_blocks,
+        )
+        if not episode_warmup.valid:
+            _debug(
+                "warmup",
+                f"ep={current_episode} accepted=0 reason={episode_warmup.reason} "
+                f"episode_start={getattr(archive, 'current_episode_start_frame', None)} "
+                f"warmup_blocks={episode_warmup_blocks}",
+            )
+            archive.write_trace(
+                "readout_abstain",
+                current_start=int(current_start),
+                current_frame=current_frame,
+                block_index=current_block,
+                attention_call_index=attention_call_index,
+                current_episode_id=int(current_episode),
+                previous_episode_id=(
+                    None if previous_episode is None else int(previous_episode)
+                ),
+                memory_mode=memory_mode,
+                head_routing=routing_mode,
+                allowed_episode_id=allowed_episode,
+                reason=episode_warmup.reason,
+                episode_warmup_blocks=episode_warmup_blocks,
+                episode_decision=episode_trace,
+                head_role=role_trace,
+                **role_diagnostics,
+            )
+            return native_out
+        gate *= episode_warmup.scale
         fused = fuse_parallel_attention(
             native_out,
             memory.output,
@@ -1300,6 +1341,8 @@ class CausalWanSelfAttention(nn.Module):
                 f"call={attention_call_index} conf={fusion_diagnostics['confidence_mean']:.4f} "
                 f"routing={routing_mode} "
                 f"head_gate={fusion_diagnostics['head_gate_mean']:.4f} "
+                f"episode_block={episode_warmup.episode_block_index} "
+                f"ramp={episode_warmup.scale:.3f} "
                 f"gate_range={fusion_diagnostics['head_gate_p10']:.3f}:"
                 f"{fusion_diagnostics['head_gate_p90']:.3f} "
                 f"role_spread={fusion_diagnostics.get('role_evidence_spread', 0.0):.5f} "
@@ -1319,6 +1362,11 @@ class CausalWanSelfAttention(nn.Module):
                 memory_mode=memory_mode,
                 head_routing=routing_mode,
                 allowed_episode_id=allowed_episode,
+                base_gate=float(base_gate),
+                global_warmup_scale=float(global_warmup_scale),
+                episode_warmup_blocks=episode_warmup_blocks,
+                episode_warmup_scale=float(episode_warmup.scale),
+                episode_block_index=episode_warmup.episode_block_index,
                 effective_gate=float(gate),
                 selected_indices=memory.selected_indices.detach().cpu().tolist(),
                 confidence=memory.confidence[0].detach().float().cpu().tolist(),

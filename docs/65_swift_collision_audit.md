@@ -1,7 +1,9 @@
 # HREM-v2 与 SWIFT 碰撞分析
 
-> 更新日期：2026-07-22  
-> 触发：docs/64 要求完成 SWIFT/Echo/LongLive-RAG/PF/Forcing-KV 逐项碰撞审计  
+> 更新日期：2026-07-22
+>
+> 触发：docs/64 要求完成 SWIFT/Echo/LongLive-RAG/PF/Forcing-KV 逐项碰撞审计
+>
 > 状态：首轮机制级分析，尚未完成逐行代码对比
 
 ## 1. SWIFT 概述
@@ -31,7 +33,7 @@
 | **Head 处理** | **head-wise semantic injection**（按对齐度分配 prompt 更新） | **per-head K/V persistence + query drift gate**（按稳定性分配 readout 权） | 🔴 **高度重叠** |
 | **时序策略** | Adaptive Dynamic Window（切换边界大窗口） | memory_start_episode + warmup_blocks | 🟡 概念重叠 |
 | **长期一致性** | Segment-level anchors（压缩历史） | Episode-balanced coverage archive | 🟡 目的重叠 |
-| **Abstention** | 无显式 abstention 机制 | fail-closed 精确回退 native | ✅ HREM 独有 |
+| **Abstention** | 首轮机制审计尚未发现显式 abstention | fail-closed 精确回退 native | 当前实现差异；不是“世界首次”结论 |
 
 ### 2.2 最危险的碰撞：Head-wise 选择性
 
@@ -49,7 +51,7 @@ HREM-v2 的 per-head admission：
 → 不稳定的 head 回退到 native
 ```
 
-**两者的本质相同**：根据 head 的"对齐度"或"稳定性"，选择性注入历史信息。SWIFT 注入的是 prompt semantic update，HREM 注入的是 episode K/V。但 **"head-wise selective memory access" 的概念已经由 SWIFT 覆盖**。
+两者共享“按 head 选择性注入信息”的高层模式。SWIFT 注入的是 prompt semantic update，HREM 注入的是 episode K/V；因此不能把 **head-wise selectivity** 本身作为新颖性，剩余差异必须由 payload、证据、episode 约束和实验共同支撑。
 
 ### 2.3 真正的差异（可辩护的）
 
@@ -58,9 +60,9 @@ HREM-v2 的 per-head admission：
 | **注入对象** | prompt-conditioned semantic signal | historical episode K/V payload |
 | **注入位置** | 修改 working cache | 独立 side branch（不污染 native attention） |
 | **决策证据** | head-to-video alignment（单次匹配） | K/V persistence + query drift（在线动态证据） |
-| **Episode 约束** | 无（无 episode concept） | 显式 non-recent episode exclude + dual-evidence admission |
-| **安全机制** | 无显式 abstention | 失败回退 native（confidence × head × alignment = 0 时 output unchanged） |
-| **因果审计** | 无 | 完整 trace + 逐层 causal controls |
+| **Episode 约束** | 首轮机制审计未发现与 HREM 相同的 non-recent episode admission | 显式 non-recent episode exclude + dual-evidence admission |
+| **安全机制** | 首轮机制审计尚未发现同构显式 abstention | 失败回退 native（confidence × head × alignment = 0 时 output unchanged） |
+| **因果审计** | 尚未完成同口径代码级审计 | 完整 trace + 逐层 causal controls |
 
 ### 2.4 论文措辞影响
 
@@ -103,7 +105,7 @@ SWIFT 的 head-wise injection 削弱了 head admission 的新颖性。**Story A 
 | SWIFT-style semantic injection ablation（用我们的 archive 实现 SWIFT 风格的 head-alignment gate） | 隔离"injection target" vs "head evidence type" 的贡献 | P1 |
 | Head gate 消融：K-persistence only, V-persistence only, query-stability only, motion-risk only | 证明每个 evidence component 的必要性 | P1 |
 
-## 5SWIFT 碰撞审计结论
+## 5. SWIFT 碰撞审计结论
 
 SWIFT 是当前与 HREM-v2 概念重叠最深的工作：
 - **head-wise selectivity** 已被覆盖
@@ -111,7 +113,7 @@ SWIFT 是当前与 HREM-v2 概念重叠最深的工作：
 - **segment-level history** 已被覆盖
 
 HREM-v2 可以区分的剩余空间：
-1. Episode concept（SWIFT 无）
+1. 显式 non-recent episode admission（首轮 SWIFT 审计未发现同构机制）
 2. Explicit historical K/V payload（SWIFT 注入 semantic signal，非完整 K/V）
 3. Online K/V persistence evidence（SWIFT 使用 single-shot alignment）
 4. Factorized episode × head decision
