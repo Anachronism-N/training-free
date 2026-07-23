@@ -202,19 +202,94 @@ The actual cause of v74's failure modes is likely:
 | ms_full_motion | 0.7465 | 3.64 | **Worst CF** — below native on both |
 | fifo_hybrid_trajectory | 0.7419 | 3.28 | Below native on DINO |
 
-## 9. Overall conclusion
+## 9. Human review
+
+### 9.1 Review method
+
+Human review of all 16 cells, prompt 0 (`0-0_ema.mp4`). Textual description,
+no scoring.
+
+### 9.2 Category 1: PF — identity maintained throughout
+
+**Cell:** pf_official
+
+- ID is well maintained throughout the entire 30-second video.
+- No visible degradation, darkening, or style shift.
+- This is the clear quality leader and the target to match.
+
+### 9.3 Category 2: Echo-PC — promising but incomplete
+
+**Cell:** echo_pc (only 1/12 videos generated due to OOM)
+
+- Despite only one video being generated, ID is maintained from start to
+  finish.
+- This suggests Echo-Forcing's hierarchical scene/cache mechanism is
+  effective for identity retention.
+- The OOM issue prevents full evaluation, but the single video is
+  encouraging.
+
+### 9.4 Category 3: Fresh-noise Commit Forcing — visible improvement but
+  limited
+
+**Cells:** ms_fresh_nomotion, v74_hybrid_fresh
+
+- Clear improvement over sf_native — consistent with the v74 review
+  (Category 1 in docs/75).
+- Same phenomena as v74's hybrid_admit015: delayed but not prevented
+  degradation, with style simplification and motion freezing.
+- v74_origin2_fresh has more visible jumps than the other fresh cells but
+  similar ID retention.
+
+### 9.5 Category 4: Trajectory/multiscale cells — worse than native
+
+**Cells:** fifo_hybrid_trajectory, fifo_origin2_trajectory, ms_full_motion,
+ms_mean_motion, ms_no_summary_read, ms_origin2_motion,
+ms_representative_motion, ms_summary2_motion, ms_t250_motion,
+ms_trajectory_nomotion
+
+- Jumping begins after approximately 5 seconds.
+- ID degrades rapidly and becomes unusable quickly.
+- Obvious color shifts accompany the jumps.
+- These cells are **visibly worse than sf_native**, confirming the metric
+  results (all below native DINO).
+- The trajectory re-noising and multiscale bank do not just fail to help —
+  they actively harm the generation.
+
+### 9.6 sf_native — baseline degradation
+
+- Same as previous reviews: 5s onset, progressive darkening, 15s collapse.
+
+### 9.7 Review conclusions
+
+1. **PF is the only method that maintains ID throughout 30 seconds.** All
+   Commit Forcing variants eventually degrade.
+2. **Echo-PC is promising** — ID maintained in its single video. Worth
+   resolving the OOM to evaluate fully.
+3. **Trajectory re-noising is visibly harmful** — not just worse on metrics,
+   but produces obvious jumping and color shifts starting at 5s. The gentler
+   correction destabilizes rather than stabilizes.
+4. **Fresh-noise Commit Forcing (v74 style) remains the best CF option** —
+   visible improvement over native, but cannot match PF.
+5. **The gap to PF is large and qualitative**, not just quantitative. PF
+   maintains full ID; CF delays collapse but cannot prevent it.
+
+## 10. Overall conclusion
 
 The v76 screen is a clear negative result:
 
 1. **Trajectory re-noising**: fails on DINO (-0.057 vs fresh) AND fails on
-   temporal jump (+0.41 vs fresh). Both hypotheses were wrong.
+   temporal jump (+0.41 vs fresh) AND fails on human review (visible jumps
+   from 5s, color shifts). All three hypotheses were wrong.
 2. **Multiscale bank**: fails on DINO (-0.006 vs FIFO) AND fails on
    temporal jump (+0.36 vs FIFO). No benefit, only added complexity.
 3. **Motion gate**: moot, since the base trajectory correction is too weak.
-4. **PF dominates** on both DINO (+0.045 vs native) and temporal jump
-   (-49% vs native). The gap is large.
+4. **PF dominates** on DINO (+0.045 vs native), temporal jump (-49% vs
+   native), AND human review (full ID retention throughout 30s).
+5. **Echo-PC shows promise** — ID maintained in its single video, but OOM
+   prevents full evaluation.
 
 The best Commit Forcing configuration remains **v74_hybrid_fresh** (fresh
 noise, FIFO bank, gate=0.15, DINO=0.7985, jump=2.86). The v74 failure modes
 (jumps, freeze, style degradation) must be addressed through a different
+mechanism than weaker correction or temporal compression.
 mechanism than weaker correction or temporal compression.
