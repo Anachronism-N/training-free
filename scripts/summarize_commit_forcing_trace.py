@@ -72,8 +72,13 @@ def summarize(path: Path) -> dict[str, Any]:
     reliabilities: list[float] = []
     selected_distances: list[int] = []
     selected_kind_counts: Counter[str] = Counter()
+    renoise_mode_counts: Counter[str] = Counter()
+    summary_merge_methods: Counter[str] = Counter()
     nominal_timestep_counts: Counter[int] = Counter()
     rejection_reasons: Counter[str] = Counter()
+    selected_summary_support: list[int] = []
+    motion_ratios: list[float] = []
+    motion_gated_selections = 0
     max_bank_size = 0
 
     if not events:
@@ -89,9 +94,18 @@ def summarize(path: Path) -> dict[str, Any]:
         event_type = event.get("event")
         if event_type == "block_reliability":
             reliabilities.extend(event.get("reliability", []))
+        elif event_type == "block_motion":
+            motion_ratios.extend(event.get("motion_ratio", []))
         elif event_type == "commit_accepted":
             bank_frames = event.get("bank_frames", [])
             max_bank_size = max(max_bank_size, len(bank_frames))
+        elif event_type == "summary_merge":
+            summary_merge_methods[
+                str(event.get("merge_method", "missing"))
+            ] += 1
+        elif event_type == "reference_selection":
+            if bool(event.get("motion_gated", False)):
+                motion_gated_selections += 1
         elif event_type == "commit_rejected":
             rejection_reasons[str(event.get("reason", "missing"))] += 1
         elif event_type == "correction":
@@ -112,6 +126,15 @@ def summarize(path: Path) -> dict[str, Any]:
                     f"video {event.get('video_index')} reference field length mismatch"
                 )
             selected_kind_counts.update(str(item) for item in kinds)
+            renoise_mode_counts[
+                str(event.get("renoise_mode", "fresh"))
+            ] += 1
+            supports = event.get("selected_support", [])
+            selected_summary_support.extend(
+                int(support)
+                for kind, support in zip(kinds, supports)
+                if str(kind) == "summary"
+            )
             current_frame = int(event.get("current_frame", -1))
             selected_distances.extend(current_frame - int(item) for item in frames)
         elif event_type == "correction_outcome":
@@ -134,6 +157,7 @@ def summarize(path: Path) -> dict[str, Any]:
         config = starts[-1].get("config", {})
         trigger_mode = config.get("trigger_mode")
         mode = config.get("reference_mode")
+        renoise_mode = config.get("renoise_mode", "fresh")
         capacity = int(config.get("reference_capacity", 0))
         corrections = [
             item for item in video_events if item.get("event") == "correction"
@@ -156,13 +180,25 @@ def summarize(path: Path) -> dict[str, Any]:
                     f"video {video_index}: missing nominal correction "
                     f"timesteps {sorted(missing_timesteps)}"
                 )
+        if renoise_mode == "trajectory":
+            fallback_corrections = [
+                item
+                for item in corrections
+                if item.get("renoise_mode") != "trajectory"
+                or item.get("renoise_fallback") is not None
+            ]
+            if fallback_corrections:
+                failures.append(
+                    f"video {video_index}: trajectory re-noise fell back "
+                    f"{len(fallback_corrections)} time(s)"
+                )
         for correction in corrections:
             kinds = set(correction.get("selected_kinds", []))
             if mode == "origin" and kinds - {"origin"}:
                 failures.append(
                     f"video {video_index}: origin mode selected {sorted(kinds)}"
                 )
-            if mode == "trusted" and kinds - {"trusted"}:
+            if mode == "trusted" and kinds - {"trusted", "recent"}:
                 failures.append(
                     f"video {video_index}: trusted mode selected {sorted(kinds)}"
                 )
@@ -198,8 +234,13 @@ def summarize(path: Path) -> dict[str, Any]:
         "correction_relative_rms": correction_stats,
         "reference_to_native_disagreement": outcome_stats,
         "frame_reliability": _stats(reliabilities),
+        "motion_ratio": _stats(motion_ratios),
         "reference_distance_frames": _stats(selected_distances),
+        "selected_summary_support": _stats(selected_summary_support),
         "selected_kind_counts": dict(sorted(selected_kind_counts.items())),
+        "renoise_mode_counts": dict(sorted(renoise_mode_counts.items())),
+        "summary_merge_methods": dict(sorted(summary_merge_methods.items())),
+        "motion_gated_selections": motion_gated_selections,
         "nominal_timestep_counts": {
             str(key): value for key, value in sorted(nominal_timestep_counts.items())
         },

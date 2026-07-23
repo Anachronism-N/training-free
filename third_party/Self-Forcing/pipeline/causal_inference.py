@@ -260,7 +260,12 @@ class CausalInferencePipeline(torch.nn.Module):
                 f"references={cfg.reference_mode} "
                 f"capacity={cfg.reference_capacity} "
                 f"origin={cfg.origin_capacity}/{cfg.origin_use} "
-                f"trusted_use={cfg.trusted_use}",
+                f"trusted_use={cfg.trusted_use} "
+                f"bank={cfg.bank_mode} "
+                f"summary={cfg.summary_capacity}/{cfg.summary_use} "
+                f"merge={cfg.summary_merge_mode} "
+                f"motion_gate={int(cfg.motion_gate_enabled)} "
+                f"renoise={cfg.renoise_mode}",
                 flush=True,
             )
 
@@ -1128,6 +1133,7 @@ class CausalInferencePipeline(torch.nn.Module):
                 )
 
             # Step 3.1: Spatial denoising loop
+            trajectory_noise = None
             for index, current_timestep in enumerate(self.denoising_step_list):
                 print(f"current_timestep: {current_timestep}")
                 nominal_timestep_value = int(
@@ -1193,6 +1199,7 @@ class CausalInferencePipeline(torch.nn.Module):
                         reference_prediction,
                         current_start_frame,
                         actual_timestep_value,
+                        trajectory_noise=trajectory_noise,
                     )
                     corrected_noisy_input = self.scheduler.add_noise(
                         reference_prediction.flatten(0, 1),
@@ -1224,12 +1231,19 @@ class CausalInferencePipeline(torch.nn.Module):
                         structured_memory_mode="noisy",
                     )
                     next_timestep = self.denoising_step_list[index + 1]
+                    next_noise = torch.randn_like(
+                        denoised_pred.flatten(0, 1)
+                    )
                     noisy_input = self.scheduler.add_noise(
                         denoised_pred.flatten(0, 1),
-                        torch.randn_like(denoised_pred.flatten(0, 1)),
+                        next_noise,
                         next_timestep * torch.ones(
                             [batch_size * current_num_frames], device=noise.device, dtype=torch.long)
                     ).unflatten(0, denoised_pred.shape[:2])
+                    if self.commit_forcing is not None:
+                        trajectory_noise = next_noise.unflatten(
+                            0, denoised_pred.shape[:2]
+                        )
                 else:
                     # for getting real output
                     _, denoised_pred = self.generator(
@@ -1295,6 +1309,12 @@ class CausalInferencePipeline(torch.nn.Module):
 
             if self.commit_forcing is not None:
                 block_reliability = self.commit_forcing.finalize_block()
+                commit_cfg = self.commit_forcing.config
+                if (
+                    commit_cfg.bank_mode == "multiscale"
+                    or commit_cfg.motion_gate_enabled
+                ):
+                    self.commit_forcing.observe_clean_block(denoised_pred)
                 self.commit_forcing.commit_clean_block(
                     kv_cache=self.kv_cache1,
                     reliability=block_reliability,

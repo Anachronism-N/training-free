@@ -169,6 +169,101 @@ def test_correction_noise_is_reproducible_and_call_indexed():
     assert not torch.equal(noise_a, noise_c)
 
 
+def test_trajectory_renoise_reuses_the_actual_transition_noise():
+    tensor = torch.zeros((1, 2, 1, 2, 2))
+    transition = torch.randn_like(tensor)
+    controller = CommitForcingController(
+        _config(renoise_mode="trajectory")
+    )
+
+    selected = controller.correction_noise(
+        tensor,
+        current_frame=12,
+        timestep=400,
+        trajectory_noise=transition,
+    )
+
+    assert torch.equal(selected, transition)
+
+
+def test_multiscale_bank_compacts_old_recent_frames():
+    controller = CommitForcingController(
+        _config(
+            bank_mode="multiscale",
+            reference_capacity=5,
+            origin_capacity=1,
+            origin_use=1,
+            trusted_use=1,
+            summary_capacity=2,
+            summary_use=1,
+            motion_gate_enabled=False,
+        )
+    )
+    controller.reset(video_index=0)
+
+    for start in (10, 12, 14):
+        controller.begin_block(start_frame=start, num_frames=2, episode_id=0)
+        clean = torch.arange(
+            2, dtype=torch.float32
+        ).reshape(1, 2, 1, 1, 1) + start
+        controller.observe_clean_block(clean)
+        controller.commit_clean_block(
+            kv_cache=_cache(),
+            reliability=_reliability(),
+            frame_seq_length=2,
+        )
+
+    origins = [item for item in controller.references if item.kind == "origin"]
+    summaries = [
+        item for item in controller.references if item.kind == "summary"
+    ]
+    recent = [item for item in controller.references if item.kind == "recent"]
+
+    assert len(controller.references) == 5
+    assert [item.frame_id for item in origins] == [10]
+    assert [item.frame_id for item in recent] == [14, 15]
+    assert sorted(item.support for item in summaries) == [1, 2]
+    assert any(item.span_start == 11 and item.span_end == 12 for item in summaries)
+
+    selected = controller.select_references(current_frame=16)
+    assert [item.kind for item in selected].count("origin") == 1
+    assert [item.kind for item in selected].count("summary") == 1
+    assert [item.kind for item in selected].count("recent") == 1
+    selected_summary = next(item for item in selected if item.kind == "summary")
+    assert selected_summary.support == 2
+
+
+def test_motion_gate_omits_compressed_summary_but_keeps_exact_references():
+    controller = CommitForcingController(
+        _config(
+            bank_mode="multiscale",
+            reference_capacity=5,
+            origin_capacity=1,
+            origin_use=1,
+            trusted_use=1,
+            summary_capacity=2,
+            summary_use=1,
+            motion_gate_enabled=True,
+            motion_high_ratio=0.8,
+        )
+    )
+    for start in (10, 12, 14):
+        controller.begin_block(start_frame=start, num_frames=2, episode_id=0)
+        clean = torch.tensor(
+            [0.0, 10.0], dtype=torch.float32
+        ).reshape(1, 2, 1, 1, 1)
+        controller.observe_clean_block(clean)
+        controller.commit_clean_block(
+            kv_cache=_cache(),
+            reliability=_reliability(),
+            frame_seq_length=2,
+        )
+
+    assert any(item.kind == "summary" for item in controller.references)
+    selected = controller.select_references(current_frame=16)
+    assert {item.kind for item in selected} == {"origin", "recent"}
+
+
 def test_invalid_reference_use_is_rejected():
     try:
         _config(origin_capacity=1, origin_use=2).validate()

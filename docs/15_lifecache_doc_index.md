@@ -2,6 +2,15 @@
 
 ## Current method (read first)
 
+- `docs/76_multiscale_commit_bank_design_and_server_plan.md`: current
+  Commit Forcing v2 design. Defines the explicit origin/compressed/recent
+  lifecycle, reliability-weighted motion-compatible consolidation,
+  motion-adaptive readout, trajectory-coupled re-noising, 16-GPU screen,
+  debug checks, provenance, and predeclared promotion gates.
+- `docs/75_commit_forcing_v74_screen_results.md`: completed Commit Forcing v1
+  metrics and human review. Reliability-gated hybrid correction visibly
+  improves over native and fixed origin, but style simplification, motion
+  freezing, and acceleration-like jumps remain.
 - `docs/74_commit_forcing_research_reset.md`: current research reset after the
   visually negative LifeCache-v3 result. Defines reliability-gated state
   admission, the bounded origin/trusted/native-recent lifecycle, pathwise
@@ -37,10 +46,11 @@
 - `docs/55_cemr_ceg_full_idea_spec.md`: strongest CEMR/CEG evidence and unresolved episode-selection failure.
 - `docs/47_current_idea_full_description.md`: earlier structured-memory direction and experiment history.
 
-The current candidate is Commit Forcing. Review
-`docs/74_commit_forcing_research_reset.md` first and use docs/73 as its
-experimental motivation. Docs/69-72 describe the superseded LifeCache/HREM
-route and remain necessary for baseline history and negative-result reporting.
+The current candidate is Commit Forcing v2. Review docs/75 for the validated v1
+result, then docs/76 for the current design and server protocol. Docs/74 and 73
+record the research reset and its negative experimental motivation.
+Docs/69-72 describe the superseded LifeCache/HREM route and remain necessary
+for baseline history and negative-result reporting.
 LifeCache-v1 below is retained as the original design history, not the
 recommended first experiment.
 

@@ -3,22 +3,26 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The newest method candidate is **Commit Forcing: Reliability-Gated State
-Commit for Training-Free Long Video Extrapolation**. It treats long
+The newest method candidate is **Commit Forcing: Reliability-Gated Multiscale
+State Commit for Training-Free Long Video Extrapolation**. It treats long
 autoregressive generation as a state-admission problem: denoising-trajectory
-disagreement decides which clean states may enter a bounded origin/trusted
-reference bank, and selected references correct the main sampling path at
-low-noise timesteps while the native recent cache remains unchanged.
+disagreement decides which clean states enter a bounded
+origin/compressed/recent commit bank, motion controls consolidation and
+readout, and selected references correct the main sampling path while the
+native recent cache remains unchanged.
 Single-prompt 30s+ extrapolation is the primary task; prompt switching is
 secondary.
 
 This reset follows the completed LifeCache-v3 screen: the side-memory
 intervention was measurable but all variants were visually equivalent to
 native SF and collapsed at the same time. The result is recorded in
-`docs/73_lifecache_v3_screen_results.md`. The new method, implementation,
-16-GPU experiment matrix, provenance boundary, logs, and go/no-go rules are in
-`docs/74_commit_forcing_research_reset.md`. Commit Forcing is an unvalidated
-prototype, not an established quality improvement.
+`docs/73_lifecache_v3_screen_results.md`. Commit Forcing v1 produced a visible
+but limited improvement over native SF; its metrics, human review, and three
+remaining failure modes are in `docs/75_commit_forcing_v74_screen_results.md`.
+The multiscale v2 lifecycle, trajectory-coupled re-noising, provenance
+boundary, 16-GPU matrix, logs, and go/no-go rules are in
+`docs/76_multiscale_commit_bank_design_and_server_plan.md`. The v2 additions
+remain unvalidated.
 The paper/code provenance ledger, license audit, high-overlap related work,
 and claim-safety rules are recorded in
 `docs/64_related_work_code_provenance_and_claims.md`.
@@ -38,9 +42,9 @@ as long-term context:
 
 - **Should it be committed?** Estimate frame reliability from disagreement
   among the clean predictions already produced along the denoising path.
-- **Where does it live?** Keep an immutable episode origin, a bounded FIFO of
-  reliable evolving states, and the native SF recent cache under separate
-  update rules.
+- **Where does it live?** Keep immutable episode origins, motion-compatible
+  multiscale summaries, exact recent commits, and the native SF recent cache
+  under separate update rules.
 - **How does it intervene?** At selected nominal diffusion timesteps, denoise
   with the reference bank, re-noise to the same actual scheduler timestep, and
   then denoise with the native recent context. This changes the sampling path
@@ -68,7 +72,9 @@ training-free/
 |   |-- 71_human_review_and_code_alignment.md
 |   |-- 72_lifecache_v3_post_review_optimization.md
 |   |-- 73_lifecache_v3_screen_results.md
-|   `-- 74_commit_forcing_research_reset.md
+|   |-- 74_commit_forcing_research_reset.md
+|   |-- 75_commit_forcing_v74_screen_results.md
+|   `-- 76_multiscale_commit_bank_design_and_server_plan.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -80,6 +86,7 @@ training-free/
 |   |-- compute_temporal_jump_diagnostic.py
 |   |-- run_v69_typed_cache_16gpu.sh
 |   |-- run_v74_commit_forcing_16gpu.sh
+|   |-- run_v76_multiscale_commit_16gpu.sh
 |   |-- summarize_commit_forcing_trace.py
 |   `-- ...
 |-- src/
@@ -94,18 +101,22 @@ training-free/
 
 Commit Forcing is integrated into the Self-Forcing inference path:
 
-- `commit_forcing.py`: validated environment configuration, denoising-path
-  reliability, bounded origin/trusted bank, pre-RoPE reference reconstruction,
-  deterministic correction noise, and JSONL trace.
+- `commit_forcing.py`: denoising-path reliability, online latent motion,
+  bounded FIFO or origin/summary/recent banks, motion-compatible multiscale
+  consolidation, pre-RoPE reference reconstruction, trajectory-coupled
+  re-noising, and JSONL trace.
 - `third_party/Self-Forcing/.../causal_model.py`: optional pre-RoPE K capture
   for clean state commits.
 - `third_party/Self-Forcing/pipeline/causal_inference.py`: nominal versus
   warped timestep handling, reference-conditioned forward, re-noise,
   normal-context forward, and clean-state commit.
 - `tests/test_commit_forcing.py`: CPU tests for reliability, admission,
-  reference-cache construction, episode reset, and reproducibility.
+  reference-cache construction, episode reset, multiscale compaction, motion
+  gating, and fresh/trajectory noise behavior.
 - `scripts/run_v74_commit_forcing_16gpu.sh`: three-GPU smoke, 16-cell
   single-prompt screen, and four-seed native/PF/fixed-origin/hybrid confirm.
+- `scripts/run_v76_multiscale_commit_16gpu.sh`: official SF/PF/Echo baselines
+  plus re-noise, cache lifecycle, motion gate, and merge-policy ablations.
 - `scripts/summarize_commit_forcing_trace.py` and `scripts/v74_postprocess.sh`:
   strict mechanism checks and post-review evaluation.
 
@@ -154,26 +165,26 @@ tensor/CUDA path still requires the server `smoke` phase.
 
 ## Experiment Entry Points
 
-The current prototype experiments are documented in:
+The current v2 experiments are documented in:
 
 ```text
-docs/74_commit_forcing_research_reset.md
+docs/76_multiscale_commit_bank_design_and_server_plan.md
 ```
 
 Run the mandatory smoke test first, then the 16-GPU single-prompt screen:
 
 ```bash
-SMOKE_FRAMES=12 GPU_LIST=0,1,2 \
-bash scripts/run_v74_commit_forcing_16gpu.sh smoke
+SMOKE_FRAMES=12 GPU_LIST=0,1,2,3 \
+bash scripts/run_v76_multiscale_commit_16gpu.sh smoke
 
 GPU_LIST=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 \
-bash scripts/run_v74_commit_forcing_16gpu.sh screen
+bash scripts/run_v76_multiscale_commit_16gpu.sh screen
 ```
 
-The screen separates native SF, fixed-origin pathwise correction, and our
-dynamic reliability-gated origin/trusted commit. Do not run the four-seed
-confirm phase unless the dynamic method visibly beats both native and fixed
-origin.
+The screen separates official baselines, v74 controls, trajectory re-noising,
+multiscale history, motion-gated readout, and summary merge policies. Promote
+only cells that improve identity without worsening freeze, style shift, or
+temporal jumps.
 
 ## Third-Party Code
 
@@ -248,20 +259,21 @@ To keep existing vendored directories and clone only missing references:
 bash scripts/bootstrap_repos.sh
 ```
 
-To run the current Commit Forcing smoke and screen:
+To run the current Commit Forcing v2 smoke and screen:
 
 ```bash
-SMOKE_FRAMES=12 GPU_LIST=0,1,2 \
-bash scripts/run_v74_commit_forcing_16gpu.sh smoke
+SMOKE_FRAMES=12 GPU_LIST=0,1,2,3 \
+bash scripts/run_v76_multiscale_commit_16gpu.sh smoke
 
 GPU_LIST=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 \
-bash scripts/run_v74_commit_forcing_16gpu.sh screen
+bash scripts/run_v76_multiscale_commit_16gpu.sh screen
 ```
 
 After blind review:
 
 ```bash
 HUMAN_REVIEW_DONE=1 RUN_VBENCH=1 GPU=0 \
+RUN_ROOT="$PWD/runs/v76_multiscale_commit_screen" \
 bash scripts/v74_postprocess.sh
 ```
 
