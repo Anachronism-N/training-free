@@ -154,19 +154,80 @@ discontinuities without hurting identity.
 |---|---|---|
 | 1 | No ID regression vs PF | **PASSED** — all cells within 0.011 DINO of PF |
 | 2 | Lower temporal jump than PF | **PASSED** — full_budget075_p1: 1.6449 vs 1.7228 (-4.5%) |
-| 3 | No motion loss | **PENDING** — requires human review |
+| 3 | No motion loss | **PASSED** — human review confirms PF-level quality and motion |
 | 4 | Audit ≈ PF | **PASSED** — DINO 0.829 vs 0.832, jump 1.752 vs 1.723 |
 | 5 | Nontrivial intervention | **PASSED** — full cells 40-58% acceptance |
 
-## 8. Next steps
+**All 5 gates passed.** The cache transition method is the first approach in
+this project to pass all predeclared gates against PF.
 
-1. **Human review** — compare pf_official vs full_budget075_p1 vs full_r065.
-   Focus on: (a) does full_budget075_p1 have visibly fewer jumps than PF?
-   (b) does full_r065 have visibly better identity than PF? (c) is motion
-   preserved in both?
-2. **If human review confirms**: promote full_budget075_p1 to multi-seed
-   confirmation (4 seeds × native + PF + full_budget075_p1).
-3. **Raise gate thresholds** in follow-up: 0.80, 0.85, 0.90 to find where
+## 8. Human review
+
+### 8.1 Review method
+
+Human review of all 13 evaluated cells, prompt 0 (`0-0_ema.mp4`). Textual
+description, no scoring.
+
+### 8.2 Findings
+
+**All transition cells and PF baselines perform well:**
+
+- full_age4, full_budget075_p1, full_cond, full_r045, full_r055, full_r065,
+  gate_r045, gate_r055, gate_r055_n001, gate_r065, pf_audit, pf_official,
+  stagger_half — all show good quality, similar to PF.
+- Identity is maintained throughout, consistent with the DINO metrics
+  (0.820-0.835, all near PF level).
+- **Some acceleration jumps are still present**, similar to the PF-style
+  frame speed discontinuities observed in previous experiments (docs/71,
+  docs/75). This is consistent with the temporal jump metric (1.64-1.79,
+  better than native 3.35 but not zero).
+
+### 8.3 Review conclusions
+
+1. **Cache transition maintains PF-level quality.** All cells are visually
+   similar to PF — identity retained, no darkening, no style collapse.
+   This is a major improvement over Commit Forcing (v74/v76), which showed
+   visible degradation after 10s.
+2. **The acceleration jumps are a PF-inherited artifact**, not introduced
+   by the cache transition. PF itself has this issue (docs/71), and the
+   transition cells inherit it because they use PF as the base.
+3. **full_budget075_p1 has the best temporal jump metric** (1.6449, -4.5%
+   vs PF), which may correspond to slightly fewer visible jumps, but the
+   difference is subtle.
+4. **Gate 3 (no motion loss) is confirmed** — all cells maintain PF-level
+   motion, with no visible freezing or stagnation.
+5. **No cell is visibly worse than PF.** The cache transition mechanism
+   successfully preserves PF's strengths while adding nontrivial
+   intervention (40-58% acceptance for full cells).
+
+### 8.4 Comparison with previous approaches
+
+| Approach | ID retention | Jumps | Motion | Style | Extra compute |
+|---|---|---|---|---|---|
+| sf_native | 5s degradation | severe | OK | 15s collapse | — |
+| LifeCache-v3 | Same as native | severe | OK | Same as native | +5% side-branch |
+| Commit Forcing v74 | Delayed collapse | moderate | Freezing | Style shift | +50% forwards |
+| Commit Forcing v76 | Worse than native | Worse | — | — | +50% forwards |
+| **Cache Transition v78** | **PF-level** | **PF-level** | **PF-level** | **PF-level** | **Zero** |
+
+The cache transition approach is the first to match PF across all reviewed
+dimensions while adding zero compute overhead and nontrivial intervention.
+
+## 9. Next steps
+
+1. **Multi-seed confirmation** — promote full_budget075_p1 to 4-seed
+   confirmation (native + PF + full_budget075_p1). This is the primary
+   paper candidate.
+2. **Raise gate thresholds** in follow-up: 0.80, 0.85, 0.90 to find where
+   reliability gating becomes nontrivial (current gate cells have 100%
+   acceptance).
+3. **Investigate full_r065's DINO advantage** — why does 40% acceptance at
+   threshold 0.65 beat PF? The stagger schedule may reduce error accumulation.
+4. **Address inherited PF jumps** — the acceleration jumps are a PF base
+   artifact. Future work could combine cache transition with a jump-smoothing
+   post-process or a different cache policy for high-motion heads.
+5. **Run v77 Commit Forcing closure** if resources allow, to complete the
+   Commit Forcing ablation record.
    reliability gating becomes nontrivial.
 4. **Investigate full_r065's DINO advantage**: why does 40% acceptance at
    threshold 0.65 beat PF? The stagger schedule may be reducing error
