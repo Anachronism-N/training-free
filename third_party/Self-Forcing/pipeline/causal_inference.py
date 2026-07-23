@@ -1206,6 +1206,12 @@ class CausalInferencePipeline(torch.nn.Module):
                         correction_noise.flatten(0, 1),
                         timestep.flatten(0, 1),
                     ).unflatten(0, reference_prediction.shape[:2])
+                    corrected_noisy_input = self.commit_forcing.blend_correction(
+                        correction_input,
+                        corrected_noisy_input,
+                        current_frame=current_start_frame,
+                        nominal_timestep=nominal_timestep_value,
+                    )
                     self.commit_forcing.record_correction(
                         current_frame=current_start_frame,
                         nominal_timestep=nominal_timestep_value,

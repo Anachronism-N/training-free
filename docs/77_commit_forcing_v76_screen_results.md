@@ -292,4 +292,16 @@ The best Commit Forcing configuration remains **v74_hybrid_fresh** (fresh
 noise, FIFO bank, gate=0.15, DINO=0.7985, jump=2.86). The v74 failure modes
 (jumps, freeze, style degradation) must be addressed through a different
 mechanism than weaker correction or temporal compression.
-mechanism than weaker correction or temporal compression.
+
+## 11. Implementation follow-up
+
+The closure controls proposed in Section 7 are implemented in
+`scripts/run_v77_commit_closure_16gpu.sh`: unreliable-block triggers,
+lower correction frequency, global/per-timestep interpolation, t500-only
+correction, and ramp-in.
+
+The main post-v76 line is implemented in
+`scripts/run_v78_cache_transition_16gpu.sh`. It retains PF's persistent
+sink/middle/recent attention cache and tests training-free reliability-gated,
+staggered middle-cache updates. See
+`docs/78_cache_transition_implementation_and_experiment_plan.md`.

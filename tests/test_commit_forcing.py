@@ -271,3 +271,78 @@ def test_invalid_reference_use_is_rejected():
         assert "ORIGIN_USE" in str(error)
     else:
         raise AssertionError("expected invalid origin use to raise")
+
+
+def test_block_interval_skips_alternating_corrections():
+    controller = CommitForcingController(
+        _config(correction_block_interval=2)
+    )
+    controller.begin_block(start_frame=2, num_frames=2, episode_id=0)
+    controller.commit_clean_block(
+        kv_cache=_cache(),
+        reliability=_reliability(),
+        frame_seq_length=2,
+    )
+
+    controller.begin_block(start_frame=4, num_frames=2, episode_id=0)
+    assert not controller.should_correct(500, current_frame=4)
+    controller.begin_block(start_frame=6, num_frames=2, episode_id=0)
+    assert controller.should_correct(500, current_frame=6)
+    controller.begin_block(start_frame=8, num_frames=2, episode_id=0)
+    assert not controller.should_correct(500, current_frame=8)
+
+
+def test_correction_blend_combines_global_timestep_and_ramp_strength():
+    controller = CommitForcingController(
+        _config(
+            correction_strength=0.8,
+            timestep_strengths=((500, 0.5), (250, 1.0)),
+            correction_ramp_blocks=2,
+        )
+    )
+    controller.begin_block(start_frame=2, num_frames=2, episode_id=0)
+    source = torch.zeros(1, 2)
+    corrected = torch.ones(1, 2)
+
+    first = controller.blend_correction(
+        source,
+        corrected,
+        current_frame=2,
+        nominal_timestep=500,
+    )
+    second = controller.blend_correction(
+        source,
+        corrected,
+        current_frame=4,
+        nominal_timestep=500,
+    )
+
+    torch.testing.assert_close(first, torch.full_like(source, 0.2))
+    torch.testing.assert_close(second, torch.full_like(source, 0.4))
+
+
+def test_zero_correction_strength_returns_original_tensor():
+    controller = CommitForcingController(
+        _config(correction_strength=0.0)
+    )
+    controller.begin_block(start_frame=2, num_frames=2, episode_id=0)
+    source = torch.randn(1, 2)
+    corrected = torch.randn(1, 2)
+
+    result = controller.blend_correction(
+        source,
+        corrected,
+        current_frame=2,
+        nominal_timestep=500,
+    )
+
+    assert result is source
+
+
+def test_invalid_timestep_strength_is_rejected():
+    try:
+        _config(timestep_strengths=((750, 0.5),)).validate()
+    except ValueError as error:
+        assert "inactive timestep" in str(error)
+    else:
+        raise AssertionError("expected inactive timestep strength to raise")

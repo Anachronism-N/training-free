@@ -3,13 +3,13 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The newest method candidate is **Commit Forcing: Reliability-Gated Multiscale
-State Commit for Training-Free Long Video Extrapolation**. It treats long
-autoregressive generation as a state-admission problem: denoising-trajectory
-disagreement decides which clean states enter a bounded
-origin/compressed/recent commit bank, motion controls consolidation and
-readout, and selected references correct the main sampling path while the
-native recent cache remains unchanged.
+The newest method candidate is **Trust-Conditioned Cache Transition for
+Training-Free Long Video Extrapolation**. It retains Pyramid Forcing's
+validated sink/middle/recent attention cache, but treats persistent middle
+memory updates as state-promotion decisions. Per-layer/head K/V transition
+shock and noisy-to-clean disagreement gate candidate writes; staggered update
+phases and a commit budget prevent all heads from changing long-term context
+synchronously. Sink and recent-cache behavior remains unchanged.
 Single-prompt 30s+ extrapolation is the primary task; prompt switching is
 secondary.
 
@@ -19,10 +19,12 @@ native SF and collapsed at the same time. The result is recorded in
 `docs/73_lifecache_v3_screen_results.md`. Commit Forcing v1 produced a visible
 but limited improvement over native SF; its metrics, human review, and three
 remaining failure modes are in `docs/75_commit_forcing_v74_screen_results.md`.
-The multiscale v2 lifecycle, trajectory-coupled re-noising, provenance
-boundary, 16-GPU matrix, logs, and go/no-go rules are in
-`docs/76_multiscale_commit_bank_design_and_server_plan.md`. The v2 additions
-remain unvalidated.
+The multiscale Commit Forcing v2 screen was a negative result: trajectory
+re-noising and compressed summaries were worse than native SF, while official
+PF was the clear quality leader. Results are in
+`docs/77_commit_forcing_v76_screen_results.md`. The current implementation,
+16-GPU matrix, logs, and go/no-go rules are in
+`docs/78_cache_transition_implementation_and_experiment_plan.md`.
 The paper/code provenance ledger, license audit, high-overlap related work,
 and claim-safety rules are recorded in
 `docs/64_related_work_code_provenance_and_claims.md`.
@@ -37,21 +39,21 @@ prompt-switch/return-recall branch.
 
 ## Current Hypothesis
 
-Long AR video generation needs to answer three questions before using a state
-as long-term context:
+PF and Echo suggest that persistent native-attention memory is more effective
+than occasional pathwise correction. The current hypothesis is that long AR
+failures are also caused by **unsafe memory promotion**: an unstable generated
+block can be synchronously written into many heads and persist as future
+context.
 
-- **Should it be committed?** Estimate frame reliability from disagreement
-  among the clean predictions already produced along the denoising path.
-- **Where does it live?** Keep immutable episode origins, motion-compatible
-  multiscale summaries, exact recent commits, and the native SF recent cache
-  under separate update rules.
-- **How does it intervene?** At selected nominal diffusion timesteps, denoise
-  with the reference bank, re-noise to the same actual scheduler timestep, and
-  then denoise with the native recent context. This changes the sampling path
-  instead of weakly blending a side-memory attention output.
+- **Reliability:** compare the clean K/V candidate with the last noisy pass.
+- **Transition risk:** compare the candidate with the active committed state.
+- **Need:** require nontrivial novelty or a forced maximum age.
+- **Commit:** update only a bounded, staggered subset of heads; recent context
+  continues to update normally.
 
-Manual head/layer classes are not part of P0. They may return only if measured
-counterfactual evidence is stable across prompts and seeds.
+PF's offline head labels still select cyclic/stride/merge policy. They are not
+claimed as our contribution. Our controller decides when each existing policy
+may promote a clean block.
 
 LifeCache-v1 and CEMR remain in the repository as prior prototypes and
 ablation infrastructure.
@@ -74,7 +76,9 @@ training-free/
 |   |-- 73_lifecache_v3_screen_results.md
 |   |-- 74_commit_forcing_research_reset.md
 |   |-- 75_commit_forcing_v74_screen_results.md
-|   `-- 76_multiscale_commit_bank_design_and_server_plan.md
+|   |-- 76_multiscale_commit_bank_design_and_server_plan.md
+|   |-- 77_commit_forcing_v76_screen_results.md
+|   `-- 78_cache_transition_implementation_and_experiment_plan.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -87,6 +91,9 @@ training-free/
 |   |-- run_v69_typed_cache_16gpu.sh
 |   |-- run_v74_commit_forcing_16gpu.sh
 |   |-- run_v76_multiscale_commit_16gpu.sh
+|   |-- run_v77_commit_closure_16gpu.sh
+|   |-- run_v78_cache_transition_16gpu.sh
+|   |-- summarize_cache_transition_trace.py
 |   |-- summarize_commit_forcing_trace.py
 |   `-- ...
 |-- src/
@@ -99,7 +106,22 @@ training-free/
 
 ## Implementation Status
 
-Commit Forcing is integrated into the Self-Forcing inference path:
+Trust-conditioned transition control is integrated into both PF inference
+pipelines:
+
+- `pyramidkv/transition.py`: descriptor state, reliability/shock metrics,
+  gate/stagger/full decisions, forced refresh, and per-head JSONL diagnostics.
+- `pyramidkv/adaptive_cache.py`: intercepts clean middle writes while leaving
+  sink and recent updates on PF's original path.
+- `pipeline/pyramidkv_config.py` and `inference.py`: default-off YAML/CLI
+  controls.
+- `scripts/run_v78_cache_transition_16gpu.sh`: SF/PF/Echo baselines, audit,
+  gate, stagger, full, threshold, budget, age, and CFG-branch cells.
+- `scripts/summarize_cache_transition_trace.py`: strict layer/head mechanism
+  validation and reason/label statistics.
+
+Commit Forcing remains integrated into the Self-Forcing inference path as a
+completed secondary branch:
 
 - `commit_forcing.py`: denoising-path reliability, online latent motion,
   bounded FIFO or origin/summary/recent banks, motion-compatible multiscale
@@ -117,6 +139,8 @@ Commit Forcing is integrated into the Self-Forcing inference path:
   single-prompt screen, and four-seed native/PF/fixed-origin/hybrid confirm.
 - `scripts/run_v76_multiscale_commit_16gpu.sh`: official SF/PF/Echo baselines
   plus re-noise, cache lifecycle, motion gate, and merge-policy ablations.
+- `scripts/run_v77_commit_closure_16gpu.sh`: lower-frequency, trigger,
+  correction-strength, per-timestep, and ramp controls requested by docs/77.
 - `scripts/summarize_commit_forcing_trace.py` and `scripts/v74_postprocess.sh`:
   strict mechanism checks and post-review evaluation.
 
@@ -165,26 +189,24 @@ tensor/CUDA path still requires the server `smoke` phase.
 
 ## Experiment Entry Points
 
-The current v2 experiments are documented in:
+The current main-line experiments are documented in:
 
 ```text
-docs/76_multiscale_commit_bank_design_and_server_plan.md
+docs/78_cache_transition_implementation_and_experiment_plan.md
 ```
 
 Run the mandatory smoke test first, then the 16-GPU single-prompt screen:
 
 ```bash
-SMOKE_FRAMES=12 GPU_LIST=0,1,2,3 \
-bash scripts/run_v76_multiscale_commit_16gpu.sh smoke
+bash scripts/run_v78_cache_transition_16gpu.sh smoke
 
-GPU_LIST=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 \
-bash scripts/run_v76_multiscale_commit_16gpu.sh screen
+bash scripts/run_v78_cache_transition_16gpu.sh screen
 ```
 
-The screen separates official baselines, v74 controls, trajectory re-noising,
-multiscale history, motion-gated readout, and summary merge policies. Promote
-only cells that improve identity without worsening freeze, style shift, or
-temporal jumps.
+The screen separates official baselines, audit parity, reliability gating,
+asynchronous head updates, and the complete controller. The v77 Commit Forcing
+closure is lower priority and should be expanded only if it beats v74 on both
+identity and temporal jump.
 
 ## Third-Party Code
 

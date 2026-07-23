@@ -78,6 +78,7 @@ def summarize(path: Path) -> dict[str, Any]:
     rejection_reasons: Counter[str] = Counter()
     selected_summary_support: list[int] = []
     motion_ratios: list[float] = []
+    correction_strengths: list[float] = []
     motion_gated_selections = 0
     max_bank_size = 0
 
@@ -137,6 +138,9 @@ def summarize(path: Path) -> dict[str, Any]:
             )
             current_frame = int(event.get("current_frame", -1))
             selected_distances.extend(current_frame - int(item) for item in frames)
+            correction_strengths.append(
+                float(event.get("effective_strength", 1.0))
+            )
         elif event_type == "correction_outcome":
             outcome_disagreement.append(
                 float(
@@ -232,6 +236,7 @@ def summarize(path: Path) -> dict[str, Any]:
         "videos": len([item for item in by_video if item >= 0]),
         "event_counts": dict(sorted(event_counts.items())),
         "correction_relative_rms": correction_stats,
+        "correction_strength": _stats(correction_strengths),
         "reference_to_native_disagreement": outcome_stats,
         "frame_reliability": _stats(reliabilities),
         "motion_ratio": _stats(motion_ratios),

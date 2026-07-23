@@ -45,6 +45,17 @@ def _env_int_tuple(name: str, default: Sequence[int]) -> tuple[int, ...]:
     )
 
 
+def _env_timestep_strengths(name: str) -> tuple[tuple[int, float], ...]:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        return ()
+    result: list[tuple[int, float]] = []
+    for item in value.split(","):
+        timestep, strength = item.split(":", maxsplit=1)
+        result.append((int(timestep.strip()), float(strength.strip())))
+    return tuple(result)
+
+
 @dataclass(frozen=True)
 class CommitForcingConfig:
     enabled: bool = False
@@ -71,6 +82,10 @@ class CommitForcingConfig:
     motion_high_ratio: float = 1.35
     motion_ema_decay: float = 0.90
     renoise_mode: str = "fresh"
+    correction_block_interval: int = 1
+    correction_strength: float = 1.0
+    timestep_strengths: tuple[tuple[int, float], ...] = ()
+    correction_ramp_blocks: int = 0
     correction_seed: int = 91021
     trace_path: str | None = None
     debug: bool = False
@@ -138,6 +153,18 @@ class CommitForcingConfig:
             renoise_mode=os.environ.get(
                 "COMMIT_FORCING_RENOISE_MODE", "fresh"
             ).strip().lower(),
+            correction_block_interval=_env_int(
+                "COMMIT_FORCING_BLOCK_INTERVAL", 1
+            ),
+            correction_strength=_env_float(
+                "COMMIT_FORCING_CORRECTION_STRENGTH", 1.0
+            ),
+            timestep_strengths=_env_timestep_strengths(
+                "COMMIT_FORCING_TIMESTEP_STRENGTHS"
+            ),
+            correction_ramp_blocks=_env_int(
+                "COMMIT_FORCING_RAMP_BLOCKS", 0
+            ),
             correction_seed=_env_int("COMMIT_FORCING_SEED", 91021),
             trace_path=(
                 os.environ.get("COMMIT_FORCING_TRACE_PATH", "").strip()
@@ -272,6 +299,30 @@ class CommitForcingConfig:
             raise ValueError(
                 "COMMIT_FORCING_RENOISE_MODE must be fresh or trajectory"
             )
+        if self.correction_block_interval < 1:
+            raise ValueError("COMMIT_FORCING_BLOCK_INTERVAL must be positive")
+        if not 0.0 <= self.correction_strength <= 1.0:
+            raise ValueError(
+                "COMMIT_FORCING_CORRECTION_STRENGTH must be in [0, 1]"
+            )
+        if self.correction_ramp_blocks < 0:
+            raise ValueError("COMMIT_FORCING_RAMP_BLOCKS must be non-negative")
+        seen_strength_timesteps: set[int] = set()
+        for timestep, strength in self.timestep_strengths:
+            if timestep not in self.correction_timesteps:
+                raise ValueError(
+                    "COMMIT_FORCING_TIMESTEP_STRENGTHS contains an inactive "
+                    f"timestep: {timestep}"
+                )
+            if timestep in seen_strength_timesteps:
+                raise ValueError(
+                    "COMMIT_FORCING_TIMESTEP_STRENGTHS contains duplicates"
+                )
+            if not 0.0 <= strength <= 1.0:
+                raise ValueError(
+                    "COMMIT_FORCING_TIMESTEP_STRENGTHS values must be in [0, 1]"
+                )
+            seen_strength_timesteps.add(timestep)
 
 
 @dataclass
@@ -326,6 +377,7 @@ class CommitForcingController:
         self._latest_motion_ratio: float | None = None
         self._last_renoise_mode = config.renoise_mode
         self._last_renoise_fallback: str | None = None
+        self._last_effective_strength = 1.0
         self._correction_count = 0
         if config.trace_path:
             path = Path(config.trace_path)
@@ -364,6 +416,7 @@ class CommitForcingController:
         self._latest_motion_ratio = None
         self._last_renoise_mode = self.config.renoise_mode
         self._last_renoise_fallback = None
+        self._last_effective_strength = 1.0
         self._correction_count = 0
         self._trace(
             "video_start",
@@ -378,7 +431,11 @@ class CommitForcingController:
                 "trusted_use": self.config.trusted_use,
                 "trusted_min_gap": self.config.trusted_min_gap,
                 "admission_reliability": self.config.admission_reliability,
-                "trigger_reliability": self.config.trigger_reliability,
+            "trigger_reliability": self.config.trigger_reliability,
+            "correction_block_interval": self.config.correction_block_interval,
+            "correction_strength": self.config.correction_strength,
+            "timestep_strengths": dict(self.config.timestep_strengths),
+            "correction_ramp_blocks": self.config.correction_ramp_blocks,
                 "reliability_ema_decay": (
                     self.config.reliability_ema_decay
                 ),
@@ -622,12 +679,66 @@ class CommitForcingController:
             return False
         if not self.select_references(current_frame):
             return False
+        block_size = max(1, int(self._block_frames))
+        block_index = max(
+            0, (int(current_frame) - self.config.start_frame) // block_size
+        )
+        if block_index % self.config.correction_block_interval != 0:
+            return False
         if self.config.trigger_mode == "always":
             return True
         return (
             self._latest_reliability is not None
             and self._latest_reliability < self.config.trigger_reliability
         )
+
+    def blend_correction(
+        self,
+        input_tensor: torch.Tensor,
+        corrected_tensor: torch.Tensor,
+        *,
+        current_frame: int,
+        nominal_timestep: int,
+    ) -> torch.Tensor:
+        """Interpolate pathwise correction strength without changing re-noising."""
+
+        if input_tensor.shape != corrected_tensor.shape:
+            raise ValueError("correction blend requires matching tensor shapes")
+        timestep_scale = dict(self.config.timestep_strengths).get(
+            int(nominal_timestep), 1.0
+        )
+        block_size = max(1, int(self._block_frames))
+        block_index = max(
+            0, (int(current_frame) - self.config.start_frame) // block_size
+        )
+        ramp = 1.0
+        if self.config.correction_ramp_blocks > 0:
+            ramp = min(
+                1.0,
+                float(block_index + 1) / self.config.correction_ramp_blocks,
+            )
+        strength = max(
+            0.0,
+            min(1.0, self.config.correction_strength * timestep_scale * ramp),
+        )
+        self._last_effective_strength = strength
+        if strength == 1.0:
+            blended = corrected_tensor
+        elif strength == 0.0:
+            blended = input_tensor
+        else:
+            blended = torch.lerp(input_tensor, corrected_tensor, strength)
+        self._trace(
+            "correction_blend",
+            current_frame=int(current_frame),
+            nominal_timestep=int(nominal_timestep),
+            global_strength=self.config.correction_strength,
+            timestep_strength=timestep_scale,
+            ramp=ramp,
+            effective_strength=strength,
+            block_index=block_index,
+        )
+        return blended
 
     def select_references(self, current_frame: int) -> tuple[ReferenceFrame, ...]:
         eligible = [
@@ -1000,6 +1111,7 @@ class CommitForcingController:
             reference_prediction_rms=prediction_rms,
             correction_delta_rms=correction_delta_rms,
             relative_correction=relative_correction,
+            effective_strength=self._last_effective_strength,
             correction_index=self._correction_count,
         )
         if self.config.debug:
@@ -1010,6 +1122,7 @@ class CommitForcingController:
                 f"refs={[item.frame_id for item in selected]} "
                 f"kinds={[item.kind for item in selected]} "
                 f"renoise={self._last_renoise_mode} "
+                f"strength={self._last_effective_strength:.3f} "
                 f"rel={[round(item.reliability, 4) for item in selected]} "
                 f"input_rms={input_rms:.4f} ref_rms={prediction_rms:.4f} "
                 f"delta/input={relative_correction:.4f}",

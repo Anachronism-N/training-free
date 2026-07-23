@@ -30,6 +30,7 @@ from .cpp_strategy import (
     compile_cpp_strategy_policies,
     cpp_strategy_requested,
 )
+from .transition import CacheTransitionConfig, CacheTransitionController
 
 
 def _as_long_tensor(tensor: torch.Tensor) -> torch.Tensor:
@@ -223,6 +224,20 @@ class AdaptiveKVCache(PyramidKVCache):
         structured_memory_control_mode: str = "normal",
         structured_memory_position_mode: str = "none",
         structured_memory_prompt_prior_weight: float = 0.0,
+        cache_transition_enabled: bool = False,
+        cache_transition_mode: str = "full",
+        cache_transition_min_reliability: float = 0.55,
+        cache_transition_min_novelty: float = 0.01,
+        cache_transition_shock_weight: float = 1.0,
+        cache_transition_denoise_weight: float = 2.0,
+        cache_transition_min_interval_blocks: int = 1,
+        cache_transition_max_age_blocks: int = 6,
+        cache_transition_warmup_blocks: int = 2,
+        cache_transition_max_commit_fraction: float = 0.5,
+        cache_transition_stagger_period: int = 2,
+        cache_transition_branches: str = "both",
+        cache_transition_trace_path: str | None = None,
+        cache_transition_debug: bool = False,
     ):
         super().__init__(
             config=config,
@@ -456,6 +471,34 @@ class AdaptiveKVCache(PyramidKVCache):
             config.get_layer_labels(layer_idx)
             if hasattr(config, "get_layer_labels")
             else [1] * self.num_heads
+        )
+        transition_config = CacheTransitionConfig(
+            enabled=bool(cache_transition_enabled),
+            mode=str(cache_transition_mode),
+            min_reliability=float(cache_transition_min_reliability),
+            min_novelty=float(cache_transition_min_novelty),
+            shock_weight=float(cache_transition_shock_weight),
+            denoise_weight=float(cache_transition_denoise_weight),
+            min_interval_blocks=int(cache_transition_min_interval_blocks),
+            max_age_blocks=int(cache_transition_max_age_blocks),
+            warmup_blocks=int(cache_transition_warmup_blocks),
+            max_commit_fraction=float(cache_transition_max_commit_fraction),
+            stagger_period=int(cache_transition_stagger_period),
+            branches=str(cache_transition_branches),
+            trace_path=cache_transition_trace_path,
+            debug=bool(cache_transition_debug),
+        )
+        transition_config.validate()
+        self.cache_transition = (
+            CacheTransitionController(
+                transition_config,
+                batch_size=batch_size,
+                num_heads=num_heads,
+                layer_idx=layer_idx,
+                head_labels=self.head_labels,
+            )
+            if transition_config.enabled
+            else None
         )
         self.osc_head_flags = [int(lbl) == -1 for lbl in self.head_labels]
         self.af_head_groups = list(getattr(self, "af_group_row", [""] * self.num_heads))
@@ -741,7 +784,12 @@ class AdaptiveKVCache(PyramidKVCache):
                         self._profile_stats[key] += float(value)
 
     def _init_cpp_strategy_manager(self) -> None:
-        self._cpp_strategy_requested = cpp_strategy_requested()
+        # The C++ manager updates every head at once and cannot yet consume a
+        # per-head commit mask. Keep it off for transition experiments so a
+        # rejected Python candidate cannot leak into the readout.
+        self._cpp_strategy_requested = (
+            cpp_strategy_requested() and self.cache_transition is None
+        )
         self._cpp_strategy_manager: CppStrategyManager | None = None
         self._cpp_strategy_supported_heads: list[bool] = [False] * self.num_heads
         self._cpp_strategy_has_middle = False
@@ -1771,6 +1819,8 @@ class AdaptiveKVCache(PyramidKVCache):
         self._invalidate_readout_cache()
         self.reset_profile_stats()
         self._init_cyclic_anchor_storage()
+        if self.cache_transition is not None:
+            self.cache_transition.reset()
         if self._cpp_strategy_manager is not None:
             self._cpp_strategy_manager.reset(self.batch_size * self.num_heads)
         # Reset compositions' middle strategies if available
@@ -2261,6 +2311,23 @@ class AdaptiveKVCache(PyramidKVCache):
             self._frame_seqlen = int(frame_tokens[0].item())
         frame_seqlen = self._frame_seqlen
         frame_start_t = 0 if frame_seqlen <= 0 else int((current_start or 0) // frame_seqlen)
+        transition_mask: tuple[bool, ...] | None = None
+        if self.cache_transition is not None:
+            branch = str(getattr(self, "_cfg_branch", "cond"))
+            if cache_update_mode == "noisy":
+                self.cache_transition.observe_noisy(
+                    new_k_flat,
+                    new_v_flat,
+                    block_id=frame_start_t,
+                    branch=branch,
+                )
+            elif cache_update_mode in {"default", "clean"}:
+                transition_mask = self.cache_transition.decide_clean(
+                    new_k_flat,
+                    new_v_flat,
+                    block_id=frame_start_t,
+                    branch=branch,
+                ).commit_mask
 
         self._update_structured_memory(
             new_k,
@@ -2277,7 +2344,10 @@ class AdaptiveKVCache(PyramidKVCache):
         # 360-iter Python loop reduces to a tight per-head tail write. Skip all
         # helper-method overhead and _sync_dynamic_views (slice bounds unchanged).
         # Clean pass also inlines composition.update_all for middle strategies.
-        if self._try_fast_path_noisy_overwrite(
+        transition_allows_fast_path = (
+            self.cache_transition is None or cache_update_mode == "noisy"
+        )
+        if transition_allows_fast_path and self._try_fast_path_noisy_overwrite(
             new_k_flat=new_k_flat, new_v_flat=new_v_flat, pos_flat=pos_flat,
             l_in=l_new, current_start=current_start, current_end=current_end, cache_update_mode=cache_update_mode,
             frame_seqlen=frame_seqlen, frame_start_t=frame_start_t,
@@ -2316,7 +2386,11 @@ class AdaptiveKVCache(PyramidKVCache):
         should_reselect = (self.update_step % self.update_interval == 0)
         structural_change = False
         cpp_strategy_updated = False
-        if self.use_osc_frame_mode and cache_update_mode in {"default", "clean"}:
+        if (
+            self.cache_transition is None
+            and self.use_osc_frame_mode
+            and cache_update_mode in {"default", "clean"}
+        ):
             cpp_strategy_updated = self._try_cpp_strategy_update_all(
                 k_flat=new_k_flat,
                 v_flat=new_v_flat,
@@ -2335,7 +2409,14 @@ class AdaptiveKVCache(PyramidKVCache):
             if prompt_per_head is not None:
                 prompt_head = prompt_per_head[head_idx]
 
-            if self.use_osc_frame_mode and cache_update_mode in {"default", "clean"}:
+            allow_middle_commit = (
+                transition_mask is None or bool(transition_mask[i])
+            )
+            if (
+                allow_middle_commit
+                and self.use_osc_frame_mode
+                and cache_update_mode in {"default", "clean"}
+            ):
                 composition = (
                     self.compositions_row[head_idx]
                     if self.compositions_row is not None and head_idx < len(self.compositions_row)

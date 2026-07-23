@@ -907,6 +907,7 @@ class CausalInferencePipeline(torch.nn.Module):
                 os.environ.get("PYRAMIDKV_USE_MEGA_CACHE") == "1"
                 and hc.use_adaptive_pyramidkv
                 and hc.pyramidkv_policy_csv_path
+                and not hc.pyramidkv_cache_transition_enabled
             ):
                 osc_sink = int(hc.pyramidkv_osc_sink_frames or 1)
                 stable_sink = int(hc.pyramidkv_stable_sink_frames or 3)
@@ -1047,6 +1048,20 @@ class CausalInferencePipeline(torch.nn.Module):
                         structured_memory_control_mode=hc.pyramidkv_structured_memory_control_mode,
                         structured_memory_position_mode=hc.pyramidkv_structured_memory_position_mode,
                         structured_memory_prompt_prior_weight=hc.pyramidkv_structured_memory_prompt_prior_weight,
+                        cache_transition_enabled=hc.pyramidkv_cache_transition_enabled,
+                        cache_transition_mode=hc.pyramidkv_cache_transition_mode,
+                        cache_transition_min_reliability=hc.pyramidkv_cache_transition_min_reliability,
+                        cache_transition_min_novelty=hc.pyramidkv_cache_transition_min_novelty,
+                        cache_transition_shock_weight=hc.pyramidkv_cache_transition_shock_weight,
+                        cache_transition_denoise_weight=hc.pyramidkv_cache_transition_denoise_weight,
+                        cache_transition_min_interval_blocks=hc.pyramidkv_cache_transition_min_interval_blocks,
+                        cache_transition_max_age_blocks=hc.pyramidkv_cache_transition_max_age_blocks,
+                        cache_transition_warmup_blocks=hc.pyramidkv_cache_transition_warmup_blocks,
+                        cache_transition_max_commit_fraction=hc.pyramidkv_cache_transition_max_commit_fraction,
+                        cache_transition_stagger_period=hc.pyramidkv_cache_transition_stagger_period,
+                        cache_transition_branches=hc.pyramidkv_cache_transition_branches,
+                        cache_transition_trace_path=hc.pyramidkv_cache_transition_trace_path,
+                        cache_transition_debug=hc.pyramidkv_cache_transition_debug,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(

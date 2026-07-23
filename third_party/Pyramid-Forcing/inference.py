@@ -212,6 +212,32 @@ parser.add_argument(
     default=None,
 )
 parser.add_argument("--pyramidkv_structured_memory_prompt_prior_weight", type=float, default=None)
+parser.add_argument(
+    "--pyramidkv_cache_transition",
+    action="store_true",
+    help="Gate clean middle-cache promotion using online K/V reliability.",
+)
+parser.add_argument(
+    "--pyramidkv_cache_transition_mode",
+    choices=("audit", "gate", "stagger", "full"),
+    default=None,
+)
+parser.add_argument("--pyramidkv_cache_transition_min_reliability", type=float, default=None)
+parser.add_argument("--pyramidkv_cache_transition_min_novelty", type=float, default=None)
+parser.add_argument("--pyramidkv_cache_transition_shock_weight", type=float, default=None)
+parser.add_argument("--pyramidkv_cache_transition_denoise_weight", type=float, default=None)
+parser.add_argument("--pyramidkv_cache_transition_min_interval_blocks", type=int, default=None)
+parser.add_argument("--pyramidkv_cache_transition_max_age_blocks", type=int, default=None)
+parser.add_argument("--pyramidkv_cache_transition_warmup_blocks", type=int, default=None)
+parser.add_argument("--pyramidkv_cache_transition_max_commit_fraction", type=float, default=None)
+parser.add_argument("--pyramidkv_cache_transition_stagger_period", type=int, default=None)
+parser.add_argument(
+    "--pyramidkv_cache_transition_branches",
+    choices=("both", "cond", "uncond"),
+    default=None,
+)
+parser.add_argument("--pyramidkv_cache_transition_trace_path", type=str, default=None)
+parser.add_argument("--pyramidkv_cache_transition_debug", action="store_true")
 parser.add_argument("--dynamic_cfg_enabled", action="store_true", default=False)
 parser.add_argument("--dynamic_cfg_min_scale", type=float, default=1.0)
 parser.add_argument("--dynamic_cfg_max_scale", type=float, default=5.0)
@@ -414,6 +440,28 @@ for name in (
     value = getattr(args, f"pyramidkv_structured_memory_{name}")
     if value is not None:
         setattr(config, f"pyramidkv_structured_memory_{name}", value)
+
+if args.pyramidkv_cache_transition:
+    config.pyramidkv_cache_transition_enabled = True
+if args.pyramidkv_cache_transition_debug:
+    config.pyramidkv_cache_transition_debug = True
+for name in (
+    "mode",
+    "min_reliability",
+    "min_novelty",
+    "shock_weight",
+    "denoise_weight",
+    "min_interval_blocks",
+    "max_age_blocks",
+    "warmup_blocks",
+    "max_commit_fraction",
+    "stagger_period",
+    "branches",
+    "trace_path",
+):
+    value = getattr(args, f"pyramidkv_cache_transition_{name}")
+    if value is not None:
+        setattr(config, f"pyramidkv_cache_transition_{name}", value)
 
 # Initialize pipeline
 if hasattr(config, 'denoising_step_list'):

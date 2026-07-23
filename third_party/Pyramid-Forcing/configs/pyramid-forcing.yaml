@@ -140,3 +140,22 @@ pyramidkv_label_recent_frames_map:
 
 update_interval: 1
 pyramidkv_disable_osc_sink: false
+
+# ---------------------------------------------------------------------------
+# Trust-conditioned cache transition (project extension; disabled for the
+# exact PF baseline). Enable through inference.py CLI for ablations.
+# ---------------------------------------------------------------------------
+pyramidkv_cache_transition_enabled: false
+pyramidkv_cache_transition_mode: full
+pyramidkv_cache_transition_min_reliability: 0.55
+pyramidkv_cache_transition_min_novelty: 0.01
+pyramidkv_cache_transition_shock_weight: 1.0
+pyramidkv_cache_transition_denoise_weight: 2.0
+pyramidkv_cache_transition_min_interval_blocks: 1
+pyramidkv_cache_transition_max_age_blocks: 6
+pyramidkv_cache_transition_warmup_blocks: 2
+pyramidkv_cache_transition_max_commit_fraction: 0.5
+pyramidkv_cache_transition_stagger_period: 2
+pyramidkv_cache_transition_branches: both
+pyramidkv_cache_transition_trace_path: null
+pyramidkv_cache_transition_debug: false

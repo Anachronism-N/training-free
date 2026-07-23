@@ -121,6 +121,23 @@ class PyramidKVPipelineConfig:
     pyramidkv_structured_memory_control_mode: str = "normal"
     pyramidkv_structured_memory_position_mode: str = "none"
     pyramidkv_structured_memory_prompt_prior_weight: float = 0.0
+
+    # --- Trust-conditioned middle-cache transitions ---
+    pyramidkv_cache_transition_enabled: bool = False
+    pyramidkv_cache_transition_mode: str = "full"
+    pyramidkv_cache_transition_min_reliability: float = 0.55
+    pyramidkv_cache_transition_min_novelty: float = 0.01
+    pyramidkv_cache_transition_shock_weight: float = 1.0
+    pyramidkv_cache_transition_denoise_weight: float = 2.0
+    pyramidkv_cache_transition_min_interval_blocks: int = 1
+    pyramidkv_cache_transition_max_age_blocks: int = 6
+    pyramidkv_cache_transition_warmup_blocks: int = 2
+    pyramidkv_cache_transition_max_commit_fraction: float = 0.5
+    pyramidkv_cache_transition_stagger_period: int = 2
+    pyramidkv_cache_transition_branches: str = "both"
+    pyramidkv_cache_transition_trace_path: Optional[str] = None
+    pyramidkv_cache_transition_debug: bool = False
+
     # --- Cyclic (was phase/osc_frame) ---
     cyclic_enabled: bool = False  # was use_osc_frame_mode
     cyclic_period: int = 6  # was phase_period
@@ -341,6 +358,48 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_structured_memory_prompt_prior_weight=float(
                 getattr(args, "pyramidkv_structured_memory_prompt_prior_weight", 0.0)
+            ),
+            pyramidkv_cache_transition_enabled=bool(
+                getattr(args, "pyramidkv_cache_transition_enabled", False)
+            ),
+            pyramidkv_cache_transition_mode=str(
+                getattr(args, "pyramidkv_cache_transition_mode", "full")
+            ),
+            pyramidkv_cache_transition_min_reliability=float(
+                getattr(args, "pyramidkv_cache_transition_min_reliability", 0.55)
+            ),
+            pyramidkv_cache_transition_min_novelty=float(
+                getattr(args, "pyramidkv_cache_transition_min_novelty", 0.01)
+            ),
+            pyramidkv_cache_transition_shock_weight=float(
+                getattr(args, "pyramidkv_cache_transition_shock_weight", 1.0)
+            ),
+            pyramidkv_cache_transition_denoise_weight=float(
+                getattr(args, "pyramidkv_cache_transition_denoise_weight", 2.0)
+            ),
+            pyramidkv_cache_transition_min_interval_blocks=int(
+                getattr(args, "pyramidkv_cache_transition_min_interval_blocks", 1)
+            ),
+            pyramidkv_cache_transition_max_age_blocks=int(
+                getattr(args, "pyramidkv_cache_transition_max_age_blocks", 6)
+            ),
+            pyramidkv_cache_transition_warmup_blocks=int(
+                getattr(args, "pyramidkv_cache_transition_warmup_blocks", 2)
+            ),
+            pyramidkv_cache_transition_max_commit_fraction=float(
+                getattr(args, "pyramidkv_cache_transition_max_commit_fraction", 0.5)
+            ),
+            pyramidkv_cache_transition_stagger_period=int(
+                getattr(args, "pyramidkv_cache_transition_stagger_period", 2)
+            ),
+            pyramidkv_cache_transition_branches=str(
+                getattr(args, "pyramidkv_cache_transition_branches", "both")
+            ),
+            pyramidkv_cache_transition_trace_path=getattr(
+                args, "pyramidkv_cache_transition_trace_path", None
+            ),
+            pyramidkv_cache_transition_debug=bool(
+                getattr(args, "pyramidkv_cache_transition_debug", False)
             ),
             cyclic_enabled=getattr(args, "cyclic_enabled", use_adaptive),
             cyclic_period=getattr(args, "cyclic_period", 6),

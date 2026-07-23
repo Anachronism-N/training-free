@@ -27,6 +27,11 @@ from .factory import (
 from .config import PyramidKVConfig
 from .cache import PyramidKVCache
 from .adaptive_cache import AdaptiveKVCache
+from .transition import (
+    CacheTransitionConfig,
+    CacheTransitionController,
+    CacheTransitionDecision,
+)
 
 __all__ = [
     "FrameAnchor",
@@ -43,4 +48,7 @@ __all__ = [
     "PyramidKVConfig",
     "PyramidKVCache",
     "AdaptiveKVCache",
+    "CacheTransitionConfig",
+    "CacheTransitionController",
+    "CacheTransitionDecision",
 ]
