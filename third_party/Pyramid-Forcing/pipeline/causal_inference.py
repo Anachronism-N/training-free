@@ -323,6 +323,7 @@ class CausalInferencePipeline(torch.nn.Module):
             for cache in self.kv_cache_uncond:
                 if isinstance(cache, AdaptiveKVCache):
                     cache.structured_memory_enabled = False
+                    cache.probecache = None
                     cache._cfg_branch = "uncond"
             for cache in self.kv_cache1:
                 if isinstance(cache, AdaptiveKVCache):
@@ -338,7 +339,7 @@ class CausalInferencePipeline(torch.nn.Module):
             descriptor = embeds.detach().float().mean(dim=1).squeeze(0)
             for cache in self.kv_cache1:
                 if isinstance(cache, AdaptiveKVCache):
-                    cache._current_prompt_descriptor = descriptor
+                    cache.set_prompt_descriptor(descriptor)
 
         _set_memory_prompt_descriptor(conditional_dict)
         self._set_adaptive_kv_profile(profile)
@@ -504,8 +505,8 @@ class CausalInferencePipeline(torch.nn.Module):
                         for cache in self.crossattn_cache_uncond:
                             cache["is_init"] = False
                             cache["prompt_v"] = None
+                    _set_memory_prompt_descriptor(conditional_dicts[scene_index])
                 conditional_dict = conditional_dicts[scene_index]
-                _set_memory_prompt_descriptor(conditional_dict)
             if profile:
                 block_start.record()
                 clean_pass_start = torch.cuda.Event(enable_timing=True)
@@ -908,6 +909,7 @@ class CausalInferencePipeline(torch.nn.Module):
                 and hc.use_adaptive_pyramidkv
                 and hc.pyramidkv_policy_csv_path
                 and not hc.pyramidkv_cache_transition_enabled
+                and not hc.pyramidkv_probecache_enabled
             ):
                 osc_sink = int(hc.pyramidkv_osc_sink_frames or 1)
                 stable_sink = int(hc.pyramidkv_stable_sink_frames or 3)
@@ -1062,6 +1064,29 @@ class CausalInferencePipeline(torch.nn.Module):
                         cache_transition_branches=hc.pyramidkv_cache_transition_branches,
                         cache_transition_trace_path=hc.pyramidkv_cache_transition_trace_path,
                         cache_transition_debug=hc.pyramidkv_cache_transition_debug,
+                        probecache_enabled=hc.pyramidkv_probecache_enabled,
+                        probecache_mode=hc.pyramidkv_probecache_mode,
+                        probecache_archive_max_frames=hc.pyramidkv_probecache_archive_max_frames,
+                        probecache_persistent_top_k=hc.pyramidkv_probecache_persistent_top_k,
+                        probecache_reactive_top_k=hc.pyramidkv_probecache_reactive_top_k,
+                        probecache_recent_exclude_frames=hc.pyramidkv_probecache_recent_exclude_frames,
+                        probecache_reactive_horizon_frames=hc.pyramidkv_probecache_reactive_horizon_frames,
+                        probecache_min_reliability=hc.pyramidkv_probecache_min_reliability,
+                        probecache_min_similarity=hc.pyramidkv_probecache_min_similarity,
+                        probecache_min_margin=hc.pyramidkv_probecache_min_margin,
+                        probecache_max_entropy=hc.pyramidkv_probecache_max_entropy,
+                        probecache_retrieval_temperature=hc.pyramidkv_probecache_retrieval_temperature,
+                        probecache_min_frame_spacing=hc.pyramidkv_probecache_min_frame_spacing,
+                        probecache_prompt_weight=hc.pyramidkv_probecache_prompt_weight,
+                        probecache_prompt_min_similarity=hc.pyramidkv_probecache_prompt_min_similarity,
+                        probecache_prompt_switch_threshold=hc.pyramidkv_probecache_prompt_switch_threshold,
+                        probecache_persistent_label=hc.pyramidkv_probecache_persistent_label,
+                        probecache_reactive_labels=hc.pyramidkv_probecache_reactive_labels,
+                        probecache_layer_start=hc.pyramidkv_probecache_layer_start,
+                        probecache_layer_end=hc.pyramidkv_probecache_layer_end,
+                        probecache_trace_path=hc.pyramidkv_probecache_trace_path,
+                        probecache_debug=hc.pyramidkv_probecache_debug,
+                        probecache_profile_recent_only=hc.pyramidkv_probecache_profile_recent_only,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(

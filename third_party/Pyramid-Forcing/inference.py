@@ -238,6 +238,60 @@ parser.add_argument(
 )
 parser.add_argument("--pyramidkv_cache_transition_trace_path", type=str, default=None)
 parser.add_argument("--pyramidkv_cache_transition_debug", action="store_true")
+parser.add_argument(
+    "--pyramidkv_probecache",
+    action="store_true",
+    help="Enable counterfactually profiled dual-lifecycle direct middle slots.",
+)
+parser.add_argument(
+    "--pyramidkv_head_config_path",
+    type=str,
+    default=None,
+    help="Override both PyramidKV label and policy CSV paths.",
+)
+parser.add_argument(
+    "--pyramidkv_probecache_mode",
+    choices=("audit", "persistent", "reactive", "full"),
+    default=None,
+)
+parser.add_argument("--pyramidkv_probecache_archive_max_frames", type=int, default=None)
+parser.add_argument("--pyramidkv_probecache_persistent_top_k", type=int, default=None)
+parser.add_argument("--pyramidkv_probecache_reactive_top_k", type=int, default=None)
+parser.add_argument("--pyramidkv_probecache_recent_exclude_frames", type=int, default=None)
+parser.add_argument("--pyramidkv_probecache_reactive_horizon_frames", type=int, default=None)
+parser.add_argument("--pyramidkv_probecache_min_reliability", type=float, default=None)
+parser.add_argument("--pyramidkv_probecache_min_similarity", type=float, default=None)
+parser.add_argument("--pyramidkv_probecache_min_margin", type=float, default=None)
+parser.add_argument("--pyramidkv_probecache_max_entropy", type=float, default=None)
+parser.add_argument("--pyramidkv_probecache_retrieval_temperature", type=float, default=None)
+parser.add_argument("--pyramidkv_probecache_min_frame_spacing", type=int, default=None)
+parser.add_argument("--pyramidkv_probecache_prompt_weight", type=float, default=None)
+parser.add_argument("--pyramidkv_probecache_prompt_min_similarity", type=float, default=None)
+parser.add_argument("--pyramidkv_probecache_prompt_switch_threshold", type=float, default=None)
+parser.add_argument("--pyramidkv_probecache_persistent_label", type=int, default=None)
+parser.add_argument(
+    "--pyramidkv_probecache_reactive_labels",
+    type=str,
+    default=None,
+    help="Comma-separated labels assigned to the reactive lifecycle.",
+)
+parser.add_argument("--pyramidkv_probecache_layer_start", type=int, default=None)
+parser.add_argument("--pyramidkv_probecache_layer_end", type=int, default=None)
+parser.add_argument("--pyramidkv_probecache_trace_path", type=str, default=None)
+parser.add_argument("--pyramidkv_probecache_debug", action="store_true")
+parser.add_argument(
+    "--pyramidkv_probecache_profile_recent_only",
+    action="store_true",
+    help="Profiler intervention: attend only to the native recent window.",
+)
+parser.add_argument("--probecache_profile_output", type=str, default=None)
+parser.add_argument(
+    "--probecache_profile_kind",
+    choices=("prompt", "history"),
+    default=None,
+)
+parser.add_argument("--probecache_profile_pair_id", type=str, default=None)
+parser.add_argument("--probecache_profile_side", type=str, default=None)
 parser.add_argument("--dynamic_cfg_enabled", action="store_true", default=False)
 parser.add_argument("--dynamic_cfg_min_scale", type=float, default=1.0)
 parser.add_argument("--dynamic_cfg_max_scale", type=float, default=5.0)
@@ -463,6 +517,49 @@ for name in (
     if value is not None:
         setattr(config, f"pyramidkv_cache_transition_{name}", value)
 
+if args.pyramidkv_probecache:
+    config.pyramidkv_probecache_enabled = True
+if args.pyramidkv_head_config_path is not None:
+    config.pyramidkv_config_path = args.pyramidkv_head_config_path
+    config.pyramidkv_policy_csv_path = args.pyramidkv_head_config_path
+if args.pyramidkv_probecache_debug:
+    config.pyramidkv_probecache_debug = True
+if args.pyramidkv_probecache_profile_recent_only:
+    config.pyramidkv_probecache_profile_recent_only = True
+if args.pyramidkv_probecache_reactive_labels is not None:
+    config.pyramidkv_probecache_reactive_labels = [
+        int(value.strip())
+        for value in args.pyramidkv_probecache_reactive_labels.split(",")
+        if value.strip()
+    ]
+for name in (
+    "mode",
+    "archive_max_frames",
+    "persistent_top_k",
+    "reactive_top_k",
+    "recent_exclude_frames",
+    "reactive_horizon_frames",
+    "min_reliability",
+    "min_similarity",
+    "min_margin",
+    "max_entropy",
+    "retrieval_temperature",
+    "min_frame_spacing",
+    "prompt_weight",
+    "prompt_min_similarity",
+    "prompt_switch_threshold",
+    "persistent_label",
+    "layer_start",
+    "layer_end",
+    "trace_path",
+):
+    value = getattr(args, f"pyramidkv_probecache_{name}")
+    if value is not None:
+        setattr(config, f"pyramidkv_probecache_{name}", value)
+
+if args.probecache_profile_output:
+    os.environ["PROBECACHE_PROFILE"] = "1"
+
 # Initialize pipeline
 if hasattr(config, 'denoising_step_list'):
     # Few-step inference
@@ -636,6 +733,9 @@ try:
                     set_diagnostic_prompt_id(i)
                 except Exception as e:
                     print(f"[DIAG] Failed to set prompt id: {e}")
+            if args.probecache_profile_output:
+                from wan.modules.attention.core import set_probecache_profile_prompt_id
+                set_probecache_profile_prompt_id(i)
 
             # Generate video frames
             video, latents = pipeline.inference(
@@ -701,6 +801,27 @@ if os.environ.get("HEAD_DIAGNOSTIC", "0") == "1":
         save_diagnostic_report(diag_path)
     except Exception as e:
         print(f"[DIAG] Failed to save report: {e}")
+
+if args.probecache_profile_output:
+    try:
+        from wan.modules.attention.core import save_probecache_profile
+        profile_path = args.probecache_profile_output.format(
+            rank=int(os.environ.get("RANK", "0")),
+            pid=os.getpid(),
+        )
+        save_probecache_profile(
+            profile_path,
+            {
+                "kind": args.probecache_profile_kind,
+                "pair_id": args.probecache_profile_pair_id,
+                "side": args.probecache_profile_side,
+                "seed": int(args.seed),
+                "data_path": os.path.abspath(args.data_path),
+                "recent_only": bool(args.pyramidkv_probecache_profile_recent_only),
+            },
+        )
+    except Exception as e:
+        print(f"[ProbeCacheProfile] Failed to save profile: {e}")
 
 # Persist memory-admission statistics for every run.
 try:

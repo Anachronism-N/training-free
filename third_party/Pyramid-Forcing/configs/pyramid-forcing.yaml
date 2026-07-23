@@ -159,3 +159,30 @@ pyramidkv_cache_transition_stagger_period: 2
 pyramidkv_cache_transition_branches: both
 pyramidkv_cache_transition_trace_path: null
 pyramidkv_cache_transition_debug: false
+
+# ProbeCache extension. Disabled keeps the public PF baseline bitwise on the
+# original middle-policy path. The profile-generated CSV is supplied through
+# pyramidkv_config_path/pyramidkv_policy_csv_path in experiment commands.
+pyramidkv_probecache_enabled: false
+pyramidkv_probecache_mode: full
+pyramidkv_probecache_archive_max_frames: 24
+pyramidkv_probecache_persistent_top_k: 4
+pyramidkv_probecache_reactive_top_k: 4
+pyramidkv_probecache_recent_exclude_frames: 4
+pyramidkv_probecache_reactive_horizon_frames: 12
+pyramidkv_probecache_min_reliability: 0.55
+pyramidkv_probecache_min_similarity: 0.10
+pyramidkv_probecache_min_margin: 0.02
+pyramidkv_probecache_max_entropy: 0.95
+pyramidkv_probecache_retrieval_temperature: 0.10
+pyramidkv_probecache_min_frame_spacing: 2
+pyramidkv_probecache_prompt_weight: 0.15
+pyramidkv_probecache_prompt_min_similarity: -1.0
+pyramidkv_probecache_prompt_switch_threshold: 0.55
+pyramidkv_probecache_persistent_label: 1
+pyramidkv_probecache_reactive_labels: [-1]
+pyramidkv_probecache_layer_start: 0
+pyramidkv_probecache_layer_end: -1
+pyramidkv_probecache_trace_path: null
+pyramidkv_probecache_debug: false
+pyramidkv_probecache_profile_recent_only: false

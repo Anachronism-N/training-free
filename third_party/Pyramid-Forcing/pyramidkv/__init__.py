@@ -32,6 +32,11 @@ from .transition import (
     CacheTransitionController,
     CacheTransitionDecision,
 )
+from .probecache import (
+    ProbeCacheConfig,
+    ProbeCacheController,
+    ProbeCacheSelection,
+)
 
 __all__ = [
     "FrameAnchor",
@@ -51,4 +56,7 @@ __all__ = [
     "CacheTransitionConfig",
     "CacheTransitionController",
     "CacheTransitionDecision",
+    "ProbeCacheConfig",
+    "ProbeCacheController",
+    "ProbeCacheSelection",
 ]

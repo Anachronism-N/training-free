@@ -138,6 +138,31 @@ class PyramidKVPipelineConfig:
     pyramidkv_cache_transition_trace_path: Optional[str] = None
     pyramidkv_cache_transition_debug: bool = False
 
+    # --- ProbeCache direct middle-slot memory ---
+    pyramidkv_probecache_enabled: bool = False
+    pyramidkv_probecache_mode: str = "full"
+    pyramidkv_probecache_archive_max_frames: int = 24
+    pyramidkv_probecache_persistent_top_k: int = 4
+    pyramidkv_probecache_reactive_top_k: int = 4
+    pyramidkv_probecache_recent_exclude_frames: int = 4
+    pyramidkv_probecache_reactive_horizon_frames: int = 12
+    pyramidkv_probecache_min_reliability: float = 0.55
+    pyramidkv_probecache_min_similarity: float = 0.10
+    pyramidkv_probecache_min_margin: float = 0.02
+    pyramidkv_probecache_max_entropy: float = 0.95
+    pyramidkv_probecache_retrieval_temperature: float = 0.10
+    pyramidkv_probecache_min_frame_spacing: int = 2
+    pyramidkv_probecache_prompt_weight: float = 0.15
+    pyramidkv_probecache_prompt_min_similarity: float = -1.0
+    pyramidkv_probecache_prompt_switch_threshold: float = 0.55
+    pyramidkv_probecache_persistent_label: int = 1
+    pyramidkv_probecache_reactive_labels: list = field(default_factory=lambda: [-1])
+    pyramidkv_probecache_layer_start: int = 0
+    pyramidkv_probecache_layer_end: int = -1
+    pyramidkv_probecache_trace_path: Optional[str] = None
+    pyramidkv_probecache_debug: bool = False
+    pyramidkv_probecache_profile_recent_only: bool = False
+
     # --- Cyclic (was phase/osc_frame) ---
     cyclic_enabled: bool = False  # was use_osc_frame_mode
     cyclic_period: int = 6  # was phase_period
@@ -400,6 +425,75 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_cache_transition_debug=bool(
                 getattr(args, "pyramidkv_cache_transition_debug", False)
+            ),
+            pyramidkv_probecache_enabled=bool(
+                getattr(args, "pyramidkv_probecache_enabled", False)
+            ),
+            pyramidkv_probecache_mode=str(
+                getattr(args, "pyramidkv_probecache_mode", "full")
+            ),
+            pyramidkv_probecache_archive_max_frames=int(
+                getattr(args, "pyramidkv_probecache_archive_max_frames", 24)
+            ),
+            pyramidkv_probecache_persistent_top_k=int(
+                getattr(args, "pyramidkv_probecache_persistent_top_k", 4)
+            ),
+            pyramidkv_probecache_reactive_top_k=int(
+                getattr(args, "pyramidkv_probecache_reactive_top_k", 4)
+            ),
+            pyramidkv_probecache_recent_exclude_frames=int(
+                getattr(args, "pyramidkv_probecache_recent_exclude_frames", 4)
+            ),
+            pyramidkv_probecache_reactive_horizon_frames=int(
+                getattr(args, "pyramidkv_probecache_reactive_horizon_frames", 12)
+            ),
+            pyramidkv_probecache_min_reliability=float(
+                getattr(args, "pyramidkv_probecache_min_reliability", 0.55)
+            ),
+            pyramidkv_probecache_min_similarity=float(
+                getattr(args, "pyramidkv_probecache_min_similarity", 0.10)
+            ),
+            pyramidkv_probecache_min_margin=float(
+                getattr(args, "pyramidkv_probecache_min_margin", 0.02)
+            ),
+            pyramidkv_probecache_max_entropy=float(
+                getattr(args, "pyramidkv_probecache_max_entropy", 0.95)
+            ),
+            pyramidkv_probecache_retrieval_temperature=float(
+                getattr(args, "pyramidkv_probecache_retrieval_temperature", 0.10)
+            ),
+            pyramidkv_probecache_min_frame_spacing=int(
+                getattr(args, "pyramidkv_probecache_min_frame_spacing", 2)
+            ),
+            pyramidkv_probecache_prompt_weight=float(
+                getattr(args, "pyramidkv_probecache_prompt_weight", 0.15)
+            ),
+            pyramidkv_probecache_prompt_min_similarity=float(
+                getattr(args, "pyramidkv_probecache_prompt_min_similarity", -1.0)
+            ),
+            pyramidkv_probecache_prompt_switch_threshold=float(
+                getattr(args, "pyramidkv_probecache_prompt_switch_threshold", 0.55)
+            ),
+            pyramidkv_probecache_persistent_label=int(
+                getattr(args, "pyramidkv_probecache_persistent_label", 1)
+            ),
+            pyramidkv_probecache_reactive_labels=list(
+                getattr(args, "pyramidkv_probecache_reactive_labels", None) or [-1]
+            ),
+            pyramidkv_probecache_layer_start=int(
+                getattr(args, "pyramidkv_probecache_layer_start", 0)
+            ),
+            pyramidkv_probecache_layer_end=int(
+                getattr(args, "pyramidkv_probecache_layer_end", -1)
+            ),
+            pyramidkv_probecache_trace_path=getattr(
+                args, "pyramidkv_probecache_trace_path", None
+            ),
+            pyramidkv_probecache_debug=bool(
+                getattr(args, "pyramidkv_probecache_debug", False)
+            ),
+            pyramidkv_probecache_profile_recent_only=bool(
+                getattr(args, "pyramidkv_probecache_profile_recent_only", False)
             ),
             cyclic_enabled=getattr(args, "cyclic_enabled", use_adaptive),
             cyclic_period=getattr(args, "cyclic_period", 6),

@@ -31,6 +31,7 @@ from .cpp_strategy import (
     cpp_strategy_requested,
 )
 from .transition import CacheTransitionConfig, CacheTransitionController
+from .probecache import ProbeCacheConfig, ProbeCacheController
 
 
 def _as_long_tensor(tensor: torch.Tensor) -> torch.Tensor:
@@ -238,6 +239,29 @@ class AdaptiveKVCache(PyramidKVCache):
         cache_transition_branches: str = "both",
         cache_transition_trace_path: str | None = None,
         cache_transition_debug: bool = False,
+        probecache_enabled: bool = False,
+        probecache_mode: str = "full",
+        probecache_archive_max_frames: int = 24,
+        probecache_persistent_top_k: int = 4,
+        probecache_reactive_top_k: int = 4,
+        probecache_recent_exclude_frames: int = 4,
+        probecache_reactive_horizon_frames: int = 12,
+        probecache_min_reliability: float = 0.55,
+        probecache_min_similarity: float = 0.10,
+        probecache_min_margin: float = 0.02,
+        probecache_max_entropy: float = 0.95,
+        probecache_retrieval_temperature: float = 0.10,
+        probecache_min_frame_spacing: int = 2,
+        probecache_prompt_weight: float = 0.15,
+        probecache_prompt_min_similarity: float = -1.0,
+        probecache_prompt_switch_threshold: float = 0.55,
+        probecache_persistent_label: int = 1,
+        probecache_reactive_labels: list[int] | None = None,
+        probecache_layer_start: int = 0,
+        probecache_layer_end: int = -1,
+        probecache_trace_path: str | None = None,
+        probecache_debug: bool = False,
+        probecache_profile_recent_only: bool = False,
     ):
         super().__init__(
             config=config,
@@ -500,6 +524,53 @@ class AdaptiveKVCache(PyramidKVCache):
             if transition_config.enabled
             else None
         )
+        probecache_config = ProbeCacheConfig(
+            enabled=bool(probecache_enabled)
+            and int(probecache_layer_start) <= self.layer_idx
+            and (
+                int(probecache_layer_end) < 0
+                or self.layer_idx < int(probecache_layer_end)
+            ),
+            mode=str(probecache_mode),
+            archive_max_frames=int(probecache_archive_max_frames),
+            persistent_top_k=int(probecache_persistent_top_k),
+            reactive_top_k=int(probecache_reactive_top_k),
+            recent_exclude_frames=int(probecache_recent_exclude_frames),
+            reactive_horizon_frames=int(probecache_reactive_horizon_frames),
+            min_reliability=float(probecache_min_reliability),
+            min_similarity=float(probecache_min_similarity),
+            min_margin=float(probecache_min_margin),
+            max_entropy=float(probecache_max_entropy),
+            retrieval_temperature=float(probecache_retrieval_temperature),
+            min_frame_spacing=int(probecache_min_frame_spacing),
+            prompt_weight=float(probecache_prompt_weight),
+            prompt_min_similarity=float(probecache_prompt_min_similarity),
+            prompt_switch_threshold=float(probecache_prompt_switch_threshold),
+            persistent_label=int(probecache_persistent_label),
+            reactive_labels=tuple(
+                int(label)
+                for label in (
+                    [-1]
+                    if probecache_reactive_labels is None
+                    else probecache_reactive_labels
+                )
+            ),
+            trace_path=probecache_trace_path,
+            debug=bool(probecache_debug),
+        )
+        probecache_config.validate()
+        self.probecache = (
+            ProbeCacheController(
+                probecache_config,
+                batch_size=batch_size,
+                num_heads=num_heads,
+                layer_idx=layer_idx,
+                head_labels=self.head_labels,
+            )
+            if probecache_config.enabled
+            else None
+        )
+        self.probecache_profile_recent_only = bool(probecache_profile_recent_only)
         self.osc_head_flags = [int(lbl) == -1 for lbl in self.head_labels]
         self.af_head_groups = list(getattr(self, "af_group_row", [""] * self.num_heads))
         self.af_recent_frames_map = self._build_af_recent_frames_map(af_recent_frames_map)
@@ -1629,6 +1700,28 @@ class AdaptiveKVCache(PyramidKVCache):
     def set_prompt_values(self, prompt_v: torch.Tensor | None) -> None:
         self.prompt_v = prompt_v
 
+    def set_prompt_descriptor(self, descriptor: torch.Tensor | None) -> None:
+        self._current_prompt_descriptor = descriptor
+        if self.probecache is not None:
+            self.probecache.set_prompt_descriptor(descriptor)
+
+    def set_probecache_query(
+        self,
+        query: torch.Tensor | None,
+        *,
+        current_start: int | None,
+        cache_update_mode: str,
+    ) -> None:
+        if self.probecache is not None:
+            self.probecache.set_query(
+                query,
+                current_start=current_start,
+                cache_update_mode=cache_update_mode,
+            )
+            # ProbeCache middle slots are query-dependent. Reusing PF's packed
+            # readout would silently keep the previous query's recall result.
+            self._invalidate_readout_cache()
+
     def _update_structured_memory(
         self,
         new_k: torch.Tensor,
@@ -1791,6 +1884,8 @@ class AdaptiveKVCache(PyramidKVCache):
         self._memory_readout_heads = 0
         self._memory_accepted_heads = 0
         self._structured_memory_last_start = None
+        if self.probecache is not None:
+            self.probecache.reset()
         self.last_flat_pos_ids = None
         self.tail_len = self._base_tail_len
         self._grid_fhw = None
@@ -2312,6 +2407,7 @@ class AdaptiveKVCache(PyramidKVCache):
         frame_seqlen = self._frame_seqlen
         frame_start_t = 0 if frame_seqlen <= 0 else int((current_start or 0) // frame_seqlen)
         transition_mask: tuple[bool, ...] | None = None
+        transition_decision = None
         if self.cache_transition is not None:
             branch = str(getattr(self, "_cfg_branch", "cond"))
             if cache_update_mode == "noisy":
@@ -2322,12 +2418,24 @@ class AdaptiveKVCache(PyramidKVCache):
                     branch=branch,
                 )
             elif cache_update_mode in {"default", "clean"}:
-                transition_mask = self.cache_transition.decide_clean(
+                transition_decision = self.cache_transition.decide_clean(
                     new_k_flat,
                     new_v_flat,
                     block_id=frame_start_t,
                     branch=branch,
-                ).commit_mask
+                )
+                transition_mask = transition_decision.commit_mask
+
+        if self.probecache is not None:
+            self.probecache.update_archive(
+                new_k,
+                new_v,
+                pos_flat,
+                frame_seqlen=frame_seqlen,
+                current_start=current_start,
+                cache_update_mode=cache_update_mode,
+                transition_decision=transition_decision,
+            )
 
         self._update_structured_memory(
             new_k,
@@ -2525,11 +2633,15 @@ class AdaptiveKVCache(PyramidKVCache):
             p_merged = self.dynamic_pos[i]
 
             stable_kind = self._stable_strategy_kind(head_idx)
+            probecache_managed = (
+                self.probecache is not None
+                and self.probecache.manages_head(head_idx)
+            )
             dyn_cap = full_cap
             if self.use_osc_frame_mode and not self.is_i2v:
                 # Oscillating heads keep short local recent tail; stable heads can keep wider history
                 # and let stable policies downsample at frame level.
-                if stable_kind is None:
+                if stable_kind is None or probecache_managed:
                     dyn_cap = min(full_cap, self._head_recent_frames(head_idx) * frame_seqlen)
                 else:
                     dyn_cap = full_cap
@@ -2550,7 +2662,7 @@ class AdaptiveKVCache(PyramidKVCache):
                     v_merged = self.dynamic_v[i]
                     p_merged = self.dynamic_pos[i]
                     structural_change = True
-                if stable_kind is not None:
+                if stable_kind is not None and not probecache_managed:
                     k_merged, v_merged, p_merged = self._apply_stable_strategy(
                         head_idx=head_idx,
                         k_seq=k_merged,
@@ -3634,6 +3746,19 @@ class AdaptiveKVCache(PyramidKVCache):
         has_stat: bool,
     ) -> tuple[tuple[str, object], int]:
         n = 0
+        if self.probecache is not None:
+            probecache_collect_start = perf_counter()
+            anchors, _selection = self.probecache.collect(
+                seq_idx=seq_idx,
+                head_idx=head_idx,
+                sync_t=sync_t_raw,
+                has_static=has_stat,
+            )
+            if anchors is not None:
+                self._record_profile("collect_ms", probecache_collect_start)
+                return ("comp", anchors), sum(
+                    int(anchor.token_count) for anchor in anchors
+                )
         composition = (
             self.compositions_row[head_idx]
             if self.compositions_row is not None and head_idx < len(self.compositions_row)
@@ -3756,7 +3881,11 @@ class AdaptiveKVCache(PyramidKVCache):
             head_idx = i % self.num_heads
             seq_start = offset
             stat_k = self.static_k[i]
-            has_stat = stat_k is not None and stat_k.shape[0] > 0
+            has_stat = (
+                not self.probecache_profile_recent_only
+                and stat_k is not None
+                and stat_k.shape[0] > 0
+            )
 
             if has_stat:
                 stat_v = self.static_v[i]
@@ -3785,6 +3914,14 @@ class AdaptiveKVCache(PyramidKVCache):
             if dyn_k is not None and dyn_k.shape[0] > 0:
                 dyn_v = self.dynamic_v[i]
                 dyn_pos = self.dynamic_pos[i]
+                if self.probecache_profile_recent_only and self._frame_seqlen:
+                    recent_tokens = (
+                        self._head_recent_frames(head_idx) * self._frame_seqlen
+                    )
+                    recent_tokens = min(int(dyn_k.shape[0]), int(recent_tokens))
+                    dyn_k = dyn_k[-recent_tokens:]
+                    dyn_v = dyn_v[-recent_tokens:]
+                    dyn_pos = dyn_pos[-recent_tokens:]
                 n_d = int(dyn_k.shape[0])
                 dyn_offset = offset
                 segments.append(
@@ -3806,6 +3943,11 @@ class AdaptiveKVCache(PyramidKVCache):
                 if tail_len > 0:
                     tail_specs[i] = (dyn_offset + n_d - tail_len, tail_len)
                 offset += n_d
+
+            if self.probecache_profile_recent_only:
+                lengths[i] = offset - seq_start
+                cu_cpu[i + 1] = offset
+                continue
 
             composition = (
                 self.compositions_row[head_idx]

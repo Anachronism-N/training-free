@@ -239,10 +239,97 @@ _cfg_diag_queries = {}
 _cfg_diag_prompt_id = 0
 _cfg_diag_max_samples = 64
 
+# Compact native attention-output sketches for paired counterfactual runs.
+# Each sketch is [H, 2D] (mean and RMS), which is small enough to persist while
+# retaining output direction and channel energy for head-wise comparison.
+_probecache_profile_records = []
+_probecache_profile_calls = {}
+_probecache_profile_prompt_id = 0
+
 
 def set_diagnostic_prompt_id(prompt_id):
     global _cfg_diag_prompt_id
     _cfg_diag_prompt_id = int(prompt_id)
+
+
+def set_probecache_profile_prompt_id(prompt_id):
+    global _probecache_profile_prompt_id
+    _probecache_profile_prompt_id = int(prompt_id)
+
+
+def _record_probecache_profile_output(
+    out,
+    kv_cache,
+    current_start,
+    cache_update_mode,
+):
+    if os.environ.get("PROBECACHE_PROFILE", "0") != "1" or out.ndim != 4:
+        return
+    allowed_modes = {
+        value.strip()
+        for value in os.environ.get(
+            "PROBECACHE_PROFILE_UPDATE_MODES", "noisy,clean"
+        ).split(",")
+        if value.strip()
+    }
+    if cache_update_mode not in allowed_modes:
+        return
+    branch = str(getattr(kv_cache, "_cfg_branch", "cond"))
+    allowed_branches = {
+        value.strip()
+        for value in os.environ.get(
+            "PROBECACHE_PROFILE_BRANCHES", "cond"
+        ).split(",")
+        if value.strip()
+    }
+    if branch not in allowed_branches:
+        return
+    layer = int(getattr(kv_cache, "layer_idx", -1))
+    if layer < 0:
+        return
+    key = (
+        _probecache_profile_prompt_id,
+        layer,
+        int(current_start or 0),
+        str(cache_update_mode),
+    )
+    call_index = int(_probecache_profile_calls.get(key, 0))
+    _probecache_profile_calls[key] = call_index + 1
+    max_calls = max(1, int(os.environ.get("PROBECACHE_PROFILE_MAX_CALLS", "8")))
+    if call_index >= max_calls:
+        return
+    value = out.detach().float()
+    mean = value.mean(dim=(0, 1))
+    rms = value.square().mean(dim=(0, 1)).clamp_min(1e-12).sqrt()
+    sketch = torch.cat((mean, rms), dim=-1).to(dtype=torch.float16, device="cpu")
+    _probecache_profile_records.append(
+        {
+            "prompt_id": _probecache_profile_prompt_id,
+            "layer": layer,
+            "current_start": int(current_start or 0),
+            "cache_update_mode": str(cache_update_mode),
+            "cfg_branch": branch,
+            "call_index": call_index,
+            "sketch": sketch,
+        }
+    )
+
+
+def save_probecache_profile(output_path, metadata=None):
+    path = os.path.abspath(output_path)
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    payload = {
+        "version": 1,
+        "method": "native_attention_output_mean_rms_sketch",
+        "metadata": dict(metadata or {}),
+        "records": list(_probecache_profile_records),
+    }
+    torch.save(payload, path)
+    print(
+        f"[ProbeCacheProfile] records={len(_probecache_profile_records)} "
+        f"output={path}",
+        flush=True,
+    )
 
 
 def _record_query_signature(raw_q, kv_cache, current_start, cache_update_mode):
@@ -716,6 +803,12 @@ def pyramidkv_attention(
     )
 
     def _fuse_structured_memory(out: torch.Tensor) -> torch.Tensor:
+        _record_probecache_profile_output(
+            out,
+            kv_cache,
+            current_start,
+            cache_update_mode,
+        )
         _record_query_signature(raw_q, kv_cache, current_start, cache_update_mode)
         # Multi-step CFG pipelines can also pair cond/uncond attention outputs.
         _record_cfg_branch_output(out, kv_cache, current_start, cache_update_mode)
@@ -1154,6 +1247,13 @@ def pyramidkv_attention(
             q_frame_indices=[int(v.item()) for v in q_unique],
             k_frame_indices=[int(v.item()) for v in k_unique_global],
             capture_mode=capture_mode,
+            cache_update_mode=cache_update_mode,
+        )
+
+    if hasattr(kv_cache, "set_probecache_query"):
+        kv_cache.set_probecache_query(
+            raw_q if raw_q is not None else q,
+            current_start=current_start,
             cache_update_mode=cache_update_mode,
         )
 
