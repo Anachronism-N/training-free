@@ -155,6 +155,8 @@ run_pf() {
     fi
     mkdir -p "$output"
     (
+        source "${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}" && conda activate "${CONDA_ENV:-longlive}"
+        export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
         cd "$PF"
         export CUDA_VISIBLE_DEVICES="$gpu"
         python inference.py \
@@ -178,6 +180,8 @@ run_sf() {
     fi
     mkdir -p "$output"
     (
+        source "${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}" && conda activate "${CONDA_ENV:-longlive}"
+        export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
         cd "$SF"
         export CUDA_VISIBLE_DEVICES="$gpu"
         python inference.py \
@@ -202,6 +206,8 @@ run_v78() {
     mkdir -p "$output"
     rm -f "$trace"
     (
+        source "${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}" && conda activate "${CONDA_ENV:-longlive}"
+        export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
         cd "$PF"
         export CUDA_VISIBLE_DEVICES="$gpu"
         python inference.py \
@@ -245,6 +251,8 @@ run_ours() {
     mkdir -p "$output"
     rm -f "$trace" "$transition_trace"
     (
+        source "${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}" && conda activate "${CONDA_ENV:-longlive}"
+        export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
         cd "$PF"
         export CUDA_VISIBLE_DEVICES="$gpu"
         python inference.py \
