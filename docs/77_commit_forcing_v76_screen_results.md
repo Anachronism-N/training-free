@@ -154,4 +154,67 @@ The actual cause of v74's failure modes is likely:
 
 ## 8. Temporal jump diagnostic
 
-Pending — results to be appended when available.
+| Cell | jump_mean | Δ vs native |
+|---|---:|---:|
+| pf_official | 1.7136 | -1.6578 |
+| echo_pc | 1.7427 | -1.6286 (1/12 videos only) |
+| v74_hybrid_fresh | 2.8649 | -0.5064 |
+| ms_origin2_motion | 3.0045 | -0.3668 |
+| ms_fresh_nomotion | 3.2182 | -0.1532 |
+| ms_no_summary_read | 3.2569 | -0.1144 |
+| fifo_hybrid_trajectory | 3.2772 | -0.0941 |
+| fifo_origin2_trajectory | 3.3176 | -0.0537 |
+| ms_t250_motion | 3.3490 | -0.0224 |
+| sf_native | 3.3713 | — |
+| v74_origin2_fresh | 3.4661 | +0.0948 |
+| ms_mean_motion | 3.5339 | +0.1625 |
+| ms_full_motion | 3.6449 | +0.2735 |
+| ms_trajectory_nomotion | 3.6519 | +0.2805 |
+| ms_representative_motion | 3.7252 | +0.3539 |
+| ms_summary2_motion | 3.9470 | +0.5756 |
+
+### Key findings
+
+1. **PF is dramatically better on temporal jump**: 1.71 vs native 3.37
+   (49% reduction). PF's per-head cache policy produces far fewer
+   discontinuities.
+2. **v74_hybrid_fresh has the best jump among Commit Forcing**: 2.86 (-15%
+   vs native). This confirms the v74 result.
+3. **Trajectory re-noising INCREASES jumps** (3.28 vs 2.86 for fresh). The
+   hypothesis that fresh noise causes jumps is wrong — trajectory mode is
+   actually 14% worse on jumps.
+4. **Multiscale cells have worse jumps than FIFO** (ms_full_motion=3.64 vs
+   fifo_hybrid_trajectory=3.28). The summary bank adds temporal
+   discontinuities.
+5. **ms_full_motion (proposed v76 default) is worse than native on both
+   DINO (-0.035) AND temporal jump (+0.27).** The v76 design is a complete
+   failure.
+
+### Combined DINO + jump comparison
+
+| Cell | DINO | jump | Assessment |
+|---|---:|---:|---|
+| pf_official | 0.8257 | 1.71 | **Best overall** — far ahead |
+| v74_origin2_fresh | 0.8051 | 3.47 | Best CF DINO, but high jump |
+| v74_hybrid_fresh | 0.7985 | 2.86 | **Best CF trade-off** |
+| ms_fresh_nomotion | 0.7964 | 3.22 | Close to v74 but worse jump |
+| sf_native | 0.7811 | 3.37 | Baseline |
+| ms_full_motion | 0.7465 | 3.64 | **Worst CF** — below native on both |
+| fifo_hybrid_trajectory | 0.7419 | 3.28 | Below native on DINO |
+
+## 9. Overall conclusion
+
+The v76 screen is a clear negative result:
+
+1. **Trajectory re-noising**: fails on DINO (-0.057 vs fresh) AND fails on
+   temporal jump (+0.41 vs fresh). Both hypotheses were wrong.
+2. **Multiscale bank**: fails on DINO (-0.006 vs FIFO) AND fails on
+   temporal jump (+0.36 vs FIFO). No benefit, only added complexity.
+3. **Motion gate**: moot, since the base trajectory correction is too weak.
+4. **PF dominates** on both DINO (+0.045 vs native) and temporal jump
+   (-49% vs native). The gap is large.
+
+The best Commit Forcing configuration remains **v74_hybrid_fresh** (fresh
+noise, FIFO bank, gate=0.15, DINO=0.7985, jump=2.86). The v74 failure modes
+(jumps, freeze, style degradation) must be addressed through a different
+mechanism than weaker correction or temporal compression.
