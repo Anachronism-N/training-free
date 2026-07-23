@@ -228,15 +228,98 @@ unnecessary and harmful; it should be dropped from the default configuration.
 7. **Online routing does not beat all-head.** The online cells show similar
    or worse DINO than typed_g015_r12, with no clear advantage.
 
-## 6. Next steps
+## 6. Human review
 
-1. **Human review** of prompt 2 and 10 across sf_native, typed_g020_r12,
-   typed_g015_hard_on, and summary_only_g015.
-2. **Temporal jump diagnostic** results (pending) to evaluate rule 3.
-3. **Run PF baseline** for comparison (not included in this screen).
-4. If human review confirms visible improvement at gate=0.20 or hard-on,
-   promote that configuration to the `confirm` phase with 4 seeds.
-5. If human review shows no visible difference, increase gate to 0.25-0.30
-   or investigate whether the memory content (not just the fusion weight)
-   needs improvement.
-6. **Run the disjoint evaluation prompt suite** to test generalization.
+### 6.1 Review method
+
+Human review of prompt 0 (`0-0_ema.mp4`) across all cells. Textual
+description, no scoring.
+
+### 6.2 Findings
+
+**sf_native (prompt 0):**
+- Identity degradation begins at approximately 5 seconds.
+- Degradation progressively worsens over time, accompanied by darkening of
+  the image and background hallucinations.
+- By approximately 15 seconds, the video is completely broken and unusable.
+- This confirms the expected 21-frame sliding window forgetting behavior
+  documented in `docs/71`.
+
+**All other cells (typed_g015_r12, typed_g020_r12, typed_g015_hard_on,
+anchor_only_g015, summary_only_g015, online_b25/b50/b75, etc.):**
+- The visual result is essentially identical to sf_native.
+- The same 5-second degradation onset, progressive darkening, background
+  hallucinations, and 15-second collapse are observed.
+- No visible improvement in identity retention, illumination stability, or
+  background consistency.
+
+### 6.3 Conclusion
+
+The current LifeCache-v3 method does not produce a visible improvement over
+native Self-Forcing in 30-second single-prompt extrapolation. Despite the
+trace analysis confirming that the intervention is mechanically active
+(delta/native = 0.048 at gate=0.15, well above the 0.003 threshold), the
+effect is invisible to human observation. No further video review is needed
+to reach this conclusion.
+
+### 6.4 Interpretation: why the intervention is measurable but invisible
+
+The trace and metric data tell a consistent story when combined with the
+human review:
+
+1. **The fusion gate is too conservative.** At gate=0.15-0.20, the memory
+   branch contributes only 5-7% of the output (effective_weight ≈ 0.05-0.066).
+   This is enough to produce a measurable delta in the output tensor
+   (DINO +0.009) but not enough to change what a human sees. The identity
+   signal is overwhelmed by the native 93-95% contribution.
+
+2. **The per-prompt DINO improvement on worst prompts (p2: +0.050) is real
+   but small.** A 5% DINO improvement on a prompt that is already at 0.76
+   does not lift it to a qualitatively different state. The video still
+   collapses; it collapses slightly less.
+
+3. **The memory content may not capture the right information.** The typed
+   cache stores pooled pre-RoPE K/V. If the pooled representation does not
+   preserve the identity-discriminative features that are lost after 5
+   seconds, then reinjecting it at any gate cannot restore the lost identity.
+
+4. **The convex fusion mode may be fundamentally limited.** Even with a
+   higher gate, a convex combination of "forgotten native" and "stale memory"
+   may produce a blended output that is neither faithful to the original
+   identity nor temporally coherent. A replacement or residual injection
+   mechanism might be needed.
+
+## 7. Next steps
+
+The screen experiment has established that the current v3 configuration is
+mechanically functional but visually ineffective. The next iteration should
+address the fusion strength and mechanism, not the cache structure or routing:
+
+1. **Dramatically increase gate (0.30-0.50).** The current 0.15-0.20 range
+   was chosen to be safe, but it is too safe to be useful. A gate sweep at
+   0.30, 0.40, 0.50 with hard activation will determine whether the memory
+   content can produce a visible effect at all.
+
+2. **Test non-convex fusion modes.** Instead of `output = (1-gate) * native
+   + gate * memory`, try:
+   - Residual: `output = native + gate * (memory - native)` (amplify the
+     difference)
+   - Replacement: for selected heads, replace native K/V with memory K/V
+     entirely
+   - Gated replacement: use memory K/V when native attention confidence is
+     low
+
+3. **Audit memory content.** Extract the actual pooled K/V stored in anchors
+   and summaries and compare them against the native K/V at frame 0 and frame
+   60. If the memory does not contain identity-discriminative information,
+   no fusion strength will help.
+
+4. **Compare against PF directly.** PF retains identity visibly (docs/71).
+   Examining how PF's per-head cache composition differs from our side-memory
+   injection may reveal why PF works and we do not.
+
+5. **Drop the ramp.** The temporal jump diagnostic confirms the ramp is
+   harmful. Hard activation is better on every metric.
+
+6. **Do not run the confirm phase or evaluation prompt suite yet.** There is
+   nothing to confirm until the intervention produces a visible effect.
