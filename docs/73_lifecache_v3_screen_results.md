@@ -161,30 +161,72 @@ Prompt 10 (sf_native DINO = 0.674, worst):
 |---|---|---|
 | 1 | typed_g015_r12 visually native AND delta/native < 0.003 | **Not triggered**: delta = 0.048, but DINO Δ = +0.0013 is marginal. Human review needed. |
 | 2 | typed_g020_r12 improves identity but degrades motion | **Partially confirmed**: DINO +0.0092, drift improved. Flicker reduced (0.193 vs 0.206). Need temporal jump and human motion review. |
-| 3 | hard-on has higher jump score than smooth | **Pending**: temporal jump diagnostic running. DINO metrics favor hard-on. |
+| 3 | hard-on has higher jump score than smooth | **Not triggered**: hard-on jump = 2.6523, ramp = 2.9189. Hard-on has LOWER temporal jump. **Ramp should be dropped.** |
 | 4 | non-overlap beats overlap | **Not confirmed**: nonoverlap DINO = 0.8454 vs r12 = 0.8412, but min_DINO is worse (0.7957 vs 0.7904). Inconclusive. |
 | 5 | online_b25/b50 beats typed all-head | **Not confirmed**: online_b50 DINO = 0.8443 vs typed_g015_r12 = 0.8412, but the difference is within noise. |
 | 6 | PF remains required strong baseline | PF was not included in this screen. Must be run separately. |
 
-## 5. Preliminary conclusions
+## 5. Temporal jump diagnostic
+
+### 5.1 Method-level summary (sorted by temporal_jump mean, lower = fewer jumps)
+
+| Cell | jump_mean | jump_median | jump_p95 | app_jump | flow_jump |
+|---|---:|---:|---:|---:|---:|
+| online_no_motion_penalty | 2.4807 | 2.1693 | 5.2865 | 2.9249 | 2.0365 |
+| typed_legacy_g005_s36 | 2.6000 | 2.0165 | 5.4527 | 2.9717 | 2.2283 |
+| coverage_legacy_g005_s36 | 2.6169 | 2.1411 | 5.1043 | 2.9780 | 2.2558 |
+| typed_g015_hard_on | 2.6523 | 2.4565 | 5.6799 | 3.0432 | 2.2614 |
+| sf_native | 2.6562 | 2.3504 | 5.1303 | 3.0668 | 2.2456 |
+| typed_g015_nonoverlap | 2.6937 | 2.3664 | 4.8246 | 3.1235 | 2.2639 |
+| online_b25_g015 | 2.6961 | 2.6769 | 5.6563 | 3.0486 | 2.3435 |
+| online_b75_g015 | 2.7100 | 2.3994 | 5.7102 | 3.1255 | 2.2944 |
+| online_no_effect_floor | 2.7386 | 2.3876 | 5.1688 | 3.2120 | 2.2652 |
+| online_b50_g015 | 2.7407 | 2.4064 | 5.1772 | 3.2133 | 2.2682 |
+| anchor_only_g015 | 2.7417 | 2.4011 | 5.4306 | 3.1745 | 2.3090 |
+| typed_g010_r12 | 2.8722 | 2.7182 | 5.6868 | 3.2867 | 2.4578 |
+| summary_only_g015 | 2.8842 | 2.7900 | 5.7286 | 3.5161 | 2.2524 |
+| typed_g020_r12 | 2.9088 | 2.5786 | 5.3817 | 3.3495 | 2.4681 |
+| typed_g015_r12 | 2.9189 | 2.7113 | 5.4404 | 3.4158 | 2.4219 |
+
+### 5.2 Ramp vs hard-on (decision rule 3)
+
+| Cell | Configuration | jump_mean | DINO | min_DINO |
+|---|---|---:|---:|---:|
+| sf_native | baseline | 2.6562 | 0.8400 | 0.7929 |
+| typed_g015_hard_on | gate=0.15, ramp=0 | **2.6523** | **0.8487** | **0.8063** |
+| typed_g015_r12 | gate=0.15, ramp=12 | 2.9189 | 0.8412 | 0.7904 |
+| typed_g020_r12 | gate=0.20, ramp=12 | 2.9088 | 0.8491 | 0.8034 |
+
+**Conclusion:** Hard activation (ramp=0) has the lowest temporal jump score
+(2.6523, essentially equal to native 2.6562), while also achieving the best
+min_DINO (0.8063) and second-best DINO (0.8487). The 12-frame ramp produces
+the HIGHEST jump score (2.9189) and worse identity metrics. The ramp is both
+unnecessary and harmful; it should be dropped from the default configuration.
+
+## 6. Preliminary conclusions
 
 1. **The v3 intervention is mechanically working** (delta/native 0.048 at
    gate=0.15, 3× the old setting). The method is not a no-op.
-2. **The default gate=0.15 with ramp is too conservative.** typed_g020_r12
-   (gate=0.20) and typed_g015_hard_on (no ramp) both outperform the default
-   on DINO and drift.
-3. **The ramp does not help.** Hard activation produces better identity
-   metrics on every dimension. If the temporal jump diagnostic confirms no
-   jump increase, the ramp should be dropped.
-4. **Summary-only is surprisingly strong.** It matches or beats the combined
-   typed memory on DINO, min_DINO, and flicker. Anchor-only is weak.
-5. **The average DINO difference is small (~1%), but the per-prompt analysis
-   shows the intervention helps most where native degrades most.** This
-   suggests the metric may under-represent the visible benefit.
-6. **Human review is critical.** The metrics alone cannot determine whether
-   the intervention produces a visible identity retention improvement at
-   15-30s. The per-prompt analysis suggests reviewing prompt 2 and prompt 10
-   first.
+2. **The default gate=0.15 with ramp is too conservative AND the ramp
+   increases temporal jumps.** typed_g015_hard_on (no ramp) outperforms
+   typed_g015_r12 on every metric: DINO, min_DINO, drift, and temporal jump.
+3. **typed_g020_r12 (gate=0.20) has the best DINO but high temporal jump.**
+   The stronger intervention improves identity but introduces more temporal
+   discontinuity. typed_g015_hard_on is a better trade-off.
+4. **typed_g015_hard_on is the recommended configuration.** It achieves:
+   - DINO 0.8487 (2nd best, +0.0087 over native)
+   - min_DINO 0.8063 (best, +0.0134 over native)
+   - drift -0.00304 (least negative, slowest degradation)
+   - temporal_jump 2.6523 (≈ native, no additional discontinuity)
+5. **Summary-only is surprisingly strong** (DINO 0.8469, lowest flicker
+   0.1880) but has higher temporal jumps (2.8842). Anchor-only is weak
+   (DINO 0.8396, below native).
+6. **The average DINO difference is small (~1%), but the per-prompt analysis
+   shows the intervention helps most where native degrades most** (p2: +0.039,
+   p10: +0.035 for hard-on). Human review is needed to validate visible
+   improvement at 15-30s.
+7. **Online routing does not beat all-head.** The online cells show similar
+   or worse DINO than typed_g015_r12, with no clear advantage.
 
 ## 6. Next steps
 
