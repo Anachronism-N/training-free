@@ -170,15 +170,125 @@ Key findings:
 - **hybrid_t500_250 is the best overall trade-off**: DINO +0.017, min_DINO
   +0.055, drift -28%, temporal jump -15%, all simultaneously.
 
-## 7. Next steps
+## 7. Human review
 
-1. **Human review** — the most critical next step. If the improvement is
-   visible, proceed to confirmation.
-2. **4-seed confirmation** — if human review confirms, run
+### 7.1 Review method
+
+Human review of all 16 cells, prompt 0 (`0-0_ema.mp4`). Textual description,
+no scoring. Cells were grouped by observed quality.
+
+### 7.2 Category 1: Best cells — visible but limited improvement
+
+**Cells:** hybrid_admit015, hybrid_admit045, hybrid_origin2, hybrid_start21,
+hybrid_t250, hybrid_t500_250, hybrid_t750_500_250, hybrid_unreliable045
+
+**Observations:**
+- Slightly better than sf_native — the improvement is visible but limited.
+- After approximately 10 seconds, degradation begins:
+  - Identity degrades to nearly unusable.
+  - Overall style shifts from realistic video to a simplified, unrealistic
+    look with simpler colors and a painting-like appearance.
+  - Motion largely freezes: the character maintains one pose with only small
+    range of motion, and subsequent action is minimal.
+- These cells exhibit the PF-style frame acceleration jumps (some frames
+  change speed noticeably faster than others).
+- However, the degradation is clearly less severe than sf_native.
+
+**Interpretation:** The pathwise correction delays collapse and preserves
+some identity, but cannot prevent the fundamental trajectory drift. The
+motion freezing suggests the reference correction over-stabilizes the
+generation, suppressing natural motion. The style degradation suggests the
+model's output distribution shifts under repeated correction.
+
+### 7.3 Category 2: Middle cells — partial improvement
+
+**Cells:** hybrid_t500, hybrid_trusted2
+
+**Observations:**
+- Quality is between Category 1 and sf_native.
+- Later in the video, identity becomes completely unusable.
+- Has the darkening problem (similar to sf_native).
+
+**Interpretation:** Single-timestep correction (t500 only) is insufficient.
+hybrid_trusted2 (2 trusted frames, 0 origin used) confirms that more trusted
+frames without sufficient origin support does not help.
+
+### 7.4 Category 3: Origin cells — correction timestep trade-off
+
+**Cells:** origin_t250, origin_t500, origin_t500_250, origin_t750_500_250
+
+**Observations:**
+- **origin_t250**: Slightly better than hybrid_t500 etc., but worse than
+  Category 1. Later video darkens and loses identity.
+- **origin_t500**: In the later video, multiple visible acceleration jumps
+  per second. Identity is largely lost. No significant darkening.
+- **origin_t500_250**: More severe jump artifacts than origin_t500.
+- **origin_t750_500_250**: Even more severe jumps, progressively worse with
+  more correction timesteps.
+
+**Interpretation:** The number of correction timesteps directly controls
+temporal jump severity. More corrections → more jumps. origin_t250 (single
+low-noise correction) has the fewest jumps but also the weakest identity
+retention among origin cells. The jump pattern confirms the temporal jump
+metric: origin_t750_500_250 = 4.23 (worst).
+
+### 7.5 Category 4: Worst cell — trusted-only fails
+
+**Cells:** trusted_t500_250
+
+**Observations:**
+- **Worse than sf_native.** Significant frame jumps, each accompanied by a
+  yellowish/tan-colored frame artifact.
+
+**Interpretation:** Trusted-only memory (no origin) cannot bootstrap
+identity. The reference frames are evolving trusted states that may already
+contain errors, creating a feedback loop that amplifies artifacts. This
+confirms the DINO result (trusted_t500_250 = 0.7711, below sf_native 0.7808)
+and validates the origin frame design.
+
+### 7.6 Overall review conclusions
+
+1. **Commit Forcing produces a visible improvement over sf_native.** This is
+   a fundamental advance over LifeCache-v3, which was invisible. Gate 1
+   (mechanism works) and Gate 2 (hybrid beats origin) are confirmed by human
+   review.
+2. **The improvement is limited.** Degradation still occurs after ~10s. The
+   method delays collapse rather than preventing it.
+3. **Three remaining failure modes:**
+   - **Style simplification**: realistic → unrealistic painting-like look
+   - **Motion freezing**: character freezes in one pose
+   - **Frame acceleration jumps**: PF-style speed discontinuities
+4. **More correction timesteps increase jumps.** The t500_250 configuration
+   is the right balance; t750_500_250 is too aggressive.
+5. **Origin frames are essential.** trusted_t500_250 (no origin) is worse
+   than native.
+6. **hybrid_t500_250 remains the recommended default** — it is in Category 1
+   with the best temporal jump score among hybrid cells.
+
+### 7.7 Implications for next iteration
+
+The review reveals that the pathwise correction mechanism works but has
+side effects:
+- **Motion freezing** suggests the reference context over-constrains the
+  generation. Future work should explore weaker correction at motion-heavy
+  blocks, or correction only at identity-critical timesteps.
+- **Style simplification** suggests the model's output distribution degrades
+  under repeated re-noising. This may require a different re-noising strategy
+  or a correction schedule that adapts to video content.
+- **Frame jumps** are directly caused by correction timesteps. The
+  reliability-triggered mode (hybrid_unreliable045) may help by reducing
+  correction frequency, but it is still in Category 1, suggesting the
+  trigger threshold needs tuning.
+
+## 8. Next steps
+
+1. **VBench-Long metrics** — run 6-dimension evaluation for quantitative
+   comparison.
+2. **4-seed confirmation** — if VBench confirms, run
    `bash scripts/run_v74_commit_forcing_16gpu.sh confirm` with native, PF,
    fixed origin, and hybrid_t500_250 across 4 seeds.
 3. **PF baseline comparison** — the confirm mode includes official PF.
-4. **Consider hybrid_origin2 vs hybrid_t500_250**: origin2 has better DINO
-   but worse temporal jump; t500_250 is the better trade-off.
-5. **Consider hybrid_origin2 as the default** instead of hybrid_t500_250 if
-   the advantage holds across seeds.
+4. **Address motion freezing** — consider motion-aware correction triggering
+   or reduced correction strength at high-motion blocks.
+5. **Address style degradation** — investigate alternative re-noising
+   strategies or content-adaptive correction schedules.
