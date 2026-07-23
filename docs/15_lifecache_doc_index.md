@@ -2,10 +2,17 @@
 
 ## Current method (read first)
 
+- `docs/74_commit_forcing_research_reset.md`: current research reset after the
+  visually negative LifeCache-v3 result. Defines reliability-gated state
+  admission, the bounded origin/trusted/native-recent lifecycle, pathwise
+  reference correction, independent TTC/PF baselines, implementation files,
+  16-GPU commands, trace invariants, and paper go/no-go rules.
+- `docs/73_lifecache_v3_screen_results.md`: completed 16-cell result and human
+  review. The intervention is mechanically active but visually equivalent to
+  native SF; this is the evidence for stopping side-output fusion tuning.
 - `docs/72_lifecache_v3_post_review_optimization.md`: newest response to the
-  first 30-second human review; replaces weak late activation with a smooth
-  measurable intervention band, revises the 16-GPU screen, adds temporal-jump
-  diagnostics, and defines promotion rules.
+  first 30-second human review; historical design that was tested by docs/73
+  and is no longer the recommended method.
 - `docs/71_human_review_and_code_alignment.md`: historical first-run evidence:
   native SF degrades, PF preserves identity but can jump, old ours cells were
   functionally native, and Echo OOMed on a partially occupied H20.
@@ -30,7 +37,12 @@
 - `docs/55_cemr_ceg_full_idea_spec.md`: strongest CEMR/CEG evidence and unresolved episode-selection failure.
 - `docs/47_current_idea_full_description.md`: earlier structured-memory direction and experiment history.
 
-The current candidate is scope-conditioned evidence-gated historical recall. Review `docs/69_paper_alignment_canonical_experiments.md` first. Use `docs/68_single_prompt_continuity_recall.md` for implementation details and `docs/67_post_sweep_optimization_and_server_protocol.md` for the prompt-switch history. LifeCache-v1 below is retained as the original design history, not the recommended first experiment.
+The current candidate is Commit Forcing. Review
+`docs/74_commit_forcing_research_reset.md` first and use docs/73 as its
+experimental motivation. Docs/69-72 describe the superseded LifeCache/HREM
+route and remain necessary for baseline history and negative-result reporting.
+LifeCache-v1 below is retained as the original design history, not the
+recommended first experiment.
 
 ## Original LifeCache-v1 documents
 

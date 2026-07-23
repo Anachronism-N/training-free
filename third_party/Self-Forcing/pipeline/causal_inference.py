@@ -144,8 +144,9 @@ class CausalInferencePipeline(torch.nn.Module):
 
         # Step 2: Initialize all causal hyperparmeters
         self.scheduler = self.generator.get_scheduler()
-        self.denoising_step_list = torch.tensor(
+        self.nominal_denoising_step_list = torch.tensor(
             args.denoising_step_list, dtype=torch.long)
+        self.denoising_step_list = self.nominal_denoising_step_list.clone()
         if args.warp_denoising_step:
             timesteps = torch.cat((self.scheduler.timesteps.cpu(), torch.tensor([0], dtype=torch.float32)))
             self.denoising_step_list = timesteps[1000 - self.denoising_step_list]
@@ -210,6 +211,58 @@ class CausalInferencePipeline(torch.nn.Module):
             and self.lifecache_manager is None
         ):
             self._init_structured_memory()
+
+        # --- Commit Forcing: reliability-gated pathwise correction -------
+        # The reference cache participates in a complete extra denoising
+        # forward at selected timesteps. It is not fused into attention
+        # outputs, so it can alter the sampling trajectory at native scale.
+        self.commit_forcing = None
+        if os.environ.get("COMMIT_FORCING_ENABLE", "0") == "1":
+            if (
+                self.lifecache_manager is not None
+                or self.structured_memory_archives is not None
+                or os.environ.get("HEAD_ROLE_ENABLE", "0") == "1"
+                or bool(
+                    os.environ.get("SF_FULL_ATTN_MAX_FRAMES", "").strip()
+                )
+                or os.environ.get("SCENE_TRANSITION_RESET", "0") == "1"
+            ):
+                raise ValueError(
+                    "Commit Forcing must be screened without LifeCache or "
+                    "Structured Memory, legacy Head Role, full-attention "
+                    "overrides, or scene-reset interventions enabled"
+                )
+            from lifecycle_kv.commit_forcing import CommitForcingController
+
+            self.commit_forcing = CommitForcingController.from_env()
+            if self.commit_forcing is None:
+                raise RuntimeError(
+                    "COMMIT_FORCING_ENABLE=1 did not create a controller"
+                )
+            for block in self.generator.model.blocks:
+                block.self_attn._commit_forcing_capture_pre_rope = True
+            cfg = self.commit_forcing.config
+            commit_schedule = list(
+                zip(
+                    self.nominal_denoising_step_list.tolist(),
+                    [
+                        float(item.item())
+                        for item in self.denoising_step_list
+                    ],
+                )
+            )
+            print(
+                "[CommitForcing] "
+                f"timesteps={list(cfg.correction_timesteps)} "
+                f"schedule={commit_schedule} "
+                f"start_frame={cfg.start_frame} "
+                f"trigger={cfg.trigger_mode} "
+                f"references={cfg.reference_mode} "
+                f"capacity={cfg.reference_capacity} "
+                f"origin={cfg.origin_capacity}/{cfg.origin_use} "
+                f"trusted_use={cfg.trusted_use}",
+                flush=True,
+            )
 
         # --- Head-Role-Aware Memory (HRAM) --------------------------------
         # Simple per-head cache clearing at scene boundaries.
@@ -795,11 +848,17 @@ class CausalInferencePipeline(torch.nn.Module):
                 It is normalized to be in the range [0, 1].
         """
         batch_size, num_frames, num_channels, height, width = noise.shape
+        if self.commit_forcing is not None and batch_size != 1:
+            raise ValueError(
+                "Commit Forcing currently requires inference batch_size=1"
+            )
         trace_video_index = self._latent_trace_video_index
         self._latent_trace_video_index += 1
         if self.structured_memory_archives is not None:
             for archive in self.structured_memory_archives:
                 archive.set_trace_trajectory(trace_video_index)
+        if self.commit_forcing is not None:
+            self.commit_forcing.reset(trace_video_index)
         if self.latent_trace is not None:
             self.latent_trace.write({
                 "event": "video_start",
@@ -974,6 +1033,10 @@ class CausalInferencePipeline(torch.nn.Module):
                     working_cache_reset = False
                     for cache in self.crossattn_cache:
                         cache["is_init"] = False
+                    if self.commit_forcing is not None:
+                        self.commit_forcing.start_episode(
+                            scene_index, current_start_frame
+                        )
 
                     # Fair scene-formation control: all reset-based cells start
                     # B/A2 with an empty native working cache, while structured
@@ -1057,14 +1120,96 @@ class CausalInferencePipeline(torch.nn.Module):
             noisy_input = noise[
                 :, current_start_frame - num_input_frames:current_start_frame + current_num_frames - num_input_frames]
 
+            if self.commit_forcing is not None:
+                self.commit_forcing.begin_block(
+                    start_frame=current_start_frame,
+                    num_frames=current_num_frames,
+                    episode_id=active_scene_index,
+                )
+
             # Step 3.1: Spatial denoising loop
             for index, current_timestep in enumerate(self.denoising_step_list):
                 print(f"current_timestep: {current_timestep}")
+                nominal_timestep_value = int(
+                    self.nominal_denoising_step_list[index].item()
+                )
                 # set current timestep
                 timestep = torch.ones(
                     [batch_size, current_num_frames],
                     device=noise.device,
                     dtype=torch.int64) * current_timestep
+
+                actual_timestep_value = float(current_timestep.item())
+                reference_prediction_for_diagnostic = None
+                if (
+                    self.commit_forcing is not None
+                    and self.commit_forcing.should_correct(
+                        nominal_timestep_value, current_start_frame
+                    )
+                ):
+                    patch = tuple(
+                        getattr(self.generator.model, "patch_size", (1, 2, 2))
+                    )
+                    grid_h = height // int(patch[1])
+                    grid_w = width // int(patch[2])
+                    if grid_h * grid_w != self.frame_seq_length:
+                        raise RuntimeError(
+                            "Commit Forcing grid does not match "
+                            f"frame_seq_length: {grid_h}*{grid_w}!="
+                            f"{self.frame_seq_length}"
+                        )
+                    from wan.modules.causal_model import causal_rope_apply
+
+                    reference_cache, selected_references = (
+                        self.commit_forcing.build_reference_cache(
+                            current_frame=current_start_frame,
+                            current_num_frames=current_num_frames,
+                            frame_seq_length=self.frame_seq_length,
+                            grid_h=grid_h,
+                            grid_w=grid_w,
+                            kv_template=self.kv_cache1,
+                            freqs=self.generator.model.freqs,
+                            rope_apply=causal_rope_apply,
+                        )
+                    )
+                    if not reference_cache:
+                        raise RuntimeError(
+                            "correction was selected without a reference cache"
+                        )
+                    correction_input = noisy_input
+                    _, reference_prediction = self.generator(
+                        noisy_image_or_video=correction_input,
+                        conditional_dict=conditional_dict,
+                        timestep=timestep,
+                        kv_cache=reference_cache,
+                        crossattn_cache=self.crossattn_cache,
+                        current_start=current_start_frame
+                        * self.frame_seq_length,
+                        structured_memory_archives=None,
+                        structured_memory_config=None,
+                        structured_memory_mode="noisy",
+                    )
+                    correction_noise = self.commit_forcing.correction_noise(
+                        reference_prediction,
+                        current_start_frame,
+                        actual_timestep_value,
+                    )
+                    corrected_noisy_input = self.scheduler.add_noise(
+                        reference_prediction.flatten(0, 1),
+                        correction_noise.flatten(0, 1),
+                        timestep.flatten(0, 1),
+                    ).unflatten(0, reference_prediction.shape[:2])
+                    self.commit_forcing.record_correction(
+                        current_frame=current_start_frame,
+                        nominal_timestep=nominal_timestep_value,
+                        actual_timestep=actual_timestep_value,
+                        references=selected_references,
+                        input_tensor=correction_input,
+                        corrected_tensor=corrected_noisy_input,
+                        reference_prediction=reference_prediction,
+                    )
+                    noisy_input = corrected_noisy_input
+                    reference_prediction_for_diagnostic = reference_prediction
 
                 if index < len(self.denoising_step_list) - 1:
                     _, denoised_pred = self.generator(
@@ -1097,6 +1242,21 @@ class CausalInferencePipeline(torch.nn.Module):
                         structured_memory_archives=self.structured_memory_archives,
                         structured_memory_config=self.structured_memory_config,
                         structured_memory_mode="noisy",
+                    )
+
+                if self.commit_forcing is not None:
+                    if reference_prediction_for_diagnostic is not None:
+                        self.commit_forcing.record_correction_outcome(
+                            current_frame=current_start_frame,
+                            nominal_timestep=nominal_timestep_value,
+                            actual_timestep=actual_timestep_value,
+                            reference_prediction=(
+                                reference_prediction_for_diagnostic
+                            ),
+                            native_prediction=denoised_pred,
+                        )
+                    self.commit_forcing.observe_prediction(
+                        nominal_timestep_value, denoised_pred
                     )
 
             # Step 3.2: record the model's output
@@ -1132,6 +1292,14 @@ class CausalInferencePipeline(torch.nn.Module):
             # LifeCache v2: end capture after context refresh
             if self.lifecache_manager is not None:
                 self.lifecache_manager.runtime.end_capture()
+
+            if self.commit_forcing is not None:
+                block_reliability = self.commit_forcing.finalize_block()
+                self.commit_forcing.commit_clean_block(
+                    kv_cache=self.kv_cache1,
+                    reliability=block_reliability,
+                    frame_seq_length=self.frame_seq_length,
+                )
 
             # --- Structured memory: commit clean-context K/V frames ------
             # The clean-context forward above wrote the just-denoised block

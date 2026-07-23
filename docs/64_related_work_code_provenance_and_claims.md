@@ -1,10 +1,11 @@
-# HREM-v2 Related Work, Code Provenance, and Claim-Safety Ledger
+# Training-Free Long Video Related Work, Code Provenance, and Claim-Safety Ledger
 
-> 更新日期：2026-07-22
+> 更新日期：2026-07-23
 >
 > 目的：记录本项目使用、移植、参考和待评估的论文与代码，约束论文叙事和代码复用，降低错误归属、遗漏引用、代码许可证违规和学术不端风险。
 >
-> 范围：当前 `third_party/`、HREM-v2 主路径以及历史 LifeCache/CEMR/HREM 原型。
+> 范围：当前 `third_party/`、Commit Forcing 主路径以及历史
+> LifeCache/CEMR/HREM 原型。
 >
 > 注意：本文是研究与工程台账，不替代学校、会议或律师对许可证和科研伦理的正式意见。
 
@@ -114,6 +115,28 @@ Git 历史可以证明本项目内部实现的演化顺序，但不能单独证�
 
 > We introduce the first episodic KV archive / the first head-aware memory attention / a novel pre-RoPE memory.
 
+### 1.4 2026-07-23 research reset：Commit Forcing
+
+`docs/73_lifecache_v3_screen_results.md` 已经证明：LifeCache-v3 的
+side-memory fusion 虽然机械生效，但没有可见收益；online head routing 也没有优于
+all-head。上面的 HREM-v2 来源图因此保留为历史台账，不再代表推荐投稿方法。
+
+当前新增路径的来源如下：
+
+| Commit Forcing 组件 | 当前代码 | 来源标签 | 最接近工作 | 允许的归属 |
+|---|---|---|---|---|
+| SF backbone、rolling cache、四步 denoising | `third_party/Self-Forcing/` | **PORTED / BASE** | Self-Forcing | 明确写为 SF 推理扩展 |
+| reference denoise -> re-noise -> native-context denoise | `pipeline/causal_inference.py` | **INSPIRED / INDEPENDENT REIMPLEMENTATION** | Pathwise TTC | 必须引用 TTC；fixed-origin 只能作为 prior baseline |
+| denoising prediction disagreement reliability | `src/lifecycle_kv/commit_forcing.py` | **PROJECT-DESIGNED FORMULA** | diffusion uncertainty/consistency 的一般思想 | 可作为候选公式，需证明能预测后续失败 |
+| origin/trusted state admission 与更新 | 同上 | **PROJECT-DESIGNED COMBINATION** | TTC fixed anchor、Echo snapshots、一般 bounded memory | 可主张 reliability-gated state commit 组合，不能把 anchor/FIFO 单独写成创新 |
+| clean pre-RoPE full-frame K/V snapshot | 同上与 `causal_model.py` | **PROJECT-DESIGNED IMPLEMENTATION / COMMON** | MemRoPE、cache memory work | 只作为实现选择 |
+| adjacent reference RoPE | `build_reference_cache` | **PROJECT-DESIGNED IMPLEMENTATION / COMMON** | PF、MemRoPE、Echo 的 position-safe 思想 | 必须引用 position-safe memory 先例，不把 re-RoPE 本身作为贡献 |
+| strict trace 与 native fail-off | analyzer 与 env gating | **PROJECT-DESIGNED CONTROL PROTOCOL** | 一般可审计实验 | 可作为 reproducibility 贡献，不是生成算法创新 |
+
+`src/lifecycle_kv/commit_forcing.py` 没有从 Pathwise TTC 仓库复制源码。
+截至审计时，其公开仓库只有 `README.md` 和 assets；本地实现根据论文公开流程独立完成。
+如果后续 upstream 发布源码，必须重新做逐文件碰撞和许可证审计。
+
 ## 2. 与当前论文故事碰撞最高的工作
 
 ### 2.1 Self-Forcing
@@ -179,11 +202,29 @@ Git 历史可以证明本项目内部实现的演化顺序，但不能单独证�
 - 关键差异候选：Forcing-KV 主要做 head-specific KV compression/acceleration；HREM-v2 尝试做历史 episode readout eligibility。
 - 风险：若论文将 K/V persistence 直接解释成 static/dynamic head 分类，必须承认 Forcing-KV 的先例，并证明我们的在线证据、任务和干预对象不同。
 
+### 2.7 Pathwise Test-Time Correction
+
+- 论文：[Pathwise Test-Time Correction for Autoregressive Long Video Generation](https://arxiv.org/abs/2602.05871)
+- 原始代码页：[xbxsxp9/Pathwise_TTC](https://github.com/xbxsxp9/Pathwise_TTC)
+- 本地状态：未 vendored；截至 2026-07-23，公开仓库只有 README 和 assets，未发现可复制实现。
+- 我们直接参考：低噪声阶段 reference-conditioned prediction、恢复到同一噪声等级、再用原 AR context denoise。
+- 必须作为 baseline：固定 initial/origin reference 的 correction。
+- 候选差异：我们用现有多步 denoising prediction disagreement 做 state admission，并维护 bounded origin + online trusted state bank；reference 不再固定为 initial frame。
+- 决定性风险：如果 dynamic hybrid 不优于 fixed origin，可靠状态提交的新增贡献不成立；不能把 TTC 改名后作为本项目方法。
+
+### 2.8 Future Forcing
+
+- 论文：[Future Forcing: Future-aware Training-free KV Cache Policy for Autoregressive Video Generation](https://arxiv.org/abs/2605.30083)
+- 本地状态：未 vendored；当前只做论文级审计。
+- 其核心先例：利用 canonical pre-RoPE query 的近似稳定性估计 future query，并做 future-aware cache eviction/merge。
+- 与当前方法差异：Commit Forcing 的判断对象是“generated state 是否可长期提交”，证据是同一 block 的 denoising trajectory，作用位置是 pathwise sampling correction；当前不预测 future query，也不做 token eviction/merge。
+- 禁止 claim：不能把 query stationarity、future proxy、future-aware cache policy 或 eviction/merge 归为本项目原创。
+
 ## 3. 完整 third-party 论文与代码台账
 
 “许可证”只表示当前本地顶层文件的人工检查结果；未检测到不等于没有许可证，使用前必须再次核验 upstream。
 
-| 本地目录 | 论文 | 原始代码 | 本地状态/许可证 | 与 HREM-v2 的关系 |
+| 本地目录 | 论文 | 原始代码 | 本地状态/许可证 | 与本项目的关系 |
 |---|---|---|---|---|
 | `Self-Forcing` | [Self Forcing](https://arxiv.org/abs/2506.08009) | [guandeh17/Self-Forcing](https://github.com/guandeh17/Self-Forcing) | 已 vendored；Apache-2.0 | **直接基座和修改目标** |
 | `Causal-Forcing` | [Causal Forcing](https://arxiv.org/abs/2602.02214), [Causal Forcing++](https://arxiv.org/abs/2605.15141) | [thu-ml/Causal-Forcing](https://github.com/thu-ml/Causal-Forcing) | 已 vendored；Apache-2.0 | 替代高动态 backbone 和跨基座验证 |
@@ -204,6 +245,8 @@ Git 历史可以证明本项目内部实现的演化顺序，但不能单独证�
 | `MotionCache` | [Motion-Aware Caching for Efficient AR Video Generation](https://arxiv.org/abs/2605.01725) | [MAC-AutoML/MotionCache](https://github.com/MAC-AutoML/MotionCache) | 已 vendored；**未检测到顶层 license** | motion importance 可用于诊断；主要是 denoising acceleration |
 | `FlowCache` | [Flow Caching for Autoregressive Video Generation](https://arxiv.org/abs/2602.10825) | [mikeallen39/FlowCache](https://github.com/mikeallen39/FlowCache) | 已 vendored；**未检测到顶层 license** | chunkwise cache reuse 和固定预算 compression；主要是效率 |
 | `SWIFT` | [Prompt-Adaptive Memory for Efficient Interactive Long Video Generation](https://arxiv.org/abs/2605.09442) | [ShanwenTan/SWIFT](https://github.com/ShanwenTan/SWIFT) | 已 vendored；Apache-2.0 | **semantic/head-wise memory 高碰撞近邻** |
+| 未 vendored | [Pathwise TTC](https://arxiv.org/abs/2602.05871) | [xbxsxp9/Pathwise_TTC](https://github.com/xbxsxp9/Pathwise_TTC) | README/assets；未复制代码；license 需在源码发布后重审 | **当前 path correction 的最近先例与固定首帧 baseline** |
+| 未 vendored | [Future Forcing](https://arxiv.org/abs/2605.30083) | 未记录未经核验的代码链接 | 论文级审计 | future-query cache policy 高碰撞先例 |
 
 ## 4. 后续可使用的工作及优先级
 
@@ -372,20 +415,26 @@ Git 历史可以证明本项目内部实现的演化顺序，但不能单独证�
 
 ## 8. 当前结论
 
-当前最可辩护的潜在贡献不是 archive、retrieval、scene recall、head specialization、pre-RoPE memory 或 independent attention 中的任何单项，而是：
+LifeCache-v3 的完整 screen 和人工 review 已否定“继续微调 side-memory
+fusion/head routing 就能获得可见提升”的当前假设。当前最可辩护、但仍待验证的
+潜在贡献改为：
 
 ```text
-explicit non-recent episode admission
-  + online per-head admission
-  + uncertainty-aware bounded readout
-  + causal controls that isolate each decision
+denoising-trajectory disagreement
+  -> reliability-gated generated-state admission
+  -> bounded origin + trusted state lifecycle
+  -> temporary pathwise correction with native recent-context recovery
 ```
 
-这仍然是“待文献检索和实验支持的项目设计”，不是已经确认的新颖贡献。下一轮最重要的工作不是继续堆叠更多相关方法，而是：
+其中 pathwise correction 明确继承 Pathwise TTC 思想；候选新增点只能是
+reliability-gated state commit 及其受控生命周期。下一轮必须依次回答：
 
-1. 完成 SWIFT/Echo/LongLive-RAG/PF/Forcing-KV 的逐项碰撞审计；
-2. 用当前 P0 结果判断 online head admission 是否成立；
-3. 若不成立，主动缩减到可验证的 selective episodic recall 或诊断故事；
-4. 只有在贡献边界清楚后，再引入 MemRoPE position、CPU offload 或 sparse attention。
+1. fixed-origin TTC-style correction 在当前 SF base 上是否真的改善可见质量；
+2. dynamic hybrid 是否稳定优于 fixed origin，而不是只优于 native；
+3. reliability 是否预测未来 block 的质量下降；
+4. 在同 prompt、frame、seed 和 checkpoint 下是否能与官方 PF 公平比较；
+5. 若任一步不成立，停止包装该贡献并按 docs/74 的 fallback 收缩。
 
-这种收缩不会削弱学术价值。相反，它能确保论文的每个 claim 都可由代码、实验和正确引用支撑。
+Head/layer 分类不再是 P0 贡献。只有新的跨 prompt/seed counterfactual
+evidence 证明其稳定有效后才允许恢复。这样可以避免在无收益时继续靠术语区分 PF，
+并确保每个 claim 都由代码、实验和正确引用支撑。

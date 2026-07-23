@@ -323,7 +323,14 @@ class CausalWanSelfAttention(nn.Module):
                 structured_memory_archive is not None
                 and bool(getattr(structured_memory_archive, "_sm_active", True))
             )
-            capture_pre_rope = lifecache_layer_enabled or structured_memory_active
+            commit_forcing_capture = bool(
+                getattr(self, "_commit_forcing_capture_pre_rope", False)
+            ) and not bool(kv_cache.get("disable_commit_capture", False))
+            capture_pre_rope = (
+                lifecache_layer_enabled
+                or structured_memory_active
+                or commit_forcing_capture
+            )
             # --- Anchor-Adjacent RoPE (AAR) ---------------------------------
             # BUG (doc 102/103): sink frames are stored pre-roped at absolute
             # positions 0..sink-1 and never refreshed. As current_start_frame

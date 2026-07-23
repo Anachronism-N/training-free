@@ -3,6 +3,29 @@
 > 用途：在方法尚未完全圈定时完成 AAAI paper registration。
 > 原则：固定研究问题与论文主线，不锁死 HREM-v2、episode/head 公式或具体实现名称；不写尚未获得的实验结果。
 
+## 0. 2026-07-23 current registration update
+
+LifeCache-v3 已完成负结果审查，当前方法转向 reliability-aware state commit。
+为了继续允许 admission signal、reference bank 和 correction path 调整，推荐更新为：
+
+```text
+When to Reuse: Reliable State Guidance for Training-Free Long Video Generation
+```
+
+中文参考：
+
+```text
+何时复用：面向免训练长视频生成的可靠状态引导
+```
+
+当前无结果英文摘要：
+
+> Autoregressive video diffusion models efficiently extend video generation through cached temporal context, but their quality often degrades over long horizons as generated errors are repeatedly promoted into future conditioning states. Existing training-free cache policies mainly study which historical tokens to retain, while paying less attention to whether a generated state is reliable enough for long-term reuse. We study reliability-aware state guidance for training-free long video generation. Our framework estimates frame-level reliability from disagreement among clean predictions already produced along the model's denoising trajectory, requiring neither additional training nor an auxiliary quality model. It maintains a bounded set of origin and trusted states alongside the native recent cache. Building on reference-conditioned pathwise correction, selected states temporarily guide denoising at low-noise timesteps before generation returns to the original autoregressive context. This separates state admission from state use and allows unreliable history to be rejected without changing model parameters. We evaluate the framework primarily on complex single-prompt long-video extrapolation, with prompt transitions as a secondary setting, measuring identity, background, motion, temporal artifacts, visual quality, memory, and latency. Controlled comparisons against fixed-reference correction and cache-policy baselines isolate the contribution of reliability-gated state commit.
+
+该版本不声称结果，不把 pathwise correction 归为本项目原创，也没有写死具体
+reliability 公式。下面的 `When to Remember` 版本保留为历史 registration-v0，
+不应再用于当前完整摘要。
+
 ## 1. 推荐注册标题
 
 ```text

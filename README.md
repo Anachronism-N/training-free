@@ -3,18 +3,22 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The newest method candidate is **LifeCache-v3: Half-Life-Aware Typed Historical
-Memory with Intervention Routing**. It keeps exact appearance/state anchors,
-temporally aggregated state summaries, and the native Self-Forcing recent
-window under separate update rules. Historical memory is routed by measured
-counterfactual and online intervention utility rather than manually named head
-roles. Single-prompt 30s+ extrapolation is the primary task; scoped scene return
-is secondary. These mechanisms are hypotheses pending GPU experiments, not
-established quality improvements.
-The first 30-second human review and the resulting smooth-activation,
-effect-aware correction are recorded in
-`docs/71_human_review_and_code_alignment.md` and
-`docs/72_lifecache_v3_post_review_optimization.md`.
+The newest method candidate is **Commit Forcing: Reliability-Gated State
+Commit for Training-Free Long Video Extrapolation**. It treats long
+autoregressive generation as a state-admission problem: denoising-trajectory
+disagreement decides which clean states may enter a bounded origin/trusted
+reference bank, and selected references correct the main sampling path at
+low-noise timesteps while the native recent cache remains unchanged.
+Single-prompt 30s+ extrapolation is the primary task; prompt switching is
+secondary.
+
+This reset follows the completed LifeCache-v3 screen: the side-memory
+intervention was measurable but all variants were visually equivalent to
+native SF and collapsed at the same time. The result is recorded in
+`docs/73_lifecache_v3_screen_results.md`. The new method, implementation,
+16-GPU experiment matrix, provenance boundary, logs, and go/no-go rules are in
+`docs/74_commit_forcing_research_reset.md`. Commit Forcing is an unvalidated
+prototype, not an established quality improvement.
 The paper/code provenance ledger, license audit, high-overlap related work,
 and claim-safety rules are recorded in
 `docs/64_related_work_code_provenance_and_claims.md`.
@@ -22,29 +26,28 @@ The latest single-prompt correction, server matrix, debug invariants, and
 go/no-go rules are in `docs/68_single_prompt_continuity_recall.md`.
 The current paper alignment, canonical PF/Echo baselines, review-first protocol,
 and server commands are in `docs/69_paper_alignment_canonical_experiments.md`.
-The explicit v3 cache lifecycle, data-driven profiling method, 16-GPU matrix,
-and go/no-go rules are in
+The superseded v3 cache lifecycle and intervention-routing design remain in
 `docs/70_lifecache_v3_typed_memory_intervention_routing.md`.
 Use `docs/67_post_sweep_optimization_and_server_protocol.md` for the separate
 prompt-switch/return-recall branch.
 
 ## Current Hypothesis
 
-Long AR video generation needs to answer four questions before using history:
+Long AR video generation needs to answer three questions before using a state
+as long-term context:
 
-- **Which scope?** For continuous generation, read only sufficiently old frames
-  from the current episode. For scene return, select a supported older episode
-  and reject the immediately previous scene.
-- **Which lifecycle?** Keep exact slow-changing anchors, aggregate medium-term
-  state summaries, and leave fast recent dynamics in the native cache.
-- **Which content?** Use current Q-K evidence and explicit abstention to choose
-  a bounded set of typed historical slots.
-- **Which intervention sites?** Use paired counterfactual video metrics for an
-  offline layer/head prior and current retrieval/alignment/error evidence for
-  online safety routing. Do not assign semantic head labels by index.
-- **How to fuse?** Use a separate bounded memory-attention branch; never write
-  recalled K/V into the native cache. Activate it with a measurable but bounded
-  effect and a temporal ramp instead of an abrupt cache switch.
+- **Should it be committed?** Estimate frame reliability from disagreement
+  among the clean predictions already produced along the denoising path.
+- **Where does it live?** Keep an immutable episode origin, a bounded FIFO of
+  reliable evolving states, and the native SF recent cache under separate
+  update rules.
+- **How does it intervene?** At selected nominal diffusion timesteps, denoise
+  with the reference bank, re-noise to the same actual scheduler timestep, and
+  then denoise with the native recent context. This changes the sampling path
+  instead of weakly blending a side-memory attention output.
+
+Manual head/layer classes are not part of P0. They may return only if measured
+counterfactual evidence is stable across prompts and seeds.
 
 LifeCache-v1 and CEMR remain in the repository as prior prototypes and
 ablation infrastructure.
@@ -63,7 +66,9 @@ training-free/
 |   |-- 69_paper_alignment_canonical_experiments.md
 |   |-- 70_lifecache_v3_typed_memory_intervention_routing.md
 |   |-- 71_human_review_and_code_alignment.md
-|   `-- 72_lifecache_v3_post_review_optimization.md
+|   |-- 72_lifecache_v3_post_review_optimization.md
+|   |-- 73_lifecache_v3_screen_results.md
+|   `-- 74_commit_forcing_research_reset.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -74,6 +79,8 @@ training-free/
 |   |-- build_intervention_profile.py
 |   |-- compute_temporal_jump_diagnostic.py
 |   |-- run_v69_typed_cache_16gpu.sh
+|   |-- run_v74_commit_forcing_16gpu.sh
+|   |-- summarize_commit_forcing_trace.py
 |   `-- ...
 |-- src/
 |   `-- lifecycle_kv/
@@ -85,7 +92,28 @@ training-free/
 
 ## Implementation Status
 
-The LifeCache-v3 candidate is connected to the HREM-v2 side-memory path:
+Commit Forcing is integrated into the Self-Forcing inference path:
+
+- `commit_forcing.py`: validated environment configuration, denoising-path
+  reliability, bounded origin/trusted bank, pre-RoPE reference reconstruction,
+  deterministic correction noise, and JSONL trace.
+- `third_party/Self-Forcing/.../causal_model.py`: optional pre-RoPE K capture
+  for clean state commits.
+- `third_party/Self-Forcing/pipeline/causal_inference.py`: nominal versus
+  warped timestep handling, reference-conditioned forward, re-noise,
+  normal-context forward, and clean-state commit.
+- `tests/test_commit_forcing.py`: CPU tests for reliability, admission,
+  reference-cache construction, episode reset, and reproducibility.
+- `scripts/run_v74_commit_forcing_16gpu.sh`: three-GPU smoke, 16-cell
+  single-prompt screen, and four-seed native/PF/fixed-origin/hybrid confirm.
+- `scripts/summarize_commit_forcing_trace.py` and `scripts/v74_postprocess.sh`:
+  strict mechanism checks and post-review evaluation.
+
+All new behavior is off by default. Commit Forcing cannot be enabled together
+with LifeCache or Structured Memory in the P0 implementation.
+
+The superseded LifeCache-v3 candidate remains connected to the HREM-v2
+side-memory path for negative controls and historical ablations:
 
 - `typed_memory.py`: exact-anchor and temporal-summary state machine with
   explicit budgets, admission, replacement, merge and scope rules.
@@ -117,36 +145,35 @@ The LifeCache-v3 candidate is connected to the HREM-v2 side-memory path:
   video metrics into a reliability-weighted layer/head/call profile.
 - `scripts/compute_temporal_jump_diagnostic.py`: paired appearance/flow jump
   diagnostics for the PF discontinuity and smooth-activation ablation.
-- `scripts/run_v69_typed_cache_16gpu.sh`: 12-prompt, 16-GPU baseline, cache
-  screen, counterfactual profile, hybrid and multiseed confirmation phases.
+- `scripts/run_v69_typed_cache_16gpu.sh`: historical 12-prompt, 16-GPU
+  LifeCache-v3 screen and confirmation phases.
 
 The current machine has no configured PyTorch/GPU runtime, so only tests that do
-not import PyTorch and static compilation can run here. The new tensor/CUDA path
-still requires the server `screen` phase.
+not import PyTorch and static compilation can run here. The Commit Forcing
+tensor/CUDA path still requires the server `smoke` phase.
 
 ## Experiment Entry Points
 
-The canonical paper experiments are documented in:
+The current prototype experiments are documented in:
 
 ```text
-docs/69_paper_alignment_canonical_experiments.md
+docs/74_commit_forcing_research_reset.md
 ```
 
-The original 3-prompt matrix contained:
+Run the mandatory smoke test first, then the 16-GPU single-prompt screen:
 
-```text
-sf_native
-sf_pyramid_forcing
-sf_echo_forcing
-ours_all_heads
-ours_role
+```bash
+SMOKE_FRAMES=12 GPU_LIST=0,1,2 \
+bash scripts/run_v74_commit_forcing_16gpu.sh smoke
+
+GPU_LIST=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 \
+bash scripts/run_v74_commit_forcing_16gpu.sh screen
 ```
 
-Its ours cells were functionally inconclusive because they used gate `0.05`,
-started at frame 36, and produced no useful head selectivity. The revised v3
-screen uses 12 disjoint calibration prompts, target gates `0.10/0.15/0.20`,
-smooth versus hard activation, typed-cache ablations, and effect-aware online
-routing. Frozen evaluation uses a different 12-prompt suite and four seeds.
+The screen separates native SF, fixed-origin pathwise correction, and our
+dynamic reliability-gated origin/trusted commit. Do not run the four-seed
+confirm phase unless the dynamic method visibly beats both native and fixed
+origin.
 
 ## Third-Party Code
 
@@ -157,7 +184,7 @@ generated videos, logs, and Python cache files should stay out of Git.
 
 The detailed paper, code-path, license, and claim-boundary audit is in
 `docs/64_related_work_code_provenance_and_claims.md`. A repository link in the
-table below does not imply that its code is used by HREM-v2.
+table below does not imply that its code is used by the current method.
 
 The original repositories referenced by this project are:
 
@@ -182,18 +209,24 @@ The original repositories referenced by this project are:
 | `third_party/MotionCache` | [MAC-AutoML/MotionCache](https://github.com/MAC-AutoML/MotionCache) | Motion-aware cache reuse reference. |
 | `third_party/FlowCache` | [mikeallen39/FlowCache](https://github.com/mikeallen39/FlowCache) | Flow-guided or motion-guided cache reference. |
 | `third_party/SWIFT` | [ShanwenTan/SWIFT](https://github.com/ShanwenTan/SWIFT) | Semantic injection cache and prompt-adaptive memory reference. |
+| Not vendored | [xbxsxp9/Pathwise_TTC](https://github.com/xbxsxp9/Pathwise_TTC) | Closest paper-level prior for fixed-reference pathwise correction; no source code copied. |
+
+[Future Forcing](https://arxiv.org/abs/2605.30083) is also tracked as a
+paper-level collision for future-query cache policy; no local source tree or
+unverified repository link is recorded.
 
 ## Model Files
 
 Model weights are intentionally not committed. For the current Self-Forcing
-HREM-v2.1 experiment, place:
+Commit Forcing experiment, place:
 
 ```text
 third_party/Self-Forcing/wan_models/Wan2.1-T2V-1.3B/
 third_party/Self-Forcing/checkpoints/self_forcing_dmd.pt
 ```
 
-The older Pyramid-Forcing experiments additionally use:
+The four-seed confirmation and older Pyramid-Forcing experiments additionally
+use:
 
 ```text
 third_party/Pyramid-Forcing/wan_models/Wan2.1-T2V-1.3B/
@@ -215,35 +248,33 @@ To keep existing vendored directories and clone only missing references:
 bash scripts/bootstrap_repos.sh
 ```
 
-To run the canonical primary matrix on five GPUs:
+To run the current Commit Forcing smoke and screen:
+
+```bash
+SMOKE_FRAMES=12 GPU_LIST=0,1,2 \
+bash scripts/run_v74_commit_forcing_16gpu.sh smoke
+
+GPU_LIST=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 \
+bash scripts/run_v74_commit_forcing_16gpu.sh screen
+```
+
+After blind review:
+
+```bash
+HUMAN_REVIEW_DONE=1 RUN_VBENCH=1 GPU=0 \
+bash scripts/v74_postprocess.sh
+```
+
+Historical LifeCache/HREM paper matrices remain available:
 
 ```bash
 bash scripts/run_paper_single_prompt_30s.sh 0 1 2 3 4
-```
-
-For one GPU, run the same cells sequentially:
-
-```bash
-PARALLEL=0 bash scripts/run_paper_single_prompt_30s.sh 0 0 0 0 0
-```
-
-To run the canonical scene-switch/return matrix:
-
-```bash
 bash scripts/run_paper_scene_switch_30s.sh 0 1 2 3
-```
-
-To launch the LifeCache-v3 16-GPU phases:
-
-```bash
 bash scripts/run_v69_typed_cache_16gpu.sh baselines
 bash scripts/run_v69_typed_cache_16gpu.sh screen
-bash scripts/run_v69_typed_cache_16gpu.sh profile
-REFINE_LAYER_START=15 REFINE_LAYER_END=22 bash scripts/run_v69_typed_cache_16gpu.sh refine
 ```
 
-Both generation scripts prepare a randomized blind-review directory. Freeze its
-`scorecard.csv`, then run metrics:
+Their historical review/metric commands are:
 
 ```bash
 HUMAN_REVIEW_DONE=1 bash scripts/run_paper_metrics.sh single 0

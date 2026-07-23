@@ -45,6 +45,12 @@ from .role_episodic import (
     update_query_ema,
 )
 from .tokenset import CacheRegion, TokenSet
+from .commit_forcing import (
+    BlockReliability,
+    CommitForcingConfig,
+    CommitForcingController,
+    ReferenceFrame,
+)
 
 __all__ = [
     "ActiveCacheComposer",
@@ -62,6 +68,8 @@ __all__ = [
     "CacheTraceWriter",
     "CompressionConfig",
     "CompressedVisualMemory",
+    "CommitForcingConfig",
+    "CommitForcingController",
     "EpisodeEvidenceDecision",
     "EpisodicArchive",
     "EpisodicArchiveConfig",
@@ -74,9 +82,11 @@ __all__ = [
     "RecallConfig",
     "RecallResult",
     "RegionBudget",
+    "ReferenceFrame",
     "SlotState",
     "StructuredVisualMemoryConfig",
     "StructuredMemoryReadout",
+    "BlockReliability",
     "TokenSet",
     "TokenSetBank",
     "attention_participation_scores",
