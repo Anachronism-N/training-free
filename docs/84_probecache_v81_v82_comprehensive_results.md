@@ -139,3 +139,23 @@ multi-seed robustness.
 3. Human review of v81 and v82 results
 4. Fix KeyError bug for missing ProbeCache cells
 5. If v78 remains best across seeds, confirm v78 as paper candidate
+
+## 6. v82 Labels: Temporal Jump (added)
+
+| Cell | DINO | jump | Assessment |
+|---|---:|---:|---|
+| v78 | 0.883 | 1.89 | Best DINO, good jump |
+| pf_binary | 0.851 | 2.04 | Good DINO, high jump |
+| learned | 0.817 | **1.78** | Moderate DINO, **best jump** |
+| inverse | 0.748 | 2.13 | Bad DINO, bad jump |
+| pf | — | 2.41 | Highest jump |
+
+**learned labels produce fewer temporal jumps than PF binary labels AND PF itself.**
+Classification direction matters for temporal smoothness: learned (1.78) << 
+inverse (2.13). The counterfactual classification contributes to temporal
+smoothness even if it doesn't clearly improve DINO over PF binary.
+
+## 7. v82 Confirm: In Progress
+
+Multi-seed confirmation running (seeds 1-3 for PF, v78, learned, pf_binary).
+12 MP4s generated so far, 16 processes, no OOM. ETA ~2 hours.
