@@ -14,6 +14,9 @@ attention path, and both fall back to PF when selection is uncertain. The
 complete method, code map, attribution boundaries, server commands, and debug
 protocol are in
 `docs/81_probecache_method_implementation_and_server_plan.md`.
+The deadline-aware 10-hour follow-up queue, classification controls,
+multi-seed confirmation, 60-second extrapolation, and review order are in
+`docs/82_probecache_10h_followup_experiment_plan.md`.
 
 ProbeCache is implemented but not yet GPU-validated. The validated fallback is
 v78 Trust-Conditioned Cache Transition: `full_budget075_p1` matched PF identity
@@ -90,7 +93,8 @@ training-free/
 |   |-- 77_commit_forcing_v76_screen_results.md
 |   |-- 78_cache_transition_implementation_and_experiment_plan.md
 |   |-- 80_v78_method_and_ama_veil_head_history.md
-|   `-- 81_probecache_method_implementation_and_server_plan.md
+|   |-- 81_probecache_method_implementation_and_server_plan.md
+|   `-- 82_probecache_10h_followup_experiment_plan.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -108,7 +112,12 @@ training-free/
 |   |-- run_v81_probecache_profile_16gpu.sh
 |   |-- run_v81_probecache_16gpu.sh
 |   |-- postprocess_v81_probecache.sh
+|   |-- run_v82_probecache_10h.sh
+|   |-- postprocess_v82_probecache.sh
 |   |-- build_probecache_head_profile.py
+|   |-- build_probecache_control_labels.py
+|   |-- compare_probecache_head_profiles.py
+|   |-- audit_probecache_experiment_runs.py
 |   |-- summarize_probecache_trace.py
 |   |-- summarize_cache_transition_trace.py
 |   |-- summarize_commit_forcing_trace.py
@@ -135,6 +144,9 @@ ProbeCache is integrated into the PF inference path:
 - `scripts/run_v81_probecache_profile_16gpu.sh`: 48 paired profile jobs and
   robust binary label generation.
 - `scripts/run_v81_probecache_16gpu.sh`: 16-cell single/switch/smoke matrix.
+- `scripts/run_v82_probecache_10h.sh`: deadline-aware profile replication,
+  classification controls, multi-seed confirmation, 60-second extrapolation,
+  switch follow-up, and blind-review preparation.
 - `tests/test_build_probecache_head_profile.py` and
   `third_party/Pyramid-Forcing/tests/test_probecache.py`: CPU mechanism tests.
 
@@ -228,6 +240,7 @@ The current main-line experiments are documented in:
 
 ```text
 docs/81_probecache_method_implementation_and_server_plan.md
+docs/82_probecache_10h_followup_experiment_plan.md
 ```
 
 Build the profile, run smoke, then run the 16-GPU single-prompt screen:
@@ -236,6 +249,14 @@ Build the profile, run smoke, then run the 16-GPU single-prompt screen:
 bash scripts/run_v81_probecache_profile_16gpu.sh
 bash scripts/run_v81_probecache_16gpu.sh smoke
 bash scripts/run_v81_probecache_16gpu.sh single
+```
+
+After the v81 jobs, run the deadline-aware follow-up queue:
+
+```bash
+WAIT_FOR_IDLE=1 \
+DEADLINE_EPOCH="$(date -d '+10 hours' +%s)" \
+bash scripts/run_v82_probecache_10h.sh all
 ```
 
 The screen separates official baselines, audit parity, both lifecycles,

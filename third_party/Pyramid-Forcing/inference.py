@@ -278,6 +278,7 @@ parser.add_argument(
 parser.add_argument("--pyramidkv_probecache_layer_start", type=int, default=None)
 parser.add_argument("--pyramidkv_probecache_layer_end", type=int, default=None)
 parser.add_argument("--pyramidkv_probecache_trace_path", type=str, default=None)
+parser.add_argument("--pyramidkv_probecache_trace_selection_stride", type=int, default=None)
 parser.add_argument("--pyramidkv_probecache_debug", action="store_true")
 parser.add_argument(
     "--pyramidkv_probecache_profile_recent_only",
@@ -552,6 +553,7 @@ for name in (
     "layer_start",
     "layer_end",
     "trace_path",
+    "trace_selection_stride",
 ):
     value = getattr(args, f"pyramidkv_probecache_{name}")
     if value is not None:

@@ -60,6 +60,7 @@ class ProbeCacheConfig:
     persistent_label: int = 1
     reactive_labels: tuple[int, ...] = (-1,)
     trace_path: str | None = None
+    trace_selection_stride: int = 1
     debug: bool = False
 
     def validate(self) -> None:
@@ -95,6 +96,8 @@ class ProbeCacheConfig:
             raise ValueError("ProbeCache prompt_min_similarity must be in [-1, 1]")
         if not -1.0 <= self.prompt_switch_threshold <= 1.0:
             raise ValueError("ProbeCache prompt_switch_threshold must be in [-1, 1]")
+        if self.trace_selection_stride < 1:
+            raise ValueError("ProbeCache trace_selection_stride must be positive")
 
 
 @dataclass
@@ -849,6 +852,8 @@ class ProbeCacheController:
         selection: ProbeCacheSelection,
         mode_active: bool,
     ) -> None:
+        if (self._query_epoch - 1) % self.config.trace_selection_stride != 0:
+            return
         self._trace(
             {
                 "event": "middle_selection",

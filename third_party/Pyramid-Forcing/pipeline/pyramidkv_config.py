@@ -160,6 +160,7 @@ class PyramidKVPipelineConfig:
     pyramidkv_probecache_layer_start: int = 0
     pyramidkv_probecache_layer_end: int = -1
     pyramidkv_probecache_trace_path: Optional[str] = None
+    pyramidkv_probecache_trace_selection_stride: int = 1
     pyramidkv_probecache_debug: bool = False
     pyramidkv_probecache_profile_recent_only: bool = False
 
@@ -488,6 +489,9 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_probecache_trace_path=getattr(
                 args, "pyramidkv_probecache_trace_path", None
+            ),
+            pyramidkv_probecache_trace_selection_stride=int(
+                getattr(args, "pyramidkv_probecache_trace_selection_stride", 1)
             ),
             pyramidkv_probecache_debug=bool(
                 getattr(args, "pyramidkv_probecache_debug", False)

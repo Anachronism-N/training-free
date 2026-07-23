@@ -260,6 +260,7 @@ class AdaptiveKVCache(PyramidKVCache):
         probecache_layer_start: int = 0,
         probecache_layer_end: int = -1,
         probecache_trace_path: str | None = None,
+        probecache_trace_selection_stride: int = 1,
         probecache_debug: bool = False,
         probecache_profile_recent_only: bool = False,
     ):
@@ -556,6 +557,7 @@ class AdaptiveKVCache(PyramidKVCache):
                 )
             ),
             trace_path=probecache_trace_path,
+            trace_selection_stride=int(probecache_trace_selection_stride),
             debug=bool(probecache_debug),
         )
         probecache_config.validate()

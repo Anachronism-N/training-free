@@ -139,6 +139,32 @@ def test_prompt_switch_filters_reactive_but_persistent_archive_survives():
     assert any(entry.segment_id == 0 for entry in controller.archive)
 
 
+def test_selection_trace_stride_preserves_archive_events():
+    controller = _controller(
+        archive_max_frames=8,
+        trace_selection_stride=2,
+    )
+    events = []
+    controller._trace = events.append
+    for t in range(5):
+        _commit(controller, t, [1.0, 0.1 * t, 0.1 * t, 1.0])
+    query = torch.ones((1, 2, 2, 2))
+    for current_start in (10, 12, 14):
+        controller.set_query(
+            query,
+            current_start=current_start,
+            cache_update_mode="noisy",
+        )
+        controller.collect(
+            seq_idx=0,
+            head_idx=0,
+            sync_t=current_start // 2,
+            has_static=True,
+        )
+    assert sum(event["event"] == "archive_update" for event in events) == 5
+    assert sum(event["event"] == "middle_selection" for event in events) == 2
+
+
 def test_audit_mode_never_overrides_pf_middle():
     controller = _controller(mode="audit")
     _commit(controller, 0, [1.0, 0.0, 0.0, 1.0])
@@ -168,6 +194,7 @@ def test_adaptive_cache_constructs_layer_scoped_controller():
         probecache_layer_start=1,
         probecache_layer_end=2,
         probecache_archive_max_frames=6,
+        probecache_trace_selection_stride=3,
     )
     inactive = AdaptiveKVCache(
         config=config,
@@ -181,6 +208,7 @@ def test_adaptive_cache_constructs_layer_scoped_controller():
     )
     assert active.probecache is not None
     assert active.probecache.config.archive_max_frames == 6
+    assert active.probecache.config.trace_selection_stride == 3
     assert inactive.probecache is None
 
     active._readout_cache_valid = True
