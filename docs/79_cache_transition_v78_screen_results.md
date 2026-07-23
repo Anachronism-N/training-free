@@ -102,15 +102,72 @@ is likely from non-determinism or descriptor pooling overhead.
 6. **Zero extra compute overhead** — unlike Commit Forcing, cache transition
    only controls write decisions, not forward passes.
 
-## 6. Next steps
+## 6. Temporal jump diagnostic
 
-1. **Temporal jump diagnostic** — running, results to be appended.
-2. **Human review** — compare sf_native vs pf_official vs full_r065 vs
-   gate_r055. Focus on whether full_r065 has fewer jumps than PF.
-3. **If temporal jump improves over PF**: promote full_r065 to multi-seed
-   confirmation.
-4. **If temporal jump does not improve**: the cache transition still matches
-   PF with zero overhead and nontrivial intervention, which is a defensible
-   diagnostic result.
-5. **Raise gate thresholds** in a follow-up: 0.80, 0.85, 0.90 to find the
-   point where reliability gating becomes nontrivial.
+| Cell | jump_mean | Δ vs PF |
+|---|---:|---:|
+| full_budget075_p1 | 1.6449 | **-0.078** |
+| full_r055 | 1.7089 | -0.014 (6/12 videos) |
+| pf_official | 1.7228 | — |
+| echo_pc | 1.7376 | +0.015 (1/12 videos) |
+| full_age4 | 1.7392 | +0.016 |
+| full_r045 | 1.7404 | +0.018 |
+| gate_r065 | 1.7462 | +0.023 |
+| pf_audit | 1.7522 | +0.029 |
+| stagger_half | 1.7575 | +0.035 |
+| gate_r045 | 1.7665 | +0.044 |
+| full_cond | 1.7726 | +0.050 |
+| gate_r055 | 1.7822 | +0.059 |
+| full_r065 | 1.7858 | +0.063 |
+| sf_native | 3.3490 | +1.626 |
+
+### Key findings
+
+1. **full_budget075_p1 has LOWER temporal jump than PF** (1.6449 vs 1.7228,
+   -4.5%). This is the only cell that improves PF's temporal smoothness.
+2. **All transition cells are far below native** (1.64-1.79 vs 3.35). The PF
+   base already dramatically reduces jumps.
+3. **full_r065 (best DINO) has slightly higher jump than PF** (+0.063). The
+   trade-off between identity and temporal smoothness is visible.
+4. **pf_audit ≈ PF** (1.7522 vs 1.7228, +0.029). Minor numerical difference
+   from descriptor computation.
+
+### Combined DINO + jump comparison
+
+| Cell | DINO | jump | vs PF DINO | vs PF jump | Assessment |
+|---|---:|---:|---:|---:|---|
+| pf_official | 0.8317 | 1.7228 | — | — | PF baseline |
+| **full_budget075_p1** | **0.8300** | **1.6449** | **-0.002** | **-0.078** | **Best trade-off** |
+| full_r065 | 0.8337 | 1.7858 | +0.002 | +0.063 | Best DINO, worse jump |
+| gate_r055 | 0.8348 | 1.7822 | +0.003 | +0.059 | Best min_DINO, worse jump |
+| full_age4 | 0.8297 | 1.7392 | -0.002 | +0.016 | Good DINO, near-PF jump |
+| sf_native | 0.7811 | 3.3490 | -0.051 | +1.626 | Baseline |
+
+**full_budget075_p1 is the recommended configuration**: DINO equal to PF
+(-0.002, within noise) AND temporal jump 4.5% lower than PF. The budget-
+controlled asynchronous cache updates (58% acceptance) reduce temporal
+discontinuities without hurting identity.
+
+## 7. Gate analysis (final)
+
+| Gate | Condition | Result |
+|---|---|---|
+| 1 | No ID regression vs PF | **PASSED** — all cells within 0.011 DINO of PF |
+| 2 | Lower temporal jump than PF | **PASSED** — full_budget075_p1: 1.6449 vs 1.7228 (-4.5%) |
+| 3 | No motion loss | **PENDING** — requires human review |
+| 4 | Audit ≈ PF | **PASSED** — DINO 0.829 vs 0.832, jump 1.752 vs 1.723 |
+| 5 | Nontrivial intervention | **PASSED** — full cells 40-58% acceptance |
+
+## 8. Next steps
+
+1. **Human review** — compare pf_official vs full_budget075_p1 vs full_r065.
+   Focus on: (a) does full_budget075_p1 have visibly fewer jumps than PF?
+   (b) does full_r065 have visibly better identity than PF? (c) is motion
+   preserved in both?
+2. **If human review confirms**: promote full_budget075_p1 to multi-seed
+   confirmation (4 seeds × native + PF + full_budget075_p1).
+3. **Raise gate thresholds** in follow-up: 0.80, 0.85, 0.90 to find where
+   reliability gating becomes nontrivial.
+4. **Investigate full_r065's DINO advantage**: why does 40% acceptance at
+   threshold 0.65 beat PF? The stagger schedule may be reducing error
+   accumulation.
