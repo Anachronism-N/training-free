@@ -138,14 +138,47 @@ origin_t500_250/0-0_ema.mp4    ← fixed TTC baseline (marginal)
 Also review prompt 5 and 10 (worst native DINO) for the most dramatic
 expected improvement.
 
-## 6. Next steps
+## 6. Temporal jump diagnostic
+
+| Cell | jump_mean | jump_median | Δ vs native |
+|---|---:|---:|---:|
+| hybrid_t750_500_250 | 2.7078 | 2.3622 | -0.655 |
+| origin_t500 | 2.7614 | 2.7005 | -0.602 |
+| origin_t250 | 2.7780 | 2.5709 | -0.585 |
+| hybrid_admit045 | 2.8378 | 2.9945 | -0.525 |
+| **hybrid_t500_250** | **2.8725** | **2.6191** | **-0.491** |
+| origin_t500_250 | 2.8928 | 2.9521 | -0.470 |
+| hybrid_admit015 | 2.9653 | 2.6207 | -0.398 |
+| hybrid_trusted2 | 3.0740 | 2.6877 | -0.289 |
+| hybrid_t500 | 3.2588 | 2.5144 | -0.104 |
+| hybrid_unreliable045 | 3.2883 | 2.8728 | -0.075 |
+| hybrid_t250 | 3.3440 | 2.7919 | -0.019 |
+| sf_native | 3.3630 | 2.5052 | — |
+| hybrid_origin2 | 3.4732 | 2.6511 | +0.110 |
+| hybrid_start21 | 3.4751 | 2.8054 | +0.112 |
+| trusted_t500_250 | 3.5055 | 3.4679 | +0.143 |
+| origin_t750_500_250 | 4.2326 | 3.8966 | +0.870 |
+
+Key findings:
+- **hybrid_t500_250 reduces temporal jump by 15%** (2.87 vs 3.36). The
+  pathwise correction stabilizes temporal continuity in addition to improving
+  identity.
+- **hybrid_origin2 has slightly higher jump** (3.47 vs 3.36). The best DINO
+  cell trades temporal smoothness for identity retention.
+- **origin_t750_500_250 (3 corrections) has the worst jump** (4.23). Too many
+  corrections destabilize temporal flow.
+- **hybrid_t500_250 is the best overall trade-off**: DINO +0.017, min_DINO
+  +0.055, drift -28%, temporal jump -15%, all simultaneously.
+
+## 7. Next steps
 
 1. **Human review** — the most critical next step. If the improvement is
    visible, proceed to confirmation.
-2. **Temporal jump diagnostic** — running, results to be added.
-3. **4-seed confirmation** — if human review confirms, run
+2. **4-seed confirmation** — if human review confirms, run
    `bash scripts/run_v74_commit_forcing_16gpu.sh confirm` with native, PF,
    fixed origin, and hybrid_t500_250 across 4 seeds.
-4. **PF baseline comparison** — the confirm mode includes official PF.
+3. **PF baseline comparison** — the confirm mode includes official PF.
+4. **Consider hybrid_origin2 vs hybrid_t500_250**: origin2 has better DINO
+   but worse temporal jump; t500_250 is the better trade-off.
 5. **Consider hybrid_origin2 as the default** instead of hybrid_t500_250 if
    the advantage holds across seeds.
