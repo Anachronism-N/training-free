@@ -71,8 +71,10 @@ run_pf() {
     [[ "$FORCE" == "1" || "$(video_count "$output")" -lt "$PROMPT_COUNT" ]] || return
     mkdir -p "$output"
     (
+        source "${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}" && conda activate "${CONDA_ENV:-longlive}"
         cd "$PF" || exit 2
         export CUDA_VISIBLE_DEVICES="$gpu"
+        export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
         python inference.py --config_path "$PF_CONFIG" --checkpoint_path "$PF_CHECKPOINT" \
             --data_path "$PROMPTS" --output_folder "$output" \
             --num_output_frames "$FRAMES" --seed "$SEED" --num_samples 1 \
@@ -126,8 +128,10 @@ run_ours() {
             "$TASK" "$mode" "$archive" "$topk" "$prompt_weight" "$trust"
     } >"$OUT_ROOT/configs/$name.env"
     (
+        source "${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}" && conda activate "${CONDA_ENV:-longlive}"
         cd "$PF" || exit 2
         export CUDA_VISIBLE_DEVICES="$gpu"
+        export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
         python inference.py --config_path "$PF_CONFIG" --checkpoint_path "$PF_CHECKPOINT" \
             --data_path "$PROMPTS" --output_folder "$output" \
             --num_output_frames "$FRAMES" --seed "$SEED" --num_samples 1 \

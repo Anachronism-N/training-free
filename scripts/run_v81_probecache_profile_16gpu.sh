@@ -68,8 +68,10 @@ run_job() {
         extra+=(--pyramidkv_probecache_profile_recent_only)
     fi
     (
+        source "${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}" && conda activate "${CONDA_ENV:-longlive}"
         cd "$PF"
         export CUDA_VISIBLE_DEVICES="$gpu"
+        export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
         export PROBECACHE_PROFILE_UPDATE_MODES="noisy,clean"
         export PROBECACHE_PROFILE_BRANCHES="cond"
         export PROBECACHE_PROFILE_MAX_CALLS=8
