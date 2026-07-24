@@ -22,6 +22,14 @@ Current analysis, code, 16-GPU commands and decision gates are in
 section structure, figures and abstract template are in
 `docs/91_transitioncache_paper_story.md`.
 
+The v92 follow-up now tests the missing **actual two-class read topology**:
+PF Anchor heads versus merged Wave+Veil heads, and a genuinely different
+partition based only on paired prompt-intervention response. Both are
+factorized against uniform v78 writes, inverse/random maps, profile replicas,
+weak write priority, and an optional low-gate coverage archive. The complete
+method, 16-GPU matrix, debug contract, commands, and paper-story branches are
+in `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`.
+
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
 hallucinations; inverse/random controls also produced polygon noise or
@@ -66,6 +74,13 @@ controls state admission instead of adding another recall path.
   writes; this is the validated v78 method.
 - **Optional weak priority:** v90 tests whether PF temporal classes can break
   ties among trusted candidates without receiving different stale-state ages.
+- **Prompt-contrastive read branch:** v92 tests a true dual-timescale topology
+  whose membership is determined by paired prompt response rather than PF's
+  three temporal-pattern labels. This is a candidate, not yet a validated
+  contribution.
+- **Coherent snapshot ablation:** a separate Echo scene-switch screen selects
+  one complete frame using relevance and uniqueness; it does not replace the
+  single-prompt core.
 - **Fail-closed scope:** no direct archive read, no extra forward, and all role
   behavior is off by default.
 
@@ -111,7 +126,8 @@ training-free/
 |   |-- 88_transitioncache_v86_partial_results.md
 |   |-- 89_v86_human_review_and_combined_analysis.md
 |   |-- 90_post_v86_analysis_and_v90_experiment.md
-|   `-- 91_transitioncache_paper_story.md
+|   |-- 91_transitioncache_paper_story.md
+|   `-- 92_prompt_contrastive_binary_cache_and_uniqueness_plan.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -145,6 +161,11 @@ training-free/
 |   |-- run_v90_priority_factorization_16gpu.sh
 |   |-- postprocess_v90_priority_factorization.sh
 |   |-- analyze_v90_metrics.py
+|   |-- build_prompt_contrastive_head_maps.py
+|   |-- run_v92_prompt_binary_cache_16gpu.sh
+|   |-- postprocess_v92_prompt_binary_cache.sh
+|   |-- analyze_v92_metrics.py
+|   |-- run_v92_echo_unique_snapshot_4gpu.sh
 |   |-- summarize_commit_forcing_trace.py
 |   `-- ...
 |-- src/

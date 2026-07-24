@@ -1,6 +1,7 @@
 import torch
 import os
 import csv
+from collections import Counter
 from typing import List, Optional
 
 
@@ -9,6 +10,7 @@ from typing import List, Optional
 # inference call); printing once is helpful, printing 128× per run is just
 # noise that mangles the progress bar.
 _LOADED_CONFIG_PATHS: set = set()
+_DEBUGGED_COMPOSITION_PATHS: set = set()
 
 
 class PyramidKVConfig:
@@ -235,6 +237,29 @@ class PyramidKVConfig:
                     capacities=self.capacity_map,
                     csv_path=csv_path,
                 )
+                if (
+                    os.environ.get("PYRAMIDKV_HEAD_MAP_DEBUG", "0") == "1"
+                    and csv_path not in _DEBUGGED_COMPOSITION_PATHS
+                ):
+                    flat = [
+                        composition
+                        for layer in self.compositions
+                        for composition in layer
+                    ]
+                    labels = Counter(int(item.label) for item in flat)
+                    policies = Counter(str(item.policy_type) for item in flat)
+                    sinks = Counter(int(item.sink_frames) for item in flat)
+                    recent = Counter(int(item.recent_frames) for item in flat)
+                    print(
+                        "[PyramidKVHeadMap] "
+                        f"path={csv_path} heads={len(flat)} "
+                        f"labels={dict(sorted(labels.items()))} "
+                        f"policies={dict(sorted(policies.items()))} "
+                        f"sink_frames={dict(sorted(sinks.items()))} "
+                        f"recent_frames={dict(sorted(recent.items()))}",
+                        flush=True,
+                    )
+                    _DEBUGGED_COMPOSITION_PATHS.add(csv_path)
             except Exception as e:
                 print(f"Warning: failed to build head compositions from {csv_path}: {e}")
                 self.compositions = None

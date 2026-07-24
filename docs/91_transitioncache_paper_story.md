@@ -4,6 +4,10 @@
 > Status: writing blueprint; quantitative claims remain conditional on v90.
 > Working title: **Trust the Transition: Reliability-Gated Cache State
 > Promotion for Training-Free Long Video Extrapolation**
+>
+> 2026-07-24 update: `docs/92` adds a result-conditional alternative story
+> based on an actual prompt-contrastive binary read topology. v78 remains the
+> validated candidate until that experiment passes its controls.
 
 ## 1. One-sentence method
 
@@ -348,6 +352,22 @@ beats causal controls.
 Do not force a top-conference claim. Retain the work as a strong negative-study
 and systems analysis, then redesign the trust signal using localized/token
 evidence rather than adding more fixed head labels.
+
+### E. prompt-contrastive binary read succeeds
+
+If and only if the v92 prompt map beats inverse/random controls, remains
+competitive with PF-binary, replicates across profiles, and passes blind
+artifact review, expand the story to:
+
+```text
+prompt intervention identifies dual-timescale read roles
++ trajectory trust controls write-side state promotion
+```
+
+This changes Sections 4 and 5: the classifier and the executed binary read
+composition become a contribution, rather than borrowed PF labels used only
+for weak priority. PF's head-specialization and cache-composition precedent
+must still be cited, and the exact membership difference must be reported.
 
 ## 11. Reviewer questions to answer
 

@@ -2,6 +2,12 @@
 
 ## Current method (read first)
 
+- `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`: current
+  differentiable follow-up. It corrects the interpretation of v86
+  `pf_binary_balanced`, defines an actual Anchor-versus-(Wave+Veil) read
+  topology and a prompt-intervention partition, and provides the 16-GPU
+  factorized screen, coherent-snapshot ablation, debug contract and paper
+  decision branches.
 - `docs/90_post_v86_analysis_and_v90_experiment.md`: authoritative post-v86
   conclusion, corrected claim boundary, v78 matched-seed requirement, v90 weak
   priority hypothesis, 16-GPU matrix, VBench commands and promotion gates.
@@ -40,20 +46,24 @@
 
 Recommended reading order:
 
-1. `docs/90_post_v86_analysis_and_v90_experiment.md`
-2. `docs/91_transitioncache_paper_story.md`
-3. `docs/89_v86_human_review_and_combined_analysis.md`
-4. `docs/88_transitioncache_v86_partial_results.md`
-5. `docs/64_related_work_code_provenance_and_claims.md`
+1. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
+2. `docs/90_post_v86_analysis_and_v90_experiment.md`
+3. `docs/91_transitioncache_paper_story.md`
+4. `docs/89_v86_human_review_and_combined_analysis.md`
+5. `docs/88_transitioncache_v86_partial_results.md`
+6. `docs/64_related_work_code_provenance_and_claims.md`
 
 The current candidate is v78 Trust-Conditioned Cache Transition. Its matched
 seed-0 gain over PF is positive, but matched seeds 1-3 are still required for a
 robust improvement claim. v86 counterfactual role-conditioned clocks are now a
 negative result: the labels are reproducible but do not beat v78, PF-binary,
 inverse and random controls. v90 tests matched PF-v78 seeds and a lower-risk
-weak priority. ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain
-as negative-result or design history. LifeCache-v1 below is retained as the
-original design snapshot.
+weak priority. v92 tests a new hypothesis: prompt response may be useful for
+choosing the read timescale even though the earlier remote-minus-prompt labels
+were not useful as hard write clocks. This hypothesis does not replace v78
+until inverse/random/replica controls and human review pass. ProbeCache, Commit
+Forcing, LifeCache-v3, HREM and CEMR remain as negative-result or design
+history. LifeCache-v1 below is retained as the original design snapshot.
 
 ## Historical method checkpoints
 

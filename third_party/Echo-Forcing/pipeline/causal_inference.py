@@ -6,6 +6,7 @@ import torch
 
 from utils.interactive import parse_scene_segments
 from utils.wan_wrapper import WanDiffusionWrapper, WanTextEncoder, WanVAEWrapper
+from utils.uniqueness_snapshot import select_coherent_unique_snapshot
 
 from utils.memory import gpu, get_cuda_free_memory_gb, move_model_to_device_with_memory_preservation
 
@@ -70,9 +71,26 @@ class CausalInferencePipeline(torch.nn.Module):
         self.compress_candidate_base_frame_weight = float(
             getattr(compress_candidate_cfg, "base_frame_weight", 0.9)
         )
-        self.compress_mode = str(
-            getattr(compress_candidate_cfg, "mode", "token_select")
+        self.compress_mode = os.environ.get(
+            "ECHO_COMPRESS_MODE",
+            str(getattr(compress_candidate_cfg, "mode", "token_select")),
         ).lower()
+        self.compress_uniqueness_weight = float(
+            os.environ.get(
+                "ECHO_COMPRESS_UNIQUENESS_WEIGHT",
+                getattr(compress_candidate_cfg, "uniqueness_weight", 0.25),
+            )
+        )
+        self.compress_endpoint_bonus = float(
+            os.environ.get(
+                "ECHO_COMPRESS_ENDPOINT_BONUS",
+                getattr(compress_candidate_cfg, "endpoint_bonus", 0.05),
+            )
+        )
+        if not 0.0 <= self.compress_uniqueness_weight <= 1.0:
+            raise ValueError("compress uniqueness_weight must be in [0, 1]")
+        if self.compress_endpoint_bonus < 0.0:
+            raise ValueError("compress endpoint_bonus must be non-negative")
         self.default_fps = int(self.inter_cfg.scene_prompt.fps)
         self.default_blocks_per_scene = int(self.inter_cfg.scene_prompt.default_blocks_per_scene)
         self.rope_transition_frames = int(self.inter_cfg.rope.transition_frames)
@@ -886,7 +904,12 @@ class CausalInferencePipeline(torch.nn.Module):
         def _compute_compress_recall(device, mode: Optional[str] = None):
             active_mode = (self.compress_mode if mode is None else str(mode)).lower()
          
-            if active_mode not in {"token_select", "stitch", "score_weighted"}:
+            if active_mode not in {
+                "token_select",
+                "stitch",
+                "score_weighted",
+                "coherent_unique",
+            }:
                 _debug_print(
                     f"[Recall:compress] unknown compress mode '{active_mode}', "
                     "fallback to token_select."
@@ -947,7 +970,28 @@ class CausalInferencePipeline(torch.nn.Module):
                 layer_scores = per_head_scores.mean(dim=-1)
                 valid_layers += 1
 
-                if active_mode == "score_weighted" and num_candidate_frames > 1:
+                if active_mode == "coherent_unique":
+                    selected_frame, diagnostics = select_coherent_unique_snapshot(
+                        candidate_k,
+                        candidate_v,
+                        q_mean,
+                        uniqueness_weight=self.compress_uniqueness_weight,
+                        endpoint_bonus=self.compress_endpoint_bonus,
+                    )
+                    selected_recall_layers[layer_index] = {
+                        "k": candidate_k[selected_frame],
+                        "v": candidate_v[selected_frame],
+                    }
+                    if layer_index in {0, 15, len(self.kv_cache1) - 1}:
+                        _debug_print(
+                            "[EchoUnique] "
+                            f"layer={layer_index} candidates={num_candidate_frames} "
+                            f"selected={selected_frame} "
+                            f"relevance={diagnostics['selected_relevance']:.6f} "
+                            f"uniqueness={diagnostics['selected_uniqueness']:.6f} "
+                            f"score={diagnostics['selected_score']:.6f}"
+                        )
+                elif active_mode == "score_weighted" and num_candidate_frames > 1:
                     normalized_layer_scores = torch.softmax(layer_scores, dim=0)
 
                     token_weights = normalized_layer_scores.unsqueeze(-1).unsqueeze(-1)

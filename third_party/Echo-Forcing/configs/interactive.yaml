@@ -16,10 +16,15 @@ pool:
   max_size: 64
 
 compress_candidates:
-  mode: score_weighted # Options: token_select, score_weighted.
+  # coherent_unique selects one complete historical frame using query
+  # relevance plus query-independent uniqueness. The public default remains
+  # score_weighted for exact Echo-Forcing behavior.
+  mode: score_weighted # Options: token_select, score_weighted, coherent_unique.
   storage_frames: 12
   source_frames: 12
   stride: 4
+  uniqueness_weight: 0.25
+  endpoint_bonus: 0.05
 modes:
   smooth:
     use_old_memory: True
