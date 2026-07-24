@@ -16,18 +16,19 @@ esac
 ROOT="${REPO_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free}"
 RUN_ROOT="${RUN_ROOT:-$ROOT/runs/v86_role_transition_${TASK}}"
 GPU="${GPU:-0}"
-RUN_VBENCH="${RUN_VBENCH:-0}"
+RUN_VBENCH="${RUN_VBENCH:-1}"
+VBENCH_GPU_LIST="${VBENCH_GPU_LIST:-0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}"
 VBENCH_ROOT="${VBENCH_ROOT:-$ROOT/../research_sprint/bench_baselines/VBench}"
 
 case "$TASK" in
     screen)
-        PROMPTS="${PROMPTS:-$ROOT/prompts/probecache_v82_diagnostic_complex_3.txt}"
+        PROMPTS="${PROMPTS:-$ROOT/prompts/v86_single_long_complex_16.txt}"
         METHODS=(
-            pf v78 learned_neutral learned_balanced replica_balanced
-            pf_binary_balanced inverse_balanced random_balanced
-            learned_conservative learned_open learned_no_bias
-            learned_age_only consensus_balanced learned_early learned_late
-            pf_binary_conservative
+            sf_native pf echo_pc v78
+            learned_neutral learned_balanced replica_balanced
+            consensus_balanced pf_binary_balanced inverse_balanced
+            random_balanced learned_conservative learned_open
+            learned_age_only learned_early learned_late
         )
         ;;
     confirm)
@@ -62,7 +63,7 @@ for method in "${METHODS[@]}"; do
     log="$RUN_ROOT/logs/$method.log"
     [[ -d "$video_dir" ]] || { echo "[error] missing $video_dir"; exit 2; }
     count="$(find "$video_dir" -maxdepth 1 -type f -name '*.mp4' | wc -l)"
-    [[ "$count" -ge "$EXPECTED" ]] || {
+    [[ "$count" -eq "$EXPECTED" ]] || {
         echo "[error] $method has $count/$EXPECTED videos"
         exit 2
     }
@@ -119,10 +120,20 @@ if [[ "$RUN_VBENCH" == "1" ]]; then
         subject_consistency background_consistency aesthetic_quality
         imaging_quality motion_smoothness dynamic_degree
     )
-    for method in "${METHODS[@]}"; do
+    IFS=',' read -r -a VBENCH_GPUS <<<"$VBENCH_GPU_LIST"
+    [[ "${#VBENCH_GPUS[@]}" -ge "${#METHODS[@]}" ]] || {
+        echo "[error] VBench needs ${#METHODS[@]} GPU ids, found ${#VBENCH_GPUS[@]}"
+        exit 2
+    }
+    VBENCH_PIDS=()
+    VBENCH_STATUS=0
+    for index in "${!METHODS[@]}"; do
+        method="${METHODS[$index]}"
+        gpu="${VBENCH_GPUS[$index]}"
         output="$METRICS/vbench_long/$method"
         mkdir -p "$output"
         (
+            export CUDA_VISIBLE_DEVICES="$gpu"
             cd "$VBENCH_ROOT"
             python "$EVAL" \
                 --videos_path "$RUN_ROOT/$method" \
@@ -130,8 +141,16 @@ if [[ "$RUN_VBENCH" == "1" ]]; then
                 --mode long_custom_input --dev_flag \
                 --num_of_samples_per_prompt 1 \
                 --output_path "$output" --full_json_dir "$INFO"
-        ) >"$output/run.log" 2>&1
+        ) >"$output/run.log" 2>&1 &
+        VBENCH_PIDS+=("$!")
     done
+    for pid in "${VBENCH_PIDS[@]}"; do
+        wait "$pid" || VBENCH_STATUS=1
+    done
+    [[ "$VBENCH_STATUS" -eq 0 ]] || {
+        echo "[error] at least one VBench-Long job failed"
+        exit 1
+    }
 fi
 
 echo "[v86] task=$TASK metrics=$METRICS"

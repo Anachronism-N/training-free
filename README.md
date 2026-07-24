@@ -11,12 +11,13 @@ sink/middle/recent read topology and adds no model forward. Across the latest
 multi-seed confirmation, v78 beats the reported PF reference by about 0.021
 average DINO and is ranked best by human review.
 
-The next falsifiable extension is **v86 role-conditioned transition**:
-counterfactually profiled persistent/reactive roles receive different write
-clocks, while PF's original head labels and read policies remain unchanged.
-The current idea, related-work boundary, implementation, 16-GPU screen,
-multi-seed confirmation and promotion gates are in
-`docs/86_current_idea_and_role_transition_plan.md`.
+The next falsifiable extension is **TransitionCache / v86 role-conditioned
+transition**: heads are classified by counterfactual output responses to prompt
+and history interventions, then receive different cache-promotion clocks while
+PF's original head labels and read policies remain unchanged. The current
+method, innovation boundary, prior results, 16-method x 16-prompt x 30-second
+screen, VBench-Long commands and debug interpretation are in
+`docs/87_transitioncache_method_and_16x30s_protocol.md`.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -60,14 +61,20 @@ controls state admission instead of adding another recall path.
   last admitted clean state.
 - **Uniform transition:** reliability, novelty, age and budget gate PF middle
   writes; this is the validated v78 method.
+- **Counterfactual roles:** robust per-layer remote-history utility minus prompt
+  sensitivity separates persistent and reactive heads.
 - **Role-conditioned clock:** persistent heads update more conservatively,
   while reactive heads refresh sooner with bounded budget priority.
+- **Uncertainty abstention:** primary/replica disagreements use neutral v78
+  behavior.
 - **Fail-closed scope:** no direct archive read, no extra forward, and all role
   behavior is off by default.
 
-Binary head specialization and novelty-based memory updates have strong prior
-art. The possible contribution is the noisy-clean trust-conditioned promotion
-of existing cache states, not the existence of head classes.
+Head specialization and novelty-based memory updates have prior art. This does
+not preclude a classification contribution: our possible novelty is the exact
+counterfactual signal and criterion, the resulting partition, noisy-clean
+trust-conditioned promotion, role-specific write lifecycle, and uncertainty
+abstention. We do not claim first use of head classes.
 
 LifeCache-v1 and CEMR remain in the repository as prior prototypes and
 ablation infrastructure.
@@ -99,10 +106,12 @@ training-free/
 |   |-- 83_probecache_v81_screen_results.md
 |   |-- 84_probecache_v81_v82_comprehensive_results.md
 |   |-- 85_comprehensive_human_review_v81_v82.md
-|   `-- 86_current_idea_and_role_transition_plan.md
+|   |-- 86_current_idea_and_role_transition_plan.md
+|   `-- 87_transitioncache_method_and_16x30s_protocol.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
+|   |-- v86_single_long_complex_16.txt
 |   `-- ...
 |-- scripts/
 |   |-- bootstrap_repos.sh
@@ -175,11 +184,11 @@ pipelines:
   controls with strict role-CSV validation.
 - `scripts/run_v78_cache_transition_16gpu.sh`: SF/PF/Echo baselines, audit,
   gate, stagger, full, threshold, budget, age, and CFG-branch cells.
-- `scripts/run_v86_role_transition_16gpu.sh`: role-neutral audit, learned,
-  replica, PF-binary, inverse/random controls, policy ablations, multi-seed,
-  ultralong and switch experiments.
+- `scripts/run_v86_role_transition_16gpu.sh`: native SF/PF/Echo baselines plus
+  role-neutral, learned, replica, consensus, PF-binary, inverse/random controls,
+  policy/depth ablations, multi-seed, ultralong and switch experiments.
 - `scripts/postprocess_v86_role_transition.sh`: review-first DINO, temporal
-  jump, ABA and optional VBench-Long evaluation.
+  jump, ABA and 16-GPU parallel VBench-Long evaluation.
 - `scripts/summarize_cache_transition_trace.py`: strict layer/head mechanism
   validation and reason/label/role statistics.
 

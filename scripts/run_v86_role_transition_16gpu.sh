@@ -6,8 +6,14 @@ set -uo pipefail
 MODE="${1:-screen}"
 ROOT="${REPO_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free}"
 PF="${PF_REPO:-$ROOT/third_party/Pyramid-Forcing}"
+SF="${SF_REPO:-$ROOT/third_party/Self-Forcing}"
+ECHO="${ECHO_REPO:-$ROOT/third_party/Echo-Forcing}"
 PF_CONFIG="${PF_CONFIG:-$PF/configs/pyramid-forcing.yaml}"
+SF_CONFIG="${SF_CONFIG:-$SF/configs/self_forcing_dmd.yaml}"
+ECHO_CONFIG="${ECHO_CONFIG:-$ECHO/configs/self_forcing_dmd.yaml}"
 PF_CHECKPOINT="${PF_CHECKPOINT:-$PF/checkpoints/self_forcing_dmd.pt}"
+SF_CHECKPOINT="${SF_CHECKPOINT:-$SF/checkpoints/self_forcing_dmd.pt}"
+ECHO_CHECKPOINT="${ECHO_CHECKPOINT:-$ECHO/checkpoints/self_forcing_dmd.pt}"
 CONDA_SH="${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}"
 CONDA_ENV="${CONDA_ENV:-longlive}"
 CONTROL_DIR="${CONTROL_DIR:-$ROOT/runs/v82_probecache_control_labels}"
@@ -17,7 +23,7 @@ REPLICA_LABEL="${REPLICA_LABEL:-$REPLICA_PROFILE_ROOT/labels/probecache_binary_l
 PF_BINARY_LABEL="${PF_BINARY_LABEL:-$CONTROL_DIR/pf_binary.csv}"
 INVERSE_LABEL="${INVERSE_LABEL:-$CONTROL_DIR/inverse.csv}"
 RANDOM_LABEL="${RANDOM_LABEL:-$CONTROL_DIR/random_2026.csv}"
-SCREEN_PROMPTS="${SCREEN_PROMPTS:-$ROOT/prompts/probecache_v82_diagnostic_complex_3.txt}"
+SCREEN_PROMPTS="${SCREEN_PROMPTS:-$ROOT/prompts/v86_single_long_complex_16.txt}"
 CONFIRM_PROMPTS="${CONFIRM_PROMPTS:-$ROOT/prompts/lifecache_v3_single_long_complex_12.txt}"
 ULTRALONG_PROMPTS="${ULTRALONG_PROMPTS:-$ROOT/prompts/probecache_v82_ultralong_complex_6.txt}"
 SWITCH_PROMPTS="${SWITCH_PROMPTS:-$ROOT/prompts/hrem_v2_aba_complex_3.txt}"
@@ -68,6 +74,13 @@ IFS=',' read -r -a GPUS <<<"$GPU_LIST"
 for path in "$PF" "$PF_CONFIG" "$PF_CHECKPOINT" "$PROMPTS"; do
     [[ -e "$path" ]] || { echo "[error] missing $path"; exit 2; }
 done
+if [[ "$MODE" == "screen" ]]; then
+    for path in \
+        "$SF" "$SF_CONFIG" "$SF_CHECKPOINT" \
+        "$ECHO" "$ECHO_CONFIG" "$ECHO_CHECKPOINT"; do
+        [[ -e "$path" ]] || { echo "[error] missing baseline path $path"; exit 2; }
+    done
+fi
 if [[ "$MODE" == "smoke" ]]; then
     [[ -s "$LEARNED_LABEL" ]] || {
         echo "[error] missing role labels $LEARNED_LABEL"
@@ -85,7 +98,7 @@ source "$CONDA_SH" || exit 2
 conda activate "$CONDA_ENV" || exit 2
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
-export PYTHONPATH="$ROOT/src:$PF:${PYTHONPATH:-}"
+export PYTHONPATH="$ROOT/src:$PF:$SF:$ECHO:${PYTHONPATH:-}"
 export PYRAMIDKV_USE_CPP_STRATEGY=0
 export PYRAMIDKV_USE_CPP_PACK=0
 export PYRAMIDKV_USE_MEGA_CACHE=0
@@ -100,9 +113,15 @@ fi
 PROMPT_COUNT="$(grep -cve '^[[:space:]]*$' "$PROMPTS")"
 [[ "$PROMPT_COUNT" -gt 0 ]] || { echo "[error] no prompts in $PROMPTS"; exit 2; }
 case "$MODE" in
-    screen|switch)
+    screen)
+        [[ "$PROMPT_COUNT" -eq 16 ]] || {
+            echo "[error] screen expects 16 prompts, found $PROMPT_COUNT"
+            exit 2
+        }
+        ;;
+    switch)
         [[ "$PROMPT_COUNT" -eq 3 ]] || {
-            echo "[error] $MODE expects 3 prompts, found $PROMPT_COUNT"
+            echo "[error] switch expects 3 prompts, found $PROMPT_COUNT"
             exit 2
         }
         ;;
@@ -166,14 +185,82 @@ write_config() {
     } >"$OUT_ROOT/configs/$name.env"
 }
 
-run_pf() {
+run_sf() {
     local name="$1" gpu="$2" seed="$3"
     local output="$OUT_ROOT/$name" log="$OUT_ROOT/logs/$name.log"
-    write_config "$name" pf "$seed" "" 1 1 6 6 0 0 -1
-    if [[ "$FORCE" != "1" && "$(video_count "$output")" -ge "$PROMPT_COUNT" ]]; then
+    local existing
+    existing="$(video_count "$output")"
+    if [[ "$FORCE" != "1" && "$existing" -eq "$PROMPT_COUNT" ]]; then
         echo "[skip] $name"
         return 0
     fi
+    [[ "$existing" -eq 0 ]] || {
+        echo "[error] $name has $existing existing videos; use a clean OUT_ROOT"
+        return 2
+    }
+    write_config "$name" sf "$seed" "" 1 1 6 6 0 0 -1
+    mkdir -p "$output"
+    (
+        cd "$SF" || exit 2
+        export CUDA_VISIBLE_DEVICES="$gpu"
+        export COMMIT_FORCING_ENABLE=0
+        python inference.py \
+            --config_path "$SF_CONFIG" --checkpoint_path "$SF_CHECKPOINT" \
+            --data_path "$PROMPTS" --output_folder "$output" \
+            --num_output_frames "$FRAMES" --seed "$seed" --num_samples 1 \
+            --use_ema --save_with_index
+    ) >"$log" 2>&1
+    [[ "$(video_count "$output")" -eq "$PROMPT_COUNT" ]] || {
+        echo "[error] $name produced $(video_count "$output")/$PROMPT_COUNT videos"
+        return 1
+    }
+}
+
+run_echo() {
+    local name="$1" gpu="$2" seed="$3"
+    local output="$OUT_ROOT/$name" log="$OUT_ROOT/logs/$name.log"
+    local existing
+    existing="$(video_count "$output")"
+    if [[ "$FORCE" != "1" && "$existing" -eq "$PROMPT_COUNT" ]]; then
+        echo "[skip] $name"
+        return 0
+    fi
+    [[ "$existing" -eq 0 ]] || {
+        echo "[error] $name has $existing existing videos; use a clean OUT_ROOT"
+        return 2
+    }
+    write_config "$name" echo "$seed" "" 1 1 6 6 0 0 -1
+    mkdir -p "$output"
+    (
+        cd "$ECHO" || exit 2
+        export CUDA_VISIBLE_DEVICES="$gpu"
+        export ECHO_VERBOSE=1
+        python inference.py \
+            --config_path "$ECHO_CONFIG" --checkpoint_path "$ECHO_CHECKPOINT" \
+            --data_path "$PROMPTS" --output_folder "$output" \
+            --num_output_frames "$FRAMES" --seed "$seed" --num_samples 1 \
+            --use_ema --save_with_index
+    ) >"$log" 2>&1
+    [[ "$(video_count "$output")" -eq "$PROMPT_COUNT" ]] || {
+        echo "[error] $name produced $(video_count "$output")/$PROMPT_COUNT videos"
+        return 1
+    }
+}
+
+run_pf() {
+    local name="$1" gpu="$2" seed="$3"
+    local output="$OUT_ROOT/$name" log="$OUT_ROOT/logs/$name.log"
+    local existing
+    existing="$(video_count "$output")"
+    if [[ "$FORCE" != "1" && "$existing" -eq "$PROMPT_COUNT" ]]; then
+        echo "[skip] $name"
+        return 0
+    fi
+    [[ "$existing" -eq 0 ]] || {
+        echo "[error] $name has $existing existing videos; use a clean OUT_ROOT"
+        return 2
+    }
+    write_config "$name" pf "$seed" "" 1 1 6 6 0 0 -1
     mkdir -p "$output"
     (
         cd "$PF" || exit 2
@@ -184,7 +271,7 @@ run_pf() {
             --num_output_frames "$FRAMES" --seed "$seed" --num_samples 1 \
             --use_ema --save_with_index
     ) >"$log" 2>&1
-    [[ "$(video_count "$output")" -ge "$PROMPT_COUNT" ]] || {
+    [[ "$(video_count "$output")" -eq "$PROMPT_COUNT" ]] || {
         echo "[error] $name produced $(video_count "$output")/$PROMPT_COUNT videos"
         return 1
     }
@@ -218,13 +305,19 @@ run_transition() {
             --pyramidkv_cache_transition_role_layer_end "$layer_end"
         )
     fi
-    write_config \
-        "$name" "$method" "$seed" "$role_csv" "$p_scale" "$r_scale" \
-        "$p_age" "$r_age" "$bias" "$layer_start" "$layer_end"
-    if [[ "$FORCE" != "1" && "$(video_count "$output")" -ge "$PROMPT_COUNT" && -s "$trace" ]]; then
+    local existing
+    existing="$(video_count "$output")"
+    if [[ "$FORCE" != "1" && "$existing" -eq "$PROMPT_COUNT" && -s "$trace" ]]; then
         echo "[skip] $name"
         return 0
     fi
+    [[ "$existing" -eq 0 ]] || {
+        echo "[error] $name has $existing existing videos; use a clean OUT_ROOT"
+        return 2
+    }
+    write_config \
+        "$name" "$method" "$seed" "$role_csv" "$p_scale" "$r_scale" \
+        "$p_age" "$r_age" "$bias" "$layer_start" "$layer_end"
     mkdir -p "$output"
     rm -f "$trace"
     (
@@ -248,7 +341,7 @@ run_transition() {
             --pyramidkv_cache_transition_debug \
             "${role_args[@]}"
     ) >"$log" 2>&1
-    [[ "$(video_count "$output")" -ge "$PROMPT_COUNT" ]] || {
+    [[ "$(video_count "$output")" -eq "$PROMPT_COUNT" ]] || {
         echo "[error] $name produced $(video_count "$output")/$PROMPT_COUNT videos"
         return 1
     }
@@ -273,22 +366,22 @@ launch_smoke() {
 }
 
 launch_screen() {
-    launch run_pf pf "${GPUS[0]}" 0
-    launch run_transition v78 "${GPUS[1]}" 0 "" 1 1 6 6 0 0 -1
-    launch run_transition learned_neutral "${GPUS[2]}" 0 "$LEARNED_LABEL" 1 1 6 6 0 0 -1
-    launch run_transition learned_balanced "${GPUS[3]}" 0 "$LEARNED_LABEL" 1.5 .5 8 4 .1 0 -1
-    launch run_transition replica_balanced "${GPUS[4]}" 0 "$REPLICA_LABEL" 1.5 .5 8 4 .1 0 -1
-    launch run_transition pf_binary_balanced "${GPUS[5]}" 0 "$PF_BINARY_LABEL" 1.5 .5 8 4 .1 0 -1
-    launch run_transition inverse_balanced "${GPUS[6]}" 0 "$INVERSE_LABEL" 1.5 .5 8 4 .1 0 -1
-    launch run_transition random_balanced "${GPUS[7]}" 0 "$RANDOM_LABEL" 1.5 .5 8 4 .1 0 -1
-    launch run_transition learned_conservative "${GPUS[8]}" 0 "$LEARNED_LABEL" 2 .75 8 5 .05 0 -1
-    launch run_transition learned_open "${GPUS[9]}" 0 "$LEARNED_LABEL" 1.25 .25 8 3 .15 0 -1
-    launch run_transition learned_no_bias "${GPUS[10]}" 0 "$LEARNED_LABEL" 1.5 .5 8 4 0 0 -1
-    launch run_transition learned_age_only "${GPUS[11]}" 0 "$LEARNED_LABEL" 1 1 8 4 0 0 -1
-    launch run_transition consensus_balanced "${GPUS[12]}" 0 "$CONSENSUS_LABEL" 1.5 .5 8 4 .1 0 -1
-    launch run_transition learned_early "${GPUS[13]}" 0 "$LEARNED_LABEL" 1.5 .5 8 4 .1 0 15
-    launch run_transition learned_late "${GPUS[14]}" 0 "$LEARNED_LABEL" 1.5 .5 8 4 .1 15 30
-    launch run_transition pf_binary_conservative "${GPUS[15]}" 0 "$PF_BINARY_LABEL" 2 .75 8 5 .05 0 -1
+    launch run_sf sf_native "${GPUS[0]}" 0
+    launch run_pf pf "${GPUS[1]}" 0
+    launch run_echo echo_pc "${GPUS[2]}" 0
+    launch run_transition v78 "${GPUS[3]}" 0 "" 1 1 6 6 0 0 -1
+    launch run_transition learned_neutral "${GPUS[4]}" 0 "$LEARNED_LABEL" 1 1 6 6 0 0 -1
+    launch run_transition learned_balanced "${GPUS[5]}" 0 "$LEARNED_LABEL" 1.5 .5 8 4 .1 0 -1
+    launch run_transition replica_balanced "${GPUS[6]}" 0 "$REPLICA_LABEL" 1.5 .5 8 4 .1 0 -1
+    launch run_transition consensus_balanced "${GPUS[7]}" 0 "$CONSENSUS_LABEL" 1.5 .5 8 4 .1 0 -1
+    launch run_transition pf_binary_balanced "${GPUS[8]}" 0 "$PF_BINARY_LABEL" 1.5 .5 8 4 .1 0 -1
+    launch run_transition inverse_balanced "${GPUS[9]}" 0 "$INVERSE_LABEL" 1.5 .5 8 4 .1 0 -1
+    launch run_transition random_balanced "${GPUS[10]}" 0 "$RANDOM_LABEL" 1.5 .5 8 4 .1 0 -1
+    launch run_transition learned_conservative "${GPUS[11]}" 0 "$LEARNED_LABEL" 2 .75 8 5 .05 0 -1
+    launch run_transition learned_open "${GPUS[12]}" 0 "$LEARNED_LABEL" 1.25 .25 8 3 .15 0 -1
+    launch run_transition learned_age_only "${GPUS[13]}" 0 "$LEARNED_LABEL" 1 1 8 4 0 0 -1
+    launch run_transition learned_early "${GPUS[14]}" 0 "$LEARNED_LABEL" 1.5 .5 8 4 .1 0 15
+    launch run_transition learned_late "${GPUS[15]}" 0 "$LEARNED_LABEL" 1.5 .5 8 4 .1 15 30
 }
 
 launch_confirm() {

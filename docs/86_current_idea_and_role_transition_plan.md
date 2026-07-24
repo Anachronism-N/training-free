@@ -4,6 +4,11 @@
 > Status: v78 is the validated paper core; v86 is a falsifiable extension.
 > Recommended flexible title: **Trust the Transition: Reliability-Gated Cache
 > State Promotion for Training-Free Long Video Extrapolation**
+>
+> **Protocol update:** `docs/87_transitioncache_method_and_16x30s_protocol.md`
+> supersedes the three-prompt screen below. The next result-producing run is
+> 16 methods x 16 complex single prompts x 30 seconds, followed by blind review
+> and VBench-Long.
 
 ## 1. Evidence after the latest server results
 
@@ -129,8 +134,8 @@ middle read strategies. Missing or malformed role files fail immediately.
 | Work | Prior mechanism | Our required distinction |
 |---|---|---|
 | [Pyramid-Forcing](https://arxiv.org/abs/2605.13111) | Offline head categories and per-head sink/middle/recent read policies | PF decides what history is read; we control whether a newly generated state is trusted enough to enter its middle memory |
-| [Forcing-KV](https://arxiv.org/abs/2605.09681) | Static/dynamic heads and head-specific KV compression | We must not claim binary head specialization; our target is generation-state admission, not compression or acceleration |
-| [Head Forcing](https://arxiv.org/abs/2605.14487) | Local/anchor/memory heads, hierarchical memory and dynamic episodic updates | We do not claim head heterogeneity or novelty update alone; our differentiator is noisy-clean trust-conditioned promotion with no added episodic read path |
+| [Forcing-KV](https://arxiv.org/abs/2605.09681) | Static/dynamic heads and head-specific KV compression | Our classification criterion contrasts counterfactual remote-history utility with prompt sensitivity, and targets generation-state admission rather than compression |
+| [Head Forcing](https://arxiv.org/abs/2605.14487) | Local/anchor/memory heads, hierarchical memory and dynamic episodic updates | Our classification signal, resulting partition, noisy-clean trust controller and write-lifecycle intervention differ; we add no episodic read path |
 | [Echo-Forcing](https://arxiv.org/abs/2605.16003) | Scene memory preserve/recall/forget | v86 performs no scene snapshot retrieval |
 | [IAMFlow](https://arxiv.org/abs/2605.18733) | Identity-aware entity/state memory | v86 has no entity detector or identity memory |
 
@@ -161,6 +166,11 @@ formulations and head-specialization precedents must be cited.
 | `scripts/run_v86_role_transition_16gpu.sh` | Smoke, 16-cell screen, multi-seed confirm, ultralong and switch runs |
 | `scripts/summarize_cache_transition_trace.py` | Acceptance, reasons and thresholds summarized by role |
 | `scripts/postprocess_v86_role_transition.sh` | Review-first comprehensive, jump, ABA and optional VBench-Long metrics |
+
+The existence of prior head classifications does not invalidate a new
+classification contribution. We do not claim first use of head specialization;
+we test whether a different signal, criterion, partition and cache intervention
+produce a distinct causal benefit.
 
 New trace fields:
 
@@ -207,15 +217,14 @@ Required checks:
 bash scripts/run_v86_role_transition_16gpu.sh screen
 ```
 
-Each cell generates three complex 30-second prompts. The matrix contains:
+Each cell generates 16 complex single-prompt 30-second videos. The matrix
+contains:
 
 ```text
-PF, v78, learned-neutral,
-learned/replica/PF-binary/inverse/random balanced policies,
-primary-replica consensus,
-conservative/open/no-bias/age-only ablations,
-learned early/late depth routes,
-PF-binary conservative control.
+native SF, PF, Echo, v78, learned-neutral,
+learned/replica/consensus/PF-binary/inverse/random balanced policies,
+conservative/open/age-only ablations,
+learned early/late depth routes.
 ```
 
 Review videos blind before metrics. For every prompt record:
@@ -231,6 +240,10 @@ Then run:
 HUMAN_REVIEW_DONE=1 \
   bash scripts/postprocess_v86_role_transition.sh screen
 ```
+
+VBench-Long is enabled by default and evaluates all 16 methods in parallel on
+GPUs 0-15. See `docs/87_transitioncache_method_and_16x30s_protocol.md` for the
+authoritative matrix, prerequisites, debug invariants and decision rules.
 
 ### 5.3 P2 four-seed confirmation
 

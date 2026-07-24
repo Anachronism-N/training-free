@@ -2,9 +2,13 @@
 
 ## Current method (read first)
 
+- `docs/87_transitioncache_method_and_16x30s_protocol.md`: authoritative
+  current method definition, counterfactual head classifier, cache lifecycle,
+  innovation boundary, prior results, 16-method x 16-prompt x 30-second server
+  protocol, VBench-Long commands and debug interpretation.
 - `docs/86_current_idea_and_role_transition_plan.md`: authoritative current
-  idea, v78 evidence, v86 role-conditioned write-clock implementation, paper
-  story, related-work boundary, 16-GPU commands, traces and promotion gates.
+  idea as of the previous three-prompt plan; its experimental protocol is
+  superseded by docs/87.
 - `docs/85_comprehensive_human_review_v81_v82.md`: latest human review. v78 and
   PF are best; ProbeCache direct archive retrieval causes non-ID hallucinations;
   PF-binary preserves substantial camera motion.
@@ -25,16 +29,19 @@
 
 Recommended reading order:
 
-1. `docs/85_comprehensive_human_review_v81_v82.md`
-2. `docs/84_probecache_v81_v82_comprehensive_results.md`
-3. `docs/79_cache_transition_v78_screen_results.md`
-4. `docs/86_current_idea_and_role_transition_plan.md`
+1. `docs/87_transitioncache_method_and_16x30s_protocol.md`
+2. `docs/85_comprehensive_human_review_v81_v82.md`
+3. `docs/84_probecache_v81_v82_comprehensive_results.md`
+4. `docs/79_cache_transition_v78_screen_results.md`
 5. `docs/64_related_work_code_provenance_and_claims.md`
 
 The current validated candidate is v78 Trust-Conditioned Cache Transition.
-v86 role-conditioned transition is an experimental extension and must not be
-called the final method unless it beats v78 and PF-binary controls. ProbeCache,
-Commit Forcing, LifeCache-v3, HREM and CEMR remain as negative-result or design
+TransitionCache/v86 counterfactual role-conditioned transition is an
+experimental extension and must not be called validated unless it beats v78,
+PF-binary, inverse and random controls. Prior work on head specialization does
+not by itself negate the classifier contribution; the signal, criterion,
+partition and causal intervention must be shown to differ. ProbeCache, Commit
+Forcing, LifeCache-v3, HREM and CEMR remain as negative-result or design
 history. LifeCache-v1 below is retained as the original design snapshot.
 
 ## Historical method checkpoints
