@@ -166,6 +166,11 @@ training-free/
 |   |-- postprocess_v92_prompt_binary_cache.sh
 |   |-- analyze_v92_metrics.py
 |   |-- run_v92_echo_unique_snapshot_4gpu.sh
+|   |-- run_v93_moviebench_main_16gpu.sh
+|   |-- run_v93_moviebench_head32_16gpu.sh
+|   |-- postprocess_v93_moviebench.sh
+|   |-- analyze_v93_moviebench.py
+|   |-- run_v93_moviebench_10h.sh
 |   |-- summarize_commit_forcing_trace.py
 |   `-- ...
 |-- src/
@@ -224,6 +229,16 @@ pipelines:
 - `scripts/postprocess_v90_priority_factorization.sh` and
   `scripts/analyze_v90_metrics.py`: reused seed-0 baselines, paired-seed
   deltas, coherence diagnostics, temporal jump and parallel VBench-Long.
+- `scripts/run_v93_moviebench_main_16gpu.sh`: eight-method MovieBench-128
+  comparison with two global-index shards per method and matched per-prompt
+  reseeding.
+- `scripts/run_v93_moviebench_head32_16gpu.sh`: 16-cell MovieBench-32 causal
+  screen for PF-binary and prompt-contrastive head classifications.
+- `scripts/postprocess_v93_moviebench.sh`: parallel comprehensive and
+  VBench-Long evaluation, temporal-jump diagnostics, strict count checks and
+  blind-review packaging for both v93 matrices.
+- `scripts/run_v93_moviebench_10h.sh`: resumable generation-and-metrics queue
+  for one 16-GPU node.
 - `scripts/summarize_cache_transition_trace.py`: strict layer/head mechanism
   validation and reason/label/role statistics.
 
@@ -300,27 +315,31 @@ environment.
 The current main-line experiment is documented in:
 
 ```text
-docs/86_current_idea_and_role_transition_plan.md
+docs/93_moviebench_10h_128_and_head32_plan.md
 ```
 
-Run the role-transition smoke and 16-GPU causal screen:
+Run the full 16-GPU MovieBench queue:
 
 ```bash
-bash scripts/run_v86_role_transition_16gpu.sh smoke
-bash scripts/run_v86_role_transition_16gpu.sh screen
+nohup bash scripts/run_v93_moviebench_10h.sh \
+  > runs/v93_moviebench_10h.log 2>&1 &
 ```
 
-Freeze blind human review before metrics:
+Or run generation and post-processing independently:
 
 ```bash
-HUMAN_REVIEW_DONE=1 \
-  bash scripts/postprocess_v86_role_transition.sh screen
+bash scripts/run_v93_moviebench_main_16gpu.sh
+bash scripts/run_v93_moviebench_head32_16gpu.sh
+bash scripts/postprocess_v93_moviebench.sh main
+bash scripts/postprocess_v93_moviebench.sh head32
 ```
 
-The screen separates PF, uniform v78, role-neutral parity, learned/replica/
-consensus/PF-binary/inverse/random labels, schedule components and depth
-routes. Promote a role-conditioned policy only if it beats v78 and PF-binary
-under the predeclared gates; otherwise v78 remains the final method.
+The main table compares native SF, PF, Echo, v78, two prompt-sensitive
+candidates, PF-binary and the strongest completed v90 weak-priority cell over
+128 prompts. The separate 32-prompt screen factorizes class count, membership,
+profile replication, inverse/random controls, read routing and transition
+writes. Freeze the generated blind-review scorecards before opening method
+keys or metric summaries.
 
 ## Third-Party Code
 

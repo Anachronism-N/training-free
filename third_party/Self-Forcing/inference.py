@@ -58,6 +58,12 @@ parser.add_argument("--seed", type=int, default=0, help="Random seed")
 parser.add_argument("--num_samples", type=int, default=1, help="Number of samples to generate per prompt")
 parser.add_argument("--save_with_index", action="store_true",
                     help="Whether to save the video using the index or prompt as the filename")
+parser.add_argument("--start_idx", type=int, default=0,
+                    help="First dataset prompt index to process (inclusive)")
+parser.add_argument("--end_idx", type=int, default=None,
+                    help="Last dataset prompt index to process (exclusive)")
+parser.add_argument("--reseed_per_prompt", action="store_true",
+                    help="Reset RNG to seed + global prompt index before generation")
 
 # --- Structured memory (EpisodicArchive) CLI ---------------------
 # The archive sidecar was ported from this repository's earlier prototype
@@ -287,6 +293,19 @@ else:
     dataset = TextDataset(prompt_path=args.data_path, extended_prompt_path=args.extended_prompt_path)
 num_prompts = len(dataset)
 print(f"Number of prompts: {num_prompts}")
+if not 0 <= args.start_idx < num_prompts:
+    raise ValueError(
+        f"--start_idx must be in [0, {num_prompts}), got {args.start_idx}"
+    )
+if args.end_idx is not None and not args.start_idx < args.end_idx <= num_prompts:
+    raise ValueError(
+        "--end_idx must be greater than --start_idx and no larger than "
+        f"the dataset size ({num_prompts})"
+    )
+print(
+    f"Prompt index range: [{args.start_idx}, "
+    f"{args.end_idx if args.end_idx is not None else num_prompts})"
+)
 
 if dist.is_initialized():
     sampler = DistributedSampler(dataset, shuffle=False, drop_last=True)
@@ -317,6 +336,12 @@ def encode(self, videos: torch.Tensor) -> torch.Tensor:
 
 for i, batch_data in tqdm(enumerate(dataloader), disable=(local_rank != 0)):
     idx = batch_data['idx'].item()
+    if idx < args.start_idx:
+        continue
+    if args.end_idx is not None and idx >= args.end_idx:
+        break
+    if args.reseed_per_prompt:
+        set_seed(args.seed + int(idx))
 
     # For DataLoader batch_size=1, the batch_data is already a single item, but in a batch container
     # Unpack the batch data for convenience

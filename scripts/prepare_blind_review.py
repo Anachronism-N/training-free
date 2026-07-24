@@ -8,18 +8,33 @@ import csv
 import json
 import os
 import random
+import re
 import shutil
 import string
 from pathlib import Path
 
 
 def _videos(method_dir: Path, count: int) -> list[Path]:
-    videos = sorted(method_dir.glob("*.mp4"))
-    if len(videos) < count:
+    pattern = re.compile(r"^(\d+)-(\d+)_[^.]+\.mp4$")
+    indexed: dict[int, Path] = {}
+    for path in method_dir.glob("*.mp4"):
+        match = pattern.match(path.name)
+        if match is None or int(match.group(2)) != 0:
+            continue
+        prompt_index = int(match.group(1))
+        if prompt_index in indexed:
+            raise ValueError(
+                f"duplicate sample-0 videos for index {prompt_index} in {method_dir}"
+            )
+        indexed[prompt_index] = path
+    expected = set(range(count))
+    missing = sorted(expected - set(indexed))
+    extra = sorted(set(indexed) - expected)
+    if missing or extra:
         raise ValueError(
-            f"{method_dir} contains {len(videos)} mp4 files; expected at least {count}"
+            f"{method_dir} index mismatch: missing={missing[:10]} extra={extra[:10]}"
         )
-    return videos[:count]
+    return [indexed[index] for index in range(count)]
 
 
 def _reset_output(path: Path, force: bool) -> None:

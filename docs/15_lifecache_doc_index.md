@@ -2,6 +2,11 @@
 
 ## Current method (read first)
 
+- `docs/93_moviebench_10h_128_and_head32_plan.md`: current execution protocol.
+  It turns the partial v90/v92 evidence into a MovieBench-128 main comparison
+  and a separate MovieBench-32 causal head-classification matrix, with
+  per-prompt matched reseeding, parallel VBench/comprehensive metrics, blind
+  review, debug checks and result-dependent decision branches.
 - `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`: current
   differentiable follow-up. It corrects the interpretation of v86
   `pf_binary_balanced`, defines an actual Anchor-versus-(Wave+Veil) read
@@ -46,24 +51,28 @@
 
 Recommended reading order:
 
-1. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
-2. `docs/90_post_v86_analysis_and_v90_experiment.md`
-3. `docs/91_transitioncache_paper_story.md`
-4. `docs/89_v86_human_review_and_combined_analysis.md`
-5. `docs/88_transitioncache_v86_partial_results.md`
-6. `docs/64_related_work_code_provenance_and_claims.md`
+1. `docs/93_moviebench_10h_128_and_head32_plan.md`
+2. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
+3. `docs/90_post_v86_analysis_and_v90_experiment.md`
+4. `docs/91_transitioncache_paper_story.md`
+5. `docs/89_v86_human_review_and_combined_analysis.md`
+6. `docs/88_transitioncache_v86_partial_results.md`
+7. `docs/64_related_work_code_provenance_and_claims.md`
 
-The current candidate is v78 Trust-Conditioned Cache Transition. Its matched
-seed-0 gain over PF is positive, but matched seeds 1-3 are still required for a
-robust improvement claim. v86 counterfactual role-conditioned clocks are now a
-negative result: the labels are reproducible but do not beat v78, PF-binary,
-inverse and random controls. v90 tests matched PF-v78 seeds and a lower-risk
-weak priority. v92 tests a new hypothesis: prompt response may be useful for
-choosing the read timescale even though the earlier remote-minus-prompt labels
-were not useful as hard write clocks. This hypothesis does not replace v78
-until inverse/random/replica controls and human review pass. ProbeCache, Commit
-Forcing, LifeCache-v3, HREM and CEMR remain as negative-result or design
-history. LifeCache-v1 below is retained as the original design snapshot.
+The current validated candidate is v78 Trust-Conditioned Cache Transition.
+Matched seeds 0-2 show v78 and PF are effectively tied in mean DINO, so a
+consistent DINO improvement is not currently supportable. v86 counterfactual
+role-conditioned clocks are a negative result: the labels are reproducible but
+do not beat v78, PF-binary, inverse and random controls. Remaining v90 cells
+test lower-risk weak priorities and lifecycle factors. v92 tests a new
+hypothesis: prompt response may be useful for choosing the read timescale even
+though the earlier remote-minus-prompt labels were not useful as hard write
+clocks. This hypothesis does not replace v78 until inverse/random/replica
+controls and human review pass. v93 scales the main comparison to 128
+MovieBench prompts and the classifier controls to 32 MovieBench prompts.
+ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain as
+negative-result or design history. LifeCache-v1 below is retained as the
+original design snapshot.
 
 ## Historical method checkpoints
 

@@ -88,6 +88,14 @@ parser.add_argument(
          "ignoring per-prompt naming.",
 )
 parser.add_argument(
+    "--start_idx", type=int, default=0,
+    help="First dataset prompt index to process (inclusive).",
+)
+parser.add_argument(
+    "--end_idx", type=int, default=None,
+    help="Last dataset prompt index to process (exclusive).",
+)
+parser.add_argument(
     "--pyramidkv_history_value_renorm_strength", type=float, default=None,
     help="Blend stale history V channel statistics toward the recent live window (0 disables).",
 )
@@ -682,6 +690,19 @@ else:
     dataset = TextDataset(prompt_path=args.data_path, extended_prompt_path=args.extended_prompt_path)
 num_prompts = len(dataset)
 print(f"Number of prompts: {num_prompts}")
+if not 0 <= args.start_idx < num_prompts:
+    raise ValueError(
+        f"--start_idx must be in [0, {num_prompts}), got {args.start_idx}"
+    )
+if args.end_idx is not None and not args.start_idx < args.end_idx <= num_prompts:
+    raise ValueError(
+        "--end_idx must be greater than --start_idx and no larger than "
+        f"the dataset size ({num_prompts})"
+    )
+print(
+    f"Prompt index range: [{args.start_idx}, "
+    f"{args.end_idx if args.end_idx is not None else num_prompts})"
+)
 
 if dist.is_initialized():
     sampler = DistributedEvalSampler(
@@ -772,6 +793,10 @@ try:
     with torch.inference_mode():
         for i, batch_data in enumerate(dataloader):
             idx = batch_data['idx'].item()
+            if idx < args.start_idx:
+                continue
+            if args.end_idx is not None and idx >= args.end_idx:
+                break
             if args.reseed_per_prompt:
                 set_seed(args.seed + int(idx))
 
@@ -816,12 +841,12 @@ try:
             if os.environ.get("HEAD_DIAGNOSTIC", "0") == "1":
                 try:
                     from wan.modules.attention.core import set_diagnostic_prompt_id
-                    set_diagnostic_prompt_id(i)
+                    set_diagnostic_prompt_id(idx)
                 except Exception as e:
                     print(f"[DIAG] Failed to set prompt id: {e}")
             if args.probecache_profile_output:
                 from wan.modules.attention.core import set_probecache_profile_prompt_id
-                set_probecache_profile_prompt_id(i)
+                set_probecache_profile_prompt_id(idx)
 
             # Generate video frames
             video, latents = pipeline.inference(

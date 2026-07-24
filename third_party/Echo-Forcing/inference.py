@@ -150,6 +150,12 @@ parser.add_argument("--save_with_index", action="store_true", default=None,
                     help="Whether to save the video using the index or prompt as the filename")
 parser.add_argument("--start_idx", type=int, default=None, help="Start index of prompts to process")
 parser.add_argument("--end_idx", type=int, default=None, help="End index of prompts to process (exclusive)")
+parser.add_argument(
+    "--reseed_per_prompt",
+    action="store_true",
+    default=None,
+    help="Reset RNG to seed + global prompt index before generation",
+)
 args = parser.parse_args()
 
 torch.set_grad_enabled(False)
@@ -187,6 +193,7 @@ resolve_arg("save_with_index", True)
 resolve_arg("start_idx", 0)
 resolve_arg("end_idx", None)
 resolve_arg("output_index", None)
+resolve_arg("reseed_per_prompt", False)
 
 if isinstance(args.output_folder, str):
     args.output_folder = args.output_folder.format(timestamp=timestamp, seed=args.seed)
@@ -254,6 +261,19 @@ else:
     dataset = TextDataset(prompt_path=args.data_path, extended_prompt_path=args.extended_prompt_path)
 num_prompts = len(dataset)
 _debug_print(f"Number of prompts: {num_prompts}")
+if not 0 <= args.start_idx < num_prompts:
+    raise ValueError(
+        f"--start_idx must be in [0, {num_prompts}), got {args.start_idx}"
+    )
+if args.end_idx is not None and not args.start_idx < args.end_idx <= num_prompts:
+    raise ValueError(
+        "--end_idx must be greater than --start_idx and no larger than "
+        f"the dataset size ({num_prompts})"
+    )
+_debug_print(
+    f"Prompt index range: [{args.start_idx}, "
+    f"{args.end_idx if args.end_idx is not None else num_prompts})"
+)
 
 if dist.is_initialized():
     sampler = DistributedSampler(dataset, shuffle=False, drop_last=True)
@@ -289,6 +309,8 @@ for i, batch_data in enumerate(dataloader):
         continue
     if args.end_idx is not None and idx >= args.end_idx:
         break
+    if args.reseed_per_prompt:
+        set_seed(args.seed + int(idx))
     
     # For DataLoader batch_size=1, the batch_data is already a single item, but in a batch container
     # Unpack the batch data for convenience
