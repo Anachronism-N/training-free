@@ -3,6 +3,12 @@
 > Date: 2026-07-24
 > Status: implementation complete; the 16-prompt causal screen is the next run.
 > Primary task: training-free 30-second single-prompt video extrapolation.
+>
+> **Result update:** v86 is complete. Uniform v78 beats PF by `+0.004` DINO
+> at matched seed 0, while learned role conditioning does not beat v78,
+> PF-binary, inverse, or random controls. Read
+> `docs/90_post_v86_analysis_and_v90_experiment.md` for current claims and the
+> next experiment.
 
 ## 1. The current idea in one sentence
 

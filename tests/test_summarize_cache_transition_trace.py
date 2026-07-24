@@ -17,6 +17,8 @@ def test_summarize_reports_role_specific_acceptance(tmp_path):
     event = {
         "event": "cache_transition",
         "layer": 0,
+        "batch_size": 1,
+        "num_heads": 2,
         "branch": "cond",
         "mode": "full",
         "accepted": 1,
@@ -29,7 +31,7 @@ def test_summarize_reports_role_specific_acceptance(tmp_path):
         "shock": [0.1, 0.2],
         "denoise_disagreement": [0.0, 0.0],
         "novelty": [0.005, 0.02],
-        "age_before": [2, 2],
+        "age_before": [2, 5],
         "effective_min_novelty": [0.015, 0.005],
         "effective_max_age": [8, 4],
         "utility": [0.0, 1.1],
@@ -44,8 +46,14 @@ def test_summarize_reports_role_specific_acceptance(tmp_path):
     assert summary["acceptance_by_role"]["persistent"]["reasons"] == {
         "low_novelty": 1
     }
-    assert summary["acceptance_by_role"]["reactive"]["max_age_excess"] == 0
+    assert summary["acceptance_by_role"]["reactive"]["max_age_excess"] == 1
     assert summary["effective_max_age"]["mean"] == 6.0
+    assert summary["coherence"]["age_spread"]["mean"] == 3.0
+    assert summary["coherence"]["commit_disagreement"]["mean"] == 0.5
+    assert summary["coherence"]["groups"] == 1
+    assert summary["coherence"]["mixed_commit_event_rate"] == 1.0
+    assert summary["coherence"]["persistent_reactive_age_gap"]["mean"] == 3.0
+    assert summary["coherence"]["persistent_reactive_commit_gap"]["mean"] == 1.0
 
 
 def test_old_trace_without_roles_remains_supported(tmp_path):

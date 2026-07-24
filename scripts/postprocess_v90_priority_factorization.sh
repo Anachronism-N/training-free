@@ -1,87 +1,82 @@
 #!/usr/bin/env bash
-# Quality metrics for v86 after the human-review sheet has been frozen.
-# Usage: HUMAN_REVIEW_DONE=1 bash scripts/postprocess_v86_role_transition.sh screen|confirm|ultralong|switch
+# Review-first metrics for the v90 matched-seed and priority-factorization run.
+# Usage: HUMAN_REVIEW_DONE=1 bash scripts/postprocess_v90_priority_factorization.sh
 set -euo pipefail
 
-TASK="${1:-}"
-case "$TASK" in
-    screen|confirm|ultralong|switch) ;;
-    *) echo "usage: $0 screen|confirm|ultralong|switch"; exit 2 ;;
-esac
 [[ "${HUMAN_REVIEW_DONE:-0}" == "1" ]] || {
     echo "[blocked] freeze human review before setting HUMAN_REVIEW_DONE=1"
     exit 2
 }
 
 ROOT="${REPO_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free}"
-RUN_ROOT="${RUN_ROOT:-$ROOT/runs/v86_role_transition_${TASK}}"
+RUN_ROOT="${RUN_ROOT:-$ROOT/runs/v90_priority_factorization_screen}"
+BASELINE_ROOT="${BASELINE_ROOT:-$ROOT/runs/v86_role_transition_screen}"
+PROMPTS="${PROMPTS:-$ROOT/prompts/v86_single_long_complex_16.txt}"
 GPU="${GPU:-0}"
 RUN_VBENCH="${RUN_VBENCH:-1}"
 VBENCH_GPU_LIST="${VBENCH_GPU_LIST:-0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}"
 VBENCH_DIMS="${VBENCH_DIMS:-subject_consistency background_consistency aesthetic_quality imaging_quality dynamic_degree}"
 VBENCH_ROOT="${VBENCH_ROOT:-$ROOT/../research_sprint/bench_baselines/VBench}"
 
-case "$TASK" in
-    screen)
-        PROMPTS="${PROMPTS:-$ROOT/prompts/v86_single_long_complex_16.txt}"
-        METHODS=(
-            sf_native pf echo_pc v78
-            learned_neutral learned_balanced replica_balanced
-            consensus_balanced pf_binary_balanced inverse_balanced
-            random_balanced learned_conservative learned_open
-            learned_age_only learned_early learned_late
-        )
-        ;;
-    confirm)
-        PROMPTS="${PROMPTS:-$ROOT/prompts/lifecache_v3_single_long_complex_12.txt}"
-        METHODS=()
-        for seed in 0 1 2 3; do
-            METHODS+=("pf_s$seed" "v78_s$seed" "learned_s$seed" "pf_binary_s$seed")
-        done
-        ;;
-    ultralong)
-        PROMPTS="${PROMPTS:-$ROOT/prompts/probecache_v82_ultralong_complex_6.txt}"
-        METHODS=(
-            pf_s0 v78_s0 learned_s0 pf_binary_s0
-            pf_s1 v78_s1 learned_s1 pf_binary_s1
-        )
-        ;;
-    switch)
-        PROMPTS="${PROMPTS:-$ROOT/prompts/hrem_v2_aba_complex_3.txt}"
-        METHODS=(
-            pf_s0 v78_s0 learned_s0 pf_binary_s0
-            pf_s1 v78_s1 learned_s1 pf_binary_s1
-        )
-        ;;
-esac
-
+METHODS=(
+    pf_s1 v78_s1 pf_s2 v78_s2 pf_s3 v78_s3
+    pf_priority_b005 pf_priority_b010 learned_priority_b005
+    inverse_priority_b005 random_priority_b005 pf_age_only
+    pf_novelty_only wave_priority_b005 veil_priority_b005
+    pf_priority_late
+)
+BASELINE_METHODS=(pf v78 pf_binary_balanced learned_balanced)
 EXPECTED="$(grep -cve '^[[:space:]]*$' "$PROMPTS")"
-METRICS="$RUN_ROOT/metrics"
-mkdir -p "$METRICS"
-VIDEO_DIRS=()
-for method in "${METHODS[@]}"; do
-    video_dir="$RUN_ROOT/$method"
-    log="$RUN_ROOT/logs/$method.log"
-    [[ -d "$video_dir" ]] || { echo "[error] missing $video_dir"; exit 2; }
+[[ "$EXPECTED" -eq 16 ]] || {
+    echo "[error] expected 16 prompts, found $EXPECTED"
+    exit 2
+}
+
+validate_method() {
+    local root="$1" method="$2"
+    local video_dir="$root/$method" log="$root/logs/$method.log"
+    [[ -d "$video_dir" ]] || { echo "[error] missing $video_dir"; return 2; }
+    local count
     count="$(find "$video_dir" -maxdepth 1 -type f -name '*.mp4' | wc -l)"
     [[ "$count" -eq "$EXPECTED" ]] || {
         echo "[error] $method has $count/$EXPECTED videos"
-        exit 2
+        return 2
     }
-    [[ -s "$log" ]] || { echo "[error] missing log $log"; exit 2; }
-    if grep -Eqi 'Traceback \(most recent call last\)|CUDA out of memory|OutOfMemoryError|KeyError:' "$log"; then
+    [[ -s "$log" ]] || { echo "[error] missing log $log"; return 2; }
+    if grep -Eqi \
+        'Traceback \(most recent call last\)|CUDA out of memory|OutOfMemoryError|KeyError:' \
+        "$log"; then
         echo "[error] failure signature in $log"
-        exit 2
+        return 2
     fi
-    VIDEO_DIRS+=("$video_dir")
+}
+
+VIDEO_DIRS=()
+for method in "${BASELINE_METHODS[@]}"; do
+    validate_method "$BASELINE_ROOT" "$method"
+    VIDEO_DIRS+=("$BASELINE_ROOT/$method")
 done
+for method in "${METHODS[@]}"; do
+    validate_method "$RUN_ROOT" "$method"
+    VIDEO_DIRS+=("$RUN_ROOT/$method")
+done
+
+METRICS="$RUN_ROOT/metrics"
+mkdir -p "$METRICS"
+{
+    printf 'BASELINE_ROOT=%s\n' "$BASELINE_ROOT"
+    printf 'BASELINE_METHODS=%s\n' "${BASELINE_METHODS[*]}"
+    printf 'RUN_ROOT=%s\n' "$RUN_ROOT"
+    printf 'METHODS=%s\n' "${METHODS[*]}"
+    printf 'VBENCH_DIMS=%s\n' "$VBENCH_DIMS"
+} >"$METRICS/comparison_sources.env"
 
 mapfile -t TRACES < <(
     find "$RUN_ROOT/traces" -maxdepth 1 -type f \
         -name '*.transition.jsonl' | sort
 )
-[[ "${#TRACES[@]}" -gt 0 ]] || {
-    echo "[error] no cache-transition traces under $RUN_ROOT/traces"
+[[ "${#TRACES[@]}" -eq 13 ]] || {
+    echo "[error] expected 13 transition traces, found ${#TRACES[@]}"
     exit 2
 }
 python "$ROOT/scripts/summarize_cache_transition_trace.py" \
@@ -102,13 +97,13 @@ python "$ROOT/scripts/compute_temporal_jump_diagnostic.py" \
     "${VIDEO_DIRS[@]}" --output "$METRICS/temporal_jump.csv" \
     >"$METRICS/temporal_jump.log" 2>&1
 
-if [[ "$TASK" == "switch" ]]; then
-    python "$ROOT/scripts/evaluate_hrem_v2.py" \
-        --run-root "$RUN_ROOT" --prompt-count "$EXPECTED" \
-        --methods "${METHODS[@]}" --baseline pf_s0 \
-        --output "$METRICS/aba_return.json" \
-        >"$METRICS/aba_return.log" 2>&1
-fi
+python "$ROOT/scripts/analyze_v90_metrics.py" \
+    --comprehensive "$METRICS/comprehensive.json" \
+    --temporal-jump "$METRICS/temporal_jump.csv" \
+    --trace-summary "$METRICS/cache_transition_summary.json" \
+    --output-json "$METRICS/v90_analysis.json" \
+    --output-md "$METRICS/v90_analysis.md" \
+    >"$METRICS/v90_analysis.log" 2>&1
 
 if [[ "$RUN_VBENCH" == "1" ]]; then
     EVAL="$VBENCH_ROOT/vbench2_beta_long/eval_long.py"
@@ -119,8 +114,8 @@ if [[ "$RUN_VBENCH" == "1" ]]; then
     }
     read -r -a DIMS <<<"$VBENCH_DIMS"
     IFS=',' read -r -a VBENCH_GPUS <<<"$VBENCH_GPU_LIST"
-    [[ "${#VBENCH_GPUS[@]}" -ge "${#METHODS[@]}" ]] || {
-        echo "[error] VBench needs ${#METHODS[@]} GPU ids, found ${#VBENCH_GPUS[@]}"
+    [[ "${#VBENCH_GPUS[@]}" -eq "${#METHODS[@]}" ]] || {
+        echo "[error] VBench needs exactly ${#METHODS[@]} GPU ids"
         exit 2
     }
     VBENCH_PIDS=()
@@ -151,4 +146,4 @@ if [[ "$RUN_VBENCH" == "1" ]]; then
     }
 fi
 
-echo "[v86] task=$TASK metrics=$METRICS"
+echo "[v90] metrics=$METRICS"

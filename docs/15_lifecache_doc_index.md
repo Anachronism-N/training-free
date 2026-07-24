@@ -2,10 +2,21 @@
 
 ## Current method (read first)
 
+- `docs/90_post_v86_analysis_and_v90_experiment.md`: authoritative post-v86
+  conclusion, corrected claim boundary, v78 matched-seed requirement, v90 weak
+  priority hypothesis, 16-GPU matrix, VBench commands and promotion gates.
+- `docs/91_transitioncache_paper_story.md`: paper-writing blueprint with the
+  central question, contribution claims, related-work boundary, figures,
+  experiment structure, abstract template and result-dependent story branches.
+- `docs/89_v86_human_review_and_combined_analysis.md`: v86 human review;
+  v78/PF-binary are strongest, learned-role cells duplicate subjects, and
+  inverse labels create physics violations.
+- `docs/88_transitioncache_v86_partial_results.md`: complete 16-prompt DINO
+  table appended after the original partial report; learned role conditioning
+  is reproducible but not causally superior.
 - `docs/87_transitioncache_method_and_16x30s_protocol.md`: authoritative
-  current method definition, counterfactual head classifier, cache lifecycle,
-  innovation boundary, prior results, 16-method x 16-prompt x 30-second server
-  protocol, VBench-Long commands and debug interpretation.
+  pre-result v86 method definition and protocol; superseded by docs/90 for
+  current claims and experiments.
 - `docs/86_current_idea_and_role_transition_plan.md`: authoritative current
   idea as of the previous three-prompt plan; its experimental protocol is
   superseded by docs/87.
@@ -29,20 +40,20 @@
 
 Recommended reading order:
 
-1. `docs/87_transitioncache_method_and_16x30s_protocol.md`
-2. `docs/85_comprehensive_human_review_v81_v82.md`
-3. `docs/84_probecache_v81_v82_comprehensive_results.md`
-4. `docs/79_cache_transition_v78_screen_results.md`
+1. `docs/90_post_v86_analysis_and_v90_experiment.md`
+2. `docs/91_transitioncache_paper_story.md`
+3. `docs/89_v86_human_review_and_combined_analysis.md`
+4. `docs/88_transitioncache_v86_partial_results.md`
 5. `docs/64_related_work_code_provenance_and_claims.md`
 
-The current validated candidate is v78 Trust-Conditioned Cache Transition.
-TransitionCache/v86 counterfactual role-conditioned transition is an
-experimental extension and must not be called validated unless it beats v78,
-PF-binary, inverse and random controls. Prior work on head specialization does
-not by itself negate the classifier contribution; the signal, criterion,
-partition and causal intervention must be shown to differ. ProbeCache, Commit
-Forcing, LifeCache-v3, HREM and CEMR remain as negative-result or design
-history. LifeCache-v1 below is retained as the original design snapshot.
+The current candidate is v78 Trust-Conditioned Cache Transition. Its matched
+seed-0 gain over PF is positive, but matched seeds 1-3 are still required for a
+robust improvement claim. v86 counterfactual role-conditioned clocks are now a
+negative result: the labels are reproducible but do not beat v78, PF-binary,
+inverse and random controls. v90 tests matched PF-v78 seeds and a lower-risk
+weak priority. ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain
+as negative-result or design history. LifeCache-v1 below is retained as the
+original design snapshot.
 
 ## Historical method checkpoints
 

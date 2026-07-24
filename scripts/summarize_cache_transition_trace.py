@@ -63,6 +63,12 @@ def summarize(path: Path, expected_layers: int) -> dict[str, Any]:
     age_over_effective_max: list[int] = []
     age_over_effective_max_by_role: dict[str, list[int]] = defaultdict(list)
     utilities: list[float] = []
+    age_spreads: list[float] = []
+    commit_disagreements: list[float] = []
+    role_age_gaps: list[float] = []
+    role_commit_gaps: list[float] = []
+    mixed_commit_events = 0
+    coherence_groups = 0
     accepted = 0
     total = 0
     modes: Counter[str] = Counter()
@@ -156,6 +162,53 @@ def summarize(path: Path, expected_layers: int) -> dict[str, Any]:
                 age_over_effective_max.append(excess)
                 age_over_effective_max_by_role[str(role)].append(excess)
         utilities.extend(float(value) for value in event_utilities)
+        batch_size = int(event.get("batch_size", 1))
+        num_heads = int(event.get("num_heads", len(mask)))
+        if batch_size <= 0 or num_heads <= 0 or batch_size * num_heads != len(mask):
+            failures.append(f"event {index}: invalid batch/head dimensions")
+            groups = [list(range(len(mask)))]
+        else:
+            groups = [
+                list(range(batch * num_heads, (batch + 1) * num_heads))
+                for batch in range(batch_size)
+            ]
+        for group in groups:
+            coherence_groups += 1
+            group_ages = [event_ages[index] for index in group]
+            age_spreads.append(float(max(group_ages) - min(group_ages)))
+            group_acceptance = statistics.fmean(
+                float(bool(mask[index])) for index in group
+            )
+            commit_disagreements.append(
+                2.0 * group_acceptance * (1.0 - group_acceptance)
+            )
+            mixed_commit_events += int(0.0 < group_acceptance < 1.0)
+            role_indices: dict[str, list[int]] = defaultdict(list)
+            for seq_idx in group:
+                role_indices[str(event_roles[seq_idx])].append(seq_idx)
+            if "persistent" in role_indices and "reactive" in role_indices:
+                persistent_indices = role_indices["persistent"]
+                reactive_indices = role_indices["reactive"]
+                persistent_age = statistics.fmean(
+                    float(event_ages[group_idx])
+                    for group_idx in persistent_indices
+                )
+                reactive_age = statistics.fmean(
+                    float(event_ages[group_idx])
+                    for group_idx in reactive_indices
+                )
+                role_age_gaps.append(abs(persistent_age - reactive_age))
+                persistent_commit = statistics.fmean(
+                    float(bool(mask[group_idx]))
+                    for group_idx in persistent_indices
+                )
+                reactive_commit = statistics.fmean(
+                    float(bool(mask[group_idx]))
+                    for group_idx in reactive_indices
+                )
+                role_commit_gaps.append(
+                    abs(persistent_commit - reactive_commit)
+                )
         accepted += sum(bool(value) for value in mask)
         total += len(mask)
         accepted_by_layer[layer][0] += sum(bool(value) for value in mask)
@@ -190,6 +243,26 @@ def summarize(path: Path, expected_layers: int) -> dict[str, Any]:
         "effective_max_age": _stats(effective_max_age),
         "age_over_effective_max": _stats(age_over_effective_max),
         "utility": _stats(utilities),
+        "coherence": {
+            "age_spread": _stats(age_spreads),
+            "commit_disagreement": _stats(commit_disagreements),
+            "groups": coherence_groups,
+            "mixed_commit_groups": mixed_commit_events,
+            "mixed_commit_group_rate": (
+                mixed_commit_events / coherence_groups
+                if coherence_groups
+                else None
+            ),
+            # Backward-compatible aliases retained for older downstream readers.
+            "mixed_commit_events": mixed_commit_events,
+            "mixed_commit_event_rate": (
+                mixed_commit_events / coherence_groups
+                if coherence_groups
+                else None
+            ),
+            "persistent_reactive_age_gap": _stats(role_age_gaps),
+            "persistent_reactive_commit_gap": _stats(role_commit_gaps),
+        },
         "acceptance_by_label": {
             str(label): {
                 "accepted": sum(values),
@@ -261,6 +334,8 @@ def _write_markdown(summaries: list[dict[str, Any]], path: Path) -> None:
                 f"`{json.dumps(item['acceptance_by_label'], sort_keys=True)}`",
                 f"- Acceptance by role: "
                 f"`{json.dumps(item['acceptance_by_role'], sort_keys=True)}`",
+                f"- Coherence: "
+                f"`{json.dumps(item['coherence'], sort_keys=True)}`",
             ]
         )
         lines.extend(f"- FAILURE: {failure}" for failure in item["failures"])

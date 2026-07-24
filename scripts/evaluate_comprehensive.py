@@ -499,6 +499,8 @@ def evaluate_single_video(
     device: str = "cuda",
     sample_frames: int = 64,
     batch_size: int = 8,
+    skip_m3: bool = False,
+    skip_m4: bool = False,
 ) -> Dict[str, float]:
     """Run all 8 metrics on a single video."""
     results = {}
@@ -521,21 +523,30 @@ def evaluate_single_video(
     results.update(compute_m2_drift_slope(dino_feats))
 
     # ── M3: Motion Smoothness ──
-    print("    Computing M3 (Motion Smoothness)...")
-    try:
-        results.update(compute_m3_motion_smoothness(frames_tensor, num_pairs=16))
-    except Exception as e:
-        print(f"    [WARN] M3 failed: {e}")
+    if skip_m3:
         results["m3_motion_smoothness"] = float("nan")
+    else:
+        print("    Computing M3 (Motion Smoothness)...")
+        try:
+            results.update(
+                compute_m3_motion_smoothness(frames_tensor, num_pairs=16)
+            )
+        except Exception as e:
+            print(f"    [WARN] M3 failed: {e}")
+            results["m3_motion_smoothness"] = float("nan")
 
     # ── M4: ArcFace ID ──
-    print("    Computing M4 (ArcFace ID)...")
-    try:
-        results.update(compute_m4_arcface_id(frames))
-    except Exception as e:
-        print(f"    [WARN] M4 failed: {e}")
+    if skip_m4:
         results["m4_arcface_id_sim"] = float("nan")
         results["m4_face_detection_rate"] = 0.0
+    else:
+        print("    Computing M4 (ArcFace ID)...")
+        try:
+            results.update(compute_m4_arcface_id(frames))
+        except Exception as e:
+            print(f"    [WARN] M4 failed: {e}")
+            results["m4_arcface_id_sim"] = float("nan")
+            results["m4_face_detection_rate"] = 0.0
 
     # ── M5: Temporal Flickering ──
     print("    Computing M5 (Temporal Flickering)...")
@@ -728,6 +739,8 @@ def main():
                     device=device,
                     sample_frames=args.sample_frames,
                     batch_size=args.batch_size,
+                    skip_m3=args.skip_m3,
+                    skip_m4=args.skip_m4,
                 )
 
                 if "error" in metrics:

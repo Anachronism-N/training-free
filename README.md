@@ -8,16 +8,19 @@ It controls whether a clean autoregressive block may update Pyramid-Forcing's
 middle cache, using free noisy/clean K/V disagreement, transition shock,
 novelty, age and an asynchronous write budget. It does not alter PF's
 sink/middle/recent read topology and adds no model forward. Across the latest
-multi-seed confirmation, v78 beats the reported PF reference by about 0.021
-average DINO and is ranked best by human review.
+matched seed-0 screen, v78 beats PF by 0.004 DINO and is ranked best by human
+review. Earlier seeds 2/3 also score well, but their reported PF comparison is
+not seed-matched; v90 supplies the missing matched seeds 1-3.
 
-The next falsifiable extension is **TransitionCache / v86 role-conditioned
-transition**: heads are classified by counterfactual output responses to prompt
-and history interventions, then receive different cache-promotion clocks while
-PF's original head labels and read policies remain unchanged. The current
-method, innovation boundary, prior results, 16-method x 16-prompt x 30-second
-screen, VBench-Long commands and debug interpretation are in
-`docs/87_transitioncache_method_and_16x30s_protocol.md`.
+The v86 screen is complete. Uniform v78 is best (`0.8536` DINO versus PF
+`0.8496`) on the matched 16-prompt seed-0 screen. Hard learned role clocks are
+not causally superior and can duplicate subjects; they are no longer a method
+claim. The next experiment runs PF-v78 matched seeds 1-3 and tests a safer weak
+motion priority that changes only budget ordering among trusted candidates.
+Current analysis, code, 16-GPU commands and decision gates are in
+`docs/90_post_v86_analysis_and_v90_experiment.md`. The claim-safe paper story,
+section structure, figures and abstract template are in
+`docs/91_transitioncache_paper_story.md`.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -61,20 +64,17 @@ controls state admission instead of adding another recall path.
   last admitted clean state.
 - **Uniform transition:** reliability, novelty, age and budget gate PF middle
   writes; this is the validated v78 method.
-- **Counterfactual roles:** robust per-layer remote-history utility minus prompt
-  sensitivity separates persistent and reactive heads.
-- **Role-conditioned clock:** persistent heads update more conservatively,
-  while reactive heads refresh sooner with bounded budget priority.
-- **Uncertainty abstention:** primary/replica disagreements use neutral v78
-  behavior.
+- **Optional weak priority:** v90 tests whether PF temporal classes can break
+  ties among trusted candidates without receiving different stale-state ages.
 - **Fail-closed scope:** no direct archive read, no extra forward, and all role
   behavior is off by default.
 
 Head specialization and novelty-based memory updates have prior art. This does
-not preclude a classification contribution: our possible novelty is the exact
-counterfactual signal and criterion, the resulting partition, noisy-clean
-trust-conditioned promotion, role-specific write lifecycle, and uncertainty
-abstention. We do not claim first use of head classes.
+not preclude a different classifier from being innovative, but the current
+counterfactual classifier did not improve the target cache-write intervention.
+The supported contribution candidate is noisy-clean trust-conditioned state
+promotion and bounded asynchronous cache writes. PF labels are cited as a
+borrowed prior in v90, not renamed as our classification.
 
 LifeCache-v1 and CEMR remain in the repository as prior prototypes and
 ablation infrastructure.
@@ -107,7 +107,11 @@ training-free/
 |   |-- 84_probecache_v81_v82_comprehensive_results.md
 |   |-- 85_comprehensive_human_review_v81_v82.md
 |   |-- 86_current_idea_and_role_transition_plan.md
-|   `-- 87_transitioncache_method_and_16x30s_protocol.md
+|   |-- 87_transitioncache_method_and_16x30s_protocol.md
+|   |-- 88_transitioncache_v86_partial_results.md
+|   |-- 89_v86_human_review_and_combined_analysis.md
+|   |-- 90_post_v86_analysis_and_v90_experiment.md
+|   `-- 91_transitioncache_paper_story.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -137,6 +141,10 @@ training-free/
 |   |-- build_transition_role_consensus.py
 |   |-- run_v86_role_transition_16gpu.sh
 |   |-- postprocess_v86_role_transition.sh
+|   |-- build_pf_transition_controls.py
+|   |-- run_v90_priority_factorization_16gpu.sh
+|   |-- postprocess_v90_priority_factorization.sh
+|   |-- analyze_v90_metrics.py
 |   |-- summarize_commit_forcing_trace.py
 |   `-- ...
 |-- src/
@@ -189,6 +197,12 @@ pipelines:
   policy/depth ablations, multi-seed, ultralong and switch experiments.
 - `scripts/postprocess_v86_role_transition.sh`: review-first DINO, temporal
   jump, ABA and 16-GPU parallel VBench-Long evaluation.
+- `scripts/run_v90_priority_factorization_16gpu.sh`: matched PF-v78 seeds 1-3,
+  weak-priority label controls, lifecycle factorization, PF class isolation,
+  and depth routing over 16 prompts.
+- `scripts/postprocess_v90_priority_factorization.sh` and
+  `scripts/analyze_v90_metrics.py`: reused seed-0 baselines, paired-seed
+  deltas, coherence diagnostics, temporal jump and parallel VBench-Long.
 - `scripts/summarize_cache_transition_trace.py`: strict layer/head mechanism
   validation and reason/label/role statistics.
 

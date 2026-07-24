@@ -484,6 +484,8 @@ class CacheTransitionController:
             "pid": os.getpid(),
             "rank": int(os.environ.get("RANK", "0")),
             "layer": self.layer_idx,
+            "batch_size": self.batch_size,
+            "num_heads": self.num_heads,
             "branch": str(branch),
             "mode": self.config.mode,
             "role_conditioning_active": self.role_conditioning_active,
@@ -522,6 +524,11 @@ class CacheTransitionController:
                 counts[reason] = counts.get(reason, 0) + 1
             mean_rel = sum(decision.reliability) / max(1, len(decision.reliability))
             mean_shock = sum(decision.shock) / max(1, len(decision.shock))
+            age_span = max(decision.age_before) - min(decision.age_before)
+            accepted_fraction = sum(decision.commit_mask) / max(
+                1, len(decision.commit_mask)
+            )
+            commit_mix = 2.0 * accepted_fraction * (1.0 - accepted_fraction)
             role_acceptance: dict[str, list[int]] = {}
             for role, accepted in zip(decision.head_roles, decision.commit_mask):
                 counts_for_role = role_acceptance.setdefault(role, [0, 0])
@@ -532,6 +539,7 @@ class CacheTransitionController:
                 f"branch={branch} block={decision.block_id} "
                 f"accepted={sum(decision.commit_mask)}/{len(decision.commit_mask)} "
                 f"rel={mean_rel:.4f} shock={mean_shock:.4f} "
+                f"age_span={age_span} commit_mix={commit_mix:.4f} "
                 f"roles={role_acceptance} reasons={counts}",
                 flush=True,
             )
