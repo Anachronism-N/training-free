@@ -135,6 +135,19 @@ class PyramidKVPipelineConfig:
     pyramidkv_cache_transition_max_commit_fraction: float = 0.5
     pyramidkv_cache_transition_stagger_period: int = 2
     pyramidkv_cache_transition_branches: str = "both"
+    pyramidkv_cache_transition_role_conditioning: bool = False
+    pyramidkv_cache_transition_role_config_path: Optional[str] = None
+    pyramidkv_cache_transition_persistent_label: int = 1
+    pyramidkv_cache_transition_reactive_labels: list = field(
+        default_factory=lambda: [-1]
+    )
+    pyramidkv_cache_transition_persistent_min_novelty_scale: float = 1.5
+    pyramidkv_cache_transition_reactive_min_novelty_scale: float = 0.5
+    pyramidkv_cache_transition_persistent_max_age_blocks: int = 8
+    pyramidkv_cache_transition_reactive_max_age_blocks: int = 4
+    pyramidkv_cache_transition_reactive_utility_bias: float = 0.1
+    pyramidkv_cache_transition_role_layer_start: int = 0
+    pyramidkv_cache_transition_role_layer_end: int = -1
     pyramidkv_cache_transition_trace_path: Optional[str] = None
     pyramidkv_cache_transition_debug: bool = False
 
@@ -420,6 +433,76 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_cache_transition_branches=str(
                 getattr(args, "pyramidkv_cache_transition_branches", "both")
+            ),
+            pyramidkv_cache_transition_role_conditioning=bool(
+                getattr(
+                    args,
+                    "pyramidkv_cache_transition_role_conditioning",
+                    False,
+                )
+            ),
+            pyramidkv_cache_transition_role_config_path=getattr(
+                args, "pyramidkv_cache_transition_role_config_path", None
+            ),
+            pyramidkv_cache_transition_persistent_label=int(
+                getattr(args, "pyramidkv_cache_transition_persistent_label", 1)
+            ),
+            pyramidkv_cache_transition_reactive_labels=list(
+                getattr(
+                    args,
+                    "pyramidkv_cache_transition_reactive_labels",
+                    [-1],
+                )
+                or [-1]
+            ),
+            pyramidkv_cache_transition_persistent_min_novelty_scale=float(
+                getattr(
+                    args,
+                    "pyramidkv_cache_transition_persistent_min_novelty_scale",
+                    1.5,
+                )
+            ),
+            pyramidkv_cache_transition_reactive_min_novelty_scale=float(
+                getattr(
+                    args,
+                    "pyramidkv_cache_transition_reactive_min_novelty_scale",
+                    0.5,
+                )
+            ),
+            pyramidkv_cache_transition_persistent_max_age_blocks=int(
+                getattr(
+                    args,
+                    "pyramidkv_cache_transition_persistent_max_age_blocks",
+                    8,
+                )
+            ),
+            pyramidkv_cache_transition_reactive_max_age_blocks=int(
+                getattr(
+                    args,
+                    "pyramidkv_cache_transition_reactive_max_age_blocks",
+                    4,
+                )
+            ),
+            pyramidkv_cache_transition_reactive_utility_bias=float(
+                getattr(
+                    args,
+                    "pyramidkv_cache_transition_reactive_utility_bias",
+                    0.1,
+                )
+            ),
+            pyramidkv_cache_transition_role_layer_start=int(
+                getattr(
+                    args,
+                    "pyramidkv_cache_transition_role_layer_start",
+                    0,
+                )
+            ),
+            pyramidkv_cache_transition_role_layer_end=int(
+                getattr(
+                    args,
+                    "pyramidkv_cache_transition_role_layer_end",
+                    -1,
+                )
             ),
             pyramidkv_cache_transition_trace_path=getattr(
                 args, "pyramidkv_cache_transition_trace_path", None

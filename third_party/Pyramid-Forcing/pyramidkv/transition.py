@@ -48,6 +48,16 @@ class CacheTransitionConfig:
     max_commit_fraction: float = 0.5
     stagger_period: int = 2
     branches: str = "both"
+    role_conditioning_enabled: bool = False
+    persistent_label: int = 1
+    reactive_labels: tuple[int, ...] = (-1,)
+    persistent_min_novelty_scale: float = 1.5
+    reactive_min_novelty_scale: float = 0.5
+    persistent_max_age_blocks: int = 8
+    reactive_max_age_blocks: int = 4
+    reactive_utility_bias: float = 0.1
+    role_layer_start: int = 0
+    role_layer_end: int = -1
     trace_path: str | None = None
     debug: bool = False
 
@@ -74,6 +84,43 @@ class CacheTransitionConfig:
             raise ValueError("cache transition stagger_period must be positive")
         if self.branches not in {"both", "cond", "uncond"}:
             raise ValueError("cache transition branches must be both, cond, or uncond")
+        if self.role_conditioning_enabled:
+            if (
+                self.persistent_min_novelty_scale < 0.0
+                or self.reactive_min_novelty_scale < 0.0
+            ):
+                raise ValueError(
+                    "cache transition role novelty scales must be non-negative"
+                )
+            if self.persistent_max_age_blocks < self.min_interval_blocks:
+                raise ValueError(
+                    "cache transition persistent_max_age_blocks must be >= "
+                    "min_interval_blocks"
+                )
+            if self.reactive_max_age_blocks < self.min_interval_blocks:
+                raise ValueError(
+                    "cache transition reactive_max_age_blocks must be >= "
+                    "min_interval_blocks"
+                )
+            if self.reactive_utility_bias < 0.0:
+                raise ValueError(
+                    "cache transition reactive_utility_bias must be non-negative"
+                )
+            if not self.reactive_labels:
+                raise ValueError("cache transition reactive_labels cannot be empty")
+            if self.persistent_label in self.reactive_labels:
+                raise ValueError(
+                    "cache transition persistent_label cannot also be a reactive label"
+                )
+            if self.role_layer_start < 0:
+                raise ValueError(
+                    "cache transition role_layer_start must be non-negative"
+                )
+            if 0 <= self.role_layer_end <= self.role_layer_start:
+                raise ValueError(
+                    "cache transition role_layer_end must be greater than "
+                    "role_layer_start"
+                )
 
 
 @dataclass(frozen=True)
@@ -88,6 +135,10 @@ class CacheTransitionDecision:
     denoise_disagreement: tuple[float, ...]
     novelty: tuple[float, ...]
     age_before: tuple[int, ...]
+    head_roles: tuple[str, ...]
+    effective_min_novelty: tuple[float, ...]
+    effective_max_age: tuple[int, ...]
+    utility: tuple[float, ...]
 
 
 def _descriptors(k_flat: torch.Tensor, v_flat: torch.Tensor) -> torch.Tensor:
@@ -143,6 +194,13 @@ class CacheTransitionController:
         if not labels:
             labels = [1] * self.num_heads
         self.head_labels = tuple(int(labels[i % len(labels)]) for i in range(self.num_heads))
+        self.role_conditioning_active = bool(config.role_conditioning_enabled) and (
+            config.role_layer_start <= self.layer_idx
+            and (
+                config.role_layer_end < 0
+                or self.layer_idx < config.role_layer_end
+            )
+        )
         self._active_descriptor: torch.Tensor | None = None
         self._active_valid = [False] * self.num_seq
         self._last_noisy_descriptor: torch.Tensor | None = None
@@ -166,6 +224,44 @@ class CacheTransitionController:
 
     def applies_to_branch(self, branch: str) -> bool:
         return self.config.branches == "both" or self.config.branches == str(branch)
+
+    def _head_policy(self, head_idx: int) -> tuple[str, float, int, float]:
+        if not self.role_conditioning_active:
+            return (
+                "uniform",
+                self.config.min_novelty,
+                self.config.max_age_blocks,
+                0.0,
+            )
+        label = self.head_labels[head_idx]
+        if label == self.config.persistent_label:
+            return (
+                "persistent",
+                min(
+                    2.0,
+                    self.config.min_novelty
+                    * self.config.persistent_min_novelty_scale,
+                ),
+                self.config.persistent_max_age_blocks,
+                0.0,
+            )
+        if label in self.config.reactive_labels:
+            return (
+                "reactive",
+                min(
+                    2.0,
+                    self.config.min_novelty
+                    * self.config.reactive_min_novelty_scale,
+                ),
+                self.config.reactive_max_age_blocks,
+                self.config.reactive_utility_bias,
+            )
+        return (
+            "neutral",
+            self.config.min_novelty,
+            self.config.max_age_blocks,
+            0.0,
+        )
 
     @torch.no_grad()
     def observe_noisy(
@@ -240,6 +336,19 @@ class CacheTransitionController:
 
         masks = [False] * self.num_seq
         reasons = ["not_evaluated"] * self.num_seq
+        roles: list[str] = []
+        effective_min_novelty: list[float] = []
+        effective_max_age: list[int] = []
+        utility_values = [0.0] * self.num_seq
+        utility_biases: list[float] = []
+        for seq_idx in range(self.num_seq):
+            role, novelty_threshold, max_age, utility_bias = self._head_policy(
+                seq_idx % self.num_heads
+            )
+            roles.append(role)
+            effective_min_novelty.append(novelty_threshold)
+            effective_max_age.append(max_age)
+            utility_biases.append(utility_bias)
         budget_candidates: list[tuple[float, int]] = []
         gate_enabled = self.config.mode in {"gate", "full"}
         stagger_enabled = self.config.mode in {"stagger", "full"}
@@ -260,8 +369,10 @@ class CacheTransitionController:
                 masks[seq_idx] = True
                 reasons[seq_idx] = "warmup"
                 continue
-            if age >= self.config.max_age_blocks:
+            max_age = effective_max_age[seq_idx]
+            if age >= max_age:
                 budget_candidates.append((10.0 + float(age), seq_idx))
+                utility_values[seq_idx] = 10.0 + float(age)
                 reasons[seq_idx] = "forced_candidate"
                 continue
             if age < self.config.min_interval_blocks:
@@ -270,7 +381,10 @@ class CacheTransitionController:
             if gate_enabled and reliability_values[seq_idx] < self.config.min_reliability:
                 reasons[seq_idx] = "low_reliability"
                 continue
-            if gate_enabled and novelty_values[seq_idx] < self.config.min_novelty:
+            if (
+                gate_enabled
+                and novelty_values[seq_idx] < effective_min_novelty[seq_idx]
+            ):
                 reasons[seq_idx] = "low_novelty"
                 continue
             if stagger_enabled:
@@ -282,9 +396,11 @@ class CacheTransitionController:
                     continue
             utility = (
                 reliability_values[seq_idx]
-                + 0.25 * min(1.0, age / max(1, self.config.max_age_blocks))
+                + 0.25 * min(1.0, age / max(1, max_age))
                 + 0.25 * novelty_values[seq_idx]
+                + utility_biases[seq_idx]
             )
+            utility_values[seq_idx] = utility
             budget_candidates.append((utility, seq_idx))
             reasons[seq_idx] = "budget_candidate"
 
@@ -325,6 +441,10 @@ class CacheTransitionController:
             denoise_disagreement=tuple(float(value) for value in denoise_values),
             novelty=tuple(float(value) for value in novelty_values),
             age_before=age_before,
+            head_roles=tuple(roles),
+            effective_min_novelty=tuple(effective_min_novelty),
+            effective_max_age=tuple(effective_max_age),
+            utility=tuple(utility_values),
         )
         self._clean_block_count += 1
         self._last_decision = decision
@@ -339,6 +459,10 @@ class CacheTransitionController:
         reason: str,
     ) -> CacheTransitionDecision:
         zeros = tuple(0.0 for _ in range(self.num_seq))
+        role_policies = [
+            self._head_policy(seq_idx % self.num_heads)
+            for seq_idx in range(self.num_seq)
+        ]
         return CacheTransitionDecision(
             block_id=block_id,
             commit_mask=tuple(True for _ in range(self.num_seq)),
@@ -348,6 +472,10 @@ class CacheTransitionController:
             denoise_disagreement=zeros,
             novelty=zeros,
             age_before=tuple(self._ages),
+            head_roles=tuple(policy[0] for policy in role_policies),
+            effective_min_novelty=tuple(policy[1] for policy in role_policies),
+            effective_max_age=tuple(policy[2] for policy in role_policies),
+            utility=zeros,
         )
 
     def _trace(self, decision: CacheTransitionDecision, branch: str) -> None:
@@ -358,6 +486,7 @@ class CacheTransitionController:
             "layer": self.layer_idx,
             "branch": str(branch),
             "mode": self.config.mode,
+            "role_conditioning_active": self.role_conditioning_active,
             "block_id": decision.block_id,
             "clean_block_index": self._clean_block_count,
             "accepted": int(sum(decision.commit_mask)),
@@ -366,6 +495,7 @@ class CacheTransitionController:
             "head_labels": [
                 self.head_labels[idx % self.num_heads] for idx in range(self.num_seq)
             ],
+            "head_roles": list(decision.head_roles),
             "reasons": list(decision.reasons),
             "reliability": [round(value, 6) for value in decision.reliability],
             "shock": [round(value, 6) for value in decision.shock],
@@ -374,6 +504,11 @@ class CacheTransitionController:
             ],
             "novelty": [round(value, 6) for value in decision.novelty],
             "age_before": list(decision.age_before),
+            "effective_min_novelty": [
+                round(value, 6) for value in decision.effective_min_novelty
+            ],
+            "effective_max_age": list(decision.effective_max_age),
+            "utility": [round(value, 6) for value in decision.utility],
         }
         if self.config.trace_path:
             trace_path = self.config.trace_path.format(
@@ -387,10 +522,16 @@ class CacheTransitionController:
                 counts[reason] = counts.get(reason, 0) + 1
             mean_rel = sum(decision.reliability) / max(1, len(decision.reliability))
             mean_shock = sum(decision.shock) / max(1, len(decision.shock))
+            role_acceptance: dict[str, list[int]] = {}
+            for role, accepted in zip(decision.head_roles, decision.commit_mask):
+                counts_for_role = role_acceptance.setdefault(role, [0, 0])
+                counts_for_role[0] += int(accepted)
+                counts_for_role[1] += 1
             print(
                 "[CacheTransition] "
                 f"branch={branch} block={decision.block_id} "
                 f"accepted={sum(decision.commit_mask)}/{len(decision.commit_mask)} "
-                f"rel={mean_rel:.4f} shock={mean_shock:.4f} reasons={counts}",
+                f"rel={mean_rel:.4f} shock={mean_shock:.4f} "
+                f"roles={role_acceptance} reasons={counts}",
                 flush=True,
             )

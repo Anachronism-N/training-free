@@ -202,6 +202,16 @@ all-head。上面的 HREM-v2 来源图因此保留为历史台账，不再代表
 - 关键差异候选：Forcing-KV 主要做 head-specific KV compression/acceleration；HREM-v2 尝试做历史 episode readout eligibility。
 - 风险：若论文将 K/V persistence 直接解释成 static/dynamic head 分类，必须承认 Forcing-KV 的先例，并证明我们的在线证据、任务和干预对象不同。
 
+### 2.6b Head Forcing
+
+- 论文：[Head Forcing: Long Autoregressive Video Generation via Head Heterogeneity](https://arxiv.org/abs/2605.14487)
+- 项目页：[Head Forcing](https://jiahaotian-sjtu.github.io/headforcing.github.io/)
+- 本地状态：未 vendored；截至 2026-07-24 项目页仍标记 code coming soon，因此没有完成源码审查，也没有复制其实现。
+- 已公开机制：local / anchor / memory head 分类、针对不同 head 的 KV 策略、memory head 的 hierarchical episodic memory、dynamic episodic update 和 head-wise RoPE re-encoding。
+- 与 v86 的高碰撞点：head heterogeneity、不同生命周期、novelty / dynamic update 都已有明确先例。
+- 当前必要区别：v86 不增加 episodic read path，不把 head 分类本身作为贡献；它用已有 noisy/clean pass 的一致性和 last-admitted shock 控制 PF middle state promotion，role 只调整写入时钟。
+- 风险：如果实验不能证明 noisy-clean trust admission 或 role-conditioned promotion 独立于 PF/Head Forcing 带来收益，就应只保留 v78，并放弃 head-role 主贡献。
+
 ### 2.7 Pathwise Test-Time Correction
 
 - 论文：[Pathwise Test-Time Correction for Autoregressive Long Video Generation](https://arxiv.org/abs/2602.05871)
@@ -232,6 +242,7 @@ all-head。上面的 HREM-v2 来源图因此保留为历史台账，不再代表
 | `DeepForcing` | [Training-Free Long Video Generation with Deep Sink and Participative Compression](https://arxiv.org/abs/2512.05081) | [cvlab-kaist/DeepForcing](https://github.com/cvlab-kaist/DeepForcing) | 已 vendored；Apache-2.0 | deep sink、参与式 compression、固定预算对照 |
 | `Pyramid-Forcing` | [Head-Aware Pyramid KV Cache Policy](https://arxiv.org/abs/2605.13111) | [if-lab-pku/Pyramid-Forcing](https://github.com/if-lab-pku/Pyramid-Forcing) | 已 vendored；Apache-2.0 + NOTICE | **上游基座与高碰撞近邻；本项目内部原型曾以该 vendored tree 为宿主，并非从上游直接移植 HREM 控制流** |
 | `Forcing-KV` | [Forcing-KV](https://arxiv.org/abs/2605.09681) | [zju-jiyicheng/Forcing-KV](https://github.com/zju-jiyicheng/Forcing-KV) | **空目录；未完成本地审查；license 未核验** | static/dynamic head 先例 |
+| 未 vendored | [Head Forcing](https://arxiv.org/abs/2605.14487) | [项目页](https://jiahaotian-sjtu.github.io/headforcing.github.io/)；code coming soon | 未复制代码；发布后需补做 license/commit 审计 | **local/anchor/memory head、hierarchical episodic memory 和 novelty update 的高碰撞先例** |
 | `MemRoPE` | [MemRoPE](https://arxiv.org/abs/2603.12513) | [YoungRaeKimm/MemRoPE](https://github.com/YoungRaeKimm/MemRoPE) | 已 vendored；Apache-2.0 | pre-RoPE memory、online position indexing；legacy helper 来源 |
 | `LongLive-RAG` | [LongLive-RAG](https://arxiv.org/abs/2606.02553) | [qixinhu11/LongLive-RAG](https://github.com/qixinhu11/LongLive-RAG) | 已 vendored；Apache-2.0 | **retrieval history 高碰撞近邻** |
 | `Echo-Forcing` | [Echo-Forcing](https://arxiv.org/abs/2605.16003) | [mingqiangWu/Echo-Forcing](https://github.com/mingqiangWu/Echo-Forcing) | 已 vendored；MIT | **scene recall 高碰撞近邻；旧原型来源** |

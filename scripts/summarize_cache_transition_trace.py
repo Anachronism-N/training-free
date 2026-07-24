@@ -48,6 +48,8 @@ def summarize(path: Path, expected_layers: int) -> dict[str, Any]:
     events, failures = _load(path)
     reasons: Counter[str] = Counter()
     labels: dict[int, list[bool]] = defaultdict(list)
+    roles: dict[str, list[bool]] = defaultdict(list)
+    reasons_by_role: dict[str, Counter[str]] = defaultdict(Counter)
     layers: set[int] = set()
     branches: Counter[str] = Counter()
     accepted_by_layer: dict[int, list[int]] = defaultdict(lambda: [0, 0])
@@ -56,6 +58,11 @@ def summarize(path: Path, expected_layers: int) -> dict[str, Any]:
     shock: list[float] = []
     denoise: list[float] = []
     ages: list[int] = []
+    effective_novelty: list[float] = []
+    effective_max_age: list[int] = []
+    age_over_effective_max: list[int] = []
+    age_over_effective_max_by_role: dict[str, list[int]] = defaultdict(list)
+    utilities: list[float] = []
     accepted = 0
     total = 0
     modes: Counter[str] = Counter()
@@ -81,6 +88,12 @@ def summarize(path: Path, expected_layers: int) -> dict[str, Any]:
         event_shock = event.get("shock", [])
         event_denoise = event.get("denoise_disagreement", [])
         event_ages = event.get("age_before", [])
+        event_roles = event.get("head_roles")
+        if event_roles is None:
+            event_roles = ["unreported"] * len(mask)
+        event_effective_novelty = event.get("effective_min_novelty", [])
+        event_effective_max_age = event.get("effective_max_age", [])
+        event_utilities = event.get("utility", [])
         lengths = {
             len(mask),
             len(event_reasons),
@@ -93,6 +106,16 @@ def summarize(path: Path, expected_layers: int) -> dict[str, Any]:
         if len(lengths) != 1 or not mask:
             failures.append(f"event {index}: per-head field length mismatch")
             continue
+        for field_name, values in (
+            ("head_roles", event_roles),
+            ("effective_min_novelty", event_effective_novelty),
+            ("effective_max_age", event_effective_max_age),
+            ("utility", event_utilities),
+        ):
+            if values and len(values) != len(mask):
+                failures.append(
+                    f"event {index}: optional field {field_name} length mismatch"
+                )
         if int(event.get("accepted", -1)) != sum(bool(value) for value in mask):
             failures.append(f"event {index}: accepted count does not match mask")
         if int(event.get("total", -1)) != len(mask):
@@ -107,12 +130,32 @@ def summarize(path: Path, expected_layers: int) -> dict[str, Any]:
             failures.append(f"event {index}: non-finite metric")
 
         reasons.update(str(reason) for reason in event_reasons)
-        for label, committed in zip(event_labels, mask):
+        for label, role, reason, committed in zip(
+            event_labels,
+            event_roles,
+            event_reasons,
+            mask,
+        ):
             labels[int(label)].append(bool(committed))
+            role = str(role)
+            roles[role].append(bool(committed))
+            reasons_by_role[role][str(reason)] += 1
         reliability.extend(float(value) for value in event_reliability)
         shock.extend(float(value) for value in event_shock)
         denoise.extend(float(value) for value in event_denoise)
         ages.extend(int(value) for value in event_ages)
+        effective_novelty.extend(float(value) for value in event_effective_novelty)
+        effective_max_age.extend(int(value) for value in event_effective_max_age)
+        if event_effective_max_age:
+            for role, age, max_age in zip(
+                event_roles,
+                event_ages,
+                event_effective_max_age,
+            ):
+                excess = max(0, int(age) - int(max_age))
+                age_over_effective_max.append(excess)
+                age_over_effective_max_by_role[str(role)].append(excess)
+        utilities.extend(float(value) for value in event_utilities)
         accepted += sum(bool(value) for value in mask)
         total += len(mask)
         accepted_by_layer[layer][0] += sum(bool(value) for value in mask)
@@ -143,6 +186,10 @@ def summarize(path: Path, expected_layers: int) -> dict[str, Any]:
         "shock": _stats(shock),
         "denoise_disagreement": _stats(denoise),
         "age_before": _stats(ages),
+        "effective_min_novelty": _stats(effective_novelty),
+        "effective_max_age": _stats(effective_max_age),
+        "age_over_effective_max": _stats(age_over_effective_max),
+        "utility": _stats(utilities),
         "acceptance_by_label": {
             str(label): {
                 "accepted": sum(values),
@@ -158,6 +205,20 @@ def summarize(path: Path, expected_layers: int) -> dict[str, Any]:
                 "rate": counts[0] / counts[1],
             }
             for layer, counts in sorted(accepted_by_layer.items())
+        },
+        "acceptance_by_role": {
+            role: {
+                "accepted": sum(values),
+                "total": len(values),
+                "rate": sum(values) / len(values),
+                "reasons": dict(sorted(reasons_by_role[role].items())),
+                "max_age_excess": (
+                    max(age_over_effective_max_by_role[role])
+                    if age_over_effective_max_by_role[role]
+                    else None
+                ),
+            }
+            for role, values in sorted(roles.items())
         },
         "acceptance_by_branch": {
             branch: {
@@ -198,6 +259,8 @@ def _write_markdown(summaries: list[dict[str, Any]], path: Path) -> None:
                 f"- Reasons: `{json.dumps(item['reasons'], sort_keys=True)}`",
                 f"- Acceptance by label: "
                 f"`{json.dumps(item['acceptance_by_label'], sort_keys=True)}`",
+                f"- Acceptance by role: "
+                f"`{json.dumps(item['acceptance_by_role'], sort_keys=True)}`",
             ]
         )
         lines.extend(f"- FAILURE: {failure}" for failure in item["failures"])

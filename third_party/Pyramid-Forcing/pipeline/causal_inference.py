@@ -845,6 +845,14 @@ class CausalInferencePipeline(torch.nn.Module):
                      base_capacity_tokens = max(base_capacity_tokens, max_frames * self.frame_seq_length)
 
             default_capacity = hc.pyramidkv_default_capacity or base_capacity_tokens
+            if (
+                hc.pyramidkv_cache_transition_role_conditioning
+                and not hc.pyramidkv_cache_transition_role_config_path
+            ):
+                raise ValueError(
+                    "Role-conditioned cache transition requires "
+                    "pyramidkv_cache_transition_role_config_path"
+                )
             config = PyramidKVConfig(
                 hc.pyramidkv_config_path,
                 num_layers=num_layers,
@@ -853,6 +861,11 @@ class CausalInferencePipeline(torch.nn.Module):
                 strategy_reduction_factor=hc.pyramidkv_strategy_factor,
                 code_map=hc.pyramidkv_code_map,
                 head_type_csv_path=hc.pyramidkv_policy_csv_path,
+                transition_head_type_csv_path=(
+                    hc.pyramidkv_cache_transition_role_config_path
+                    if hc.pyramidkv_cache_transition_role_conditioning
+                    else None
+                ),
                 drop_heads_csv_path=hc.pyramidkv_drop_heads_csv_path,
                 soft_ablate_heads_csv_path=hc.pyramidkv_soft_ablate_csv_path,
                 af_policy_enabled=hc.pyramidkv_af_policy_enabled,
@@ -1062,6 +1075,16 @@ class CausalInferencePipeline(torch.nn.Module):
                         cache_transition_max_commit_fraction=hc.pyramidkv_cache_transition_max_commit_fraction,
                         cache_transition_stagger_period=hc.pyramidkv_cache_transition_stagger_period,
                         cache_transition_branches=hc.pyramidkv_cache_transition_branches,
+                        cache_transition_role_conditioning=hc.pyramidkv_cache_transition_role_conditioning,
+                        cache_transition_persistent_label=hc.pyramidkv_cache_transition_persistent_label,
+                        cache_transition_reactive_labels=hc.pyramidkv_cache_transition_reactive_labels,
+                        cache_transition_persistent_min_novelty_scale=hc.pyramidkv_cache_transition_persistent_min_novelty_scale,
+                        cache_transition_reactive_min_novelty_scale=hc.pyramidkv_cache_transition_reactive_min_novelty_scale,
+                        cache_transition_persistent_max_age_blocks=hc.pyramidkv_cache_transition_persistent_max_age_blocks,
+                        cache_transition_reactive_max_age_blocks=hc.pyramidkv_cache_transition_reactive_max_age_blocks,
+                        cache_transition_reactive_utility_bias=hc.pyramidkv_cache_transition_reactive_utility_bias,
+                        cache_transition_role_layer_start=hc.pyramidkv_cache_transition_role_layer_start,
+                        cache_transition_role_layer_end=hc.pyramidkv_cache_transition_role_layer_end,
                         cache_transition_trace_path=hc.pyramidkv_cache_transition_trace_path,
                         cache_transition_debug=hc.pyramidkv_cache_transition_debug,
                         probecache_enabled=hc.pyramidkv_probecache_enabled,

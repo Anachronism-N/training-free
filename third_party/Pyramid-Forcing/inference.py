@@ -236,6 +236,65 @@ parser.add_argument(
     choices=("both", "cond", "uncond"),
     default=None,
 )
+parser.add_argument(
+    "--pyramidkv_cache_transition_role_conditioning",
+    action="store_true",
+    help=(
+        "Use a separate persistent/reactive label matrix to schedule middle-cache "
+        "writes without changing PyramidKV read policies."
+    ),
+)
+parser.add_argument(
+    "--pyramidkv_cache_transition_role_config_path",
+    type=str,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_cache_transition_persistent_label",
+    type=int,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_cache_transition_reactive_labels",
+    type=str,
+    default=None,
+    help="Comma-separated transition-role labels treated as reactive.",
+)
+parser.add_argument(
+    "--pyramidkv_cache_transition_persistent_min_novelty_scale",
+    type=float,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_cache_transition_reactive_min_novelty_scale",
+    type=float,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_cache_transition_persistent_max_age_blocks",
+    type=int,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_cache_transition_reactive_max_age_blocks",
+    type=int,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_cache_transition_reactive_utility_bias",
+    type=float,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_cache_transition_role_layer_start",
+    type=int,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_cache_transition_role_layer_end",
+    type=int,
+    default=None,
+)
 parser.add_argument("--pyramidkv_cache_transition_trace_path", type=str, default=None)
 parser.add_argument("--pyramidkv_cache_transition_debug", action="store_true")
 parser.add_argument(
@@ -500,6 +559,14 @@ if args.pyramidkv_cache_transition:
     config.pyramidkv_cache_transition_enabled = True
 if args.pyramidkv_cache_transition_debug:
     config.pyramidkv_cache_transition_debug = True
+if args.pyramidkv_cache_transition_role_conditioning:
+    config.pyramidkv_cache_transition_role_conditioning = True
+if args.pyramidkv_cache_transition_reactive_labels is not None:
+    config.pyramidkv_cache_transition_reactive_labels = [
+        int(value.strip())
+        for value in args.pyramidkv_cache_transition_reactive_labels.split(",")
+        if value.strip()
+    ]
 for name in (
     "mode",
     "min_reliability",
@@ -512,11 +579,28 @@ for name in (
     "max_commit_fraction",
     "stagger_period",
     "branches",
+    "role_config_path",
+    "persistent_label",
+    "persistent_min_novelty_scale",
+    "reactive_min_novelty_scale",
+    "persistent_max_age_blocks",
+    "reactive_max_age_blocks",
+    "reactive_utility_bias",
+    "role_layer_start",
+    "role_layer_end",
     "trace_path",
 ):
     value = getattr(args, f"pyramidkv_cache_transition_{name}")
     if value is not None:
         setattr(config, f"pyramidkv_cache_transition_{name}", value)
+if (
+    config.pyramidkv_cache_transition_role_conditioning
+    and not config.pyramidkv_cache_transition_role_config_path
+):
+    parser.error(
+        "--pyramidkv_cache_transition_role_conditioning requires "
+        "--pyramidkv_cache_transition_role_config_path"
+    )
 
 if args.pyramidkv_probecache:
     config.pyramidkv_probecache_enabled = True

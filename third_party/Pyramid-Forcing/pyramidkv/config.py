@@ -46,6 +46,8 @@ class PyramidKVConfig:
         code_map: Mapping ``{label_str: capacity_int}`` overriding the
             reduction-factor heuristic.
         head_type_csv_path: Optional override for the classification CSV.
+        transition_head_type_csv_path: Optional role matrix used only by the
+            cache-transition write controller. It never changes PF read policy.
         drop_heads_csv_path: Optional CSV listing ``(layer, head)`` pairs
             whose self-attention output is zeroed.
         soft_ablate_heads_csv_path: Optional CSV listing ``(layer, head)``
@@ -72,6 +74,7 @@ class PyramidKVConfig:
         af_group_dir: Optional[str] = None,
         af_manifest_path: Optional[str] = None,
         frame_seq_length: Optional[int] = None,
+        transition_head_type_csv_path: Optional[str] = None,
     ):
         self.num_layers = num_layers
         self.num_heads = num_heads
@@ -79,6 +82,9 @@ class PyramidKVConfig:
         # Keep original per-head class labels when classification CSV is used.
         # Default label "1" means non-oscillating.
         self.label_map = torch.full((num_layers, num_heads), 1, dtype=torch.int32)
+        self.transition_label_map = torch.zeros(
+            (num_layers, num_heads), dtype=torch.int32
+        )
         raw_code_map = code_map or {
             "-1": max(1, default_capacity // max(1, strategy_reduction_factor)),
             "1": default_capacity,
@@ -87,6 +93,7 @@ class PyramidKVConfig:
         self.code_map = {str(k): int(v) for k, v in raw_code_map.items()}
         # 可选的 head 类型配置（默认为 configs/head_configs/best_labels.csv）
         self.head_type_csv_path = head_type_csv_path
+        self.transition_head_type_csv_path = transition_head_type_csv_path
         # 可选的 head drop 配置（CSV 中的 layer,head 会在 self-attn 输出侧被置零）
         self.drop_heads_csv_path = drop_heads_csv_path
         # 可选的 head soft-ablation 配置（CSV 中的 layer,head 会进行区域性注意力缩放）
@@ -163,6 +170,52 @@ class PyramidKVConfig:
         else:
             if config_path:
                 print(f"Warning: PyramidKV config path {config_path} not found, using default capacity.")
+
+        if transition_head_type_csv_path:
+            if not os.path.exists(transition_head_type_csv_path):
+                raise FileNotFoundError(
+                    "Cache-transition role config not found: "
+                    f"{transition_head_type_csv_path}"
+                )
+            with open(
+                transition_head_type_csv_path,
+                "r",
+                encoding="utf-8",
+                newline="",
+            ) as handle:
+                transition_rows = [
+                    [str(value).strip() for value in row if str(value).strip()]
+                    for row in csv.reader(handle)
+                    if any(str(value).strip() for value in row)
+                ]
+            if len(transition_rows) != num_layers:
+                raise ValueError(
+                    "Cache-transition role config must contain exactly "
+                    f"{num_layers} rows, found {len(transition_rows)}"
+                )
+            for layer_idx, row in enumerate(transition_rows):
+                if len(row) != num_heads:
+                    raise ValueError(
+                        "Cache-transition role config row "
+                        f"{layer_idx} must contain exactly {num_heads} labels, "
+                        f"found {len(row)}"
+                    )
+                try:
+                    parsed = [int(value) for value in row]
+                except ValueError as error:
+                    raise ValueError(
+                        "Cache-transition role config contains a non-integer "
+                        f"label in row {layer_idx}"
+                    ) from error
+                self.transition_label_map[layer_idx] = torch.tensor(
+                    parsed, dtype=torch.int32
+                )
+            if transition_head_type_csv_path not in _LOADED_CONFIG_PATHS:
+                print(
+                    "Loading cache-transition roles from "
+                    f"{transition_head_type_csv_path}"
+                )
+                _LOADED_CONFIG_PATHS.add(transition_head_type_csv_path)
 
         # Build per-head composition instances from a head-type CSV.
         self.compositions: list | None = None
@@ -346,6 +399,9 @@ class PyramidKVConfig:
 
     def get_layer_labels(self, layer_idx: int) -> List[int]:
         return self.label_map[layer_idx].tolist()
+
+    def get_layer_transition_labels(self, layer_idx: int) -> List[int]:
+        return self.transition_label_map[layer_idx].tolist()
 
     def get_layer_drop_mask(self, layer_idx: int) -> List[bool]:
         return self.drop_head_mask[layer_idx].tolist()

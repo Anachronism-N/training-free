@@ -168,6 +168,76 @@ def test_forced_refresh_still_respects_transition_budget():
     assert decision.reasons.count("forced_budget_deferred") == 2
 
 
+def test_role_conditioning_refreshes_reactive_heads_sooner():
+    controller = CacheTransitionController(
+        CacheTransitionConfig(
+            enabled=True,
+            mode="gate",
+            min_novelty=0.01,
+            min_interval_blocks=1,
+            max_age_blocks=6,
+            warmup_blocks=0,
+            max_commit_fraction=1.0,
+            role_conditioning_enabled=True,
+            persistent_max_age_blocks=4,
+            reactive_max_age_blocks=2,
+        ),
+        batch_size=1,
+        num_heads=2,
+        layer_idx=0,
+        head_labels=(1, -1),
+    )
+    tensor = torch.tensor([[[1.0, 0.0]], [[0.0, 1.0]]])
+    controller.decide_clean(tensor, tensor, block_id=0, branch="cond")
+    controller.decide_clean(tensor, tensor, block_id=1, branch="cond")
+
+    decision = controller.decide_clean(
+        tensor, tensor, block_id=2, branch="cond"
+    )
+
+    assert decision.head_roles == ("persistent", "reactive")
+    assert decision.effective_max_age == (4, 2)
+    assert decision.commit_mask == (False, True)
+    assert decision.reasons == ("low_novelty", "forced_max_age")
+
+
+def test_reactive_utility_bias_controls_budget_tie():
+    controller = CacheTransitionController(
+        CacheTransitionConfig(
+            enabled=True,
+            mode="full",
+            min_reliability=0.0,
+            min_novelty=0.0,
+            min_interval_blocks=1,
+            max_age_blocks=6,
+            warmup_blocks=0,
+            max_commit_fraction=0.5,
+            stagger_period=1,
+            role_conditioning_enabled=True,
+            persistent_min_novelty_scale=1.0,
+            reactive_min_novelty_scale=1.0,
+            persistent_max_age_blocks=6,
+            reactive_max_age_blocks=6,
+            reactive_utility_bias=0.2,
+        ),
+        batch_size=1,
+        num_heads=2,
+        layer_idx=0,
+        head_labels=(-1, 1),
+    )
+    first = torch.tensor([[[1.0, 0.0]], [[1.0, 0.0]]])
+    changed = torch.tensor([[[0.0, 1.0]], [[0.0, 1.0]]])
+    controller.decide_clean(first, first, block_id=0, branch="cond")
+
+    decision = controller.decide_clean(
+        changed, changed, block_id=1, branch="cond"
+    )
+
+    assert decision.commit_mask == (True, False)
+    assert decision.utility[0] > decision.utility[1]
+    assert decision.reasons == ("accepted", "budget_deferred")
+
+
 def test_trace_contains_head_level_reasons(tmp_path):
     trace = tmp_path / "transition.jsonl"
     controller = CacheTransitionController(
@@ -190,12 +260,45 @@ def test_trace_contains_head_level_reasons(tmp_path):
     assert payload["layer"] == 7
     assert payload["block_id"] == 9
     assert payload["head_labels"] == [2]
+    assert payload["head_roles"] == ["uniform"]
+    assert payload["role_conditioning_active"] is False
     assert payload["reasons"] == ["audit_passthrough"]
 
 
 def test_invalid_transition_budget_is_rejected():
     with pytest.raises(ValueError, match="max_commit_fraction"):
         CacheTransitionConfig(enabled=True, max_commit_fraction=0.0).validate()
+
+
+def test_transition_role_csv_is_independent_from_pf_labels(tmp_path):
+    pf_labels = tmp_path / "pf.csv"
+    transition_labels = tmp_path / "transition.csv"
+    pf_labels.write_text("2,2,2,2\n", encoding="utf-8")
+    transition_labels.write_text("1,-1,1,-1\n", encoding="utf-8")
+
+    config = PyramidKVConfig(
+        str(pf_labels),
+        num_layers=1,
+        num_heads=4,
+        default_capacity=16,
+        transition_head_type_csv_path=str(transition_labels),
+    )
+
+    assert config.get_layer_labels(0) == [2, 2, 2, 2]
+    assert config.get_layer_transition_labels(0) == [1, -1, 1, -1]
+
+
+def test_transition_role_csv_shape_is_strict(tmp_path):
+    transition_labels = tmp_path / "transition.csv"
+    transition_labels.write_text("1,-1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="exactly 4 labels"):
+        PyramidKVConfig(
+            None,
+            num_layers=1,
+            num_heads=4,
+            transition_head_type_csv_path=str(transition_labels),
+        )
 
 
 def test_adaptive_cache_rejected_clean_block_does_not_update_middle():

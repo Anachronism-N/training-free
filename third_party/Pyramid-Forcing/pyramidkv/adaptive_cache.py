@@ -237,6 +237,16 @@ class AdaptiveKVCache(PyramidKVCache):
         cache_transition_max_commit_fraction: float = 0.5,
         cache_transition_stagger_period: int = 2,
         cache_transition_branches: str = "both",
+        cache_transition_role_conditioning: bool = False,
+        cache_transition_persistent_label: int = 1,
+        cache_transition_reactive_labels: list[int] | None = None,
+        cache_transition_persistent_min_novelty_scale: float = 1.5,
+        cache_transition_reactive_min_novelty_scale: float = 0.5,
+        cache_transition_persistent_max_age_blocks: int = 8,
+        cache_transition_reactive_max_age_blocks: int = 4,
+        cache_transition_reactive_utility_bias: float = 0.1,
+        cache_transition_role_layer_start: int = 0,
+        cache_transition_role_layer_end: int = -1,
         cache_transition_trace_path: str | None = None,
         cache_transition_debug: bool = False,
         probecache_enabled: bool = False,
@@ -497,6 +507,12 @@ class AdaptiveKVCache(PyramidKVCache):
             if hasattr(config, "get_layer_labels")
             else [1] * self.num_heads
         )
+        transition_head_labels = (
+            config.get_layer_transition_labels(layer_idx)
+            if cache_transition_role_conditioning
+            and hasattr(config, "get_layer_transition_labels")
+            else self.head_labels
+        )
         transition_config = CacheTransitionConfig(
             enabled=bool(cache_transition_enabled),
             mode=str(cache_transition_mode),
@@ -510,6 +526,29 @@ class AdaptiveKVCache(PyramidKVCache):
             max_commit_fraction=float(cache_transition_max_commit_fraction),
             stagger_period=int(cache_transition_stagger_period),
             branches=str(cache_transition_branches),
+            role_conditioning_enabled=bool(cache_transition_role_conditioning),
+            persistent_label=int(cache_transition_persistent_label),
+            reactive_labels=tuple(
+                int(label)
+                for label in (
+                    [-1]
+                    if cache_transition_reactive_labels is None
+                    else cache_transition_reactive_labels
+                )
+            ),
+            persistent_min_novelty_scale=float(
+                cache_transition_persistent_min_novelty_scale
+            ),
+            reactive_min_novelty_scale=float(
+                cache_transition_reactive_min_novelty_scale
+            ),
+            persistent_max_age_blocks=int(
+                cache_transition_persistent_max_age_blocks
+            ),
+            reactive_max_age_blocks=int(cache_transition_reactive_max_age_blocks),
+            reactive_utility_bias=float(cache_transition_reactive_utility_bias),
+            role_layer_start=int(cache_transition_role_layer_start),
+            role_layer_end=int(cache_transition_role_layer_end),
             trace_path=cache_transition_trace_path,
             debug=bool(cache_transition_debug),
         )
@@ -520,7 +559,7 @@ class AdaptiveKVCache(PyramidKVCache):
                 batch_size=batch_size,
                 num_heads=num_heads,
                 layer_idx=layer_idx,
-                head_labels=self.head_labels,
+                head_labels=transition_head_labels,
             )
             if transition_config.enabled
             else None
