@@ -124,3 +124,55 @@ Prompt-contrastive binary cache experiment (docs/92) is now running.
 
 CUDA extension compilation completed (2468s). Models now loading
 (14.8 GB GPU memory). Generation should begin shortly.
+
+## 10. v90 Complete DINOv2 (12/16 cells)
+
+### All results (sorted by DINO)
+
+| Cell | DINO | min_DINO | drift | Source |
+|---|---:|---:|---:|---|
+| random_priority_b005 | 0.8485 | 0.7917 | -0.00149 | Node 1 |
+| veil_priority_b005 | 0.7993 | 0.7182 | -0.00222 | Node 2 |
+| wave_priority_b005 | 0.7987 | 0.6853 | -0.00220 | Node 2 |
+| pf_priority_b010 | 0.7967 | 0.6863 | -0.00218 | Node 2 |
+| pf_s1 | 0.8001 | 0.7084 | -0.00247 | Node 2 |
+| inverse_priority_b005 | 0.8444 | 0.7611 | -0.00235 | Node 1 |
+| learned_priority_b005 | 0.8421 | 0.7486 | -0.00227 | Node 1 |
+| v78_s3 | 0.8421 | 0.7517 | -0.00219 | Node 1 |
+| v78_s1 | 0.7871 | 0.6813 | -0.00268 | Node 2 |
+| v78_s2 | 0.7861 | 0.7095 | -0.00287 | Node 2 |
+| pf_s2 | 0.7789 | 0.7103 | -0.00337 | Node 2 |
+| pf_s3 | 0.7754 | 0.6817 | -0.00258 | Node 2 |
+
+### Matched-seed comparison (updated with seed 3)
+
+| Seed | PF | v78 | Δ | Winner |
+|---:|---:|---:|---:|---|
+| 0 (v86) | 0.8496 | 0.8536 | +0.004 | v78 |
+| 1 (v90) | 0.8001 | 0.7871 | -0.013 | PF |
+| 2 (v90) | 0.7789 | 0.7861 | +0.007 | v78 |
+| 3 (v90) | — | 0.8421 | — | v78 only |
+| **Avg s0-2** | **0.8095** | **0.8089** | **-0.001** | **Tie** |
+
+### Weak-priority comparison
+
+| Cell | DINO | vs v78_s0 (0.8536) |
+|---|---:|---:|
+| random_priority_b005 | 0.8485 | -0.005 |
+| inverse_priority_b005 | 0.8444 | -0.009 |
+| learned_priority_b005 | 0.8421 | -0.012 |
+| v78_s3 (uniform) | 0.8421 | -0.012 |
+
+**Weak priority with any label map does NOT improve over uniform v78.**
+All priority variants are within noise of v78_s3 (0.8421).
+
+### 4 cells still missing
+
+pf_priority_b005, pf_age_only, pf_novelty_only, pf_priority_late —
+failed on Node 1 due to label CSV path issue. Not critical for conclusions.
+
+## 11. v93 MovieBench Status
+
+- **Node 1**: MovieBench-128 main running (8 methods × 128 prompts)
+- **Node 2**: MovieBench-32 head32 running (3/16 cells active, 13 OOM)
+- Both experiments generating videos
