@@ -380,6 +380,9 @@ class FrameAttentionCapture:
                     q_frame_indices=list(range(q_frames)),
                     k_frame_indices=list(range(k_frames)),
                     capture_mode=self.capture_mode,
+                    current_start=0,
+                    cache_update_mode="default",
+                    cfg_branch="unknown",
                 )
 
             # 清理

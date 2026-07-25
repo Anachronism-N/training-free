@@ -346,6 +346,15 @@ parser.add_argument(
     help="Override both PyramidKV label and policy CSV paths.",
 )
 parser.add_argument(
+    "--pyramidkv_binary_responsive_policy",
+    choices=("cyclic", "merge", "recent"),
+    default=None,
+    help=(
+        "Decouple binary role labels from PF labels: label 1 uses Anchor "
+        "stride; label -1 uses the selected responsive middle policy."
+    ),
+)
+parser.add_argument(
     "--pyramidkv_probecache_mode",
     choices=("audit", "persistent", "reactive", "full"),
     default=None,
@@ -389,6 +398,39 @@ parser.add_argument(
 )
 parser.add_argument("--probecache_profile_pair_id", type=str, default=None)
 parser.add_argument("--probecache_profile_side", type=str, default=None)
+parser.add_argument(
+    "--head_qk_profile_output",
+    type=str,
+    default=None,
+    help="Save bounded frame-level pre-softmax QK traces for head discovery.",
+)
+parser.add_argument(
+    "--head_qk_profile_kind",
+    choices=("prompt", "temporal"),
+    default="prompt",
+)
+parser.add_argument("--head_qk_profile_pair_id", type=str, default=None)
+parser.add_argument("--head_qk_profile_side", type=str, default=None)
+parser.add_argument(
+    "--head_qk_profile_update_modes",
+    default="noisy,clean",
+    help="Comma-separated cache update modes to record.",
+)
+parser.add_argument(
+    "--head_qk_profile_branches",
+    default="cond,uncond",
+    help="Comma-separated CFG branches to record.",
+)
+parser.add_argument(
+    "--head_qk_profile_max_calls_per_location",
+    type=int,
+    default=4,
+)
+parser.add_argument(
+    "--head_qk_profile_max_records_per_layer_branch",
+    type=int,
+    default=256,
+)
 parser.add_argument("--dynamic_cfg_enabled", action="store_true", default=False)
 parser.add_argument("--dynamic_cfg_min_scale", type=float, default=1.0)
 parser.add_argument("--dynamic_cfg_max_scale", type=float, default=5.0)
@@ -677,6 +719,20 @@ if args.pyramidkv_probecache:
 if args.pyramidkv_head_config_path is not None:
     config.pyramidkv_config_path = args.pyramidkv_head_config_path
     config.pyramidkv_policy_csv_path = args.pyramidkv_head_config_path
+if args.pyramidkv_binary_responsive_policy is not None:
+    from pyramidkv.policy_overrides import binary_responsive_policy_overrides
+
+    policy_overrides = binary_responsive_policy_overrides(
+        args.pyramidkv_binary_responsive_policy
+    )
+    for field_name, field_value in policy_overrides.items():
+        setattr(config, field_name, field_value)
+    print(
+        "[BinaryPolicyOverride] "
+        f"stable=stride responsive={args.pyramidkv_binary_responsive_policy} "
+        "sink_recent=role_specific",
+        flush=True,
+    )
 if args.pyramidkv_probecache_debug:
     config.pyramidkv_probecache_debug = True
 if args.pyramidkv_probecache_profile_recent_only:
@@ -715,6 +771,28 @@ for name in (
 
 if args.probecache_profile_output:
     os.environ["PROBECACHE_PROFILE"] = "1"
+if args.head_qk_profile_output:
+    from wan.modules.attention.head_profile import enable_head_qk_profile
+
+    enable_head_qk_profile(
+        num_layers=30,
+        frame_seq_length=int(
+            getattr(config, "pyramidkv_frame_seq_length", 1560)
+        ),
+        num_heads=12,
+        max_calls_per_location=args.head_qk_profile_max_calls_per_location,
+        max_records_per_layer_branch=(
+            args.head_qk_profile_max_records_per_layer_branch
+        ),
+        update_modes=(
+            value.strip()
+            for value in args.head_qk_profile_update_modes.split(",")
+        ),
+        branches=(
+            value.strip()
+            for value in args.head_qk_profile_branches.split(",")
+        ),
+    )
 
 # Initialize pipeline
 if hasattr(config, 'denoising_step_list'):
@@ -909,6 +987,11 @@ try:
             if args.probecache_profile_output:
                 from wan.modules.attention.core import set_probecache_profile_prompt_id
                 set_probecache_profile_prompt_id(idx)
+            if args.head_qk_profile_output:
+                from wan.modules.attention.head_profile import (
+                    set_head_qk_profile_prompt_id,
+                )
+                set_head_qk_profile_prompt_id(idx)
 
             # Generate video frames
             video, latents = pipeline.inference(
@@ -995,6 +1078,29 @@ if args.probecache_profile_output:
         )
     except Exception as e:
         print(f"[ProbeCacheProfile] Failed to save profile: {e}")
+
+if args.head_qk_profile_output:
+    try:
+        from wan.modules.attention.head_profile import save_head_qk_profile
+
+        profile_path = args.head_qk_profile_output.format(
+            rank=int(os.environ.get("RANK", "0")),
+            pid=os.getpid(),
+        )
+        save_head_qk_profile(
+            profile_path,
+            {
+                "kind": args.head_qk_profile_kind,
+                "pair_id": args.head_qk_profile_pair_id,
+                "side": args.head_qk_profile_side,
+                "seed": int(args.seed),
+                "data_path": os.path.abspath(args.data_path),
+                "update_modes": args.head_qk_profile_update_modes,
+                "branches": args.head_qk_profile_branches,
+            },
+        )
+    except Exception as e:
+        print(f"[HeadQKProfile] Failed to save profile: {e}")
 
 # Persist memory-admission statistics for every run.
 try:

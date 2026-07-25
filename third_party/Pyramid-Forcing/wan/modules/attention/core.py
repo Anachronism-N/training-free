@@ -1186,10 +1186,16 @@ def pyramidkv_attention(
         q_unique = torch.unique(q_frame_ids_abs, sorted=True)
         if q_unique.numel() == 0:
             return
-        k_max_frame = int(k_frame_ids_flat.max().item()) if k_frame_ids_flat.numel() > 0 else -1
-        if k_max_frame < 0:
+        valid_k_frames = k_frame_ids_flat[k_frame_ids_flat >= 0]
+        if valid_k_frames.numel() == 0:
             return
-        k_unique_global = torch.arange(k_max_frame + 1, device=q_chunk.device, dtype=torch.long)
+        k_unique_global = torch.unique(
+            valid_k_frames.to(torch.long), sorted=True
+        )
+        k_index_map = {
+            int(value.item()): index
+            for index, value in enumerate(k_unique_global)
+        }
 
         need_logits = capture_mode in {"logits_mean", "both"}
         need_prob = capture_mode in {"prob_mass", "both"}
@@ -1229,12 +1235,20 @@ def pyramidkv_attention(
                     for qi, qf in enumerate(q_local_unique):
                         qg = q_index_map[int(qf.item())]
                         for ki, kf in enumerate(k_local_unique):
-                            logits_global[h_idx, qg, int(kf.item())] = logits_local[qi, ki].detach().cpu()
+                            kg = k_index_map.get(int(kf.item()))
+                            if kg is not None:
+                                logits_global[h_idx, qg, kg] = logits_local[
+                                    qi, ki
+                                ].detach().cpu()
                 if need_prob and prob_local is not None:
                     for qi, qf in enumerate(q_local_unique):
                         qg = q_index_map[int(qf.item())]
                         for ki, kf in enumerate(k_local_unique):
-                            prob_global[h_idx, qg, int(kf.item())] = prob_local[qi, ki].detach().cpu()
+                            kg = k_index_map.get(int(kf.item()))
+                            if kg is not None:
+                                prob_global[h_idx, qg, kg] = prob_local[
+                                    qi, ki
+                                ].detach().cpu()
 
         frame_attn = logits_global if capture_mode == "logits_mean" else prob_global
         capture_obj.on_frame_attention(
@@ -1248,6 +1262,8 @@ def pyramidkv_attention(
             k_frame_indices=[int(v.item()) for v in k_unique_global],
             capture_mode=capture_mode,
             cache_update_mode=cache_update_mode,
+            current_start=int(current_start or 0),
+            cfg_branch=str(getattr(kv_cache, "_cfg_branch", "cond")),
         )
 
     if hasattr(kv_cache, "set_probecache_query"):

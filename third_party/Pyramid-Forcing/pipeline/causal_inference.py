@@ -1,6 +1,7 @@
 from typing import List, Optional
 import copy
 import os
+from collections import Counter
 import torch
 from tqdm import tqdm
 
@@ -920,6 +921,23 @@ class CausalInferencePipeline(torch.nn.Module):
                 )
                 config.compositions = compositions
                 config.policies = compositions
+                if os.environ.get("PYRAMIDKV_HEAD_MAP_DEBUG", "0") == "1":
+                    flat = [
+                        composition
+                        for layer in compositions
+                        for composition in layer
+                    ]
+                    print(
+                        "[PyramidKVRuntimePolicy] "
+                        f"path={hc.pyramidkv_policy_csv_path} "
+                        f"heads={len(flat)} "
+                        f"labels={dict(sorted(Counter(int(item.label) for item in flat).items()))} "
+                        f"policies={dict(sorted(Counter(str(item.policy_type) for item in flat).items()))} "
+                        f"middle={dict(sorted(Counter('+'.join(type(strategy).__name__ for strategy in item.middle_strategies) or 'none' for item in flat).items()))} "
+                        f"sinks={dict(sorted(Counter(int(item.sink_frames) for item in flat).items()))} "
+                        f"recent={dict(sorted(Counter(int(item.recent_frames) for item in flat).items()))}",
+                        flush=True,
+                    )
 
             # Env-gated MegaCache path (Python sink/recent + C++ middle).
             # Set PYRAMIDKV_USE_MEGA_CACHE=1 to take the C++ kernel path.

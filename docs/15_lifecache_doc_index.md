@@ -2,6 +2,12 @@
 
 ## Current method (read first)
 
+- `docs/96_qk_threshold_binary_cache_method_and_experiment.md`: current v96
+  binary-head candidate. It corrects the PF QK/sign interpretation, discovers
+  Prompt-Stable/Prompt-Responsive heads with a data-derived GMM threshold
+  rather than a PF Anchor quota, reports post-hoc PF overlap and Wave sign
+  statistics, and factorizes binary membership from merge/cyclic/recent cache
+  policies in a 16-GPU MovieGenBench-32 screen.
 - `docs/93_moviebench_10h_128_and_head32_plan.md`: current execution protocol.
   It turns the partial v90/v92 evidence into a MovieBench-128 main comparison
   and a separate MovieBench-32 causal head-classification matrix, with
@@ -51,16 +57,21 @@
 
 Recommended reading order:
 
-1. `docs/95_post_v93_dual_axis_phase_cache.md`
-2. `docs/93_moviebench_10h_128_and_head32_plan.md`
-3. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
-4. `docs/90_post_v86_analysis_and_v90_experiment.md`
-5. `docs/91_transitioncache_paper_story.md`
-6. `docs/89_v86_human_review_and_combined_analysis.md`
-7. `docs/88_transitioncache_v86_partial_results.md`
-8. `docs/64_related_work_code_provenance_and_claims.md`
+1. `docs/96_qk_threshold_binary_cache_method_and_experiment.md`
+2. `docs/95_post_v93_dual_axis_phase_cache.md`
+3. `docs/93_moviebench_10h_128_and_head32_plan.md`
+4. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
+5. `docs/90_post_v86_analysis_and_v90_experiment.md`
+6. `docs/91_transitioncache_paper_story.md`
+7. `docs/89_v86_human_review_and_combined_analysis.md`
+8. `docs/88_transitioncache_v86_partial_results.md`
+9. `docs/64_related_work_code_provenance_and_claims.md`
 
-The current GPU-pending candidate is Dual-Axis Phase Cache; v78
+The current GPU-pending candidate is the v96 QK-threshold binary cache.
+It replaces the PF-count-matched Prompt-Stable definition with a data-derived
+threshold and tests Veil-style merge, Wave-style cyclic and recent-only
+Responsive policies independently. The v95 Dual-Axis Phase Cache remains the
+fallback if the v96 binary taxonomy gates fail. v78
 Trust-Conditioned Cache Transition remains one of its optional lifecycle
 components. Matched seeds 0-2 show v78 and PF are effectively tied in mean
 DINO, so a consistent DINO improvement is not currently supportable. v86 counterfactual

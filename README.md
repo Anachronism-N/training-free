@@ -3,12 +3,13 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current paper candidate is **Dual-Axis Phase Cache**. It retains
-Pyramid-Forcing's validated Anchor/Wave/Veil read topology, measures an
-independent stable/responsive head axis through paired prompt interventions,
-temporarily shields history from responsive heads during AR startup, and can
-filter middle-cache promotion with noisy/clean trajectory trust. All behavior
-is inference-only, default-off, and adds no model forward.
+The current GPU-pending paper candidate is the **v96 QK-Threshold Binary
+Cache**. It measures Prompt-Stable and Prompt-Responsive heads from
+pre-softmax temporal QK changes under paired prompt interventions, learns a
+two-component threshold without copying PF's Anchor count, and assigns
+long-range strided versus compressed/recent cache policies. Head membership
+and cache policy are independently ablated. All behavior is inference-only,
+default-off, and adds no model forward during normal generation.
 
 The selection is evidence-driven rather than based on a single best metric.
 MovieBench-32 places v78 and PF first (`0.9331` and `0.9313` DINO), while
@@ -20,9 +21,10 @@ startup flashback but developed later jumps. v95 therefore tests prompt roles
 as a phase-limited visibility and weak update-priority signal while keeping PF
 reads fixed.
 
-The authoritative result analysis, method definition, 16-GPU v95 matrix,
-debug contract, decision gates, and paper story are in
-`docs/95_post_v93_dual_axis_phase_cache.md`. v93 main-128 is still incomplete;
+The authoritative v96 method, corrected PF classification description,
+data-derived threshold, 16-GPU matrix, debug contract, and decision gates are
+in `docs/96_qk_threshold_binary_cache_method_and_experiment.md`. The v95
+Dual-Axis Phase Cache remains a fallback. v93 main-128 is still incomplete;
 partial PF/v78/prompt results must not be compared as if they used the same
 prompt set.
 
@@ -59,33 +61,30 @@ prompt-switch/return-recall branch.
 
 ## Current Hypothesis
 
-The current hypothesis is that long AR generation needs three separate cache
-decisions: what temporal history a head reads, when that history becomes safe
-to expose, and whether a generated state is reliable enough to become
-persistent history.
+The current hypothesis is that prompt intervention exposes two head groups
+that need different bounded temporal evidence:
 
-- **Temporal read axis:** PF Anchor/Wave/Veil topology, explicitly borrowed.
-- **Prompt-response axis:** paired prompt intervention classifies heads as
-  stable or responsive without replacing the temporal axis.
-- **Phase exposure:** responsive heads initially see recent-only or
-  sink-plus-recent context while their hidden PF cache continues to update;
-  deterministic staggered release restores normal PF reads.
+- **Thresholded prompt response:** robust conditional/unconditional and
+  counterfactual-prompt QK changes are split by a fitted two-component model,
+  not a manual threshold or PF class quota.
+- **Prompt-Stable cache:** sink3 + long-range stride + recent4.
+- **Prompt-Responsive cache:** sink3 + Veil-style merge + recent4, tested
+  directly against Wave-style cyclic and recent-only fallbacks.
+- **Post-hoc correspondence:** overlap with PF Anchor and Wave QK sign/FFT
+  statistics are reported after classification, never used to set the map.
 - **Trust promotion:** noisy/clean agreement, novelty, age, and budget gate
-  PF middle-cache writes.
-- **Weak semantic priority:** prompt roles only break ties among candidates
-  that already pass the same trust gates.
+  middle-cache writes in selected v78 ablations.
 - **Coherent snapshot ablation:** a separate Echo scene-switch screen selects
   one complete frame using relevance and uniqueness; it does not replace the
   single-prompt core.
 - **Fail-closed scope:** no direct archive read, no extra forward, and all role
   behavior is off by default.
 
-Head specialization and novelty-based memory updates have prior art. This does
-not preclude a different intervention criterion and lifecycle from being a
-contribution, but generic head-aware caching, static/dynamic splitting, or
-novelty updates cannot be claimed as new. v95 includes random and inverse
-controls specifically to test whether prompt semantics, rather than class
-count or chance, cause the result.
+PF's stride/cyclic/merge operators, head-aware caching, and novelty-based
+memory updates have prior art. They are borrowed components, not contribution
+claims. v96 tests whether our prompt-intervention criterion, data-derived
+threshold, binary membership, and membership-to-policy coupling have causal
+value using PF-binary oracle, random, inverse, and cache-policy controls.
 
 LifeCache-v1 and CEMR remain in the repository as prior prototypes and
 ablation infrastructure.
@@ -125,7 +124,8 @@ training-free/
 |   |-- 91_transitioncache_paper_story.md
 |   |-- 92_prompt_contrastive_binary_cache_and_uniqueness_plan.md
 |   |-- 93_moviebench_10h_128_and_head32_plan.md
-|   `-- 95_post_v93_dual_axis_phase_cache.md
+|   |-- 95_post_v93_dual_axis_phase_cache.md
+|   `-- 96_qk_threshold_binary_cache_method_and_experiment.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -173,6 +173,12 @@ training-free/
 |   |-- postprocess_v95_dual_axis.sh
 |   |-- summarize_prompt_warmup_trace.py
 |   |-- analyze_v95_dual_axis.py
+|   |-- run_v96_qk_head_profile_16gpu.sh
+|   |-- build_v96_qk_head_thresholds.py
+|   |-- run_v96_binary_cache_16gpu.sh
+|   |-- postprocess_v96_binary_cache.sh
+|   |-- analyze_v96_binary_cache.py
+|   |-- run_v96_10h.sh
 |   |-- summarize_commit_forcing_trace.py
 |   `-- ...
 |-- src/
