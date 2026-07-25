@@ -205,3 +205,17 @@ failed on Node 1 due to label CSV path issue. Not critical for conclusions.
 
 5. **Main-128 rerun in progress** on Node 2 (4 procs, 807 MP4s, up from 805).
    - 2 new MP4s — generating remaining videos for incomplete cells.
+
+## 13. v93 Head32 Comprehensive Eval (3 complete cells, 32 prompts)
+
+| Cell | DINO | drift | BG | Composite |
+|------|------|-------|-----|-----------|
+| prompt_replica_read_v78 | **0.9220** | -0.00219 | 0.9371 | 0.5853 |
+| prompt_consensus_read_v78 | 0.9192 | -0.00208 | 0.9359 | **0.5891** |
+| pf_binary_read_v78 | 0.9150 | -0.00203 | 0.9381 | 0.5868 |
+
+### Key findings (head32, 32 prompts):
+- All 3 v78 variants score very high DINO (~0.92) on the 32-prompt set
+- prompt_replica_read_v78 has highest DINO (0.922) but prompt_consensus_read_v78 has best composite
+- On 128 prompts, pf_binary_read_v78 was best (0.889) — ranking changes with prompt set size
+- Remaining 13 head32 cells still generating, will be evaluated when complete
