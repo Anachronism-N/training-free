@@ -480,3 +480,31 @@ This suggests v78 cache transition provides the most benefit when combined with 
 ### Controls confirm classification matters
 - prompt_random_read_v78 (0.896) and role_score_read_v78 (0.885) are weakest
 - Random labels and old classifiers underperform — prompt sensitivity is a better signal
+
+## 19. v93 Head32 prompt_inverse_read_v78 DINOv2 (12th cell, 32 prompts)
+
+| Cell | DINO | min_D | drift | flicker | bg | comp |
+|------|------|-------|-------|---------|-----|------|
+| prompt_inverse_read_v78 | 0.8732 | 0.8491 | -0.00288 | 0.1588 | 0.9340 | 0.5706 |
+
+### Updated 12-cell ranking (sorted by DINO)
+
+| Rank | Cell | DINO | Type |
+|------|------|------|------|
+| 1 | v78 | 0.9331 | PF 3-class + transition |
+| 2 | pf | 0.9313 | PF 3-class original |
+| 3 | prompt_replica_read_v78 | 0.9220 | replica + transition |
+| 4 | prompt_consensus_read_v78 | 0.9192 | consensus + transition |
+| 5 | pf_binary_read | 0.9180 | binary read |
+| 6 | prompt_pfcount_read | 0.9179 | prompt read |
+| 7 | pf_binary_read_v78 | 0.9150 | binary + transition |
+| 8 | prompt_read_prompt_priority | 0.9135 | prompt + priority |
+| 9 | prompt_pfcount_read_v78 | 0.9131 | prompt + transition |
+| 10 | prompt_random_read_v78 | 0.8958 | random control |
+| 11 | role_score_read_v78 | 0.8854 | old classifier control |
+| 12 | prompt_inverse_read_v78 | 0.8732 | inverse control |
+
+### Key: inverse < random < prompt
+- prompt (0.913) > random (0.896, +0.017) > inverse (0.873, +0.040)
+- **Inverting labels hurts MORE than randomizing** — classification direction matters
+- This strengthens the causal claim: prompt-contrastive classification is not just better than random, it captures real signal
