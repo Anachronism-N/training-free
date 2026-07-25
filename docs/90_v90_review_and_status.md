@@ -322,3 +322,29 @@ failed on Node 1 due to label CSV path issue. Not critical for conclusions.
 - 4/8 main-128 cells complete (128/128 each)
 - 4 still generating on Node 2 (75-84/128)
 - v90 remaining 4 cells: pf_priority_b005 (5/16), others just started
+
+## 16. v93 Head32 Comprehensive Eval (8 complete cells, 32 prompts each, 256 videos)
+
+| Cell | DINO | min_D | drift | flicker | BG | comp |
+|------|------|-------|-------|---------|-----|------|
+| **pf** | **0.9313** | 0.9021 | -0.00199 | 0.1764 | 0.9467 | 0.5419 |
+| prompt_replica_read_v78 | 0.9220 | 0.8795 | -0.00219 | 0.2048 | 0.9371 | 0.5264 |
+| prompt_consensus_read_v78 | 0.9192 | 0.8851 | -0.00208 | 0.2141 | 0.9359 | 0.5292 |
+| pf_binary_read | 0.9180 | 0.8869 | -0.00216 | 0.1919 | 0.9415 | 0.5317 |
+| prompt_pfcount_read | 0.9179 | 0.8810 | -0.00214 | 0.2041 | 0.9363 | 0.5251 |
+| pf_binary_read_v78 | 0.9150 | 0.8751 | -0.00203 | 0.2028 | 0.9381 | 0.5316 |
+| prompt_random_read_v78 | 0.8958 | 0.8785 | -0.00266 | 0.1760 | 0.9415 | 0.5484 |
+| role_score_read_v78 | 0.8854 | 0.8560 | -0.00328 | 0.2164 | 0.9274 | 0.5237 |
+
+### Key findings (head32, 32 prompts, 8 cells):
+- **pf (plain PF) remains BEST** with DINO=0.931 — no modification beats original PF on 32-prompt set
+- v78 transition slightly hurts DINO: pf_binary_read (0.918) > pf_binary_read_v78 (0.915)
+- Read-only cells rank: pf > pf_binary_read ≈ prompt_pfcount_read
+- Transition cells rank: prompt_replica_read_v78 > prompt_consensus_read_v78 > pf_binary_read_v78
+- role_score_read_v78 is weakest (0.885) — role-based priority doesn't help
+- prompt_random_read_v78 has lowest flicker (0.176) but low DINO (0.896)
+
+### Combined with main-128 results:
+- On 128 prompts (complete methods): pf_binary_read_v78 best (DINO=0.889, TJ=1.39)
+- On 32 prompts: pf best (DINO=0.931)
+- Ranking changes with prompt set size — 128-prompt set is more discriminative
