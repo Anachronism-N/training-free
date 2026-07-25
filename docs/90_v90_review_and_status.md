@@ -587,3 +587,24 @@ This suggests v78 cache transition provides the most benefit when combined with 
 - prompt_kmeans_read is consistently worst across v92 (0.710), head32 (0.746 on 128 prompts), and human review (unusable)
 - pf_binary_read_v78 is consistently strong: best on v92 (0.834) and main-128 (0.889)
 - Prompt-contrastive cells are competitive with each other across all experiments
+
+## 22. v93 VBench-Long First Results (pf cell, 75 videos)
+
+| Cell | subject | bg | aesthetic | imaging |
+|------|---------|-----|-----------|---------|
+| pf (75 videos) | 0.9771 | 0.9673 | 0.6382 | 0.7117 |
+
+### VBench-Long status:
+- pf: COMPLETE (75/128 videos, all 4 dimensions)
+- sf_native: processing dimension 2 (subject_consistency done, background_consistency in progress, ~54 min/dimension)
+- echo_pc: processing dimension 2 (same stage as sf_native)
+- pf_binary_read_v78: processing dimension 1
+- prompt_kmeans_read_v78: processing dimension 1
+- 4 VBench processes alive (1 completed, 4 still running)
+- Expected completion: ~3-4 hours for remaining cells
+
+### Comparison with v86/v90 VBench:
+- v86/pf (16 prompts): subject=0.964, bg=0.946, aesthetic=0.594, imaging=0.714
+- v93/pf (75 prompts): subject=0.977, bg=0.967, aesthetic=0.638, imaging=0.712
+- v93/pf has HIGHER subject consistency and aesthetic quality than v86/pf
+- This may be because v93 uses MovieGenVideoBench prompts (easier) vs v86's complex prompts
