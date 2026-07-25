@@ -274,3 +274,51 @@ failed on Node 1 due to label CSV path issue. Not critical for conclusions.
 - v92: 3 read-only cells started (16 prompts each)
 - v90: 4 missing cells started (pf_priority_b005 4/16, pf_age_only, pf_novelty_only, pf_priority_late)
 - All 16 GPUs across 2 nodes fully utilized
+
+## 13. v93 Head32 DINOv2 (8 complete cells, 32 prompts)
+
+| Cell | DINO | min_DINO | drift | flicker | bg | comp |
+|---|---:|---:|---:|---:|---:|---:|
+| **pf** | **0.9313** | **0.9021** | -0.00199 | 0.1764 | 0.9467 | 0.5419 |
+| prompt_replica_read_v78 | 0.9220 | 0.8795 | -0.00219 | 0.2048 | 0.9371 | 0.5264 |
+| prompt_consensus_read_v78 | 0.9192 | 0.8851 | -0.00208 | 0.2141 | 0.9359 | 0.5292 |
+| pf_binary_read | 0.9180 | 0.8869 | -0.00216 | 0.1919 | 0.9415 | 0.5317 |
+| prompt_pfcount_read | 0.9179 | 0.8810 | -0.00214 | 0.2041 | 0.9363 | 0.5251 |
+| pf_binary_read_v78 | 0.9150 | 0.8751 | -0.00203 | 0.2028 | 0.9381 | 0.5316 |
+| prompt_random_read_v78 | 0.8958 | 0.8785 | -0.00266 | 0.1760 | 0.9415 | 0.5484 |
+| role_score_read_v78 | 0.8854 | 0.8560 | -0.00328 | 0.2164 | 0.9274 | 0.5237 |
+
+### Key findings
+
+1. **PF (3-class) is best on 32 prompts (0.931)**. The original PF read
+   topology outperforms all binary and prompt-contrastive variants on this
+   prompt subset.
+
+2. **Binary read (pf_binary_read 0.918) vs PF 3-class (0.931)**: merging
+   Wave+Veil into one class costs ~0.013 DINO. The Veil merge class
+   provides value.
+
+3. **v78 writes do NOT improve over PF reads alone**: pf_binary_read (0.918)
+   > pf_binary_read_v78 (0.915). Adding v78 write control to binary reads
+   does not help on 32 prompts.
+
+4. **prompt_replica (0.922) and prompt_consensus (0.919) are competitive**:
+   the independent-profile and consensus prompt-contrastive maps are close
+   to PF. This supports reproducibility of the prompt classification.
+
+5. **prompt_random_read_v78 (0.896) and role_score_read_v78 (0.885) are
+   weakest**: random labels and the old remote-minus-prompt classifier
+   underperform. This supports that prompt sensitivity is a better signal
+   than random or remote-history for read routing.
+
+6. **Contrast with main-128**: On 128 prompts, pf_binary_read_v78 was best
+   (0.889). On 32 prompts, pf (3-class) is best (0.931). The 32-prompt
+   subset may favor PF's original topology, while the 128-prompt set
+   favors the binary+v78 combination. This needs investigation.
+
+### Status
+- 8/16 head32 cells complete (32/32 each)
+- 8 still generating on Node 1 (3-28/32)
+- 4/8 main-128 cells complete (128/128 each)
+- 4 still generating on Node 2 (75-84/128)
+- v90 remaining 4 cells: pf_priority_b005 (5/16), others just started
