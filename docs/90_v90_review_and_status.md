@@ -444,3 +444,39 @@ prompt_kmeans_read_v78, remote_read_v78
 
 ### 4 main-128 cells still generating on Node 2
 pf (75/128), prompt_pfcount_read_v78 (75/128), v78 (84/128), veil_priority_b005 (75/128)
+
+## 18. v93 Head32 Complementary Eval (3 additional cells, 32 prompts)
+
+| Cell | DINO | min_D | drift | comp |
+|------|------|-------|-------|------|
+| **v78** | **0.9331** | 0.8908 | -0.00177 | 0.5404 |
+| prompt_read_prompt_priority | 0.9135 | 0.8743 | -0.00219 | 0.5258 |
+| prompt_pfcount_read_v78 | 0.9131 | 0.8729 | -0.00202 | 0.5213 |
+
+### Combined Head32 Ranking (11 cells evaluated, 32 prompts each)
+
+| Rank | Cell | DINO | Transition | Read topology |
+|------|------|------|------------|---------------|
+| 1 | **v78** | **0.9331** | yes | PF 3-class (default) |
+| 2 | pf | 0.9313 | no | PF 3-class (default) |
+| 3 | prompt_replica_read_v78 | 0.9220 | yes | prompt-contrastive replica |
+| 4 | prompt_consensus_read_v78 | 0.9192 | yes | prompt-contrastive consensus |
+| 5 | pf_binary_read | 0.9180 | no | binary (Anchor vs Wave+Veil) |
+| 6 | prompt_pfcount_read | 0.9179 | no | prompt-contrastive pf-count |
+| 7 | pf_binary_read_v78 | 0.9150 | yes | binary (Anchor vs Wave+Veil) |
+| 8 | prompt_read_prompt_priority | 0.9135 | yes+role | prompt-contrastive + priority |
+| 9 | prompt_pfcount_read_v78 | 0.9131 | yes | prompt-contrastive pf-count |
+| 10 | prompt_random_read_v78 | 0.8958 | yes | random labels (control) |
+| 11 | role_score_read_v78 | 0.8854 | yes | role-score labels (control) |
+
+### Key insight: v78 transition interacts with read topology
+
+- **v78 helps with PF 3-class read**: v78 (0.933) > pf (0.931), +0.002 DINO
+- **v78 hurts with binary read**: pf_binary_read_v78 (0.915) < pf_binary_read (0.918), -0.003 DINO
+- **v78 hurts with prompt-contrastive read**: prompt_pfcount_read_v78 (0.913) < prompt_pfcount_read (0.918), -0.005 DINO
+
+This suggests v78 cache transition provides the most benefit when combined with the original PF 3-class read topology, and may interfere with alternative read routing strategies.
+
+### Controls confirm classification matters
+- prompt_random_read_v78 (0.896) and role_score_read_v78 (0.885) are weakest
+- Random labels and old classifiers underperform — prompt sensitivity is a better signal
