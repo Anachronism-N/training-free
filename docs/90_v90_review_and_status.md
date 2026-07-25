@@ -608,3 +608,26 @@ This suggests v78 cache transition provides the most benefit when combined with 
 - v93/pf (75 prompts): subject=0.977, bg=0.967, aesthetic=0.638, imaging=0.712
 - v93/pf has HIGHER subject consistency and aesthetic quality than v86/pf
 - This may be because v93 uses MovieGenVideoBench prompts (easier) vs v86's complex prompts
+
+## 23. v93 Head32 pf_read_prompt_priority DINOv2 (13th cell, 32 prompts)
+
+| Cell | DINO | min_D | drift | flicker | bg | comp |
+|------|------|-------|-------|---------|-----|------|
+| pf_read_prompt_priority | 0.9283 | 0.8950 | -0.00206 | 0.1890 | 0.9435 | 0.5359 |
+
+### Updated 13-cell ranking:
+1. v78: 0.9331
+2. pf: 0.9313
+3. **pf_read_prompt_priority: 0.9283** (NEW — 3rd best!)
+4. prompt_replica_read_v78: 0.9220
+5. prompt_consensus_read_v78: 0.9192
+6. pf_binary_read: 0.9180
+7. prompt_pfcount_read: 0.9179
+8. pf_binary_read_v78: 0.9150
+9. prompt_read_prompt_priority: 0.9135
+10. prompt_pfcount_read_v78: 0.9131
+11. prompt_random_read_v78: 0.8958
+12. role_score_read_v78: 0.8854
+13. prompt_inverse_read_v78: 0.8732
+
+**pf_read_prompt_priority (PF read + prompt-priority role conditioning) is 3rd best (0.9283)** — very close to v78 (0.9331) and pf (0.9313). The priority conditioning on PF's 3-class read topology is competitive.
