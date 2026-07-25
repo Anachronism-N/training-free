@@ -378,3 +378,69 @@ failed on Node 1 due to label CSV path issue. Not critical for conclusions.
 - v78 is competitive but doesn't beat PF on any VBench dimension
 - Background consistency and imaging quality are very close across all methods
 - v93 VBench evaluation in progress (5 cells evaluating, 0 results yet)
+
+## 14. v93 Head32 DINOv2 Complete (11 cells, 32 prompts)
+
+### Full results (sorted by DINO)
+
+| Cell | DINO | min_DINO | drift | flicker | bg | comp |
+|---|---:|---:|---:|---:|---:|---:|
+| **v78** | **0.9331** | 0.8908 | -0.00177 | 0.1843 | 0.9460 | 0.5404 |
+| **pf** | **0.9313** | **0.9021** | -0.00199 | 0.1764 | 0.9467 | 0.5419 |
+| prompt_replica_read_v78 | 0.9220 | 0.8795 | -0.00219 | 0.2048 | 0.9371 | 0.5264 |
+| prompt_consensus_read_v78 | 0.9192 | 0.8851 | -0.00208 | 0.2141 | 0.9359 | 0.5292 |
+| pf_binary_read | 0.9180 | 0.8869 | -0.00216 | 0.1919 | 0.9415 | 0.5317 |
+| prompt_pfcount_read | 0.9179 | 0.8810 | -0.00214 | 0.2041 | 0.9363 | 0.5251 |
+| pf_binary_read_v78 | 0.9150 | 0.8751 | -0.00203 | 0.2028 | 0.9381 | 0.5316 |
+| prompt_read_prompt_priority | 0.9135 | 0.8743 | -0.00219 | 0.2161 | 0.9337 | 0.5258 |
+| prompt_pfcount_read_v78 | 0.9131 | 0.8729 | -0.00202 | 0.2186 | 0.9370 | 0.5213 |
+| prompt_random_read_v78 | 0.8958 | 0.8785 | -0.00266 | 0.1760 | 0.9415 | 0.5484 |
+| role_score_read_v78 | 0.8854 | 0.8560 | -0.00328 | 0.2164 | 0.9274 | 0.5237 |
+
+### Key comparisons
+
+| Comparison | DINO A | DINO B | Δ | Interpretation |
+|---|---:|---:|---:|---|
+| v78 vs PF | 0.9331 | 0.9313 | +0.002 | v78 ≈ PF (v78 slightly better) |
+| 3-class vs binary read | 0.9313 | 0.9180 | +0.013 | **3-class better** (Veil merge has value) |
+| binary read vs binary+v78 write | 0.9180 | 0.9150 | +0.003 | v78 writes don't help |
+| PF read vs v78 (PF read + trusted write) | 0.9313 | 0.9331 | -0.002 | v78 writes ≈ no effect |
+| prompt read vs prompt+v78 write | 0.9179 | 0.9131 | +0.005 | v78 writes slightly hurt |
+| prompt vs random control | 0.9131 | 0.8958 | **+0.017** | **prompt classification is causal** |
+| prompt vs old classifier | 0.9131 | 0.8854 | **+0.028** | **prompt > remote-minus-prompt** |
+| replica vs primary | 0.9220 | 0.9131 | +0.009 | **replica is reproducible** (actually better!) |
+
+### Critical findings
+
+1. **v78 (PF 3-class read + trusted write) is the BEST on 32 prompts (0.933)**
+   — marginally beats PF (0.931). The v78 write controller adds ~0.002 DINO
+   on top of PF's read topology.
+
+2. **PF 3-class read (0.931) > binary read (0.918)** — merging Wave+Veil
+   costs 0.013 DINO. The Veil merge class provides real value. Binary read
+   topology is NOT supported on 32 prompts.
+
+3. **v78 writes do NOT improve over PF reads alone** — pf_binary_read
+   (0.918) > pf_binary_read_v78 (0.915). The trust-conditioned write
+   controller adds no value on top of PF's read topology on 32 prompts.
+
+4. **Prompt classification IS causally superior** — prompt_pfcount_read_v78
+   (0.913) > random (0.896, +0.017) > role_score (0.885, +0.028). The
+   prompt-contrastive classifier beats both random and the old
+   remote-minus-prompt classifier.
+
+5. **Replica is reproducible and actually better** — prompt_replica (0.922)
+   > prompt_pfcount (0.913, +0.009). The independent profile produces a
+   better head map than the primary.
+
+6. **Contrast with main-128**: On 128 prompts, pf_binary_read_v78 was best
+   (0.889). On 32 prompts, v78 (PF read + trusted write) is best (0.933).
+   The 32-prompt subset may not be representative of the 128-prompt
+   distribution. The main-128 results should be weighted more heavily.
+
+### 5 cells still generating on Node 1
+pf_read_prompt_priority, prompt_inverse_read_v78, prompt_kmeans_read,
+prompt_kmeans_read_v78, remote_read_v78
+
+### 4 main-128 cells still generating on Node 2
+pf (75/128), prompt_pfcount_read_v78 (75/128), v78 (84/128), veil_priority_b005 (75/128)
