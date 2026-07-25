@@ -176,3 +176,32 @@ failed on Node 1 due to label CSV path issue. Not critical for conclusions.
 - **Node 1**: MovieBench-128 main running (8 methods × 128 prompts)
 - **Node 2**: MovieBench-32 head32 running (3/16 cells active, 13 OOM)
 - Both experiments generating videos
+
+## 12. v93 MovieBench-128 DINOv2 (4 complete methods, 128 prompts)
+
+| Cell | DINO | min_DINO | drift | flicker | bg | comp |
+|---|---:|---:|---:|---:|---:|---:|
+| **pf_binary_read_v78** | **0.8890** | **0.8528** | -0.00235 | 0.2211 | 0.9281 | 0.5115 |
+| echo_pc | 0.8656 | 0.7757 | -0.00237 | 0.2393 | 0.9101 | 0.5006 |
+| sf_native | 0.8495 | 0.8049 | -0.00463 | 0.1721 | 0.9257 | 0.5298 |
+| prompt_kmeans_read_v78 | 0.7457 | 0.7163 | -0.00273 | 0.2284 | 0.8997 | 0.4966 |
+
+### Key findings
+
+1. **pf_binary_read_v78 is the BEST method** on 128 prompts (DINO=0.889).
+   - Beats echo_pc by +0.023 DINO
+   - Beats sf_native by +0.040 DINO
+   - Binary PF read (Anchor vs Wave+Veil) + v78 trust writes is the strongest config.
+
+2. **prompt_kmeans_read_v78 is surprisingly weak** (0.746, below sf_native).
+   - The prompt-contrastive k-means classifier does NOT work for read routing.
+   - This is different from the write-side where it was competitive.
+
+3. **4 methods still generating** (pf, v78, prompt_pfcount_read_v78, veil_priority_b005).
+   - Need DINOv2 on these to complete the 128-prompt table.
+
+4. **head32 rerun in progress** on Node 1 (13 procs, 122 MP4s, up from 96).
+   - 26 new MP4s since rerun started — generating!
+
+5. **Main-128 rerun in progress** on Node 2 (4 procs, 807 MP4s, up from 805).
+   - 2 new MP4s — generating remaining videos for incomplete cells.
