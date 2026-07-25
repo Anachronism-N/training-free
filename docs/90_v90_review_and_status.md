@@ -725,3 +725,16 @@ This suggests v78 cache transition provides the most benefit when combined with 
 - pf_binary_read_v78: best TJ on v92 (1.379) AND main-128 (1.391) — consistently best temporal smoothness
 - prompt_kmeans: worst TJ on v92 (2.667-2.820) AND main-128 (3.011) — consistently worst
 - remote_read_v78: 2nd worst on v92 (2.013) — consistent with human review
+
+## 27. v93 VBench-Long Updated Results (2/5 cells complete)
+
+| Cell | subject | bg | aesthetic | imaging |
+|------|---------|-----|-----------|---------|
+| pf (85 videos) | 0.9771 | 0.9673 | 0.6382 | 0.7117 |
+| pf_binary_read_v78 (128 videos) | 0.9699 | 0.9608 | 0.6124 | 0.6921 |
+
+### Key VBench findings:
+- **PF has higher subject consistency (0.977 vs 0.970)** — 3-class read outperforms binary+v78 on VBench
+- **PF has higher aesthetic quality (0.638 vs 0.612)** — consistent with DINOv2 results
+- **pf_binary_read_v78 has lower imaging quality (0.692 vs 0.712)** — transition may hurt image quality
+- 3 more VBench cells still evaluating (sf_native, echo_pc, prompt_kmeans_read_v78)
