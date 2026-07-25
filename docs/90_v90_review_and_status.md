@@ -251,3 +251,26 @@ failed on Node 1 due to label CSV path issue. Not critical for conclusions.
 - pf and v78 have higher DINO but only on PARTIAL prompts (74-84/128) — unfair comparison
 - sf_native has severe temporal discontinuities (outlier 992!)
 - prompt_kmeans_read_v78 is consistently weak (DINO 0.746, temporal jump 3.01)
+
+## 15. v93 Head32 Comprehensive Eval (5 complete cells, 32 prompts each)
+
+| Cell | DINO | min_D | drift | flicker | BG | comp |
+|------|------|-------|-------|---------|-----|------|
+| **pf** | **0.9313** | 0.9021 | -0.00199 | 0.1764 | 0.9467 | 0.5419 |
+| prompt_replica_read_v78 | 0.9220 | 0.8795 | -0.00219 | 0.2048 | 0.9371 | 0.5264 |
+| prompt_consensus_read_v78 | 0.9192 | 0.8851 | -0.00208 | 0.2141 | 0.9359 | 0.5292 |
+| pf_binary_read | 0.9180 | 0.8869 | -0.00216 | 0.1919 | 0.9415 | 0.5317 |
+| pf_binary_read_v78 | 0.9150 | 0.8751 | -0.00203 | 0.2028 | 0.9381 | 0.5316 |
+
+### Key findings (head32, 32 prompts):
+- **pf (plain Pyramid-Forcing) has highest DINO (0.931) on 32-prompt set**
+- All methods score very high (~0.92) on this smaller, easier prompt set
+- Ranking differs from 128-prompt set where pf_binary_read_v78 was best among complete methods
+- 11 more head32 cells still generating, will be evaluated when complete
+
+### Currently running experiments:
+- v93 main-128: 4/8 complete, 4 generating (pf 75, v78 84, prompt_pfcount 75, veil 75)
+- v93 head32: 9/16 complete, 7 generating
+- v92: 3 read-only cells started (16 prompts each)
+- v90: 4 missing cells started (pf_priority_b005 4/16, pf_age_only, pf_novelty_only, pf_priority_late)
+- All 16 GPUs across 2 nodes fully utilized
