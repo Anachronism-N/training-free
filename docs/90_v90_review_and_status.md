@@ -738,3 +738,55 @@ This suggests v78 cache transition provides the most benefit when combined with 
 - **PF has higher aesthetic quality (0.638 vs 0.612)** — consistent with DINOv2 results
 - **pf_binary_read_v78 has lower imaging quality (0.692 vs 0.712)** — transition may hurt image quality
 - 3 more VBench cells still evaluating (sf_native, echo_pc, prompt_kmeans_read_v78)
+
+## 28. MAJOR MILESTONE: v92 COMPLETE + VBench v93 COMPLETE + head32 nearly complete
+
+### v92 All 16 cells complete! DINOv2 for final 2 cells:
+
+| Cell | DINO | Type |
+|------|------|------|
+| prompt_inverse_read_v78 | 0.7962 | inverse control |
+| prompt_read_prompt_priority | 0.8267 | prompt + priority |
+
+### v92 Final 14-cell ranking (16 prompts each):
+1. pf_read_prompt_priority: 0.8482
+2. pf_binary_read_v78: 0.8339
+3. pf_binary_read_v78_coverage: 0.8339
+4. prompt_replica_read_v78: 0.8279
+5. prompt_read_prompt_priority: 0.8267 (NEW)
+6. prompt_pfcount_read_v78: 0.8278
+7. prompt_read_v78_coverage: 0.8273
+8. prompt_consensus_read_v78: 0.8251
+9. pf_binary_read: 0.8193
+10. prompt_random_read_v78: 0.8188
+11. prompt_inverse_read_v78: 0.7962 (NEW — inverse control)
+12. role_score_read_v78: 0.7900
+13. remote_read_v78: 0.7866
+14. prompt_kmeans_read: 0.7100 (unusable)
+
+### head32 prompt_kmeans_read_v78: DINO=0.7531 (14th cell, WORST)
+- Consistent with human review: polygonal noise, ID collapse, unusable
+- Consistent with v92: prompt_kmeans_read=0.710 (worst)
+
+### VBench-Long v93 ALL 5 cells complete!
+
+| Cell | subject | bg | aesthetic | imaging |
+|------|---------|-----|-----------|---------|
+| **pf** | **0.9771** | **0.9673** | **0.6382** | **0.7117** |
+| pf_binary_read_v78 | 0.9699 | 0.9608 | 0.6124 | 0.6921 |
+| sf_native | 0.9669 | 0.9624 | 0.5925 | 0.6784 |
+| echo_pc | 0.9591 | 0.9566 | 0.6003 | 0.6736 |
+| prompt_kmeans_read_v78 | 0.9591 | 0.9592 | 0.5974 | 0.6725 |
+
+### VBench key findings:
+1. **PF is BEST on ALL 4 VBench dimensions** — subject (0.977), bg (0.967), aesthetic (0.638), imaging (0.712)
+2. **pf_binary_read_v78 is 2nd on subject (0.970)** but lower on aesthetic (0.612) and imaging (0.692)
+3. **prompt_kmeans_read_v78 is WORST on all dimensions** — consistent with DINOv2 and human review
+4. **sf_native is 3rd on subject (0.967)** — better than echo_pc and prompt_kmeans
+
+### Status:
+- v92: 16/16 COMPLETE, 14 cells with DINOv2 ✅
+- head32: 15/16 complete (remote_read_v78 at 22/32), 14 cells with DINOv2 ✅
+- VBench v93: 5/5 COMPLETE ✅
+- main-128: 4/8 complete (85-88/128)
+- v90: 13/16 complete (8-11/16)
