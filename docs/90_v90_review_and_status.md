@@ -564,3 +564,26 @@ This suggests v78 cache transition provides the most benefit when combined with 
 5. **Random labels have more severe hallucinations** — prompt_random_read_v78 is worse than other prompt-contrastive cells, confirming that the prompt-contrastive classification direction matters (consistent with DINOv2: random 0.896 < prompt 0.913).
 
 6. **Remote classifier has early-frame corruption** — remote_read_v78 has flashback artifacts in first frames, unlike prompt-contrastive cells. The remote-minus-prompt classifier is inferior.
+
+## 21. v92 DINOv2 Results (6 complete cells, 16 prompts each)
+
+| Cell | DINO | min_D | drift | flicker | bg | comp |
+|------|------|-------|-------|---------|-----|------|
+| pf_binary_read_v78 | 0.8339 | 0.7592 | -0.00255 | 0.3038 | 0.8923 | 0.4983 |
+| prompt_replica_read_v78 | 0.8279 | 0.7614 | -0.00280 | 0.3227 | 0.8890 | 0.4977 |
+| prompt_pfcount_read_v78 | 0.8278 | 0.7269 | -0.00233 | 0.3262 | 0.8895 | 0.5026 |
+| prompt_consensus_read_v78 | 0.8251 | 0.7248 | -0.00215 | 0.3202 | 0.8875 | 0.5027 |
+| pf_binary_read | 0.8193 | 0.7265 | -0.00218 | 0.3086 | 0.8927 | 0.5012 |
+| prompt_kmeans_read | 0.7100 | 0.6731 | -0.00346 | 0.2901 | 0.8729 | 0.4681 |
+
+### Key v92 findings (16 prompts):
+1. **pf_binary_read_v78 is best** (DINO=0.834) — consistent with main-128 result
+2. **prompt_kmeans_read is worst** (DINO=0.710) — consistent with human review (unusable, polygonal noise)
+3. **prompt_replica_read_v78 (0.828) > prompt_pfcount_read_v78 (0.828) > prompt_consensus_read_v78 (0.825)** — all prompt-contrastive cells are competitive
+4. **pf_binary_read (0.819) < pf_binary_read_v78 (0.834)** — v78 transition HELPS with binary read on 16-prompt set (contrast with 32-prompt head32 where it didn't help)
+5. **95 videos evaluated** (prompt_pfcount_read has only 15/16 videos, 1 missing)
+
+### Cross-experiment consistency:
+- prompt_kmeans_read is consistently worst across v92 (0.710), head32 (0.746 on 128 prompts), and human review (unusable)
+- pf_binary_read_v78 is consistently strong: best on v92 (0.834) and main-128 (0.889)
+- Prompt-contrastive cells are competitive with each other across all experiments
