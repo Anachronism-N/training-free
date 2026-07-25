@@ -219,3 +219,35 @@ failed on Node 1 due to label CSV path issue. Not critical for conclusions.
 - prompt_replica_read_v78 has highest DINO (0.922) but prompt_consensus_read_v78 has best composite
 - On 128 prompts, pf_binary_read_v78 was best (0.889) — ranking changes with prompt set size
 - Remaining 13 head32 cells still generating, will be evaluated when complete
+
+## 14. v93 Main-128 Full Comprehensive Eval (8 methods, partial+complete)
+
+| Cell | DINO | min_D | drift | flicker | BG | comp | videos |
+|------|------|-------|-------|---------|-----|------|--------|
+| pf | **0.9307** | 0.8959 | -0.00174 | 0.1766 | 0.9492 | 0.5822 | 74/128 partial |
+| v78 | 0.9220 | 0.8708 | -0.00164 | 0.1958 | 0.9422 | 0.5817 | 84/128 partial |
+| veil_priority_b005 | 0.8966 | 0.8419 | -0.00212 | 0.2161 | 0.9248 | 0.5772 | 75/128 partial |
+| **pf_binary_read_v78** | 0.8890 | 0.8528 | -0.00235 | 0.2211 | 0.9281 | 0.5662 | **128/128 complete** |
+| prompt_pfcount_read_v78 | 0.8676 | 0.8183 | -0.00307 | 0.2519 | 0.9155 | 0.5496 | 74/128 partial |
+| echo_pc | 0.8656 | 0.7757 | -0.00237 | 0.2393 | 0.9101 | 0.5536 | 128/128 complete |
+| sf_native | 0.8495 | 0.8049 | -0.00463 | 0.1721 | 0.9257 | 0.5738 | 128/128 complete |
+| prompt_kmeans_read_v78 | 0.7457 | 0.7163 | -0.00273 | 0.2284 | 0.8997 | 0.5467 | 128/128 complete |
+
+### Temporal Jump (lower = better)
+
+| Cell | mean | median | max |
+|------|------|--------|-----|
+| **pf_binary_read_v78** | **1.3906** | 1.2908 | 4.2529 |
+| prompt_pfcount_read_v78 | 1.4277 | 1.3145 | 3.4775 |
+| veil_priority_b005 | 1.5545 | 1.4536 | 4.1702 |
+| v78 | 1.6292 | 1.5515 | 4.8020 |
+| pf | 1.6820 | 1.6348 | 3.1642 |
+| echo_pc | 1.7353 | 1.5544 | 5.8829 |
+| prompt_kmeans_read_v78 | 3.0106 | 2.5454 | 10.6377 |
+| sf_native | 10.0111 | 1.9844 | 992.6165 |
+
+### Key findings:
+- **pf_binary_read_v78: BEST temporal jump (1.39) + best DINO among complete methods (0.889)**
+- pf and v78 have higher DINO but only on PARTIAL prompts (74-84/128) — unfair comparison
+- sf_native has severe temporal discontinuities (outlier 992!)
+- prompt_kmeans_read_v78 is consistently weak (DINO 0.746, temporal jump 3.01)
