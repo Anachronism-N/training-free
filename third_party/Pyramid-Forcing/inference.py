@@ -355,6 +355,25 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--pyramidkv_binary_stable_policy",
+    choices=("stride", "hybrid"),
+    default="stride",
+    help=(
+        "Middle policy for label 1 in a binary map. Hybrid uses two stride "
+        "and two phase-aligned slots under the same four-frame read budget."
+    ),
+)
+parser.add_argument(
+    "--pyramidkv_pf_extended_recent_ablation",
+    choices=("anchor", "wave", "veil"),
+    default=None,
+    help=(
+        "For a map where the selected PF class is encoded as label 3, "
+        "replace its middle cache with approximately token-budget-matched "
+        "additional recent frames."
+    ),
+)
+parser.add_argument(
     "--pyramidkv_probecache_mode",
     choices=("audit", "persistent", "reactive", "full"),
     default=None,
@@ -719,18 +738,43 @@ if args.pyramidkv_probecache:
 if args.pyramidkv_head_config_path is not None:
     config.pyramidkv_config_path = args.pyramidkv_head_config_path
     config.pyramidkv_policy_csv_path = args.pyramidkv_head_config_path
+if (
+    args.pyramidkv_binary_responsive_policy is not None
+    and args.pyramidkv_pf_extended_recent_ablation is not None
+):
+    parser.error(
+        "binary policy override and PF extended-recent ablation are mutually exclusive"
+    )
 if args.pyramidkv_binary_responsive_policy is not None:
-    from pyramidkv.policy_overrides import binary_responsive_policy_overrides
+    from pyramidkv.policy_overrides import binary_head_policy_overrides
 
-    policy_overrides = binary_responsive_policy_overrides(
-        args.pyramidkv_binary_responsive_policy
+    policy_overrides = binary_head_policy_overrides(
+        args.pyramidkv_binary_stable_policy,
+        args.pyramidkv_binary_responsive_policy,
     )
     for field_name, field_value in policy_overrides.items():
         setattr(config, field_name, field_value)
     print(
         "[BinaryPolicyOverride] "
-        f"stable=stride responsive={args.pyramidkv_binary_responsive_policy} "
+        f"stable={args.pyramidkv_binary_stable_policy} "
+        f"responsive={args.pyramidkv_binary_responsive_policy} "
         "sink_recent=role_specific",
+        flush=True,
+    )
+if args.pyramidkv_pf_extended_recent_ablation is not None:
+    from pyramidkv.policy_overrides import pf_class_extended_recent_overrides
+
+    policy_overrides = pf_class_extended_recent_overrides(
+        args.pyramidkv_pf_extended_recent_ablation
+    )
+    for field_name, field_value in policy_overrides.items():
+        setattr(config, field_name, field_value)
+    print(
+        "[PFClassExtendedRecentAblation] "
+        f"target={args.pyramidkv_pf_extended_recent_ablation} "
+        "replacement=label3 sink=native "
+        f"recent={policy_overrides['pyramidkv_label_recent_frames_map']['3']} "
+        "middle=none",
         flush=True,
     )
 if args.pyramidkv_probecache_debug:

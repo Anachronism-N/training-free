@@ -1,3 +1,4 @@
+import json
 import os
 import torch
 from collections import OrderedDict, deque
@@ -294,6 +295,31 @@ class AdaptiveKVCache(PyramidKVCache):
             context_len=context_len,
             prompt_value_cache_enabled=prompt_value_cache_enabled,
         )
+        self._policy_trace_path = os.environ.get(
+            "PYRAMIDKV_POLICY_TRACE_PATH", ""
+        ).strip()
+        trace_layers = os.environ.get(
+            "PYRAMIDKV_POLICY_TRACE_LAYERS", "0,7,15,23,29"
+        )
+        self._policy_trace_layers = {
+            int(value.strip())
+            for value in trace_layers.split(",")
+            if value.strip()
+        }
+        self._policy_trace_stride = max(
+            1, int(os.environ.get("PYRAMIDKV_POLICY_TRACE_STRIDE", "3"))
+        )
+        self._policy_trace_max_records = max(
+            0,
+            int(
+                os.environ.get(
+                    "PYRAMIDKV_POLICY_TRACE_MAX_RECORDS", "20000"
+                )
+            ),
+        )
+        self._policy_trace_records = 0
+        self._policy_trace_seen: set[tuple[int, int, int, str]] = set()
+        self._policy_trace_warned = False
         self.sink_len = max(0, int(sink_len))
         self.tail_len = max(0, int(tail_len))
         self.ivc_ratio = float(ivc_ratio)
@@ -869,6 +895,95 @@ class AdaptiveKVCache(PyramidKVCache):
         self._profile_enabled = bool(enabled)
         if not enabled:
             self.reset_profile_stats()
+
+    def _trace_middle_selection(
+        self,
+        *,
+        seq_idx: int,
+        head_idx: int,
+        sync_t_raw: int,
+        composition,
+        collected,
+    ) -> None:
+        if (
+            not self._policy_trace_path
+            or self.layer_idx not in self._policy_trace_layers
+            or sync_t_raw % self._policy_trace_stride != 0
+            or self._policy_trace_records >= self._policy_trace_max_records
+        ):
+            return
+        branch = str(getattr(self, "_cfg_branch", "unknown"))
+        key = (seq_idx, head_idx, sync_t_raw, branch)
+        if key in self._policy_trace_seen:
+            return
+        self._policy_trace_seen.add(key)
+        try:
+            strategies = []
+            recent_frames = self._head_recent_frames(head_idx)
+            sink_frames = self._head_sink_frames(head_idx)
+            if composition is not None:
+                recent_frames = int(composition.recent_frames)
+                sink_frames = int(composition.sink_frames)
+                tail_min_t = sync_t_raw - recent_frames + 1
+                sink_max_t = 0 if sink_frames > 0 else -1
+                for strategy in composition.middle_strategies:
+                    anchors = strategy.collect(
+                        seq_idx,
+                        sync_t_raw,
+                        tail_min_t,
+                        sink_max_t,
+                    )
+                    strategies.append(
+                        {
+                            "name": type(strategy).__name__,
+                            "frame_ids": [int(anchor.t) for anchor in anchors],
+                            "token_count": sum(
+                                int(anchor.token_count) for anchor in anchors
+                            ),
+                        }
+                    )
+            union_frame_ids = [
+                int(anchor.t)
+                for anchor in collected
+                if hasattr(anchor, "t")
+            ]
+            payload = {
+                "event": "middle_selection",
+                "layer": int(self.layer_idx),
+                "head": int(head_idx),
+                "seq": int(seq_idx),
+                "branch": branch,
+                "sync_t": int(sync_t_raw),
+                "label": int(self.head_labels[head_idx]),
+                "sink_frames": sink_frames,
+                "recent_frames": recent_frames,
+                "policy_type": (
+                    str(composition.policy_type)
+                    if composition is not None
+                    else "legacy"
+                ),
+                "strategies": strategies,
+                "union_frame_ids": union_frame_ids,
+                "union_frame_count": len(union_frame_ids),
+                "union_token_count": sum(
+                    int(anchor.token_count)
+                    for anchor in collected
+                    if hasattr(anchor, "token_count")
+                ),
+            }
+            path = os.path.abspath(self._policy_trace_path)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, sort_keys=True) + "\n")
+            self._policy_trace_records += 1
+        except Exception as exc:  # Debug output must not change inference.
+            if not self._policy_trace_warned:
+                print(
+                    "[PyramidKVPolicyTraceError] "
+                    f"layer={self.layer_idx} error={exc!r}",
+                    flush=True,
+                )
+                self._policy_trace_warned = True
 
     def reset_profile_stats(self) -> None:
         self._profile_stats = {
@@ -3856,6 +3971,13 @@ class AdaptiveKVCache(PyramidKVCache):
             )
             if cpp_collected is not None:
                 self._record_profile("collect_ms", collect_start)
+                self._trace_middle_selection(
+                    seq_idx=seq_idx,
+                    head_idx=head_idx,
+                    sync_t_raw=sync_t_raw,
+                    composition=composition,
+                    collected=cpp_collected,
+                )
                 return ("comp", cpp_collected), sum(int(anchor.token_count) for anchor in cpp_collected)
             collected = composition.collect_all(seq_idx, sync_t_raw, tail_min_t, sink_max_t)
             self._record_profile("collect_ms", collect_start)
@@ -3864,6 +3986,13 @@ class AdaptiveKVCache(PyramidKVCache):
                 if getattr(anchor, "source_kind", "tensor") == "anchor_store":
                     self._profile_stats["anchor_store_anchor_count"] += 1.0
                     self._profile_stats["anchor_store_token_count"] += float(anchor.token_count)
+            self._trace_middle_selection(
+                seq_idx=seq_idx,
+                head_idx=head_idx,
+                sync_t_raw=sync_t_raw,
+                composition=composition,
+                collected=collected,
+            )
             return ("comp", collected), n
 
         inline = []
@@ -3896,6 +4025,13 @@ class AdaptiveKVCache(PyramidKVCache):
                 inline.append(("lag", lag, anchor))
                 n += anchor[0].shape[0]
         self._record_profile("collect_ms", collect_start)
+        self._trace_middle_selection(
+            seq_idx=seq_idx,
+            head_idx=head_idx,
+            sync_t_raw=sync_t_raw,
+            composition=composition,
+            collected=[],
+        )
         return ("inline", inline), n
 
     def _write_anchor_segment(

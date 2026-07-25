@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).parents[1]
@@ -8,11 +9,9 @@ def test_v96_cache_screen_has_16_distinct_cells():
     script = (
         ROOT / "scripts" / "run_v96_binary_cache_16gpu.sh"
     ).read_text(encoding="utf-8")
-    launches = [
-        line.strip().split()[1]
-        for line in script.splitlines()
-        if line.strip().startswith("launch ")
-    ]
+    match = re.search(r"METHODS=\(\n(.*?)\n\)", script, flags=re.DOTALL)
+    assert match is not None
+    launches = match.group(1).split()
 
     assert len(launches) == 16
     assert len(set(launches)) == 16

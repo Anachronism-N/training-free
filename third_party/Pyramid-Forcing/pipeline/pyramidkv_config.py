@@ -55,6 +55,7 @@ class PyramidKVPipelineConfig:
     pyramidkv_label_merge_enabled_map: Optional[dict] = None
     pyramidkv_label_merge_patch_size_map: Optional[dict] = None
     pyramidkv_label_merge_capacity_map: Optional[dict] = None
+    pyramidkv_hybrid_middle_enabled: bool = False
 
     # --- Adaptive cache params ---
     pyramidkv_dynamic_capacity: int = 6240  # was tail_len; 4 * 1560
@@ -265,6 +266,9 @@ class PyramidKVPipelineConfig:
             pyramidkv_label_merge_enabled_map=getattr(args, "pyramidkv_label_merge_enabled_map", None),
             pyramidkv_label_merge_patch_size_map=getattr(args, "pyramidkv_label_merge_patch_size_map", None),
             pyramidkv_label_merge_capacity_map=getattr(args, "pyramidkv_label_merge_capacity_map", None),
+            pyramidkv_hybrid_middle_enabled=bool(
+                getattr(args, "pyramidkv_hybrid_middle_enabled", False)
+            ),
             pyramidkv_dynamic_capacity=getattr(args, "pyramidkv_dynamic_capacity", 4 * frame_seq_length),
             ivc_ratio=getattr(args, "ivc_ratio", 0.1),
             semantic_ratio=getattr(args, "semantic_ratio", 0.1),

@@ -258,6 +258,7 @@ def build_compositions(
     label_merge_enabled_map: dict | None = None,
     label_merge_patch_size_map: dict | None = None,
     label_merge_capacity_map: dict | None = None,
+    hybrid_middle_enabled: bool = False,
 ) -> list[list[HeadComposition]]:
     """Build per-layer, per-head HeadComposition instances.
 
@@ -343,7 +344,10 @@ def build_compositions(
                 active_middle.append("stride")
             if use_merge:
                 active_middle.append("merge")
-            if len(active_middle) > 1:
+            hybrid_pair = set(active_middle) == {"cyclic", "stride"}
+            if len(active_middle) > 1 and not (
+                hybrid_middle_enabled and hybrid_pair
+            ):
                 raise ValueError(
                     f"Middle strategies must be mutually exclusive for label {label_key}, "
                     f"got {active_middle}."

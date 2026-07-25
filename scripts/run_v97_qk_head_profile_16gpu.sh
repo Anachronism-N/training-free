@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# QK sign/periodicity and prompt-threshold profiling on 16 GPUs.
+# Capture corrected 30-layer QK profiles, then save scores without classifying.
 set -euo pipefail
 
 ROOT="${REPO_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free}"
@@ -8,17 +8,20 @@ CONFIG="${PF_CONFIG:-$PF/configs/pyramid-forcing.yaml}"
 CHECKPOINT="${PF_CHECKPOINT:-$PF/checkpoints/self_forcing_dmd.pt}"
 PF_LABELS="${PF_LABELS:-$PF/configs/head_configs/best_labels.csv}"
 PAIR_JSON="${PAIR_JSON:-$ROOT/prompts/probecache_counterfactual_pairs.json}"
-OUT_ROOT="${OUT_ROOT:-$ROOT/runs/v96_qk_head_profile}"
+OUT_ROOT="${OUT_ROOT:-$ROOT/runs/v97_qk_head_scores}"
 CONDA_SH="${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}"
 CONDA_ENV="${CONDA_ENV:-longlive}"
 GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}"
 PROFILE_FRAMES="${PROFILE_FRAMES:-60}"
 SEEDS="${SEEDS:-0 1}"
+MANUAL_THRESHOLDS="${MANUAL_THRESHOLDS:-0.0,0.5,1.0,1.5,2.0}"
+MAIN_THRESHOLD="${MAIN_THRESHOLD:-1.0}"
+SIGN_THRESHOLDS="${SIGN_THRESHOLDS:-0.5}"
 FORCE="${FORCE:-0}"
 
 IFS=',' read -r -a GPUS <<<"$GPU_LIST"
 [[ "${#GPUS[@]}" -ge 1 ]] || {
-    echo "[error] v96 QK profiling requires at least 1 GPU id"
+    echo "[error] v97 QK profiling requires at least one GPU id"
     exit 2
 }
 for path in "$PF" "$CONFIG" "$CHECKPOINT" "$PF_LABELS" "$PAIR_JSON"; do
@@ -28,15 +31,52 @@ done
 source "$CONDA_SH"
 conda activate "$CONDA_ENV"
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
-export PYTHONPATH="$ROOT/src:$PF:${PYTHONPATH:-}"
+export PYTHONPATH="$ROOT/src:$PF:$ROOT/scripts:${PYTHONPATH:-}"
 export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
 export PYRAMIDKV_USE_CPP_STRATEGY=0
 export PYRAMIDKV_USE_CPP_PACK=0
 export PYRAMIDKV_USE_MEGA_CACHE=0
 export PYRAMIDKV_HEAD_MAP_DEBUG=1
 
-mkdir -p "$OUT_ROOT"/{profiles,logs,prompts,videos,labels,status}
-UNIFORM_LABELS="$OUT_ROOT/labels/uniform_stride_all_heads.csv"
+mkdir -p "$OUT_ROOT"/{profiles,logs,prompts,videos,scores,maps,status}
+RUN_COMMIT="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf unknown)"
+CONFIG_SHA256="$(sha256sum "$CONFIG" | awk '{print $1}')"
+PAIR_SHA256="$(sha256sum "$PAIR_JSON" | awk '{print $1}')"
+PF_LABEL_SHA256="$(sha256sum "$PF_LABELS" | awk '{print $1}')"
+RUN_MANIFEST="$OUT_ROOT/run_manifest.env"
+if [[ -s "$RUN_MANIFEST" && "$FORCE" != "1" ]] && \
+    find "$OUT_ROOT/status" -maxdepth 1 -type f -name '*.done' -print -quit |
+        grep -q .; then
+    old_commit="$(awk -F= '$1=="RUN_COMMIT"{print substr($0,index($0,"=")+1)}' "$RUN_MANIFEST")"
+    old_config="$(awk -F= '$1=="CONFIG_SHA256"{print $2}' "$RUN_MANIFEST")"
+    old_pairs="$(awk -F= '$1=="PAIR_SHA256"{print $2}' "$RUN_MANIFEST")"
+    old_labels="$(awk -F= '$1=="PF_LABEL_SHA256"{print $2}' "$RUN_MANIFEST")"
+    old_frames="$(awk -F= '$1=="PROFILE_FRAMES"{print $2}' "$RUN_MANIFEST")"
+    old_seeds="$(awk -F= '$1=="SEEDS"{print substr($0,index($0,"=")+1)}' "$RUN_MANIFEST")"
+    if [[ "$old_commit" != "$RUN_COMMIT" || \
+          "$old_config" != "$CONFIG_SHA256" || \
+          "$old_pairs" != "$PAIR_SHA256" || \
+          "$old_labels" != "$PF_LABEL_SHA256" || \
+          "$old_frames" != "$PROFILE_FRAMES" || \
+          "$old_seeds" != "$SEEDS" ]]; then
+        echo "[error] existing v97 profiles have different provenance; use FORCE=1 or a clean OUT_ROOT"
+        exit 2
+    fi
+fi
+{
+    printf 'EXPERIMENT=v97_qk_head_scores\n'
+    printf 'RUN_COMMIT=%s\n' "$RUN_COMMIT"
+    printf 'CONFIG=%s\n' "$CONFIG"
+    printf 'CONFIG_SHA256=%s\n' "$CONFIG_SHA256"
+    printf 'CHECKPOINT=%s\n' "$CHECKPOINT"
+    printf 'PAIR_JSON=%s\n' "$PAIR_JSON"
+    printf 'PAIR_SHA256=%s\n' "$PAIR_SHA256"
+    printf 'PF_LABELS=%s\n' "$PF_LABELS"
+    printf 'PF_LABEL_SHA256=%s\n' "$PF_LABEL_SHA256"
+    printf 'PROFILE_FRAMES=%s\n' "$PROFILE_FRAMES"
+    printf 'SEEDS=%s\n' "$SEEDS"
+} >"$RUN_MANIFEST"
+UNIFORM_LABELS="$OUT_ROOT/maps/uniform_stride_all_heads.csv"
 python - "$UNIFORM_LABELS" <<'PY'
 import csv
 import pathlib
@@ -46,6 +86,7 @@ path = pathlib.Path(sys.argv[1])
 with path.open("w", encoding="utf-8", newline="") as handle:
     csv.writer(handle).writerows([[1] * 12 for _ in range(30)])
 PY
+
 JOB_TSV="$OUT_ROOT/profile_jobs.tsv"
 python - "$PAIR_JSON" "$JOB_TSV" "$SEEDS" <<'PY'
 import json
@@ -121,11 +162,11 @@ records = list(payload.get("records") or [])
 branches = {str(record.get("cfg_branch")) for record in records}
 layers = {int(record["layer"]) for record in records}
 sources = {str(record.get("layer_index_source")) for record in records}
-if branches != {"cond", "uncond"}:
-    raise SystemExit(
-        f"{path}: expected cond/uncond QK records, found {sorted(branches)}"
-    )
+update_modes = {str(record.get("cache_update_mode")) for record in records}
+audit = dict(payload.get("audit") or {})
 expected_layers = set(range(30))
+if branches != {"cond", "uncond"}:
+    raise SystemExit(f"{path}: invalid branches {sorted(branches)}")
 if layers != expected_layers:
     raise SystemExit(
         f"{path}: expected exact layers {sorted(expected_layers)}, "
@@ -133,14 +174,28 @@ if layers != expected_layers:
     )
 if sources != {"kv_cache.layer_idx"}:
     raise SystemExit(f"{path}: invalid layer sources {sorted(sources)}")
+if update_modes != {"clean", "noisy"}:
+    raise SystemExit(f"{path}: invalid update modes {sorted(update_modes)}")
+if int(audit.get("expected_num_layers", -1)) != 30:
+    raise SystemExit(f"{path}: invalid expected layer audit")
+if int(audit.get("expected_num_heads", -1)) != 12:
+    raise SystemExit(f"{path}: invalid expected head audit")
+for layer in expected_layers:
+    for branch in ("cond", "uncond"):
+        if not any(
+            int(record["layer"]) == layer
+            and str(record["cfg_branch"]) == branch
+            for record in records
+        ):
+            raise SystemExit(f"{path}: missing layer={layer} branch={branch}")
 print(
     f"[HeadQKProfileAudit] path={path} version={payload['version']} "
-    f"records={len(records)} branches={sorted(branches)} layers=30 "
-    "layer_source=kv_cache.layer_idx"
+    f"records={len(records)} layers=30 branches=2 "
+    "update_modes=clean,noisy layer_source=kv_cache.layer_idx"
 )
 PY
     grep -q '\[HeadQKProfile\] records=' "$log" || {
-        echo "[error] missing profile completion marker in $log"
+        echo "[error] missing completion marker in $log"
         return 1
     }
     printf 'ok\n' >"$marker"
@@ -151,7 +206,7 @@ EXPECTED="${#JOBS[@]}"
 wave=0
 for ((base=0; base<EXPECTED; base+=${#GPUS[@]})); do
     pids=()
-    echo "[v96-profile] wave=$wave jobs=$base..$((base + ${#GPUS[@]} - 1))"
+    echo "[v97-profile] wave=$wave jobs=$base..$((base + ${#GPUS[@]} - 1))"
     for ((slot=0; slot<${#GPUS[@]} && base+slot<EXPECTED; slot++)); do
         IFS=$'\t' read -r pair_id side seed prompt <<<"${JOBS[$((base+slot))]}"
         run_job "${GPUS[$slot]}" "$pair_id" "$side" "$seed" "$prompt" &
@@ -175,20 +230,27 @@ mapfile -t PROFILES < <(
     echo "[error] expected $EXPECTED profiles, found ${#PROFILES[@]}"
     exit 1
 }
-python "$ROOT/scripts/build_v96_qk_head_thresholds.py" \
-    "${PROFILES[@]}" \
-    --pf-labels "$PF_LABELS" \
-    --output-dir "$OUT_ROOT/labels" \
-    --bootstrap-rounds 200 --bootstrap-seed 2026 \
-    | tee "$OUT_ROOT/labels/build_thresholds.log"
+python "$ROOT/scripts/extract_v97_qk_head_scores.py" \
+    "${PROFILES[@]}" --output-dir "$OUT_ROOT/scores" \
+    --run-manifest "$RUN_MANIFEST" \
+    | tee "$OUT_ROOT/scores/extract_scores.log"
 
-for map in \
-    prompt_cfg_threshold prompt_semantic_threshold \
-    prompt_consensus_threshold prompt_consensus_inverse \
-    prompt_consensus_random pf_binary; do
-    [[ -s "$OUT_ROOT/labels/$map.csv" ]] || {
-        echo "[error] missing generated map $map"
-        exit 1
-    }
+python "$ROOT/scripts/classify_v97_qk_head_scores.py" \
+    --scores "$OUT_ROOT/scores/qk_head_scores.csv" \
+    --score-artifact "$OUT_ROOT/scores/qk_head_score_artifact.json" \
+    --pf-labels "$PF_LABELS" --output-dir "$OUT_ROOT/maps" \
+    --manual-thresholds "$MANUAL_THRESHOLDS" \
+    --main-threshold "$MAIN_THRESHOLD" \
+    --sign-thresholds "$SIGN_THRESHOLDS" \
+    | tee "$OUT_ROOT/maps/classify_maps.log"
+
+for file in \
+    "$OUT_ROOT/scores/qk_head_scores.csv" \
+    "$OUT_ROOT/scores/qk_head_score_artifact.json" \
+    "$OUT_ROOT/scores/qk_head_observations.json" \
+    "$OUT_ROOT/scores/layer_capture_audit.json" \
+    "$OUT_ROOT/maps/head_map_manifest.json" \
+    "$OUT_ROOT/maps/head_map_classification_report.json"; do
+    [[ -s "$file" ]] || { echo "[error] missing artifact $file"; exit 1; }
 done
-echo "[v96-profile] complete labels=$OUT_ROOT/labels"
+echo "[v97-profile] complete scores=$OUT_ROOT/scores maps=$OUT_ROOT/maps"

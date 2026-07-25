@@ -84,7 +84,7 @@ def load_profiles(paths: list[Path]) -> list[dict]:
     profiles = []
     for path in paths:
         payload = torch.load(path, map_location="cpu", weights_only=False)
-        if int(payload.get("version", 0)) != 1:
+        if int(payload.get("version", 0)) not in {1, 2}:
             raise ValueError(f"unsupported profile version in {path}")
         metadata = dict(payload.get("metadata") or {})
         records = list(payload.get("records") or [])
@@ -93,6 +93,8 @@ def load_profiles(paths: list[Path]) -> list[dict]:
         profiles.append(
             {
                 "path": str(path),
+                "version": int(payload.get("version", 0)),
+                "audit": dict(payload.get("audit") or {}),
                 "pair_id": str(metadata.get("pair_id") or ""),
                 "side": str(metadata.get("side") or ""),
                 "seed": int(metadata.get("seed", 0)),
@@ -220,6 +222,15 @@ def collect_temporal_statistics(
                 target = result[(layer, head)]
                 target["positive_rate"].append(float(positive.float().mean()))
                 target["mean_logit"].append(float(values.mean()))
+                target["mean_abs_logit"].append(float(values.abs().mean()))
+                target["signed_logit_mass"].append(
+                    float(
+                        (
+                            values.sum()
+                            / values.abs().sum().clamp_min(1e-6)
+                        ).item()
+                    )
+                )
                 target["sign_switch_rate"].append(float(sign_switch))
                 target["dominant_period"].append(dominant_period)
                 target["spectral_peak_ratio"].append(spectral_peak)
@@ -232,39 +243,13 @@ def summarize_observations(
 ) -> dict[HeadKey, float]:
     missing = [key for key in keys if not observations.get(key)]
     if missing:
-        # Wan2.1 only profiles even (self-attention) layers; skip missing
-        # keys instead of raising so the builder can produce a full matrix.
-        present = [key for key in keys if observations.get(key)]
-        if not present:
-            raise ValueError("no observations for any head")
-        return {key: median(observations[key]) for key in present}
+        preview = ", ".join(f"L{layer}H{head}" for layer, head in missing[:12])
+        raise ValueError(
+            f"missing observations for {len(missing)} heads: {preview}. "
+            "Profiles must contain all model layers; remapping or padding "
+            "missing layers is forbidden."
+        )
     return {key: median(observations[key]) for key in keys}
-
-
-def remap_profile_layers(profiles: list[dict]) -> tuple[list[dict], int]:
-    """Remap QK layer indices (e.g. 0,2,4,...,28) to consecutive block
-    indices (0,1,2,...,14). Returns (remapped_profiles, num_profiled_blocks).
-    """
-    all_layers = sorted({
-        int(r["layer"]) for p in profiles for r in p["records"]
-    })
-    layer_map = {old: new for new, old in enumerate(all_layers)}
-    for profile in profiles:
-        for record in profile["records"]:
-            record["layer"] = layer_map[int(record["layer"])]
-    return profiles, len(all_layers)
-
-
-def expand_matrix(
-    matrix: list[list[int]],
-    target_rows: int,
-    num_heads: int,
-    default_value: int = 1,
-) -> list[list[int]]:
-    """Expand a matrix to target_rows by padding with default_value rows."""
-    while len(matrix) < target_rows:
-        matrix.append([default_value] * num_heads)
-    return matrix
 
 
 def layer_robust_z(
@@ -279,8 +264,7 @@ def layer_robust_z(
             for head in range(num_heads)
         ]
         if any(v is None for v in layer_values):
-            # Skip layers without QK observations (e.g. cross-attention layers)
-            continue
+            raise ValueError(f"layer {layer} has incomplete QK observations")
         transformed = [
             math.log1p(max(0.0, v)) for v in layer_values
         ]
@@ -634,6 +618,8 @@ def aggregate_pf_temporal(
     metrics = (
         "positive_rate",
         "mean_logit",
+        "mean_abs_logit",
+        "signed_logit_mass",
         "sign_switch_rate",
         "dominant_period",
         "spectral_peak_ratio",
@@ -670,15 +656,17 @@ def main() -> None:
         args.pf_labels, args.num_layers, args.num_heads
     )
 
-    # Detect profiled layers and remap to consecutive block indices.
-    # Wan2.1 capture uses even indices [0, 2, 4, ..., 28] for self-attention;
-    # map these to [0, 1, 2, ..., 14] for computation, then expand output
-    # back to num_layers rows (non-profiled blocks default to stable/1).
     profiled_layers = sorted(
         {int(r["layer"]) for p in profiles for r in p["records"]}
     )
-    layer_remap = {raw: idx for idx, raw in enumerate(profiled_layers)}
-    effective_layers = len(profiled_layers)
+    expected_layers = list(range(args.num_layers))
+    if profiled_layers != expected_layers:
+        raise ValueError(
+            "QK profiles do not contain the exact transformer layer set: "
+            f"expected={expected_layers}, observed={profiled_layers}. "
+            "Do not remap even capture counters or pad missing layers."
+        )
+    effective_layers = args.num_layers
 
     cfg_observations = collect_cfg_observations(
         profiles, args.num_heads
@@ -688,22 +676,6 @@ def main() -> None:
     )
     temporal = collect_temporal_statistics(profiles, args.num_heads)
 
-    # Remap layer indices in all observations to consecutive block indices
-    for obs_dict in (cfg_observations, semantic_observations):
-        remapped = {
-            (layer_remap[layer], head): values
-            for (layer, head), values in obs_dict.items()
-        }
-        obs_dict.clear()
-        obs_dict.update(remapped)
-
-    temporal_remapped = {
-        (layer_remap[layer], head): stats
-        for (layer, head), stats in temporal.items()
-    }
-    temporal = temporal_remapped
-
-    # Use effective_layers for all scoring/thresholding
     keys = [
         (layer, head)
         for layer in range(effective_layers)
@@ -732,11 +704,7 @@ def main() -> None:
         matrix, diag = threshold_map(
             name, scores, effective_layers, args.num_heads
         )
-        # Expand to num_layers rows: pad non-profiled blocks with stable (1)
-        padded = [list(row) for row in matrix]
-        while len(padded) < args.num_layers:
-            padded.append([1] * args.num_heads)
-        maps[name] = padded
+        maps[name] = matrix
         diagnostics[name] = diag
 
     consensus = maps["prompt_consensus_threshold"]
@@ -757,7 +725,7 @@ def main() -> None:
     bootstrap = bootstrap_stability(
         cfg_observations,
         semantic_observations,
-        [row for row in consensus[:effective_layers]],
+        consensus,
         num_layers=effective_layers,
         num_heads=args.num_heads,
         rounds=args.bootstrap_rounds,
@@ -851,6 +819,8 @@ def main() -> None:
                     for metric in (
                         "positive_rate",
                         "mean_logit",
+                        "mean_abs_logit",
+                        "signed_logit_mass",
                         "sign_switch_rate",
                         "dominant_period",
                         "spectral_peak_ratio",

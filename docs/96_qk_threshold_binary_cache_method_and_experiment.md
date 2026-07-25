@@ -1,5 +1,12 @@
 # v96 QK-Threshold Binary Head Cache
 
+> **Superseded correctness notice (v97):** the v96 profiler used a global
+> self/cross-attention call counter as the layer index. It observed 15 aliased
+> even indices and the builder padded the remaining rows. Learned v96 QK maps
+> are invalid and must not be used as evidence. Native PF/PF-binary results are
+> unaffected. Use `docs/97_score_artifact_threshold_pf_merge_experiment.md`
+> and regenerate version-2 profiles with explicit `kv_cache.layer_idx`.
+
 Status: code complete, GPU validation pending
 
 Primary task: training-free 30-second single-prompt long video extrapolation

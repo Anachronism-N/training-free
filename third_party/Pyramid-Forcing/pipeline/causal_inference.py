@@ -918,6 +918,7 @@ class CausalInferencePipeline(torch.nn.Module):
                     label_merge_enabled_map=hc.pyramidkv_label_merge_enabled_map,
                     label_merge_patch_size_map=hc.pyramidkv_label_merge_patch_size_map,
                     label_merge_capacity_map=hc.pyramidkv_label_merge_capacity_map,
+                    hybrid_middle_enabled=hc.pyramidkv_hybrid_middle_enabled,
                 )
                 config.compositions = compositions
                 config.policies = compositions

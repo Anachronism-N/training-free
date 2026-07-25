@@ -3,13 +3,14 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current GPU-pending paper candidate is the **v96 QK-Threshold Binary
-Cache**. It measures Prompt-Stable and Prompt-Responsive heads from
-pre-softmax temporal QK changes under paired prompt interventions, learns a
-two-component threshold without copying PF's Anchor count, and assigns
-long-range strided versus compressed/recent cache policies. Head membership
-and cache policy are independently ablated. All behavior is inference-only,
-default-off, and adds no model forward during normal generation.
+The current GPU-pending paper candidate is the **v97 immutable-score binary
+cache screen**. It records corrected 30-layer pre-softmax temporal QK response
+scores under paired prompt interventions, freezes those scores before any
+classification, and evaluates manual thresholds, GMM/Otsu diagnostics,
+positive-logit splits, and two explicitly PF-derived binary merges. Head
+membership and cache policy are independently ablated. All behavior is
+inference-only, default-off, and adds no model forward during normal
+generation.
 
 The selection is evidence-driven rather than based on a single best metric.
 MovieBench-32 places v78 and PF first (`0.9331` and `0.9313` DINO), while
@@ -21,9 +22,9 @@ startup flashback but developed later jumps. v95 therefore tests prompt roles
 as a phase-limited visibility and weak update-priority signal while keeping PF
 reads fixed.
 
-The authoritative v96 method, corrected PF classification description,
-data-derived threshold, 16-GPU matrix, debug contract, and decision gates are
-in `docs/96_qk_threshold_binary_cache_method_and_experiment.md`. The v95
+The authoritative v97 method, v96 layer-index correction, immutable score
+artifact, 16-GPU matrix, debug contract, and decision gates are in
+`docs/97_score_artifact_threshold_pf_merge_experiment.md`. The v95
 Dual-Axis Phase Cache remains a fallback. v93 main-128 is still incomplete;
 partial PF/v78/prompt results must not be compared as if they used the same
 prompt set.
@@ -64,9 +65,11 @@ prompt-switch/return-recall branch.
 The current hypothesis is that prompt intervention exposes two head groups
 that need different bounded temporal evidence:
 
-- **Thresholded prompt response:** robust conditional/unconditional and
-  counterfactual-prompt QK changes are split by a fitted two-component model,
-  not a manual threshold or PF class quota.
+- **Frozen prompt-response score:** robust conditional/unconditional and
+  counterfactual-prompt QK changes are saved before labels are assigned.
+- **Offline classification:** manual thresholds are primary; GMM, Otsu,
+  positive-logit fraction, and PF-derived binary merges are explicit
+  alternatives and controls.
 - **Prompt-Stable cache:** sink3 + long-range stride + recent4.
 - **Prompt-Responsive cache:** sink3 + Veil-style merge + recent4, tested
   directly against Wave-style cyclic and recent-only fallbacks.
@@ -82,9 +85,11 @@ that need different bounded temporal evidence:
 
 PF's stride/cyclic/merge operators, head-aware caching, and novelty-based
 memory updates have prior art. They are borrowed components, not contribution
-claims. v96 tests whether our prompt-intervention criterion, data-derived
-threshold, binary membership, and membership-to-policy coupling have causal
-value using PF-binary oracle, random, inverse, and cache-policy controls.
+claims. v97 tests whether our prompt-intervention score, binary membership,
+and membership-to-policy coupling have causal value using PF-derived merges,
+random, reversed, sign-rate, and cache-policy controls. The old v96 learned
+maps are invalid because of a layer-index aliasing bug and are retained only
+as superseded design history.
 
 LifeCache-v1 and CEMR remain in the repository as prior prototypes and
 ablation infrastructure.
@@ -125,7 +130,8 @@ training-free/
 |   |-- 92_prompt_contrastive_binary_cache_and_uniqueness_plan.md
 |   |-- 93_moviebench_10h_128_and_head32_plan.md
 |   |-- 95_post_v93_dual_axis_phase_cache.md
-|   `-- 96_qk_threshold_binary_cache_method_and_experiment.md
+|   |-- 96_qk_threshold_binary_cache_method_and_experiment.md
+|   `-- 97_score_artifact_threshold_pf_merge_experiment.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -179,6 +185,14 @@ training-free/
 |   |-- postprocess_v96_binary_cache.sh
 |   |-- analyze_v96_binary_cache.py
 |   |-- run_v96_10h.sh
+|   |-- extract_v97_qk_head_scores.py
+|   |-- classify_v97_qk_head_scores.py
+|   |-- run_v97_qk_head_profile_16gpu.sh
+|   |-- run_v97_threshold_pf_merge_16gpu.sh
+|   |-- summarize_v97_policy_traces.py
+|   |-- postprocess_v97_threshold_pf_merge.sh
+|   |-- analyze_v97_threshold_pf_merge.py
+|   |-- run_v97_10h.sh
 |   |-- summarize_commit_forcing_trace.py
 |   `-- ...
 |-- src/

@@ -788,7 +788,17 @@ def pyramidkv_attention(
     capture_obj = FRAME_ATTENTION_CAPTURE
     capture_enabled = capture_obj.enabled
     capture_this = capture_enabled and capture_obj.should_capture()
-    capture_layer_idx = capture_obj.get_effective_layer_idx() if capture_this else None
+    cache_layer_idx = getattr(kv_cache, "layer_idx", None)
+    capture_layer_idx = (
+        int(cache_layer_idx)
+        if capture_this and cache_layer_idx is not None
+        else capture_obj.get_effective_layer_idx() if capture_this else None
+    )
+    capture_layer_source = (
+        "kv_cache.layer_idx"
+        if cache_layer_idx is not None
+        else "global_attention_counter"
+    )
 
     def half(x):
         return x if x.dtype in half_dtypes else x.to(dtype)
@@ -1264,6 +1274,7 @@ def pyramidkv_attention(
             cache_update_mode=cache_update_mode,
             current_start=int(current_start or 0),
             cfg_branch=str(getattr(kv_cache, "_cfg_branch", "cond")),
+            layer_index_source=capture_layer_source,
         )
 
     if hasattr(kv_cache, "set_probecache_query"):
@@ -1554,7 +1565,10 @@ def attention(
     fa_version=None,
 ):
     # 优先检查流式帧级捕获（内存高效）
-    if FRAME_ATTENTION_CAPTURE.enabled:
+    if (
+        FRAME_ATTENTION_CAPTURE.enabled
+        and not FRAME_ATTENTION_CAPTURE.pyramid_only
+    ):
         if FRAME_ATTENTION_CAPTURE.should_capture():
             # 使用流式捕获：flash attention + 分块计算 frame-level attention
             out = FRAME_ATTENTION_CAPTURE.capture_and_forward(

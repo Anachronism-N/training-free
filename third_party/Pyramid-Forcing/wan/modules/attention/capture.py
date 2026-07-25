@@ -171,6 +171,7 @@ class FrameAttentionCapture:
         # 回调函数：接收 frame-level attention 数据
         self.on_frame_attention = None
         self.capture_mode = "prob_mass"
+        self.pyramid_only = False
 
     def enable(
         self,
@@ -181,6 +182,7 @@ class FrameAttentionCapture:
         chunk_frames=3,
         on_frame_attention=None,
         capture_mode="prob_mass",
+        pyramid_only=False,
     ):
         """
         启用流式帧级注意力捕获。
@@ -201,6 +203,7 @@ class FrameAttentionCapture:
         self.num_heads = num_heads
         self.chunk_frames = chunk_frames
         self.on_frame_attention = on_frame_attention
+        self.pyramid_only = bool(pyramid_only)
         if capture_mode not in {"logits_mean", "prob_mass", "both"}:
             raise ValueError(f"Unsupported capture_mode={capture_mode}")
         self.capture_mode = capture_mode
@@ -211,6 +214,7 @@ class FrameAttentionCapture:
         self.enabled = False
         self.current_layer_idx = 0
         self.on_frame_attention = None
+        self.pyramid_only = False
 
     def should_capture(self):
         """检查是否应该捕获当前层。"""
