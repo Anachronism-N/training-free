@@ -508,3 +508,59 @@ This suggests v78 cache transition provides the most benefit when combined with 
 - prompt (0.913) > random (0.896, +0.017) > inverse (0.873, +0.040)
 - **Inverting labels hurts MORE than randomizing** — classification direction matters
 - This strengthens the causal claim: prompt-contrastive classification is not just better than random, it captures real signal
+
+## 20. v90 + v92 Human Review Feedback (2026-07-25)
+
+### v90 Remaining Cells Review
+
+| Cell | ID/BG/Camera | Artifacts | Comparison |
+|------|-------------|-----------|------------|
+| pf_novelty_only | Good | Fewer hallucinations & jumps | Best weak-priority |
+| pf_priority_b005 | Good | Fewer hallucinations & jumps | Similar to pf_novelty_only |
+| pf_age_only | Good | More hallucinations & jumps | Worse than pf_novelty_only |
+| pf_priority_late | Good | More hallucinations & jumps | Worse than pf_novelty_only |
+
+### v92 Prompt Binary Cache Review (16 prompts each)
+
+#### Tier 1: Best quality (binary read topology)
+| Cell | Observations |
+|------|-------------|
+| pf_binary_read | Camera slightly larger movement than PF. ID good but slightly worse than 3-class PF. |
+| pf_binary_read_v78 | Some hallucinations. 1-0: head suddenly reversing. |
+| pf_read_prompt_priority | Some hallucinations. 1-0: head suddenly reversing. |
+| pf_binary_read_v78_coverage | Some hallucinations. 1-0: head suddenly reversing. |
+
+#### Tier 2: Good ID/BG/camera, jumps from 5s, NO early-frame flashback
+| Cell | Observations |
+|------|-------------|
+| prompt_consensus_read_v78 | Jumps from 5s. ID/BG/camera fine. 1-0: NO flashback (rare!) |
+| prompt_pfcount_read_v78 | Jumps from 5s. ID/BG/camera fine. 1-0: NO flashback |
+| prompt_pfcount_read | Jumps from 5s. ID/BG/camera fine. 1-0: NO flashback |
+| prompt_replica_read_v78 | Jumps from 5s. ID/BG/camera fine. 1-0: NO flashback |
+| prompt_read_v78_coverage | Jumps from 5s. ID/BG/camera fine. 1-0: NO flashback |
+| prompt_random_read_v78 | Jumps from 5s, more severe hallucinations |
+
+#### Tier 3: Unusable
+| Cell | Observations |
+|------|-------------|
+| prompt_kmeans_read | 0-0: polygonal noise, ID degrading, sf_native-like collapse. Unusable. |
+| prompt_kmeans_read_v78 | Same as prompt_kmeans_read. Unusable. |
+
+#### Special
+| Cell | Observations |
+|------|-------------|
+| remote_read_v78 | First few frames corrupted (flashback). Then ID average, jumps & hallucinations. |
+
+### Critical v92 Findings
+
+1. **Prompt-contrastive cells have NO early-frame flashback in 1-0** — this is unique! All PF/v78 cells have the PF-inherited flashback artifact in 1-0 first frames. The prompt-contrastive read topology may address this.
+
+2. **K-means classifier is completely unusable** — polygonal noise in background, ID degradation, sf_native-like collapse. This is consistent with DINOv2 results (prompt_kmeans_read_v78 DINO=0.746 on 128 prompts, by far the worst).
+
+3. **Binary read (pf_binary_read) is competitive with 3-class PF** — slightly worse ID but no major artifacts. Binary read topology is viable.
+
+4. **v78 transition introduces hallucinations** — pf_binary_read (no transition) is cleaner than pf_binary_read_v78 (with transition). The head-reversal artifact in 1-0 appears only in v78 transition cells.
+
+5. **Random labels have more severe hallucinations** — prompt_random_read_v78 is worse than other prompt-contrastive cells, confirming that the prompt-contrastive classification direction matters (consistent with DINOv2: random 0.896 < prompt 0.913).
+
+6. **Remote classifier has early-frame corruption** — remote_read_v78 has flashback artifacts in first frames, unlike prompt-contrastive cells. The remote-minus-prompt classifier is inferior.
