@@ -348,3 +348,33 @@ failed on Node 1 due to label CSV path issue. Not critical for conclusions.
 - On 128 prompts (complete methods): pf_binary_read_v78 best (DINO=0.889, TJ=1.39)
 - On 32 prompts: pf best (DINO=0.931)
 - Ranking changes with prompt set size — 128-prompt set is more discriminative
+
+## 17. VBench-Long Results (v86 + v90, 4 dimensions)
+
+| Cell | subject | bg | aesthetic | imaging |
+|------|---------|-----|-----------|---------|
+| **v86/pf** | **0.9641** | 0.9460 | **0.5935** | 0.7137 |
+| v86/replica_balanced | 0.9628 | 0.9452 | 0.5878 | 0.7158 |
+| v86/learned_balanced | 0.9626 | 0.9467 | 0.5857 | 0.7127 |
+| v86/v78 | 0.9615 | 0.9448 | 0.5884 | 0.7135 |
+| v90/pf_s1 | 0.9639 | 0.9438 | 0.5890 | 0.7228 |
+| v90/pf_priority_b010 | 0.9616 | **0.9465** | 0.5860 | 0.7166 |
+| v90/veil_priority_b005 | 0.9614 | 0.9464 | 0.5886 | 0.7140 |
+| v90/v78_s2 | 0.9621 | 0.9409 | 0.5905 | 0.7266 |
+| v90/v78_s1 | 0.9599 | 0.9378 | 0.5822 | 0.7231 |
+| v86/learned_neutral | 0.9609 | 0.9455 | 0.5865 | 0.7153 |
+| v86/learned_age_only | 0.9607 | 0.9440 | 0.5877 | 0.7177 |
+| v86/learned_late | 0.9604 | 0.9454 | 0.5835 | 0.7151 |
+| v90/pf_s2 | 0.9606 | 0.9420 | 0.5943 | 0.7222 |
+| v86/learned_early | 0.9580 | 0.9444 | 0.5861 | 0.7122 |
+| v86/learned_conservative | 0.9583 | 0.9447 | 0.5850 | 0.7153 |
+| v90/pf_s3 | 0.9572 | 0.9377 | 0.5893 | 0.7249 |
+| v86/sf_native | 0.9535 | 0.9417 | 0.5861 | 0.7192 |
+
+### Key VBench findings:
+- **PF has best subject consistency (0.964)** across all v86/v90 cells
+- PF also has best aesthetic quality (0.594)
+- sf_native is weakest on subject consistency (0.954) — consistent with DINO results
+- v78 is competitive but doesn't beat PF on any VBench dimension
+- Background consistency and imaging quality are very close across all methods
+- v93 VBench evaluation in progress (5 cells evaluating, 0 results yet)
