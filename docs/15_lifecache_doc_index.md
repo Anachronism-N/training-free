@@ -51,17 +51,19 @@
 
 Recommended reading order:
 
-1. `docs/93_moviebench_10h_128_and_head32_plan.md`
-2. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
-3. `docs/90_post_v86_analysis_and_v90_experiment.md`
-4. `docs/91_transitioncache_paper_story.md`
-5. `docs/89_v86_human_review_and_combined_analysis.md`
-6. `docs/88_transitioncache_v86_partial_results.md`
-7. `docs/64_related_work_code_provenance_and_claims.md`
+1. `docs/95_post_v93_dual_axis_phase_cache.md`
+2. `docs/93_moviebench_10h_128_and_head32_plan.md`
+3. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
+4. `docs/90_post_v86_analysis_and_v90_experiment.md`
+5. `docs/91_transitioncache_paper_story.md`
+6. `docs/89_v86_human_review_and_combined_analysis.md`
+7. `docs/88_transitioncache_v86_partial_results.md`
+8. `docs/64_related_work_code_provenance_and_claims.md`
 
-The current validated candidate is v78 Trust-Conditioned Cache Transition.
-Matched seeds 0-2 show v78 and PF are effectively tied in mean DINO, so a
-consistent DINO improvement is not currently supportable. v86 counterfactual
+The current GPU-pending candidate is Dual-Axis Phase Cache; v78
+Trust-Conditioned Cache Transition remains one of its optional lifecycle
+components. Matched seeds 0-2 show v78 and PF are effectively tied in mean
+DINO, so a consistent DINO improvement is not currently supportable. v86 counterfactual
 role-conditioned clocks are a negative result: the labels are reproducible but
 do not beat v78, PF-binary, inverse and random controls. Remaining v90 cells
 test lower-risk weak priorities and lifecycle factors. v92 tests a new
@@ -69,8 +71,13 @@ hypothesis: prompt response may be useful for choosing the read timescale even
 though the earlier remote-minus-prompt labels were not useful as hard write
 clocks. This hypothesis does not replace v78 until inverse/random/replica
 controls and human review pass. v93 scales the main comparison to 128
-MovieBench prompts and the classifier controls to 32 MovieBench prompts.
-ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain as
+MovieBench prompts and the classifier controls to 32 MovieBench prompts. The
+complete head32 results support prompt-intervention scores as an orthogonal
+signal, but do not support permanently replacing PF's three-class read
+topology. `docs/95` defines the current Dual-Axis Phase Cache candidate and
+v95 causal screen: PF steady-state reads, prompt-guided startup history
+exposure, trust-qualified middle-state promotion, and weak semantic priority
+after trust gates. ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain as
 negative-result or design history. LifeCache-v1 below is retained as the
 original design snapshot.
 

@@ -221,6 +221,31 @@ parser.add_argument(
 )
 parser.add_argument("--pyramidkv_structured_memory_prompt_prior_weight", type=float, default=None)
 parser.add_argument(
+    "--pyramidkv_prompt_warmup",
+    action="store_true",
+    help=(
+        "Temporarily hide PF history from selected prompt-role heads while the "
+        "underlying cache continues to warm."
+    ),
+)
+parser.add_argument("--pyramidkv_prompt_warmup_blocks", type=int, default=None)
+parser.add_argument("--pyramidkv_prompt_warmup_release_span", type=int, default=None)
+parser.add_argument(
+    "--pyramidkv_prompt_warmup_mode",
+    choices=("middle", "history"),
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_prompt_warmup_shield_labels",
+    type=str,
+    default=None,
+    help="Comma-separated prompt-role labels whose history is shielded.",
+)
+parser.add_argument("--pyramidkv_prompt_warmup_layer_start", type=int, default=None)
+parser.add_argument("--pyramidkv_prompt_warmup_layer_end", type=int, default=None)
+parser.add_argument("--pyramidkv_prompt_warmup_trace_path", type=str, default=None)
+parser.add_argument("--pyramidkv_prompt_warmup_debug", action="store_true")
+parser.add_argument(
     "--pyramidkv_cache_transition",
     action="store_true",
     help="Gate clean middle-cache promotion using online K/V reliability.",
@@ -256,6 +281,10 @@ parser.add_argument(
     "--pyramidkv_cache_transition_role_config_path",
     type=str,
     default=None,
+    help=(
+        "Orthogonal lifecycle-role CSV used by role-conditioned transition "
+        "and/or prompt warmup."
+    ),
 )
 parser.add_argument(
     "--pyramidkv_cache_transition_persistent_label",
@@ -562,6 +591,39 @@ for name in (
     value = getattr(args, f"pyramidkv_structured_memory_{name}")
     if value is not None:
         setattr(config, f"pyramidkv_structured_memory_{name}", value)
+
+if args.pyramidkv_prompt_warmup:
+    config.pyramidkv_prompt_warmup_enabled = True
+if args.pyramidkv_prompt_warmup_debug:
+    config.pyramidkv_prompt_warmup_debug = True
+if args.pyramidkv_prompt_warmup_shield_labels is not None:
+    config.pyramidkv_prompt_warmup_shield_labels = [
+        int(value.strip())
+        for value in args.pyramidkv_prompt_warmup_shield_labels.split(",")
+        if value.strip()
+    ]
+for name in (
+    "blocks",
+    "release_span",
+    "mode",
+    "layer_start",
+    "layer_end",
+    "trace_path",
+):
+    value = getattr(args, f"pyramidkv_prompt_warmup_{name}")
+    if value is not None:
+        setattr(config, f"pyramidkv_prompt_warmup_{name}", value)
+if (
+    config.pyramidkv_prompt_warmup_enabled
+    and not (
+        args.pyramidkv_cache_transition_role_config_path
+        or getattr(config, "pyramidkv_cache_transition_role_config_path", None)
+    )
+):
+    parser.error(
+        "--pyramidkv_prompt_warmup requires "
+        "--pyramidkv_cache_transition_role_config_path"
+    )
 
 if args.pyramidkv_cache_transition:
     config.pyramidkv_cache_transition_enabled = True

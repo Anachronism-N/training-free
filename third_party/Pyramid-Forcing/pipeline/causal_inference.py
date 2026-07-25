@@ -846,11 +846,14 @@ class CausalInferencePipeline(torch.nn.Module):
 
             default_capacity = hc.pyramidkv_default_capacity or base_capacity_tokens
             if (
-                hc.pyramidkv_cache_transition_role_conditioning
+                (
+                    hc.pyramidkv_cache_transition_role_conditioning
+                    or hc.pyramidkv_prompt_warmup_enabled
+                )
                 and not hc.pyramidkv_cache_transition_role_config_path
             ):
                 raise ValueError(
-                    "Role-conditioned cache transition requires "
+                    "Role-conditioned cache behavior requires "
                     "pyramidkv_cache_transition_role_config_path"
                 )
             config = PyramidKVConfig(
@@ -863,7 +866,10 @@ class CausalInferencePipeline(torch.nn.Module):
                 head_type_csv_path=hc.pyramidkv_policy_csv_path,
                 transition_head_type_csv_path=(
                     hc.pyramidkv_cache_transition_role_config_path
-                    if hc.pyramidkv_cache_transition_role_conditioning
+                    if (
+                        hc.pyramidkv_cache_transition_role_conditioning
+                        or hc.pyramidkv_prompt_warmup_enabled
+                    )
                     else None
                 ),
                 drop_heads_csv_path=hc.pyramidkv_drop_heads_csv_path,
@@ -923,6 +929,7 @@ class CausalInferencePipeline(torch.nn.Module):
                 and hc.pyramidkv_policy_csv_path
                 and not hc.pyramidkv_cache_transition_enabled
                 and not hc.pyramidkv_probecache_enabled
+                and not hc.pyramidkv_prompt_warmup_enabled
             ):
                 osc_sink = int(hc.pyramidkv_osc_sink_frames or 1)
                 stable_sink = int(hc.pyramidkv_stable_sink_frames or 3)
@@ -1063,6 +1070,15 @@ class CausalInferencePipeline(torch.nn.Module):
                         structured_memory_control_mode=hc.pyramidkv_structured_memory_control_mode,
                         structured_memory_position_mode=hc.pyramidkv_structured_memory_position_mode,
                         structured_memory_prompt_prior_weight=hc.pyramidkv_structured_memory_prompt_prior_weight,
+                        prompt_warmup_enabled=hc.pyramidkv_prompt_warmup_enabled,
+                        prompt_warmup_blocks=hc.pyramidkv_prompt_warmup_blocks,
+                        prompt_warmup_release_span=hc.pyramidkv_prompt_warmup_release_span,
+                        prompt_warmup_mode=hc.pyramidkv_prompt_warmup_mode,
+                        prompt_warmup_shield_labels=hc.pyramidkv_prompt_warmup_shield_labels,
+                        prompt_warmup_layer_start=hc.pyramidkv_prompt_warmup_layer_start,
+                        prompt_warmup_layer_end=hc.pyramidkv_prompt_warmup_layer_end,
+                        prompt_warmup_trace_path=hc.pyramidkv_prompt_warmup_trace_path,
+                        prompt_warmup_debug=hc.pyramidkv_prompt_warmup_debug,
                         cache_transition_enabled=hc.pyramidkv_cache_transition_enabled,
                         cache_transition_mode=hc.pyramidkv_cache_transition_mode,
                         cache_transition_min_reliability=hc.pyramidkv_cache_transition_min_reliability,

@@ -37,6 +37,7 @@ from .probecache import (
     ProbeCacheController,
     ProbeCacheSelection,
 )
+from .prompt_warmup import PromptWarmupShield, PromptWarmupShieldConfig
 
 __all__ = [
     "FrameAnchor",
@@ -59,4 +60,6 @@ __all__ = [
     "ProbeCacheConfig",
     "ProbeCacheController",
     "ProbeCacheSelection",
+    "PromptWarmupShield",
+    "PromptWarmupShieldConfig",
 ]

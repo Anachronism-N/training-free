@@ -122,6 +122,19 @@ class PyramidKVPipelineConfig:
     pyramidkv_structured_memory_position_mode: str = "none"
     pyramidkv_structured_memory_prompt_prior_weight: float = 0.0
 
+    # --- Prompt-role warmup history shield ---
+    pyramidkv_prompt_warmup_enabled: bool = False
+    pyramidkv_prompt_warmup_blocks: int = 0
+    pyramidkv_prompt_warmup_release_span: int = 0
+    pyramidkv_prompt_warmup_mode: str = "middle"
+    pyramidkv_prompt_warmup_shield_labels: list = field(
+        default_factory=lambda: [-1]
+    )
+    pyramidkv_prompt_warmup_layer_start: int = 0
+    pyramidkv_prompt_warmup_layer_end: int = -1
+    pyramidkv_prompt_warmup_trace_path: Optional[str] = None
+    pyramidkv_prompt_warmup_debug: bool = False
+
     # --- Trust-conditioned middle-cache transitions ---
     pyramidkv_cache_transition_enabled: bool = False
     pyramidkv_cache_transition_mode: str = "full"
@@ -397,6 +410,34 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_structured_memory_prompt_prior_weight=float(
                 getattr(args, "pyramidkv_structured_memory_prompt_prior_weight", 0.0)
+            ),
+            pyramidkv_prompt_warmup_enabled=bool(
+                getattr(args, "pyramidkv_prompt_warmup_enabled", False)
+            ),
+            pyramidkv_prompt_warmup_blocks=int(
+                getattr(args, "pyramidkv_prompt_warmup_blocks", 0)
+            ),
+            pyramidkv_prompt_warmup_release_span=int(
+                getattr(args, "pyramidkv_prompt_warmup_release_span", 0)
+            ),
+            pyramidkv_prompt_warmup_mode=str(
+                getattr(args, "pyramidkv_prompt_warmup_mode", "middle")
+            ),
+            pyramidkv_prompt_warmup_shield_labels=list(
+                getattr(args, "pyramidkv_prompt_warmup_shield_labels", [-1])
+                or [-1]
+            ),
+            pyramidkv_prompt_warmup_layer_start=int(
+                getattr(args, "pyramidkv_prompt_warmup_layer_start", 0)
+            ),
+            pyramidkv_prompt_warmup_layer_end=int(
+                getattr(args, "pyramidkv_prompt_warmup_layer_end", -1)
+            ),
+            pyramidkv_prompt_warmup_trace_path=getattr(
+                args, "pyramidkv_prompt_warmup_trace_path", None
+            ),
+            pyramidkv_prompt_warmup_debug=bool(
+                getattr(args, "pyramidkv_prompt_warmup_debug", False)
             ),
             pyramidkv_cache_transition_enabled=bool(
                 getattr(args, "pyramidkv_cache_transition_enabled", False)

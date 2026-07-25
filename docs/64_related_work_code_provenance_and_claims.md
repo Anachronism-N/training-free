@@ -1,5 +1,41 @@
 # Training-Free Long Video Related Work, Code Provenance, and Claim-Safety Ledger
 
+## 2026-07-25 v95 provenance update
+
+The current candidate is defined in
+`docs/95_post_v93_dual_axis_phase_cache.md`. The new
+`pyramidkv/prompt_warmup.py` implementation was written in this repository; no
+source code was copied from the works below.
+
+| v95 mechanism | Local implementation | Nearest prior ideas | Attribution boundary |
+|---|---|---|---|
+| PF Anchor/Wave/Veil steady-state reads | vendored PF plus existing local integration | [Pyramid Forcing](https://github.com/if-lab-pku/Pyramid-Forcing) | borrowed base, never our contribution |
+| paired prompt-intervention head response | local profiler and `build_prompt_contrastive_head_maps.py` | head specialization in PF, Forcing-KV, Head Forcing | project-designed measurement; do not claim discovery of head heterogeneity |
+| prompt-role startup history shield | `pyramidkv/prompt_warmup.py` | head-specific caches, attention sink, local/anchor/memory lifecycles | project-designed control; novelty claim remains conditional on full review |
+| deterministic staggered history release | `pyramidkv/prompt_warmup.py` | asynchronous/staggered cache updates generally | project-designed implementation, not proof of first use |
+| noisy/clean trust-qualified middle promotion | `pyramidkv/transition.py` | novelty/episodic updates in Head Forcing and cache lifecycle work | claim only the exact trajectory-trust admission if ablations pass |
+| weak prompt-role priority after trust gates | `pyramidkv/transition.py` plus lifecycle-role CSV | semantic memory in SWIFT/MemFlow and role-dependent cache control | project-designed combination; must beat random and inverse controls |
+
+Additional reviewed repositories and papers:
+
+- [Forcing-KV](https://arxiv.org/abs/2605.09681): static/dynamic heads and
+  hybrid compression. The local `third_party/Forcing-KV` remains an empty
+  placeholder.
+- [Head Forcing](https://arxiv.org/abs/2605.14487): local/anchor/memory heads,
+  hierarchical episodic memory, dynamic updates, and head-wise RoPE.
+- [LongLive](https://github.com/NVlabs/LongLive): attention sink, KV recache,
+  streaming long tuning, and later long-video infrastructure.
+- [MemFlow](https://github.com/KlingAIResearch/MemFlow): trained
+  prompt-conditioned historical-frame and token retrieval.
+- [DummyForcing](https://github.com/csguoh/DummyForcing): head/context
+  allocation through dummy-head analysis.
+
+Prohibited claim for v95: "we discover head specialization," "we introduce
+head-aware memory," "we are first to update memory by novelty," or "PF's
+three-class cache is our method." Any paper claim must name Self-Forcing and
+Pyramid Forcing as the generator/base cache and report v95 as the added
+phase/lifecycle controller.
+
 > 更新日期：2026-07-23
 >
 > 目的：记录本项目使用、移植、参考和待评估的论文与代码，约束论文叙事和代码复用，降低错误归属、遗漏引用、代码许可证违规和学术不端风险。

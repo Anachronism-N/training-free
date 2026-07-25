@@ -3,32 +3,28 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The validated method candidate is **v78 Trust-Conditioned Cache Transition**.
-It controls whether a clean autoregressive block may update Pyramid-Forcing's
-middle cache, using free noisy/clean K/V disagreement, transition shock,
-novelty, age and an asynchronous write budget. It does not alter PF's
-sink/middle/recent read topology and adds no model forward. Across the latest
-matched seed-0 screen, v78 beats PF by 0.004 DINO and is ranked best by human
-review. Earlier seeds 2/3 also score well, but their reported PF comparison is
-not seed-matched; v90 supplies the missing matched seeds 1-3.
+The current paper candidate is **Dual-Axis Phase Cache**. It retains
+Pyramid-Forcing's validated Anchor/Wave/Veil read topology, measures an
+independent stable/responsive head axis through paired prompt interventions,
+temporarily shields history from responsive heads during AR startup, and can
+filter middle-cache promotion with noisy/clean trajectory trust. All behavior
+is inference-only, default-off, and adds no model forward.
 
-The v86 screen is complete. Uniform v78 is best (`0.8536` DINO versus PF
-`0.8496`) on the matched 16-prompt seed-0 screen. Hard learned role clocks are
-not causally superior and can duplicate subjects; they are no longer a method
-claim. The next experiment runs PF-v78 matched seeds 1-3 and tests a safer weak
-motion priority that changes only budget ordering among trusted candidates.
-Current analysis, code, 16-GPU commands and decision gates are in
-`docs/90_post_v86_analysis_and_v90_experiment.md`. The claim-safe paper story,
-section structure, figures and abstract template are in
-`docs/91_transitioncache_paper_story.md`.
+The selection is evidence-driven rather than based on a single best metric.
+MovieBench-32 places v78 and PF first (`0.9331` and `0.9313` DINO), while
+PF read plus weak prompt priority is close (`0.9283`). Prompt-derived maps beat
+random, inverse, remote, and earlier role-score controls, but permanently
+replacing PF's three-class read topology loses steady-state quality. Human
+review found a complementary effect: prompt-routed cells removed one repeated
+startup flashback but developed later jumps. v95 therefore tests prompt roles
+as a phase-limited visibility and weak update-priority signal while keeping PF
+reads fixed.
 
-The v92 follow-up now tests the missing **actual two-class read topology**:
-PF Anchor heads versus merged Wave+Veil heads, and a genuinely different
-partition based only on paired prompt-intervention response. Both are
-factorized against uniform v78 writes, inverse/random maps, profile replicas,
-weak write priority, and an optional low-gate coverage archive. The complete
-method, 16-GPU matrix, debug contract, commands, and paper-story branches are
-in `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`.
+The authoritative result analysis, method definition, 16-GPU v95 matrix,
+debug contract, decision gates, and paper story are in
+`docs/95_post_v93_dual_axis_phase_cache.md`. v93 main-128 is still incomplete;
+partial PF/v78/prompt results must not be compared as if they used the same
+prompt set.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -63,21 +59,21 @@ prompt-switch/return-recall branch.
 
 ## Current Hypothesis
 
-The current hypothesis is that long AR generation fails partly because
-unequally reliable generated states are promoted into persistent attention
-memory. PF already provides a strong cache read topology; the method therefore
-controls state admission instead of adding another recall path.
+The current hypothesis is that long AR generation needs three separate cache
+decisions: what temporal history a head reads, when that history becomes safe
+to expose, and whether a generated state is reliable enough to become
+persistent history.
 
-- **Trust signal:** noisy/clean descriptor disagreement plus shock from the
-  last admitted clean state.
-- **Uniform transition:** reliability, novelty, age and budget gate PF middle
-  writes; this is the validated v78 method.
-- **Optional weak priority:** v90 tests whether PF temporal classes can break
-  ties among trusted candidates without receiving different stale-state ages.
-- **Prompt-contrastive read branch:** v92 tests a true dual-timescale topology
-  whose membership is determined by paired prompt response rather than PF's
-  three temporal-pattern labels. This is a candidate, not yet a validated
-  contribution.
+- **Temporal read axis:** PF Anchor/Wave/Veil topology, explicitly borrowed.
+- **Prompt-response axis:** paired prompt intervention classifies heads as
+  stable or responsive without replacing the temporal axis.
+- **Phase exposure:** responsive heads initially see recent-only or
+  sink-plus-recent context while their hidden PF cache continues to update;
+  deterministic staggered release restores normal PF reads.
+- **Trust promotion:** noisy/clean agreement, novelty, age, and budget gate
+  PF middle-cache writes.
+- **Weak semantic priority:** prompt roles only break ties among candidates
+  that already pass the same trust gates.
 - **Coherent snapshot ablation:** a separate Echo scene-switch screen selects
   one complete frame using relevance and uniqueness; it does not replace the
   single-prompt core.
@@ -85,11 +81,11 @@ controls state admission instead of adding another recall path.
   behavior is off by default.
 
 Head specialization and novelty-based memory updates have prior art. This does
-not preclude a different classifier from being innovative, but the current
-counterfactual classifier did not improve the target cache-write intervention.
-The supported contribution candidate is noisy-clean trust-conditioned state
-promotion and bounded asynchronous cache writes. PF labels are cited as a
-borrowed prior in v90, not renamed as our classification.
+not preclude a different intervention criterion and lifecycle from being a
+contribution, but generic head-aware caching, static/dynamic splitting, or
+novelty updates cannot be claimed as new. v95 includes random and inverse
+controls specifically to test whether prompt semantics, rather than class
+count or chance, cause the result.
 
 LifeCache-v1 and CEMR remain in the repository as prior prototypes and
 ablation infrastructure.
@@ -127,7 +123,9 @@ training-free/
 |   |-- 89_v86_human_review_and_combined_analysis.md
 |   |-- 90_post_v86_analysis_and_v90_experiment.md
 |   |-- 91_transitioncache_paper_story.md
-|   `-- 92_prompt_contrastive_binary_cache_and_uniqueness_plan.md
+|   |-- 92_prompt_contrastive_binary_cache_and_uniqueness_plan.md
+|   |-- 93_moviebench_10h_128_and_head32_plan.md
+|   `-- 95_post_v93_dual_axis_phase_cache.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -171,6 +169,10 @@ training-free/
 |   |-- postprocess_v93_moviebench.sh
 |   |-- analyze_v93_moviebench.py
 |   |-- run_v93_moviebench_10h.sh
+|   |-- run_v95_dual_axis_warmup_16gpu.sh
+|   |-- postprocess_v95_dual_axis.sh
+|   |-- summarize_prompt_warmup_trace.py
+|   |-- analyze_v95_dual_axis.py
 |   |-- summarize_commit_forcing_trace.py
 |   `-- ...
 |-- src/
@@ -241,6 +243,15 @@ pipelines:
   for one 16-GPU node.
 - `scripts/summarize_cache_transition_trace.py`: strict layer/head mechanism
   validation and reason/label/role statistics.
+- `pyramidkv/prompt_warmup.py`: default-off prompt-role history shielding,
+  deterministic per-head release, and JSONL mechanism traces.
+- `scripts/run_v95_dual_axis_warmup_16gpu.sh`: 16-cell MovieBench-32 causal
+  screen for semantic update priority and phase-limited history exposure.
+- `scripts/postprocess_v95_dual_axis.sh`: full per-cell VBench-Long,
+  comprehensive metrics, temporal-jump diagnostics, and blind review.
+- `scripts/summarize_prompt_warmup_trace.py` and
+  `scripts/analyze_v95_dual_axis.py`: strict runtime audit and predeclared
+  semantic-versus-random/inverse decision gates.
 
 Commit Forcing remains integrated into the Self-Forcing inference path as a
 completed secondary branch:
@@ -315,31 +326,30 @@ environment.
 The current main-line experiment is documented in:
 
 ```text
-docs/93_moviebench_10h_128_and_head32_plan.md
+docs/95_post_v93_dual_axis_phase_cache.md
 ```
 
-Run the full 16-GPU MovieBench queue:
+Run the 16-GPU MovieBench-32 causal screen and then its metrics:
+
+```bash
+nohup bash scripts/run_v95_dual_axis_warmup_16gpu.sh \
+  > runs/v95_dual_axis_warmup32.launch.log 2>&1 &
+
+nohup bash scripts/postprocess_v95_dual_axis.sh \
+  > runs/v95_dual_axis_warmup32.postprocess.log 2>&1 &
+```
+
+The unfinished v93 128-prompt queue remains resumable:
 
 ```bash
 nohup bash scripts/run_v93_moviebench_10h.sh \
   > runs/v93_moviebench_10h.log 2>&1 &
 ```
 
-Or run generation and post-processing independently:
-
-```bash
-bash scripts/run_v93_moviebench_main_16gpu.sh
-bash scripts/run_v93_moviebench_head32_16gpu.sh
-bash scripts/postprocess_v93_moviebench.sh main
-bash scripts/postprocess_v93_moviebench.sh head32
-```
-
-The main table compares native SF, PF, Echo, v78, two prompt-sensitive
-candidates, PF-binary and the strongest completed v90 weak-priority cell over
-128 prompts. The separate 32-prompt screen factorizes class count, membership,
-profile replication, inverse/random controls, read routing and transition
-writes. Freeze the generated blind-review scorecards before opening method
-keys or metric summaries.
+v95 keeps PF's read topology fixed and factorizes prompt priority, priority
+strength, warmup region, warmup duration, release staggering, trust promotion,
+and random/inverse/remote/PF-binary controls. Freeze the generated
+blind-review scorecard before opening method keys or metric summaries.
 
 ## Third-Party Code
 
@@ -377,6 +387,9 @@ The original repositories referenced by this project are:
 | `third_party/FlowCache` | [mikeallen39/FlowCache](https://github.com/mikeallen39/FlowCache) | Flow-guided or motion-guided cache reference. |
 | `third_party/SWIFT` | [ShanwenTan/SWIFT](https://github.com/ShanwenTan/SWIFT) | Semantic injection cache and prompt-adaptive memory reference. |
 | Not vendored | [xbxsxp9/Pathwise_TTC](https://github.com/xbxsxp9/Pathwise_TTC) | Closest paper-level prior for fixed-reference pathwise correction; no source code copied. |
+| Not vendored | [NVlabs/LongLive](https://github.com/NVlabs/LongLive) | Training-time long causal video and KV recaching comparison. |
+| Not vendored | [KlingAIResearch/MemFlow](https://github.com/KlingAIResearch/MemFlow) | Prompt-conditioned memory retrieval comparison. |
+| Not vendored | [csguoh/DummyForcing](https://github.com/csguoh/DummyForcing) | Head/context allocation comparison. |
 
 [Future Forcing](https://arxiv.org/abs/2605.30083) is also tracked as a
 paper-level collision for future-query cache policy; no local source tree or

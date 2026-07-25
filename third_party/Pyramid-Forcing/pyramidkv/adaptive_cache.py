@@ -32,6 +32,7 @@ from .cpp_strategy import (
 )
 from .transition import CacheTransitionConfig, CacheTransitionController
 from .probecache import ProbeCacheConfig, ProbeCacheController
+from .prompt_warmup import PromptWarmupShield, PromptWarmupShieldConfig
 
 
 def _as_long_tensor(tensor: torch.Tensor) -> torch.Tensor:
@@ -225,6 +226,15 @@ class AdaptiveKVCache(PyramidKVCache):
         structured_memory_control_mode: str = "normal",
         structured_memory_position_mode: str = "none",
         structured_memory_prompt_prior_weight: float = 0.0,
+        prompt_warmup_enabled: bool = False,
+        prompt_warmup_blocks: int = 0,
+        prompt_warmup_release_span: int = 0,
+        prompt_warmup_mode: str = "middle",
+        prompt_warmup_shield_labels: list[int] | None = None,
+        prompt_warmup_layer_start: int = 0,
+        prompt_warmup_layer_end: int = -1,
+        prompt_warmup_trace_path: str | None = None,
+        prompt_warmup_debug: bool = False,
         cache_transition_enabled: bool = False,
         cache_transition_mode: str = "full",
         cache_transition_min_reliability: float = 0.55,
@@ -509,9 +519,34 @@ class AdaptiveKVCache(PyramidKVCache):
         )
         transition_head_labels = (
             config.get_layer_transition_labels(layer_idx)
-            if cache_transition_role_conditioning
-            and hasattr(config, "get_layer_transition_labels")
+            if (
+                (cache_transition_role_conditioning or prompt_warmup_enabled)
+                and hasattr(config, "get_layer_transition_labels")
+            )
             else self.head_labels
+        )
+        prompt_warmup_config = PromptWarmupShieldConfig(
+            enabled=bool(prompt_warmup_enabled),
+            blocks=int(prompt_warmup_blocks),
+            release_span=int(prompt_warmup_release_span),
+            mode=str(prompt_warmup_mode),
+            shield_labels=tuple(
+                int(label)
+                for label in (
+                    [-1]
+                    if prompt_warmup_shield_labels is None
+                    else prompt_warmup_shield_labels
+                )
+            ),
+            layer_start=int(prompt_warmup_layer_start),
+            layer_end=int(prompt_warmup_layer_end),
+            trace_path=prompt_warmup_trace_path,
+            debug=bool(prompt_warmup_debug),
+        )
+        self.prompt_warmup = PromptWarmupShield(
+            prompt_warmup_config,
+            layer_idx=layer_idx,
+            head_labels=transition_head_labels,
         )
         transition_config = CacheTransitionConfig(
             enabled=bool(cache_transition_enabled),
@@ -1955,6 +1990,7 @@ class AdaptiveKVCache(PyramidKVCache):
         self._invalidate_readout_cache()
         self.reset_profile_stats()
         self._init_cyclic_anchor_storage()
+        self.prompt_warmup.reset()
         if self.cache_transition is not None:
             self.cache_transition.reset()
         if self._cpp_strategy_manager is not None:
@@ -3787,6 +3823,8 @@ class AdaptiveKVCache(PyramidKVCache):
         has_stat: bool,
     ) -> tuple[tuple[str, object], int]:
         n = 0
+        if self.prompt_warmup.shields_middle(head_idx, sync_t_raw):
+            return ("comp", []), 0
         if self.probecache is not None:
             probecache_collect_start = perf_counter()
             anchors, _selection = self.probecache.collect(
@@ -3907,6 +3945,12 @@ class AdaptiveKVCache(PyramidKVCache):
         num_seq = self.batch_size * self.num_heads
         capture_physical = self.capture_frame_id_mode == "physical"
         has_dynamic_time_mapping = self.history_time_mapping_mode != "none"
+        prompt_warmup_mask = self.prompt_warmup.active_mask(sync_t_raw)
+        self.prompt_warmup.record(
+            block_id=sync_t_raw,
+            branch=str(getattr(self, "_cfg_branch", "cond")),
+            active_mask=prompt_warmup_mask,
+        )
 
         segments: list[_ReadoutSegment] = []
         cpp_segments: list[_CppReadoutSegment] = []
@@ -3920,12 +3964,17 @@ class AdaptiveKVCache(PyramidKVCache):
         offset = 0
         for i in range(num_seq):
             head_idx = i % self.num_heads
+            shield_middle = prompt_warmup_mask[head_idx]
+            shield_sink = (
+                shield_middle and self.prompt_warmup.config.mode == "history"
+            )
             seq_start = offset
             stat_k = self.static_k[i]
             has_stat = (
                 not self.probecache_profile_recent_only
                 and stat_k is not None
                 and stat_k.shape[0] > 0
+                and not shield_sink
             )
 
             if has_stat:
@@ -3996,7 +4045,12 @@ class AdaptiveKVCache(PyramidKVCache):
                 else None
             )
             managed_count = None
-            if composition is not None and composition.has_middle and self._cpp_strategy_head_supported(head_idx):
+            if (
+                not shield_middle
+                and composition is not None
+                and composition.has_middle
+                and self._cpp_strategy_head_supported(head_idx)
+            ):
                 tail_min_t = sync_t_raw - composition.recent_frames + 1
                 sink_max_t = 0 if has_stat else -1
                 managed_count = self._try_cpp_strategy_count(
@@ -4042,7 +4096,12 @@ class AdaptiveKVCache(PyramidKVCache):
                 cu_cpu[i + 1] = offset
                 continue
 
-            anchor_cache, _anchor_n = self._collect_middle_cache(i, head_idx, sync_t_raw, has_stat)
+            anchor_cache, _anchor_n = self._collect_middle_cache(
+                i,
+                head_idx,
+                sync_t_raw,
+                has_stat,
+            )
             anchor_type, anchor_data = anchor_cache
             if anchor_type == "comp":
                 for anchor_idx, anchor in enumerate(anchor_data):

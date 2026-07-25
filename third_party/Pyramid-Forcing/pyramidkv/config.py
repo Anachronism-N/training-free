@@ -48,8 +48,9 @@ class PyramidKVConfig:
         code_map: Mapping ``{label_str: capacity_int}`` overriding the
             reduction-factor heuristic.
         head_type_csv_path: Optional override for the classification CSV.
-        transition_head_type_csv_path: Optional role matrix used only by the
-            cache-transition write controller. It never changes PF read policy.
+        transition_head_type_csv_path: Optional orthogonal role matrix used by
+            lifecycle controls such as cache-transition priority and prompt
+            warmup exposure. It never replaces PF's temporal read-policy labels.
         drop_heads_csv_path: Optional CSV listing ``(layer, head)`` pairs
             whose self-attention output is zeroed.
         soft_ablate_heads_csv_path: Optional CSV listing ``(layer, head)``
@@ -214,7 +215,7 @@ class PyramidKVConfig:
                 )
             if transition_head_type_csv_path not in _LOADED_CONFIG_PATHS:
                 print(
-                    "Loading cache-transition roles from "
+                    "Loading lifecycle roles from "
                     f"{transition_head_type_csv_path}"
                 )
                 _LOADED_CONFIG_PATHS.add(transition_head_type_csv_path)

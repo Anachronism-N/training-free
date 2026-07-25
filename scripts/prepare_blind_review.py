@@ -111,6 +111,8 @@ def main() -> int:
                     "camera_1_to_5": "",
                     "artifact_1_to_5": "",
                     "prompt_alignment_1_to_5": "",
+                    "startup_flashback_0_or_1": "",
+                    "abrupt_jump_0_or_1": "",
                     "overall_rank": "",
                     "failure_time_seconds": "",
                     "notes": "",
