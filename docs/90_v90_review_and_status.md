@@ -669,3 +669,28 @@ This suggests v78 cache transition provides the most benefit when combined with 
 - pf_read_prompt_priority: best on v92 (0.848), 3rd on head32 (0.928) — consistently strong
 - prompt_kmeans_read: worst on v92 (0.710), worst on main-128 (0.746) — consistently unusable
 - remote_read_v78: weak on v92 (0.787), early-frame corruption in human review
+
+## 25. v92 role_score_read_v78 DINOv2 (12th cell, 16 prompts)
+
+| Cell | DINO | min_D | drift | flicker | bg | comp |
+|------|------|-------|-------|---------|-----|------|
+| role_score_read_v78 | 0.7900 | 0.7052 | -0.00338 | 0.3381 | 0.8776 | 0.4839 |
+
+### Updated 12-cell v92 ranking (sorted by DINO):
+1. pf_read_prompt_priority: 0.8482
+2. pf_binary_read_v78: 0.8339
+3. pf_binary_read_v78_coverage: 0.8339
+4. prompt_replica_read_v78: 0.8279
+5. prompt_pfcount_read_v78: 0.8278
+6. prompt_read_v78_coverage: 0.8273
+7. prompt_consensus_read_v78: 0.8251
+8. pf_binary_read: 0.8193
+9. prompt_random_read_v78: 0.8188
+10. remote_read_v78: 0.7866
+11. **role_score_read_v78: 0.7900** (NEW — 2nd worst valid)
+12. prompt_kmeans_read: 0.7100 (unusable)
+
+### Key: role_score is consistently weak
+- v92: role_score (0.790) > remote (0.787) — barely better than remote
+- head32: role_score (0.885) — 2nd worst (only inverse worse at 0.873)
+- The role-score classifier (remote-minus-prompt) is consistently inferior to prompt-contrastive classification
