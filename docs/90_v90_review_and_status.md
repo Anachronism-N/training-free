@@ -694,3 +694,34 @@ This suggests v78 cache transition provides the most benefit when combined with 
 - v92: role_score (0.790) > remote (0.787) — barely better than remote
 - head32: role_score (0.885) — 2nd worst (only inverse worse at 0.873)
 - The role-score classifier (remote-minus-prompt) is consistently inferior to prompt-contrastive classification
+
+## 26. v92 Temporal Jump Results (212 videos, 16 cells)
+
+| Cell | count | mean | median |
+|------|-------|------|--------|
+| role_score_read_v78 | 15 | 1.3449 | 1.2610 |
+| pf_binary_read_v78_coverage | 16 | 1.3750 | 1.3566 |
+| pf_binary_read_v78 | 16 | 1.3794 | 1.3537 |
+| prompt_pfcount_read | 1 | 1.3923 | 1.3923 |
+| prompt_consensus_read_v78 | 16 | 1.4100 | 1.3139 |
+| prompt_pfcount_read_v78 | 16 | 1.4219 | 1.3840 |
+| prompt_read_v78_coverage | 16 | 1.4223 | 1.3840 |
+| pf_binary_read | 16 | 1.4428 | 1.3147 |
+| prompt_replica_read_v78 | 16 | 1.4710 | 1.4434 |
+| pf_read_prompt_priority | 16 | 1.4963 | 1.4064 |
+| prompt_random_read_v78 | 16 | 1.8137 | 1.6226 |
+| remote_read_v78 | 16 | 2.0134 | 1.7944 |
+| prompt_kmeans_read | 16 | 2.6673 | 2.3750 |
+| prompt_kmeans_read_v78 | 16 | 2.8203 | 2.3855 |
+
+### Key temporal jump findings (v92, 16 prompts):
+1. **pf_binary_read_v78 has LOWEST temporal jump (1.379)** — consistent with main-128 (1.391)
+2. **prompt_kmeans_read_v78 has HIGHEST temporal jump (2.820)** — consistent with being unusable
+3. **remote_read_v78 (2.013) is 2nd worst** — consistent with human review (early-frame corruption)
+4. **prompt_random_read_v78 (1.814) is 3rd worst** — random labels cause more jumps
+5. **Coverage cells match non-coverage**: pf_binary_read_v78 (1.379) ≈ pf_binary_read_v78_coverage (1.375)
+
+### Cross-experiment consistency:
+- pf_binary_read_v78: best TJ on v92 (1.379) AND main-128 (1.391) — consistently best temporal smoothness
+- prompt_kmeans: worst TJ on v92 (2.667-2.820) AND main-128 (3.011) — consistently worst
+- remote_read_v78: 2nd worst on v92 (2.013) — consistent with human review
