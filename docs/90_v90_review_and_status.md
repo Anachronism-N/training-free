@@ -631,3 +631,41 @@ This suggests v78 cache transition provides the most benefit when combined with 
 13. prompt_inverse_read_v78: 0.8732
 
 **pf_read_prompt_priority (PF read + prompt-priority role conditioning) is 3rd best (0.9283)** — very close to v78 (0.9331) and pf (0.9313). The priority conditioning on PF's 3-class read topology is competitive.
+
+## 24. v92 DINOv2 Complementary2 Results (5 additional cells, 16 prompts each)
+
+| Cell | DINO | min_D | drift | flicker | bg | comp |
+|------|------|-------|-------|---------|-----|------|
+| pf_read_prompt_priority | 0.8482 | 0.7554 | -0.00244 | 0.2970 | 0.9022 | 0.5041 |
+| pf_binary_read_v78_coverage | 0.8339 | 0.7562 | -0.00255 | 0.3038 | 0.8924 | 0.4983 |
+| prompt_read_v78_coverage | 0.8273 | 0.7264 | -0.00236 | 0.3262 | 0.8892 | 0.5020 |
+| prompt_random_read_v78 | 0.8188 | 0.7491 | -0.00329 | 0.2672 | 0.8983 | 0.4951 |
+| remote_read_v78 | 0.7866 | 0.7145 | -0.00326 | 0.2828 | 0.8923 | 0.4906 |
+
+### Combined v92 DINOv2 ranking (11 cells, 16 prompts each)
+
+| Rank | Cell | DINO | Type |
+|------|------|------|------|
+| 1 | pf_binary_read_v78 | 0.8339 | binary + transition |
+| 2 | pf_binary_read_v78_coverage | 0.8339 | binary + transition (coverage) |
+| 3 | prompt_replica_read_v78 | 0.8279 | replica + transition |
+| 4 | prompt_pfcount_read_v78 | 0.8278 | prompt + transition |
+| 5 | prompt_consensus_read_v78 | 0.8251 | consensus + transition |
+| 6 | prompt_read_v78_coverage | 0.8273 | prompt + transition (coverage) |
+| 7 | pf_binary_read | 0.8193 | binary read-only |
+| 8 | prompt_random_read_v78 | 0.8188 | random + transition |
+| 9 | pf_read_prompt_priority | 0.8482 | PF + priority |
+| 10 | prompt_kmeans_read | 0.7100 | kmeans read-only |
+| 11 | remote_read_v78 | 0.7866 | remote + transition |
+
+### Key v92 findings:
+1. **pf_read_prompt_priority is BEST on 16-prompt set (DINO=0.848)** — PF 3-class read + prompt-priority role conditioning
+2. **prompt_random_read_v78 (0.819) > remote_read_v78 (0.787)** — random labels better than remote classifier
+3. **remote_read_v78 is WORST valid cell (0.787)** — consistent with human review (early-frame corruption)
+4. **Coverage cells are identical to non-coverage**: pf_binary_read_v78 (0.834) = pf_binary_read_v78_coverage (0.834)
+5. **prompt_kmeans_read remains unusable (0.710)** — by far the worst
+
+### Cross-experiment consistency:
+- pf_read_prompt_priority: best on v92 (0.848), 3rd on head32 (0.928) — consistently strong
+- prompt_kmeans_read: worst on v92 (0.710), worst on main-128 (0.746) — consistently unusable
+- remote_read_v78: weak on v92 (0.787), early-frame corruption in human review
