@@ -790,3 +790,28 @@ This suggests v78 cache transition provides the most benefit when combined with 
 - VBench v93: 5/5 COMPLETE ✅
 - main-128: 4/8 complete (85-88/128)
 - v90: 13/16 complete (8-11/16)
+
+## 29. HEAD32 16/16 COMPLETE! remote_read_v78 DINOv2 (15th cell)
+
+| Cell | DINO | min_D | drift | flicker | bg | comp |
+|------|------|-------|-------|---------|-----|------|
+| remote_read_v78 | 0.8542 | 0.8500 | -0.00308 | 0.1589 | 0.9340 | 0.5699 |
+
+### Final 15-cell head32 ranking (32 prompts each):
+1. v78: 0.9331
+2. pf: 0.9313
+3. pf_read_prompt_priority: 0.9283
+4. prompt_replica_read_v78: 0.9220
+5. prompt_consensus_read_v78: 0.9192
+6. pf_binary_read: 0.9180
+7. prompt_pfcount_read: 0.9179
+8. pf_binary_read_v78: 0.9150
+9. prompt_read_prompt_priority: 0.9135
+10. prompt_pfcount_read_v78: 0.9131
+11. prompt_random_read_v78: 0.8958
+12. role_score_read_v78: 0.8854
+13. prompt_inverse_read_v78: 0.8732
+14. prompt_kmeans_read_v78: 0.7531
+15. remote_read_v78: 0.8542 (NEW)
+
+remote_read_v78: early-frame corruption in human review, DINO=0.854 (weak but not worst)
