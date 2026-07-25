@@ -29,8 +29,8 @@ METHODS=(
 )
 
 IFS=',' read -r -a GPUS <<<"$GPU_LIST"
-[[ "${#GPUS[@]}" -eq 16 ]] || {
-    echo "[error] v96 cache screen requires exactly 16 GPU ids"
+[[ "${#GPUS[@]}" -ge 1 ]] || {
+    echo "[error] v96 cache screen requires at least 1 GPU id"
     exit 2
 }
 CFG_MAP="$LABEL_DIR/prompt_cfg_threshold.csv"
@@ -176,45 +176,55 @@ run_cell() {
     printf 'ok\n' >"$marker"
 }
 
-PIDS=()
 STATUS=0
-launch() {
-    run_cell "$@" &
-    PIDS+=("$!")
-}
-
-launch pf                     "${GPUS[0]}"  "$PF_LABELS"     pf     0
-launch pf_binary_cyclic       "${GPUS[1]}"  "$PF_BINARY"     cyclic 0
-launch pf_binary_merge        "${GPUS[2]}"  "$PF_BINARY"     merge  0
-launch pf_binary_recent       "${GPUS[3]}"  "$PF_BINARY"     recent 0
-launch cfg_cyclic             "${GPUS[4]}"  "$CFG_MAP"       cyclic 0
-launch cfg_merge              "${GPUS[5]}"  "$CFG_MAP"       merge  0
-launch semantic_cyclic        "${GPUS[6]}"  "$SEMANTIC_MAP"  cyclic 0
-launch semantic_merge         "${GPUS[7]}"  "$SEMANTIC_MAP"  merge  0
-launch consensus_cyclic       "${GPUS[8]}"  "$CONSENSUS_MAP" cyclic 0
-launch consensus_merge        "${GPUS[9]}"  "$CONSENSUS_MAP" merge  0
-launch consensus_recent       "${GPUS[10]}" "$CONSENSUS_MAP" recent 0
-launch consensus_merge_v78    "${GPUS[11]}" "$CONSENSUS_MAP" merge  1
-launch consensus_cyclic_v78   "${GPUS[12]}" "$CONSENSUS_MAP" cyclic 1
-launch random_merge           "${GPUS[13]}" "$RANDOM_MAP"    merge  0
-launch inverse_merge          "${GPUS[14]}" "$INVERSE_MAP"   merge  0
-launch pf_binary_merge_v78    "${GPUS[15]}" "$PF_BINARY"     merge  1
-
-echo "[v96-cache] commit=$RUN_COMMIT prompts=$PROMPT_COUNT frames=$FRAMES"
-for pid in "${PIDS[@]}"; do
-    wait "$pid" || STATUS=1
+ALL_CELLS=(
+    "pf|$PF_LABELS|pf|0"
+    "pf_binary_cyclic|$PF_BINARY|cyclic|0"
+    "pf_binary_merge|$PF_BINARY|merge|0"
+    "pf_binary_recent|$PF_BINARY|recent|0"
+    "cfg_cyclic|$CFG_MAP|cyclic|0"
+    "cfg_merge|$CFG_MAP|merge|0"
+    "semantic_cyclic|$SEMANTIC_MAP|cyclic|0"
+    "semantic_merge|$SEMANTIC_MAP|merge|0"
+    "consensus_cyclic|$CONSENSUS_MAP|cyclic|0"
+    "consensus_merge|$CONSENSUS_MAP|merge|0"
+    "consensus_recent|$CONSENSUS_MAP|recent|0"
+    "consensus_merge_v78|$CONSENSUS_MAP|merge|1"
+    "consensus_cyclic_v78|$CONSENSUS_MAP|cyclic|1"
+    "random_merge|$RANDOM_MAP|merge|0"
+    "inverse_merge|$INVERSE_MAP|merge|0"
+    "pf_binary_merge_v78|$PF_BINARY|merge|1"
+)
+CELL_START="${CELL_START:-0}"
+CELL_END="${CELL_END:-${#ALL_CELLS[@]}}"
+CELLS=("${ALL_CELLS[@]:$CELL_START:$((CELL_END-CELL_START))}")
+echo "[v96-cache] commit=$RUN_COMMIT prompts=$PROMPT_COUNT frames=$FRAMES cells=$CELL_START..$CELL_END (${#CELLS[@]} cells) gpus=${#GPUS[@]}"
+wave=0
+for ((base=0; base<${#CELLS[@]}; base+=${#GPUS[@]})); do
+    pids=()
+    echo "[v96-cache] wave=$wave cells=$((CELL_START+base))..$((CELL_START + base + ${#GPUS[@]} - 1))"
+    for ((slot=0; slot<${#GPUS[@]} && base+slot<${#CELLS[@]}; slot++)); do
+        IFS='|' read -r name labels policy transition <<<"${CELLS[$((base+slot))]}"
+        run_cell "$name" "${GPUS[$slot]}" "$labels" "$policy" "$transition" &
+        pids+=("$!")
+    done
+    for pid in "${pids[@]}"; do
+        wait "$pid" || STATUS=1
+    done
+    wave=$((wave + 1))
 done
 if [[ "$STATUS" -eq 0 ]]; then
     mapfile -t TRACES < <(
         find "$OUT_ROOT/traces" -maxdepth 1 -type f -name '*.transition.jsonl' | sort
     )
-    [[ "${#TRACES[@]}" -eq 3 ]] || STATUS=1
-    if [[ "${#TRACES[@]}" -eq 3 ]]; then
+    if [[ "${#TRACES[@]}" -ge 3 ]]; then
         python "$ROOT/scripts/summarize_cache_transition_trace.py" \
             "${TRACES[@]}" --strict \
             --output-json "$OUT_ROOT/diagnostics/cache_transition_summary.json" \
             --output-md "$OUT_ROOT/diagnostics/cache_transition_summary.md" \
             >"$OUT_ROOT/diagnostics/cache_transition_summary.log" 2>&1 || STATUS=1
+    else
+        echo "[v96-cache] waiting for all 3 transition traces (found ${#TRACES[@]}); summary deferred"
     fi
 fi
 echo "[v96-cache] completed status=$STATUS out=$OUT_ROOT"

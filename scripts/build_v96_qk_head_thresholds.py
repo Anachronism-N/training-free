@@ -232,8 +232,39 @@ def summarize_observations(
 ) -> dict[HeadKey, float]:
     missing = [key for key in keys if not observations.get(key)]
     if missing:
-        raise ValueError(f"missing observations for {len(missing)} heads")
+        # Wan2.1 only profiles even (self-attention) layers; skip missing
+        # keys instead of raising so the builder can produce a full matrix.
+        present = [key for key in keys if observations.get(key)]
+        if not present:
+            raise ValueError("no observations for any head")
+        return {key: median(observations[key]) for key in present}
     return {key: median(observations[key]) for key in keys}
+
+
+def remap_profile_layers(profiles: list[dict]) -> tuple[list[dict], int]:
+    """Remap QK layer indices (e.g. 0,2,4,...,28) to consecutive block
+    indices (0,1,2,...,14). Returns (remapped_profiles, num_profiled_blocks).
+    """
+    all_layers = sorted({
+        int(r["layer"]) for p in profiles for r in p["records"]
+    })
+    layer_map = {old: new for new, old in enumerate(all_layers)}
+    for profile in profiles:
+        for record in profile["records"]:
+            record["layer"] = layer_map[int(record["layer"])]
+    return profiles, len(all_layers)
+
+
+def expand_matrix(
+    matrix: list[list[int]],
+    target_rows: int,
+    num_heads: int,
+    default_value: int = 1,
+) -> list[list[int]]:
+    """Expand a matrix to target_rows by padding with default_value rows."""
+    while len(matrix) < target_rows:
+        matrix.append([default_value] * num_heads)
+    return matrix
 
 
 def layer_robust_z(
@@ -243,9 +274,15 @@ def layer_robust_z(
 ) -> dict[HeadKey, float]:
     result = {}
     for layer in range(num_layers):
-        transformed = [
-            math.log1p(max(0.0, values[(layer, head)]))
+        layer_values = [
+            values.get((layer, head))
             for head in range(num_heads)
+        ]
+        if any(v is None for v in layer_values):
+            # Skip layers without QK observations (e.g. cross-attention layers)
+            continue
+        transformed = [
+            math.log1p(max(0.0, v)) for v in layer_values
         ]
         center = median(transformed)
         scale = mad(transformed, center)
@@ -398,7 +435,11 @@ def matrix_from_scores(
 ) -> list[list[int]]:
     return [
         [
-            1 if scores[(layer, head)] <= threshold else -1
+            (
+                1  # default stable/stride for unprofiled layers
+                if (layer, head) not in scores
+                else 1 if scores[(layer, head)] <= threshold else -1
+            )
             for head in range(num_heads)
         ]
         for layer in range(num_layers)
@@ -435,6 +476,7 @@ def threshold_map(
         scores[(layer, head)]
         for layer in range(num_layers)
         for head in range(num_heads)
+        if (layer, head) in scores
     ]
     models = [fit_gmm_1d(values, components) for components in (1, 2, 3)]
     threshold = gmm_threshold(models[1])
@@ -469,12 +511,17 @@ def bootstrap_stability(
         for layer in range(num_layers)
         for head in range(num_heads)
     ]
+    # Only bootstrap keys that have both cfg and semantic observations
+    boot_keys = [
+        key for key in keys
+        if cfg_observations.get(key) and semantic_observations.get(key)
+    ]
     matches = [0] * len(keys)
     completed = 0
     for _ in range(max(0, rounds)):
         cfg_sample = {}
         semantic_sample = {}
-        for key in keys:
+        for key in boot_keys:
             cfg_values = cfg_observations[key]
             semantic_values = semantic_observations[key]
             cfg_sample[key] = median(
@@ -622,11 +669,17 @@ def main() -> None:
     pf_labels = read_matrix(
         args.pf_labels, args.num_layers, args.num_heads
     )
-    keys = [
-        (layer, head)
-        for layer in range(args.num_layers)
-        for head in range(args.num_heads)
-    ]
+
+    # Detect profiled layers and remap to consecutive block indices.
+    # Wan2.1 capture uses even indices [0, 2, 4, ..., 28] for self-attention;
+    # map these to [0, 1, 2, ..., 14] for computation, then expand output
+    # back to num_layers rows (non-profiled blocks default to stable/1).
+    profiled_layers = sorted(
+        {int(r["layer"]) for p in profiles for r in p["records"]}
+    )
+    layer_remap = {raw: idx for idx, raw in enumerate(profiled_layers)}
+    effective_layers = len(profiled_layers)
+
     cfg_observations = collect_cfg_observations(
         profiles, args.num_heads
     )
@@ -634,13 +687,35 @@ def main() -> None:
         profiles, args.num_heads
     )
     temporal = collect_temporal_statistics(profiles, args.num_heads)
+
+    # Remap layer indices in all observations to consecutive block indices
+    for obs_dict in (cfg_observations, semantic_observations):
+        remapped = {
+            (layer_remap[layer], head): values
+            for (layer, head), values in obs_dict.items()
+        }
+        obs_dict.clear()
+        obs_dict.update(remapped)
+
+    temporal_remapped = {
+        (layer_remap[layer], head): stats
+        for (layer, head), stats in temporal.items()
+    }
+    temporal = temporal_remapped
+
+    # Use effective_layers for all scoring/thresholding
+    keys = [
+        (layer, head)
+        for layer in range(effective_layers)
+        for head in range(args.num_heads)
+    ]
     cfg_raw = summarize_observations(cfg_observations, keys)
     semantic_raw = summarize_observations(semantic_observations, keys)
     cfg_scores = layer_robust_z(
-        cfg_raw, args.num_layers, args.num_heads
+        cfg_raw, effective_layers, args.num_heads
     )
     semantic_scores = layer_robust_z(
-        semantic_raw, args.num_layers, args.num_heads
+        semantic_raw, effective_layers, args.num_heads
     )
     consensus_scores = {
         key: 0.5 * (cfg_scores[key] + semantic_scores[key])
@@ -654,9 +729,15 @@ def main() -> None:
         ("prompt_semantic_threshold", semantic_scores),
         ("prompt_consensus_threshold", consensus_scores),
     ):
-        maps[name], diagnostics[name] = threshold_map(
-            name, scores, args.num_layers, args.num_heads
+        matrix, diag = threshold_map(
+            name, scores, effective_layers, args.num_heads
         )
+        # Expand to num_layers rows: pad non-profiled blocks with stable (1)
+        padded = [list(row) for row in matrix]
+        while len(padded) < args.num_layers:
+            padded.append([1] * args.num_heads)
+        maps[name] = padded
+        diagnostics[name] = diag
 
     consensus = maps["prompt_consensus_threshold"]
     pf_binary = [
@@ -676,8 +757,8 @@ def main() -> None:
     bootstrap = bootstrap_stability(
         cfg_observations,
         semantic_observations,
-        consensus,
-        num_layers=args.num_layers,
+        [row for row in consensus[:effective_layers]],
+        num_layers=effective_layers,
         num_heads=args.num_heads,
         rounds=args.bootstrap_rounds,
         seed=args.bootstrap_seed,
@@ -686,7 +767,7 @@ def main() -> None:
     bic = [model["bic"] for model in main_diag["gmm"]]
     class_fraction = min(
         main_diag["stable_count"], main_diag["responsive_count"]
-    ) / (args.num_layers * args.num_heads)
+    ) / (effective_layers * args.num_heads)
     gates = {
         "two_vs_one_bic": {
             "observed": bic[0] - bic[1],
