@@ -8,6 +8,11 @@
   adds clean-V motion-event memory and role-aware A-B-A scene episodes, and
   defines the 16-cell one-video screen, traces, commands, review gates,
   deferred broad ablations, provenance, and paper story.
+- `docs/105_v101_paper_ablation_after_fast_screen.md`: parameterized broad
+  follow-up. After v100 manual review selects the candidate, it freezes an
+  eight-cell MovieGenVideoBench-128 full/ablation matrix across four nodes,
+  reuses audited SF/PF/EF baselines, and defines blind review, VBench-Long,
+  comprehensive, and temporal diagnostics.
 - `docs/103_v100_final_candidate_and_immediate_plan.md`: superseded
   middle-relative/stride-cyclic proposal. Retained as design history; do not
   use its server command as the current experiment.
@@ -102,15 +107,16 @@
 Recommended reading order:
 
 1. `docs/104_v100_responsive_event_cache_and_aba_fast_screen.md`
-2. `docs/102_v99_smoke_results_and_decision.md`
-3. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
-4. `docs/99_v98_experiment_results.md`
-5. `docs/98_history_polarity_dual_memory_method.md`
-6. `docs/97_v97_experiment_results.md`
-7. `docs/95_post_v93_dual_axis_phase_cache.md`
-8. `docs/93_moviebench_10h_128_and_head32_plan.md`
-9. `docs/103_v100_final_candidate_and_immediate_plan.md`
-10. `docs/64_related_work_code_provenance_and_claims.md`
+2. `docs/105_v101_paper_ablation_after_fast_screen.md`
+3. `docs/102_v99_smoke_results_and_decision.md`
+4. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
+5. `docs/99_v98_experiment_results.md`
+6. `docs/98_history_polarity_dual_memory_method.md`
+7. `docs/97_v97_experiment_results.md`
+8. `docs/95_post_v93_dual_axis_phase_cache.md`
+9. `docs/93_moviebench_10h_128_and_head32_plan.md`
+10. `docs/103_v100_final_candidate_and_immediate_plan.md`
+11. `docs/64_related_work_code_provenance_and_claims.md`
 
 The current pre-result candidate is v100 HP-Event. The immediate step is a
 16-cell, one-video 30-second screen: six Responsive cache choices, four small
@@ -119,7 +125,9 @@ Supportive `sink3+stride4+recent4` versus Responsive
 `sink3+motion2+cyclic2+recent4`, under exclusive ownership. MovieBench-128 and
 broad ablations are gated on artifact-free videos, preserved motion, real B
 formation, and useful A return. The old v98 classifier, motion cache, scene
-episode, and v78 add-on remain separate claim gates.
+episode, and v78 add-on remain separate claim gates. Once selected, v101 runs
+the full 128-prompt ablation without regenerating compatible SF/PF/EF
+baselines.
 ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain negative-result
 or design history. LifeCache-v1 below is retained as the original design
 snapshot.

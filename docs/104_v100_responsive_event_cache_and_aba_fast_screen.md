@@ -585,3 +585,20 @@ and `docs/64_related_work_code_provenance_and_claims.md`. Borrowed mechanisms
 must be cited by their original names. Our claim, if supported, is the
 two-role criterion, generated-motion event memory, role-specific composition,
 and role-aware episode lifecycle, not ownership of prior cache primitives.
+
+## 14. Broad follow-up
+
+Do not expand every v100 cell to 128 prompts. After manual review selects the
+Supportive route, Responsive route, and v78 setting, freeze those choices and
+use `docs/105_v101_paper_ablation_after_fast_screen.md`.
+
+The corresponding entry points are:
+
+```text
+scripts/run_v101_paper_ablation_4node.py
+scripts/postprocess_v101_paper_ablation.sh
+```
+
+They cover MovieGenVideoBench-128 full evaluation, cache/update ablations,
+random and PF-AW membership controls, threshold stability, blind review,
+VBench-Long, comprehensive metrics, and temporal-jump diagnostics.

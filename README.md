@@ -29,6 +29,12 @@ result-dependent paper story are in
 `scripts/run_v100_fast_selection_1video.py`. `docs/103` is now the historical
 middle-relative/stride-cyclic proposal.
 
+After manual review selects the v100 candidate, use
+`docs/105_v101_paper_ablation_after_fast_screen.md` and
+`scripts/run_v101_paper_ablation_4node.py` for the frozen
+MovieGenVideoBench-128 full/ablation matrix. It evaluates eight methods across
+four 32-prompt node shards and reuses already audited SF/PF/EF baselines.
+
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
 hallucinations; inverse/random controls also produced polygon noise or
@@ -133,7 +139,8 @@ training-free/
 |   |-- 99_v98_32gpu_runbook_and_paper_plan.md
 |   |-- 100_v99_binary_cache_recovery_and_paper_story.md
 |   |-- 103_v100_final_candidate_and_immediate_plan.md
-|   `-- 104_v100_responsive_event_cache_and_aba_fast_screen.md
+|   |-- 104_v100_responsive_event_cache_and_aba_fast_screen.md
+|   `-- 105_v101_paper_ablation_after_fast_screen.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -178,6 +185,9 @@ training-free/
 |   |-- analyze_v93_moviebench.py
 |   |-- run_v93_moviebench_10h.sh
 |   |-- run_v95_dual_axis_warmup_16gpu.sh
+|   |-- run_v100_fast_selection_1video.py
+|   |-- run_v101_paper_ablation_4node.py
+|   |-- postprocess_v101_paper_ablation.sh
 |   |-- postprocess_v95_dual_axis.sh
 |   |-- summarize_prompt_warmup_trace.py
 |   |-- analyze_v95_dual_axis.py
