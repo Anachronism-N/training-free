@@ -97,6 +97,13 @@ def test_smoke_mode_generates_exactly_one_selected_pf_video():
         cell.name
         for cell in runner.cells_for_mode(
             "smoke1",
+            "pf-aw-stride-cyclic",
+        )
+    ] == ["pf_aw_neutral_stride_cyclic"]
+    assert [
+        cell.name
+        for cell in runner.cells_for_mode(
+            "smoke1",
             "history-polarity-random-stride-merge",
         )
     ] == ["history_polarity_random_stride_merge"]
@@ -172,8 +179,8 @@ def test_reused_baseline_manifest_records_requested_video_count(
         log,
     ):
         del _args, output, start, end, log
-        report.write_text('{"pass":true}\n', encoding="utf-8")
-        return {"pass": True, "input_fingerprint": report.stem}
+        report.write_text('{"ok":true}\n', encoding="utf-8")
+        return {"ok": True, "input_fingerprint": report.stem}
 
     monkeypatch.setattr(runner, "audit_videos", fake_audit)
 
@@ -222,6 +229,28 @@ def test_full_recovery_matrix_keeps_random_inversion_and_threshold_controls():
     }
 
 
+def test_candidate_matrix_excludes_merge_and_main128_is_minimal():
+    candidate = runner.cells_for_mode("candidate32")
+    main = runner.cells_for_mode("main128")
+
+    assert [cell.name for cell in candidate] == [
+        "pf_ar_neutral_stride_cyclic",
+        "pf_aw_neutral_stride_cyclic",
+        "history_polarity_stride_cyclic",
+        "history_polarity_random_stride_cyclic",
+        "history_polarity_inverted_stride_cyclic",
+        "history_polarity_tau_m0p1_stride_cyclic",
+        "history_polarity_tau_p0p1_stride_cyclic",
+        "history_polarity_stride_cyclic_v78",
+    ]
+    assert all(cell.route == "history_stride_cyclic" for cell in candidate)
+    assert [cell.name for cell in main] == [
+        "pf_ar_neutral_stride_cyclic",
+        "history_polarity_stride_cyclic",
+        "history_polarity_stride_cyclic_v78",
+    ]
+
+
 def test_causal_matrix_is_the_four_requested_head_route_controls():
     cells = runner.cells_for_mode("causal32")
 
@@ -243,6 +272,139 @@ def test_causal_matrix_is_the_four_requested_head_route_controls():
         "history_polarity_zero",
         "history_polarity_zero_random",
     ]
+
+
+def test_binary_map_statistics_are_internally_consistent():
+    pf_matrix = [
+        [-1] * 4 + [1] * 6 + [2] * 2
+        for _ in range(30)
+    ]
+    binary_matrix = [
+        [10] + [11] * 11
+        for _ in range(30)
+    ]
+
+    assert runner.binary_map_statistics(binary_matrix, pf_matrix) == {
+        "label_counts": {"10": 30, "11": 330},
+        "pf_cross_tab": {
+            "wave": {
+                "pf_label": -1,
+                "heads": 120,
+                "history_supportive": 30,
+                "history_suppressive": 90,
+            },
+            "anchor": {
+                "pf_label": 1,
+                "heads": 180,
+                "history_supportive": 0,
+                "history_suppressive": 180,
+            },
+            "veil": {
+                "pf_label": 2,
+                "heads": 60,
+                "history_supportive": 0,
+                "history_suppressive": 60,
+            },
+        },
+    }
+
+
+def test_binary_map_statistics_include_zero_count_role():
+    pf_matrix = [
+        [-1] * 4 + [1] * 6 + [2] * 2
+        for _ in range(30)
+    ]
+    binary_matrix = [[11] * 12 for _ in range(30)]
+
+    statistics = runner.binary_map_statistics(binary_matrix, pf_matrix)
+
+    assert statistics["label_counts"] == {"10": 0, "11": 360}
+
+
+def test_map_manifest_rejects_documented_counts_that_do_not_match_csv(
+    tmp_path,
+):
+    pf_path = tmp_path / "pf.csv"
+    map_path = tmp_path / "binary.csv"
+    pf_matrix = [
+        [-1] * 4 + [1] * 6 + [2] * 2
+        for _ in range(30)
+    ]
+    binary_matrix = [
+        [10] + [11] * 11
+        for _ in range(30)
+    ]
+    for path, matrix in ((pf_path, pf_matrix), (map_path, binary_matrix)):
+        with path.open("w", encoding="utf-8", newline="") as handle:
+            csv.writer(handle).writerows(matrix)
+    statistics = runner.binary_map_statistics(binary_matrix, pf_matrix)
+    required = (
+        "history_polarity_zero",
+        "history_polarity_zero_random",
+        "history_polarity_zero_inverted",
+        "history_polarity_m0p1",
+        "history_polarity_0p1",
+        "pf_ar_binary_control",
+        "pf_aw_binary_control",
+    )
+    maps = {
+        name: {
+            "path": map_path.name,
+            "sha256": runner.sha256(map_path),
+            **json.loads(json.dumps(statistics)),
+        }
+        for name in required
+    }
+    manifest_path = tmp_path / "history_polarity_manifest.json"
+    manifest = {
+        "pf_labels": str(pf_path.resolve()),
+        "pf_labels_sha256": runner.sha256(pf_path),
+        "maps": maps,
+    }
+    manifest_path.write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+    resolved = runner.validate_map_manifest(
+        manifest_path,
+        pf_labels=pf_path,
+    )
+    assert resolved["history_polarity_zero"]["label_counts"] == {
+        "10": 30,
+        "11": 330,
+    }
+
+    manifest["maps"]["history_polarity_zero"]["label_counts"]["10"] = 31
+    manifest_path.write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="manifest label_counts differs"):
+        runner.validate_map_manifest(
+            manifest_path,
+            pf_labels=pf_path,
+        )
+
+
+def test_video_audit_uses_the_auditor_ok_field(monkeypatch, tmp_path):
+    report = tmp_path / "audit.json"
+    report.write_text(
+        '{"ok":true,"input_fingerprint":"verified"}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(runner, "run_checked", lambda *args, **kwargs: None)
+    args = SimpleNamespace(repo_root=ROOT)
+
+    payload = runner.audit_videos(
+        args,
+        output=tmp_path,
+        start=0,
+        end=1,
+        report=report,
+        log=tmp_path / "audit.log",
+    )
+
+    assert payload["ok"] is True
 
 
 def test_v99_trace_audit_rejects_duplicate_dynamic_tokens(tmp_path):

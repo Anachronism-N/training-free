@@ -14,6 +14,7 @@ from .base import HeadComposition, MiddleStrategy
 from .cyclic import CyclicStrategy
 from .lag import LagStrategy
 from .merge import MergeStrategy
+from .motion_event import MotionEventStrategy
 from .stride import StrideStrategy
 from .recent import RecentStrategy
 
@@ -217,6 +218,22 @@ def _resolve_merge_enabled_for_label(
     return False
 
 
+def _resolve_motion_event_enabled_for_label(
+    *,
+    label_key: str,
+    motion_event_enabled: bool,
+    motion_event_map: dict[str, bool],
+) -> bool:
+    if label_key in motion_event_map:
+        return motion_event_map[label_key]
+    if motion_event_enabled:
+        raise ValueError(
+            f"Missing explicit motion-event resolution for label {label_key}: "
+            "set pyramidkv_label_motion_event_enabled_map to true or false."
+        )
+    return False
+
+
 def build_compositions(
     num_layers: int,
     num_heads: int,
@@ -244,6 +261,10 @@ def build_compositions(
     merge_patch_size: int = 2,
     merge_capacity: int = 1,
     merge_dynamic_rope: bool = True,
+    # Motion-event params
+    motion_event_enabled: bool = False,
+    motion_event_capacity: int = 2,
+    motion_event_dynamic_rope: bool = True,
     # Sink/recent params
     osc_sink_frames: int | None = None,
     stable_sink_frames: int | None = None,
@@ -258,6 +279,8 @@ def build_compositions(
     label_merge_enabled_map: dict | None = None,
     label_merge_patch_size_map: dict | None = None,
     label_merge_capacity_map: dict | None = None,
+    label_motion_event_enabled_map: dict | None = None,
+    label_motion_event_capacity_map: dict | None = None,
     hybrid_middle_enabled: bool = False,
 ) -> list[list[HeadComposition]]:
     """Build per-layer, per-head HeadComposition instances.
@@ -281,6 +304,10 @@ def build_compositions(
     merge_map = _build_bool_map(label_merge_enabled_map)
     merge_patch_map = _build_int_map(label_merge_patch_size_map, min_value=1)
     merge_capacity_map = _build_capacity_map(label_merge_capacity_map)
+    motion_event_map = _build_bool_map(label_motion_event_enabled_map)
+    motion_event_capacity_map = _build_capacity_map(
+        label_motion_event_capacity_map
+    )
 
     compositions: list[list[HeadComposition]] = []
     for layer_idx in range(num_layers):
@@ -336,6 +363,11 @@ def build_compositions(
                 merge_enabled=merge_enabled,
                 merge_map=merge_map,
             )
+            use_motion_event = _resolve_motion_event_enabled_for_label(
+                label_key=label_key,
+                motion_event_enabled=motion_event_enabled,
+                motion_event_map=motion_event_map,
+            )
 
             active_middle = []
             if use_cyclic:
@@ -344,7 +376,12 @@ def build_compositions(
                 active_middle.append("stride")
             if use_merge:
                 active_middle.append("merge")
-            hybrid_pair = set(active_middle) == {"cyclic", "stride"}
+            if use_motion_event:
+                active_middle.append("motion_event")
+            hybrid_pair = set(active_middle) in (
+                {"cyclic", "stride"},
+                {"cyclic", "motion_event"},
+            )
             if len(active_middle) > 1 and not (
                 hybrid_middle_enabled and hybrid_pair
             ):
@@ -396,6 +433,24 @@ def build_compositions(
                     dynamic_rope=merge_dynamic_rope,
                 ))
                 policy_type = "merge"
+
+            if use_motion_event:
+                if label_key not in motion_event_capacity_map:
+                    raise ValueError(
+                        f"Missing explicit motion-event capacity for label {label_key}: "
+                        "set pyramidkv_label_motion_event_capacity_map."
+                    )
+                strategies.append(
+                    MotionEventStrategy(
+                        capacity=motion_event_capacity_map.get(
+                            label_key, motion_event_capacity
+                        ),
+                        dynamic_rope=motion_event_dynamic_rope,
+                    )
+                )
+                policy_type = (
+                    "motion_cyclic" if use_cyclic else "motion_event"
+                )
 
             name = f"L{layer_idx}_H{head_idx}_{policy_type}"
             row.append(HeadComposition(

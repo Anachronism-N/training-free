@@ -1,6 +1,9 @@
 from typing import List, Optional
 import copy
+import json
+import math
 import os
+import re
 from collections import Counter
 import torch
 from tqdm import tqdm
@@ -115,6 +118,7 @@ class CausalInferencePipeline(torch.nn.Module):
         # torch.compile FFN layers for kernel fusion (8-16% speedup on FFN compute)
         self._compile_ffn = getattr(args, "compile_ffn", False)
         self._ffn_compiled = False
+        self._scene_cache_prompt_id = 0
 
         # VAE decode mode:
         #   "streaming" — decode each block while DiT inference continues (overlap)
@@ -177,6 +181,187 @@ class CausalInferencePipeline(torch.nn.Module):
             for key in totals:
                 totals[key] += float(stats.get(key, 0.0))
         return totals
+
+    @staticmethod
+    def _scene_idf_features(scene_prompts: list[str]) -> list[torch.Tensor]:
+        """Build EF-style IDF features while suppressing shared prompt words."""
+
+        stop_words = {
+            "a", "an", "and", "are", "as", "at", "back", "be", "been",
+            "before", "by", "for", "from", "has", "have", "he", "her",
+            "his", "in", "into", "is", "it", "its", "of", "on", "or",
+            "original", "over", "preserve", "restore", "retain", "return",
+            "same", "scene", "she", "shot", "static", "the", "their",
+            "them", "this", "to", "under", "while", "with", "wearing",
+            "young", "now", "seen",
+        }
+        tokenized = [
+            [
+                token
+                for token in re.findall(
+                    r"[a-zA-Z][a-zA-Z']+", prompt.lower()
+                )
+                if len(token) > 2 and token not in stop_words
+            ]
+            for prompt in scene_prompts
+        ]
+        document_frequency = Counter(
+            token for tokens in tokenized for token in set(tokens)
+        )
+        vocab = sorted(document_frequency)
+        if not vocab:
+            return [
+                torch.zeros(1, dtype=torch.float32)
+                for _ in scene_prompts
+            ]
+        vocab_index = {token: index for index, token in enumerate(vocab)}
+        num_documents = max(1, len(scene_prompts))
+        features: list[torch.Tensor] = []
+        for tokens in tokenized:
+            counts = Counter(tokens)
+            feature = torch.zeros(len(vocab), dtype=torch.float32)
+            for token, count in counts.items():
+                idf = (
+                    math.log(
+                        (1.0 + num_documents)
+                        / (1.0 + document_frequency[token])
+                    )
+                    + 1.0
+                )
+                feature[vocab_index[token]] = (
+                    (1.0 + math.log(float(count))) * idf
+                )
+            features.append(
+                torch.nn.functional.normalize(
+                    feature, dim=0, eps=1e-6
+                )
+            )
+        return features
+
+    @staticmethod
+    def _scene_embedding_features(
+        conditional_dicts: list[dict],
+    ) -> list[torch.Tensor]:
+        features: list[torch.Tensor] = []
+        for conditioning in conditional_dicts:
+            embeds = conditioning.get("prompt_embeds")
+            if not isinstance(embeds, torch.Tensor):
+                raise ValueError(
+                    "embedding scene matching requires prompt_embeds"
+                )
+            tokens = embeds[0].detach()
+            valid = tokens.abs().sum(dim=-1) > 0
+            if bool(valid.any()):
+                tokens = tokens[valid]
+            pooled = tokens.float().mean(dim=0)
+            features.append(
+                torch.nn.functional.normalize(
+                    pooled, dim=0, eps=1e-6
+                ).cpu()
+            )
+        return features
+
+    def _build_scene_cache_schedule(
+        self,
+        scene_prompts: list[str],
+        conditional_dicts: list[dict],
+    ) -> list[dict[str, object]]:
+        hc = self.pyramidkv_config
+        manual_ids = hc.pyramidkv_scene_cache_manual_ids
+        if manual_ids is not None:
+            manual_ids = [int(value) for value in manual_ids]
+            if len(manual_ids) != len(scene_prompts):
+                raise ValueError(
+                    "scene-cache manual ids must match the number of "
+                    f"segments: {len(manual_ids)} != {len(scene_prompts)}"
+                )
+            if any(value < 0 for value in manual_ids):
+                raise ValueError("scene-cache manual ids must be non-negative")
+
+        mode = str(hc.pyramidkv_scene_cache_match_mode).strip().lower()
+        if mode == "idf":
+            features = self._scene_idf_features(scene_prompts)
+        elif mode == "embedding":
+            features = self._scene_embedding_features(conditional_dicts)
+        else:
+            raise ValueError(
+                f"unsupported scene-cache match mode: {mode!r}"
+            )
+        threshold = float(
+            hc.pyramidkv_scene_cache_similarity_threshold
+        )
+        schedule: list[dict[str, object]] = []
+        representatives: dict[int, int] = {}
+        next_scene_id = 0
+        for scene_index, feature in enumerate(features):
+            if manual_ids is not None:
+                canonical_id = manual_ids[scene_index]
+                match_index = representatives.get(canonical_id)
+                similarity = (
+                    1.0
+                    if match_index is None
+                    else float(
+                        torch.dot(
+                            feature,
+                            features[match_index],
+                        ).item()
+                    )
+                )
+                decision = (
+                    "manual_new"
+                    if match_index is None
+                    else "manual_recall"
+                )
+            elif not representatives:
+                canonical_id = 0
+                match_index = None
+                similarity = 1.0
+                decision = "new"
+            else:
+                scored = [
+                    (
+                        float(
+                            torch.dot(
+                                feature,
+                                features[representative_index],
+                            ).item()
+                        ),
+                        canonical,
+                        representative_index,
+                    )
+                    for canonical, representative_index
+                    in representatives.items()
+                ]
+                similarity, matched_id, match_index = max(
+                    scored, key=lambda item: item[0]
+                )
+                if similarity >= threshold:
+                    canonical_id = int(matched_id)
+                    decision = "recall"
+                else:
+                    canonical_id = next_scene_id
+                    while canonical_id in representatives:
+                        canonical_id += 1
+                    decision = "new"
+                    match_index = None
+            if canonical_id not in representatives:
+                representatives[canonical_id] = scene_index
+            next_scene_id = max(next_scene_id, canonical_id + 1)
+            schedule.append(
+                {
+                    "segment_index": int(scene_index),
+                    "canonical_scene_id": int(canonical_id),
+                    "decision": decision,
+                    "match_segment_index": (
+                        None if match_index is None else int(match_index)
+                    ),
+                    "similarity": float(similarity),
+                    "threshold": threshold,
+                    "match_mode": mode,
+                    "prompt": scene_prompts[scene_index],
+                }
+            )
+        return schedule
 
     def inference(
         self,
@@ -242,6 +427,19 @@ class CausalInferencePipeline(torch.nn.Module):
         else:
             conditional_dicts = None
             conditional_dict = self.text_encoder(text_prompts=text_prompts)
+        scene_cache_schedule = None
+        scene_cache_prompt_id = None
+        if (
+            self.pyramidkv_config.pyramidkv_scene_cache_enabled
+            and conditional_dicts is not None
+            and scene_prompts is not None
+        ):
+            scene_cache_schedule = self._build_scene_cache_schedule(
+                scene_prompts,
+                conditional_dicts,
+            )
+            scene_cache_prompt_id = int(self._scene_cache_prompt_id)
+            self._scene_cache_prompt_id += 1
         unconditional_dict = None
         if self.few_step_cfg_enabled:
             negative_prompt = str(getattr(self.args, "negative_prompt", ""))
@@ -342,7 +540,92 @@ class CausalInferencePipeline(torch.nn.Module):
                 if isinstance(cache, AdaptiveKVCache):
                     cache.set_prompt_descriptor(descriptor)
 
+        def _apply_scene_cache(scene_index: int, *, initial: bool) -> None:
+            if scene_cache_schedule is None:
+                return
+            schedule_item = scene_cache_schedule[scene_index]
+            canonical_scene_id = int(
+                schedule_item["canonical_scene_id"]
+            )
+            branch_summaries: dict[str, list[dict[str, object]]] = {}
+            cache_sets = [("cond", self.kv_cache1)]
+            if self.kv_cache_uncond is not None:
+                cache_sets.append(("uncond", self.kv_cache_uncond))
+            for branch, caches in cache_sets:
+                summaries = []
+                for cache in caches:
+                    if isinstance(cache, AdaptiveKVCache):
+                        summaries.append(
+                            cache.switch_scene(
+                                canonical_scene_id,
+                                max_scenes=(
+                                    self.pyramidkv_config
+                                    .pyramidkv_scene_cache_max_scenes
+                                ),
+                                bridge_recent_frames=(
+                                    self.pyramidkv_config
+                                    .pyramidkv_scene_cache_bridge_recent_frames
+                                ),
+                                initial=initial,
+                            )
+                        )
+                if not summaries:
+                    raise RuntimeError(
+                        "scene cache is enabled but no AdaptiveKVCache "
+                        f"exists for branch {branch}"
+                    )
+                branch_summaries[branch] = summaries
+
+            action_counts: Counter[str] = Counter()
+            strategy_counts: Counter[str] = Counter()
+            for summaries in branch_summaries.values():
+                for summary in summaries:
+                    action_counts.update(summary["action_counts"])
+                    strategy_counts.update(summary["strategy_counts"])
+            sampled_layers = {0, 7, 15, 23, 29}
+            payload = {
+                "event": "scene_cache_switch",
+                "prompt_id": scene_cache_prompt_id,
+                "initial": bool(initial),
+                **schedule_item,
+                "action_counts": dict(sorted(action_counts.items())),
+                "strategy_counts": dict(sorted(strategy_counts.items())),
+                "branch_layer_samples": {
+                    branch: [
+                        summary
+                        for summary in summaries
+                        if int(summary["layer"]) in sampled_layers
+                    ]
+                    for branch, summaries in branch_summaries.items()
+                },
+            }
+            trace_path = (
+                self.pyramidkv_config.pyramidkv_scene_cache_trace_path
+            )
+            if trace_path:
+                absolute_path = os.path.abspath(str(trace_path))
+                parent = os.path.dirname(absolute_path)
+                if parent:
+                    os.makedirs(parent, exist_ok=True)
+                with open(absolute_path, "a", encoding="utf-8") as handle:
+                    handle.write(
+                        json.dumps(payload, sort_keys=True) + "\n"
+                    )
+            if self.pyramidkv_config.pyramidkv_scene_cache_debug:
+                print(
+                    "[SceneCacheSwitch] "
+                    f"prompt={scene_cache_prompt_id} "
+                    f"segment={scene_index} "
+                    f"canonical={canonical_scene_id} "
+                    f"decision={schedule_item['decision']} "
+                    f"similarity={float(schedule_item['similarity']):.4f} "
+                    f"bridge_recent={self.pyramidkv_config.pyramidkv_scene_cache_bridge_recent_frames} "
+                    f"actions={dict(sorted(action_counts.items()))}",
+                    flush=True,
+                )
+
         _set_memory_prompt_descriptor(conditional_dict)
+        _apply_scene_cache(0, initial=True)
         self._set_adaptive_kv_profile(profile)
         if self.use_teacache:
             self.generator.pop_teacache_stats()
@@ -507,6 +790,7 @@ class CausalInferencePipeline(torch.nn.Module):
                             cache["is_init"] = False
                             cache["prompt_v"] = None
                     _set_memory_prompt_descriptor(conditional_dicts[scene_index])
+                    _apply_scene_cache(scene_index, initial=False)
                 conditional_dict = conditional_dicts[scene_index]
             if profile:
                 block_start.record()
@@ -905,6 +1189,9 @@ class CausalInferencePipeline(torch.nn.Module):
                     merge_patch_size=hc.merge_patch_size,
                     merge_capacity=hc.merge_capacity,
                     merge_dynamic_rope=hc.merge_dynamic_rope,
+                    motion_event_enabled=hc.motion_event_enabled,
+                    motion_event_capacity=hc.motion_event_capacity,
+                    motion_event_dynamic_rope=hc.motion_event_dynamic_rope,
                     osc_sink_frames=hc.pyramidkv_osc_sink_frames,
                     stable_sink_frames=hc.pyramidkv_stable_sink_frames,
                     recent_frames=hc.pyramidkv_recent_frames,
@@ -918,6 +1205,8 @@ class CausalInferencePipeline(torch.nn.Module):
                     label_merge_enabled_map=hc.pyramidkv_label_merge_enabled_map,
                     label_merge_patch_size_map=hc.pyramidkv_label_merge_patch_size_map,
                     label_merge_capacity_map=hc.pyramidkv_label_merge_capacity_map,
+                    label_motion_event_enabled_map=hc.pyramidkv_label_motion_event_enabled_map,
+                    label_motion_event_capacity_map=hc.pyramidkv_label_motion_event_capacity_map,
                     hybrid_middle_enabled=hc.pyramidkv_hybrid_middle_enabled,
                 )
                 config.compositions = compositions
@@ -950,6 +1239,7 @@ class CausalInferencePipeline(torch.nn.Module):
                 and not hc.pyramidkv_cache_transition_enabled
                 and not hc.pyramidkv_probecache_enabled
                 and not hc.pyramidkv_prompt_warmup_enabled
+                and not hc.pyramidkv_scene_cache_enabled
             ):
                 osc_sink = int(hc.pyramidkv_osc_sink_frames or 1)
                 stable_sink = int(hc.pyramidkv_stable_sink_frames or 3)
@@ -1148,6 +1438,8 @@ class CausalInferencePipeline(torch.nn.Module):
                         probecache_trace_selection_stride=hc.pyramidkv_probecache_trace_selection_stride,
                         probecache_debug=hc.pyramidkv_probecache_debug,
                         probecache_profile_recent_only=hc.pyramidkv_probecache_profile_recent_only,
+                        motion_event_top_k=hc.motion_event_top_k,
+                        motion_event_sample_tokens=hc.motion_event_sample_tokens,
                     )
                     if hc.use_adaptive_pyramidkv else
                     PyramidKVCache(

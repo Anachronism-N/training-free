@@ -123,6 +123,7 @@ class HeadComposition:
         pos_seq: torch.Tensor,
         frame_seqlen: int,
         current_t: int,
+        update_context: dict | None = None,
     ) -> None:
         # Precompute t_vals once to share across all strategies (1 GPU→CPU sync)
         t_vals: list[int] | None = None
@@ -131,6 +132,9 @@ class HeadComposition:
             t_start = int(current_t)
             t_vals = list(range(t_start, t_start + num_frames))
         for strategy in self.middle_strategies:
+            set_context = getattr(strategy, "set_update_context", None)
+            if callable(set_context):
+                set_context(update_context)
             strategy.update(idx, k_seq, v_seq, pos_seq, frame_seqlen, current_t, t_vals=t_vals)
 
     def discard_range(
@@ -178,6 +182,36 @@ class HeadComposition:
                     result.append(anchor)
         result.sort(key=operator.attrgetter("t"))
         return result
+
+    def switch_scene(
+        self,
+        idx: int,
+        scene_id: int,
+        *,
+        max_scenes: int = 8,
+    ) -> list[dict]:
+        """Switch middle memories without touching the static sink.
+
+        Long-range strategies may archive and restore scene-specific state.
+        Local strategies clear their active state to prevent cross-scene
+        texture or motion leakage.
+        """
+
+        actions: list[dict] = []
+        for strategy in self.middle_strategies:
+            switch = getattr(strategy, "switch_scene", None)
+            if callable(switch):
+                action = switch(idx, int(scene_id), max_scenes=max_scenes)
+            else:
+                reset_sequence = getattr(strategy, "reset_sequence", None)
+                action = (
+                    reset_sequence(idx, reason="scene_switch")
+                    if callable(reset_sequence)
+                    else None
+                )
+            if isinstance(action, dict):
+                actions.append(action)
+        return actions
 
     def __repr__(self) -> str:
         strats = [type(s).__name__ for s in self.middle_strategies]

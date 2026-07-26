@@ -66,6 +66,38 @@ class TestMergeCollect:
         assert len(collected) == 1
         assert collected[0].t == 5
 
+    def test_debug_state_reports_completed_and_partial_blocks(self):
+        ms = MergeStrategy(patch_size=2, capacity=2)
+        ms.reset(1)
+        k, v, pos = make_multi_frame_input(
+            [0, 1, 2, 3, 4],
+            frame_seqlen=FS,
+            head_dim=HD,
+        )
+        ms.update(0, k, v, pos, FS, 0)
+
+        state = ms.debug_state(0)
+
+        assert state["complete_block_ids"] == [0]
+        assert state["invalid_block_ids"] == []
+        assert state["completed_blocks"] == [
+            {
+                "block_id": 0,
+                "start_t": 0,
+                "end_t": 3,
+                "median_t": 1,
+                "token_count": 2,
+            }
+        ]
+        assert state["incomplete_blocks"] == [
+            {
+                "block_id": 1,
+                "start_t": 4,
+                "end_t": 7,
+                "seen_count": 1,
+            }
+        ]
+
     def test_capacity_minus_one_keeps_all_completed_blocks(self):
         ms = MergeStrategy(patch_size=2, capacity=-1)
         ms.reset(1)

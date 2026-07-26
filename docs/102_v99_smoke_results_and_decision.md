@@ -1,117 +1,140 @@
-# v99 Smoke Test Results and Decision
+# v99 Smoke Results and Corrected Decision
 
-Date: 2026-07-26
+Date: 2026-07-27
 
-## 1. Smoke Test Summary
+## 1. Human-review observations
 
-Five cells were generated on prompt 0 (30 seconds, 120 frames, 832×480) and
-reviewed by a human. Two reused reference videos were also reviewed.
+All generated cells used MovieBench prompt 0, seed 0, 120 latent frames
+(approximately 30 seconds). Existing PF and v93 binary videos were reused.
 
-| Cell | Map | Supportive route | Suppressive route | Polygon noise | Verdict |
-|---|---|---|---|---|---|
-| pf_ar_neutral_stride_cyclic | PF Anchor-vs-Rest | stride+cyclic | stride+cyclic | No | ✅ Pass |
-| history_polarity_stride_cyclic | v98 33/327 | stride+cyclic | stride+cyclic | No | ✅ Pass |
-| pf_aw_neutral_stride_merge | PF (A+W)\|V | stride | merge | Yes | ❌ Fail |
-| history_polarity_stride_merge_fixed | v98 33/327 | stride | merge | Yes | ❌ Fail |
-| history_polarity_random_stride_merge | random 33/327 | stride | merge | Yes | ❌ Fail |
-| reuse_pf_native (reference) | — | — | — | No | ✅ (identity drift noted) |
-| reuse_pf_binary_read_v78 (reference) | — | — | — | No | ✅ |
+| Cell | Binary membership | Label-10 route | Label-11 route | Polygon noise |
+|---|---|---|---|---|
+| `pf_ar_neutral_stride_cyclic` | PF Anchor / rest | stride | cyclic | no |
+| `history_polarity_stride_cyclic` | independent score | stride | cyclic | no |
+| `pf_aw_neutral_stride_merge` | PF (Anchor+Wave) / Veil | stride | merge | yes |
+| `history_polarity_stride_merge_fixed` | independent score | stride | merge | yes |
+| `history_polarity_random_stride_merge` | count-matched random | stride | merge | yes |
+| reused PF native | PF three classes | native | native | no |
+| reused v93 PF-binary-v78 | PF binary | historical | historical | no |
 
-## 2. Key Finding: Merge Operator Causes Polygon Noise
+These are artifact/no-artifact observations from one prompt, not metric
+results. Identity quality, motion quality, and causal superiority remain open.
 
-The pattern is unambiguous:
+## 2. What the smoke test actually proves
 
-- **All three stride/merge cells** (pf_aw oracle, independent classifier, random
-  control) produced polygon noise.
-- **Both stride/cyclic cells** (pf_ar and history_polarity) were visually clean.
-- The noise is independent of head membership: the PF oracle, the independent
-  classifier, and the random control all fail with merge.
+The clean PF-AR neutral run is the implementation-control result. It shows
+that neutral labels `10/11`, explicit per-head routing, and exclusive
+sink/middle/recent ownership can produce a valid video. This substantially
+reduces the likelihood that the old v98 collapse was caused by binary labels
+themselves.
 
-**Conclusion: the merge cache operator itself is the noise source, not the
-head classification.**
+The clean independent-map stride/cyclic run establishes feasibility only:
+the independently profiled map can execute without polygon corruption. It
+does not show that its head membership is useful; random, inverted, and
+threshold controls are still required.
 
-This matches the v99 decision tree:
+## 3. Why "Merge is broken" was too strong
 
-> "If stride/cyclic passes but repaired stride/merge fails, the unresolved
-> Wave heads require a phase-local cache; do not blame the Anchor/Veil
-> separation."
+The first result note attributed all polygon noise to the Merge operator. The
+available cells do not isolate that conclusion.
 
-## 3. Why Merge Fails
+Native PF routes:
 
-The v98 map assigns 327 of 360 heads to the Suppressive role. Under the
-stride/merge composition, all 327 Suppressive heads use PF's merge operator
-(patch=2, block=4, capacity=4). PF's native three-class system assigns merge
-to only 32 Veil heads. The merge operator was validated for 32 heads, not 327.
+```text
+Anchor -> stride
+Wave   -> cyclic
+Veil   -> merge
+```
 
-The 156 PF Wave heads previously used a cyclic (period=6, capacity=4) route.
-Replacing cyclic with merge for 156 heads causes visual artifacts. The merge
-operator's spatiotemporal patch compression is incompatible with Wave's
-phase-local motion evidence.
+The failed PF-AW binary cell routes:
 
-## 4. What Passed
+```text
+Anchor + Wave -> stride
+Veil          -> merge
+```
 
-### pf_ar_neutral_stride_cyclic (implementation control)
+It therefore changes all Wave heads from cyclic to stride at the same time as
+it exercises Merge through the repaired binary ownership path. Failure can be
+caused by loss of Wave's phase-local cyclic memory, by the binary Merge path,
+or by their interaction. The two independent/random stride-merge cells also
+send many more heads to Merge than native PF if the reported 33/327 counts are
+correct.
 
-- PF Anchor-vs-Rest membership encoded as neutral labels 10/11.
-- All heads use stride+cyclic (no merge).
-- No polygon noise, quality similar to PF three-class ablation.
-- Minor startup flashback in first few frames (also present in native PF).
-- **Verdict: cache ownership fix is correct. Neutral labels work.**
+The defensible current conclusion is:
 
-### history_polarity_stride_cyclic (independent classifier)
+> Binary classification is not disproved. A phase-local cyclic route appears
+> necessary for a large fraction of heads, while binary Merge remains
+> unresolved and is unsafe for the main method.
 
-- v98 middle-relative scores at natural zero: 33 Supportive, 327 Suppressive.
-- Same stride+cyclic route for both roles.
-- No polygon noise.
-- **Verdict: independent classifier + stride/cyclic cache is viable.**
+This does not imply that native PF's 32-head Veil Merge implementation is
+invalid.
 
-## 5. Profiling Results
+## 4. Minimal remaining cache diagnostic
 
-The v98 middle-relative QK profiling produced:
+One new smoke cell is implemented:
 
-- 64 profiles (32 stride + 32 merge), 360 heads
-- 33 Supportive (9.2%) / 327 Suppressive (90.8%)
-- 169/172 PF Anchor heads → Supportive
-- All 156 PF Wave + 32 PF Veil → Suppressive
-- Score SHA-256: `83d2be6ab2978c3aa13f8d508f29a6fcf0d8fa026bca8bccb319b2a3e10ba53c`
-- All acceptance gates passed
+```text
+pf_aw_neutral_stride_cyclic
+```
 
-## 6. Decision
+It keeps the exact PF-(Anchor+Wave)/Veil membership of the failed PF-AW cell
+and changes only label 11 from Merge to cyclic:
 
-1. **Merge route is abandoned** for the binary classifier. The merge operator
-   cannot replace cyclic for 156+ Wave heads.
+```text
+Anchor + Wave -> stride
+Veil          -> cyclic
+```
 
-2. **Stride/cyclic route is the candidate method.** Both the PF-AR control and
-   the independent history-polarity classifier produce clean videos with
-   stride+cyclic for all heads.
+Interpretation:
 
-3. **Next experiment: screen32** on `history_polarity_stride_cyclic` and
-   `pf_ar_neutral_stride_cyclic` only. Skip all merge cells.
+- merge version fails, cyclic version passes: the repaired binary Merge path
+  or its Veil interaction is implicated;
+- both fail: moving Wave from cyclic to stride is the common likely cause;
+- both pass on additional prompts: prompt-0 failure is not stable and the
+  smoke conclusion must be revised.
 
-4. **The random control must be re-run with stride/cyclic** (not stride/merge)
-   to test whether the 33/327 classification is causal.
+This diagnostic needs one new video, not a 32-prompt rerun.
 
-5. **Paper story adjustment**: the contribution is not "Anchor stride / Veil
-   merge" but "binary Supportive/Responsive roles with stride+cyclic cache."
-   The merge operator remains PF's Veil-exclusive primitive.
+## 5. Main-method decision
 
-## 7. Bug Fixes Applied During v99
+The current candidate uses only the validated binary topology:
 
-- `pyramidkv_prompt_warmup_enabled: false` added to PF config (missing key).
-- `payload.get("pass")` → `payload.get("ok")` in v99 audit check (field name
-  mismatch between audit script and v99 runner).
-- `ffprobe` and `ffmpeg` wrappers created using cv2 (binaries not installed).
-- Clean reuse directories (single prompt) to avoid extra-index audit failures.
-- `git update-index --assume-unchanged` for config and script fixes.
+```text
+History-Supportive (score >= 0)
+  sink3 + global stride(interval=6, capacity=4) + recent4
 
-## 8. Remaining Experiments
+Recent-Responsive (score < 0)
+  sink1 + phase cyclic(period=6, capacity=4) + recent4
+```
 
-| Step | Status | Description |
-|---|---|---|
-| v98 middle-relative profiling | ✅ Done | 64 profiles, scores frozen |
-| v99 smoke1 (5 cells) | ✅ Done | stride/cyclic passes, merge fails |
-| v99 screen32 (stride/cyclic) | ⬜ Next | 2-3 methods × 32 prompts |
-| v99 causal32 | ⬜ Optional | If screen32 passes, add random control |
-| v99 main128 | ⬜ Conditional | If screen32 passes |
-| 60s extrapolation | ⬜ Conditional | |
-| ABA scene-return | ⬜ Conditional | |
+Merge is removed from the proposed method and retained only as a diagnostic
+and PF-native baseline primitive. The next full screen is `candidate32`, which
+contains no Merge cell.
+
+## 6. Reproducibility fixes now committed
+
+- The runner reads the auditor's real `ok` field rather than nonexistent
+  `pass`.
+- `pyramidkv_prompt_warmup_enabled: false` is present in the tracked PF YAML.
+- Map counts and PF cross-tabs are recomputed from CSV and fail closed.
+- Every selected map is emitted as `[V99MapAudit]` in the log.
+- Per-cell configs freeze map counts/cross-tabs and the exact cache contract.
+- Sampled Merge traces now include complete, incomplete, invalid block ids,
+  source intervals, seen counts, and merged token counts.
+- `main128` no longer includes failed Merge or broad threshold cells.
+
+No `git update-index --assume-unchanged` workaround is part of the protocol.
+A clean checkout of the pushed commit is the required server input.
+
+## 7. Immediate decision
+
+1. Run the one-video `pf-aw-stride-cyclic` diagnostic.
+2. Start `candidate32` on four 8-GPU nodes; all eight cells are stride/cyclic.
+3. Review videos blind before reading metrics.
+4. Promote the independent map only if it beats count-matched random and is
+   not defeated by inversion.
+5. Select natural zero or a threshold variant from the 32-prompt screen.
+6. Run 128 prompts only for the surviving core and optional v78 update.
+
+Commands and exact claim gates are in
+`docs/103_v100_final_candidate_and_immediate_plan.md`.

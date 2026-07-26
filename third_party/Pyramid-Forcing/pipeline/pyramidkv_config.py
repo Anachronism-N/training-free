@@ -55,6 +55,8 @@ class PyramidKVPipelineConfig:
     pyramidkv_label_merge_enabled_map: Optional[dict] = None
     pyramidkv_label_merge_patch_size_map: Optional[dict] = None
     pyramidkv_label_merge_capacity_map: Optional[dict] = None
+    pyramidkv_label_motion_event_enabled_map: Optional[dict] = None
+    pyramidkv_label_motion_event_capacity_map: Optional[dict] = None
     pyramidkv_hybrid_middle_enabled: bool = False
     # If true, HeadComposition exclusively owns sink + middle + recent.
     pyramidkv_composition_owns_dynamic: bool = False
@@ -193,6 +195,16 @@ class PyramidKVPipelineConfig:
     pyramidkv_probecache_debug: bool = False
     pyramidkv_probecache_profile_recent_only: bool = False
 
+    # --- Role-aware scene episodes for segmented A || B || A prompts ---
+    pyramidkv_scene_cache_enabled: bool = False
+    pyramidkv_scene_cache_match_mode: str = "idf"
+    pyramidkv_scene_cache_similarity_threshold: float = 0.20
+    pyramidkv_scene_cache_manual_ids: Optional[list] = None
+    pyramidkv_scene_cache_max_scenes: int = 8
+    pyramidkv_scene_cache_bridge_recent_frames: int = 1
+    pyramidkv_scene_cache_trace_path: Optional[str] = None
+    pyramidkv_scene_cache_debug: bool = False
+
     # --- Cyclic (was phase/osc_frame) ---
     cyclic_enabled: bool = False  # was use_osc_frame_mode
     cyclic_period: int = 6  # was phase_period
@@ -215,6 +227,13 @@ class PyramidKVPipelineConfig:
     merge_patch_size: int = 2
     merge_capacity: int = 1
     merge_dynamic_rope: bool = True
+
+    # --- Layer-shared clean-value motion events ---
+    motion_event_enabled: bool = False
+    motion_event_capacity: int = 2
+    motion_event_dynamic_rope: bool = True
+    motion_event_top_k: int = 1
+    motion_event_sample_tokens: int = 64
 
     @classmethod
     def from_args(cls, args, frame_seq_length: int = 1560) -> "PyramidKVPipelineConfig":
@@ -268,6 +287,12 @@ class PyramidKVPipelineConfig:
             pyramidkv_label_merge_enabled_map=getattr(args, "pyramidkv_label_merge_enabled_map", None),
             pyramidkv_label_merge_patch_size_map=getattr(args, "pyramidkv_label_merge_patch_size_map", None),
             pyramidkv_label_merge_capacity_map=getattr(args, "pyramidkv_label_merge_capacity_map", None),
+            pyramidkv_label_motion_event_enabled_map=getattr(
+                args, "pyramidkv_label_motion_event_enabled_map", None
+            ),
+            pyramidkv_label_motion_event_capacity_map=getattr(
+                args, "pyramidkv_label_motion_event_capacity_map", None
+            ),
             pyramidkv_hybrid_middle_enabled=bool(
                 getattr(args, "pyramidkv_hybrid_middle_enabled", False)
             ),
@@ -632,6 +657,38 @@ class PyramidKVPipelineConfig:
             pyramidkv_probecache_profile_recent_only=bool(
                 getattr(args, "pyramidkv_probecache_profile_recent_only", False)
             ),
+            pyramidkv_scene_cache_enabled=bool(
+                getattr(args, "pyramidkv_scene_cache_enabled", False)
+            ),
+            pyramidkv_scene_cache_match_mode=str(
+                getattr(args, "pyramidkv_scene_cache_match_mode", "idf")
+            ),
+            pyramidkv_scene_cache_similarity_threshold=float(
+                getattr(
+                    args,
+                    "pyramidkv_scene_cache_similarity_threshold",
+                    0.20,
+                )
+            ),
+            pyramidkv_scene_cache_manual_ids=getattr(
+                args, "pyramidkv_scene_cache_manual_ids", None
+            ),
+            pyramidkv_scene_cache_max_scenes=int(
+                getattr(args, "pyramidkv_scene_cache_max_scenes", 8)
+            ),
+            pyramidkv_scene_cache_bridge_recent_frames=int(
+                getattr(
+                    args,
+                    "pyramidkv_scene_cache_bridge_recent_frames",
+                    1,
+                )
+            ),
+            pyramidkv_scene_cache_trace_path=getattr(
+                args, "pyramidkv_scene_cache_trace_path", None
+            ),
+            pyramidkv_scene_cache_debug=bool(
+                getattr(args, "pyramidkv_scene_cache_debug", False)
+            ),
             cyclic_enabled=getattr(args, "cyclic_enabled", use_adaptive),
             cyclic_period=getattr(args, "cyclic_period", 6),
             cyclic_bucket_cap=getattr(args, "cyclic_bucket_cap", 1),
@@ -647,4 +704,19 @@ class PyramidKVPipelineConfig:
             merge_patch_size=getattr(args, "merge_patch_size", 2),
             merge_capacity=getattr(args, "merge_capacity", 1),
             merge_dynamic_rope=getattr(args, "merge_dynamic_rope", True),
+            motion_event_enabled=bool(
+                getattr(args, "motion_event_enabled", False)
+            ),
+            motion_event_capacity=int(
+                getattr(args, "motion_event_capacity", 2)
+            ),
+            motion_event_dynamic_rope=bool(
+                getattr(args, "motion_event_dynamic_rope", True)
+            ),
+            motion_event_top_k=int(
+                getattr(args, "motion_event_top_k", 1)
+            ),
+            motion_event_sample_tokens=int(
+                getattr(args, "motion_event_sample_tokens", 64)
+            ),
         )

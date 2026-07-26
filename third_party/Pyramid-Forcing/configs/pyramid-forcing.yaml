@@ -97,6 +97,14 @@ merge_patch_size: 2
 merge_capacity: 4
 merge_dynamic_rope: true
 
+# Project extension: clean-pass motion-event anchors. Disabled for the exact
+# PF baseline and enabled only by explicit per-label experiment overrides.
+motion_event_enabled: false
+motion_event_capacity: 2
+motion_event_dynamic_rope: true
+motion_event_top_k: 1
+motion_event_sample_tokens: 64
+
 lag_enabled: false
 pyramidkv_lag_offsets: []
 pyramidkv_lag_history: 21
@@ -129,6 +137,14 @@ pyramidkv_label_merge_patch_size_map:
   '2': 2
 pyramidkv_label_merge_capacity_map:
   '2': 4
+pyramidkv_label_motion_event_enabled_map:
+  '-1': false
+  '1':  false
+  '2':  false
+pyramidkv_label_motion_event_capacity_map:
+  '-1': 2
+  '1':  2
+  '2':  2
 pyramidkv_label_sink_frames_map:
   '-1': 1
   '1':  3
@@ -141,6 +157,20 @@ pyramidkv_label_recent_frames_map:
 # Neutral-label binary routes override this to true. Keeping the native
 # default false preserves existing PF baseline behavior for parity.
 pyramidkv_composition_owns_dynamic: false
+# Keep the optional v95 prompt-history shield explicitly disabled. This key
+# must exist in a clean checkout because the causal pipeline reads it directly.
+pyramidkv_prompt_warmup_enabled: false
+
+# Role-aware A-B-A scene cache. The default is inert so PF parity runs are
+# unchanged. Experiments enable this only for prompts containing `||`.
+pyramidkv_scene_cache_enabled: false
+pyramidkv_scene_cache_match_mode: idf
+pyramidkv_scene_cache_similarity_threshold: 0.20
+pyramidkv_scene_cache_manual_ids: null
+pyramidkv_scene_cache_max_scenes: 8
+pyramidkv_scene_cache_bridge_recent_frames: 1
+pyramidkv_scene_cache_trace_path: null
+pyramidkv_scene_cache_debug: false
 update_interval: 1
 pyramidkv_disable_osc_sink: false
 

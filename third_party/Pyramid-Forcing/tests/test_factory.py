@@ -20,6 +20,7 @@ from pyramidkv.base import HeadComposition
 from pyramidkv.cyclic import CyclicStrategy
 from pyramidkv.lag import LagStrategy
 from pyramidkv.merge import MergeStrategy
+from pyramidkv.motion_event import MotionEventStrategy
 from pyramidkv.stride import StrideStrategy
 
 
@@ -233,6 +234,36 @@ class TestBuildCompositions:
         caps = self._make_capacities(1, 1)
         with pytest.raises(ValueError, match="Missing explicit stride resolution"):
             build_compositions(1, 1, caps, csv_path=csv_path, stride_enabled=True)
+
+    def test_motion_event_and_cyclic_can_share_a_fixed_middle_budget(
+        self, tmp_path
+    ):
+        csv_path = str(tmp_path / "labels.csv")
+        _write_label_csv(csv_path, [[11]])
+        caps = self._make_capacities(1, 1)
+        comps = build_compositions(
+            1,
+            1,
+            caps,
+            csv_path=csv_path,
+            cyclic_enabled=True,
+            cyclic_period=6,
+            label_phase_bucket_map={"11": 2},
+            label_stride_enabled_map={"11": False},
+            label_merge_enabled_map={"11": False},
+            label_motion_event_enabled_map={"11": True},
+            label_motion_event_capacity_map={"11": 2},
+            hybrid_middle_enabled=True,
+        )
+        head = comps[0][0]
+
+        assert [type(value) for value in head.middle_strategies] == [
+            CyclicStrategy,
+            MotionEventStrategy,
+        ]
+        assert head.middle_strategies[0].bucket_cap == 2
+        assert head.middle_strategies[1].capacity == 2
+        assert head.policy_type == "motion_cyclic"
 
     def test_conflicting_middle_strategies_raise(self, tmp_path):
         csv_path = str(tmp_path / "labels.csv")

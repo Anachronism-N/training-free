@@ -22,14 +22,31 @@ def binary_head_policy_overrides(
     responsive = str(responsive_policy).strip().lower()
     if stable not in {"stride", "hybrid"}:
         raise ValueError("binary stable policy must be stride or hybrid")
-    if responsive not in {"cyclic", "merge", "recent"}:
+    if responsive not in {
+        "cyclic",
+        "cyclic_sink3",
+        "merge",
+        "motion",
+        "motion_cyclic",
+        "recent",
+        "recent8",
+    }:
         raise ValueError(
-            "binary responsive policy must be cyclic, merge, or recent"
+            "unsupported binary responsive policy"
         )
 
-    responsive_cyclic = 4 if responsive == "cyclic" else 0
+    responsive_cyclic = (
+        4
+        if responsive in {"cyclic", "cyclic_sink3"}
+        else 2
+        if responsive == "motion_cyclic"
+        else 0
+    )
     responsive_merge = responsive == "merge"
+    responsive_motion = responsive in {"motion", "motion_cyclic"}
+    responsive_motion_capacity = 4 if responsive == "motion" else 2
     responsive_sink = 1 if responsive == "cyclic" else 3
+    responsive_recent = 8 if responsive == "recent8" else 4
     stable_cyclic = 2 if stable == "hybrid" else 0
     return {
         "pyramidkv_label_phase_bucket_map": {
@@ -56,17 +73,27 @@ def binary_head_policy_overrides(
             "-1": 4,
             "2": 4,
         },
+        "pyramidkv_label_motion_event_enabled_map": {
+            "-1": responsive_motion,
+            "1": False,
+            "2": False,
+        },
+        "pyramidkv_label_motion_event_capacity_map": {
+            "-1": responsive_motion_capacity,
+        },
         "pyramidkv_label_sink_frames_map": {
             "-1": responsive_sink,
             "1": 3,
             "2": 3,
         },
         "pyramidkv_label_recent_frames_map": {
-            "-1": 4,
+            "-1": responsive_recent,
             "1": 4,
             "2": 4,
         },
-        "pyramidkv_hybrid_middle_enabled": stable == "hybrid",
+        "pyramidkv_hybrid_middle_enabled": (
+            stable == "hybrid" or responsive == "motion_cyclic"
+        ),
         # Hybrid reads at most two stride and two phase-aligned frames.
         "stride_capacity": 2 if stable == "hybrid" else 4,
     }
@@ -91,9 +118,17 @@ def history_polarity_policy_overrides(
     suppress = str(suppress_policy).strip().lower()
     if support not in {"stride", "hybrid"}:
         raise ValueError("history support policy must be stride or hybrid")
-    if suppress not in {"merge", "cyclic", "recent"}:
+    if suppress not in {
+        "merge",
+        "cyclic",
+        "cyclic_sink3",
+        "motion",
+        "motion_cyclic",
+        "recent",
+        "recent8",
+    }:
         raise ValueError(
-            "history suppress policy must be merge, cyclic, or recent"
+            "unsupported history suppress policy"
         )
 
     support_label = int(support_label)
@@ -108,8 +143,17 @@ def history_polarity_policy_overrides(
     capacity = max(1, int(capacity))
 
     support_cyclic = 2 if support == "hybrid" else 0
-    suppress_cyclic = 4 if suppress == "cyclic" else 0
+    suppress_cyclic = (
+        4
+        if suppress in {"cyclic", "cyclic_sink3"}
+        else 2
+        if suppress == "motion_cyclic"
+        else 0
+    )
+    suppress_motion = suppress in {"motion", "motion_cyclic"}
+    suppress_motion_capacity = 4 if suppress == "motion" else 2
     suppress_sink = 1 if suppress == "cyclic" else 3
+    suppress_recent = 8 if suppress == "recent8" else 4
     support_key = str(support_label)
     suppress_key = str(suppress_label)
     return {
@@ -132,6 +176,13 @@ def history_polarity_policy_overrides(
         },
         "pyramidkv_label_merge_patch_size_map": {suppress_key: 2},
         "pyramidkv_label_merge_capacity_map": {suppress_key: 4},
+        "pyramidkv_label_motion_event_enabled_map": {
+            support_key: False,
+            suppress_key: suppress_motion,
+        },
+        "pyramidkv_label_motion_event_capacity_map": {
+            suppress_key: suppress_motion_capacity,
+        },
         # A phase-cyclic route uses the quality-tested PF Wave layout:
         # sink1 + cyclic4 + recent4. Merge/recent routes keep sink3. This
         # prevents a nominal cache-only recovery from also changing the
@@ -142,9 +193,11 @@ def history_polarity_policy_overrides(
         },
         "pyramidkv_label_recent_frames_map": {
             support_key: 4,
-            suppress_key: 4,
+            suppress_key: suppress_recent,
         },
-        "pyramidkv_hybrid_middle_enabled": support == "hybrid",
+        "pyramidkv_hybrid_middle_enabled": (
+            support == "hybrid" or suppress == "motion_cyclic"
+        ),
         # The neutral-label route must not inherit a second legacy dynamic
         # history path alongside its explicit middle strategy.
         "pyramidkv_composition_owns_dynamic": True,

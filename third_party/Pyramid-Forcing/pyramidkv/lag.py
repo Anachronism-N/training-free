@@ -49,6 +49,17 @@ class LagStrategy:
         self._free_slots = [[] for _ in range(num_seq)]
         self._anchor_store.reset(num_seq)
 
+    def reset_sequence(self, idx: int, *, reason: str = "scene_switch") -> dict[str, object]:
+        dropped = len(self._anchors[idx])
+        self._anchors[idx] = OrderedDict()
+        self._free_slots[idx] = []
+        return {
+            "strategy": type(self).__name__,
+            "action": "clear_local",
+            "reason": str(reason),
+            "dropped_frames": int(dropped),
+        }
+
     def pop_anchor_store_stats(self) -> dict[str, float]:
         stats = dict(self._anchor_store_stats)
         for key in self._anchor_store_stats:

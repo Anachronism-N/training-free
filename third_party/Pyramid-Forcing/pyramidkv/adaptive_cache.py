@@ -1,7 +1,7 @@
 import json
 import os
 import torch
-from collections import OrderedDict, deque
+from collections import Counter, OrderedDict, deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from time import perf_counter
@@ -34,6 +34,7 @@ from .cpp_strategy import (
 from .transition import CacheTransitionConfig, CacheTransitionController
 from .probecache import ProbeCacheConfig, ProbeCacheController
 from .prompt_warmup import PromptWarmupShield, PromptWarmupShieldConfig
+from .motion_event import MotionEventStrategy
 
 
 def _as_long_tensor(tensor: torch.Tensor) -> torch.Tensor:
@@ -285,6 +286,8 @@ class AdaptiveKVCache(PyramidKVCache):
         probecache_trace_selection_stride: int = 1,
         probecache_debug: bool = False,
         probecache_profile_recent_only: bool = False,
+        motion_event_top_k: int = 1,
+        motion_event_sample_tokens: int = 64,
     ):
         super().__init__(
             config=config,
@@ -322,6 +325,18 @@ class AdaptiveKVCache(PyramidKVCache):
         self._policy_trace_prompt_id = 0
         self._policy_trace_seen: set[tuple[int, int, int, int, str]] = set()
         self._policy_trace_warned = False
+        self._motion_trace_path = os.environ.get(
+            "PYRAMIDKV_MOTION_TRACE_PATH", ""
+        ).strip()
+        motion_trace_layers = os.environ.get(
+            "PYRAMIDKV_MOTION_TRACE_LAYERS", "0,7,15,23,29"
+        )
+        self._motion_trace_layers = {
+            int(value.strip())
+            for value in motion_trace_layers.split(",")
+            if value.strip()
+        }
+        self._motion_trace_warned = False
         self._captured_sink_frames = [0] * (self.batch_size * self.num_heads)
         self.sink_len = max(0, int(sink_len))
         self.tail_len = max(0, int(tail_len))
@@ -676,6 +691,23 @@ class AdaptiveKVCache(PyramidKVCache):
             else None
         )
         self.probecache_profile_recent_only = bool(probecache_profile_recent_only)
+        self.motion_event_top_k = max(1, int(motion_event_top_k))
+        self.motion_event_sample_tokens = max(
+            1, int(motion_event_sample_tokens)
+        )
+        self._motion_event_head_indices = [
+            head_idx
+            for head_idx, composition in enumerate(
+                self.compositions_row or []
+            )
+            if any(
+                isinstance(strategy, MotionEventStrategy)
+                for strategy in composition.middle_strategies
+            )
+        ]
+        self._motion_event_prev_sample: torch.Tensor | None = None
+        self._motion_event_cached_key: tuple[int, int] | None = None
+        self._motion_event_cached_context: dict | None = None
         self.osc_head_flags = [int(lbl) == -1 for lbl in self.head_labels]
         self.af_head_groups = list(getattr(self, "af_group_row", [""] * self.num_heads))
         self.af_recent_frames_map = self._build_af_recent_frames_map(af_recent_frames_map)
@@ -982,6 +1014,9 @@ class AdaptiveKVCache(PyramidKVCache):
                             strategy_payload[field_name] = int(
                                 getattr(strategy, field_name)
                             )
+                    debug_state = getattr(strategy, "debug_state", None)
+                    if callable(debug_state):
+                        strategy_payload["state"] = debug_state(seq_idx)
                     strategies.append(strategy_payload)
             union_frame_ids = [
                 int(anchor.t)
@@ -2297,12 +2332,219 @@ class AdaptiveKVCache(PyramidKVCache):
                     quota_ivc_ratio = max(quota_ivc_ratio, min(1.0, self.post_train_history_ivc_ratio))
         return traj_ratio, traj_weight, quota_ivc_ratio
 
+    def _trace_motion_event_update(self, context: dict) -> None:
+        if (
+            not self._motion_trace_path
+            or self.layer_idx not in self._motion_trace_layers
+        ):
+            return
+        try:
+            payload = {
+                "event": "motion_event_update",
+                "layer": int(self.layer_idx),
+                "branch": str(getattr(self, "_cfg_branch", "unknown")),
+                "prompt_id": int(self._policy_trace_prompt_id),
+                **context,
+            }
+            path = os.path.abspath(self._motion_trace_path)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, sort_keys=True) + "\n")
+        except Exception as exc:  # Debug output must not change inference.
+            if not self._motion_trace_warned:
+                print(
+                    "[PyramidKVMotionTraceError] "
+                    f"layer={self.layer_idx} error={exc!r}",
+                    flush=True,
+                )
+                self._motion_trace_warned = True
+
+    def _prepare_motion_event_context(
+        self,
+        new_v: torch.Tensor,
+        *,
+        frame_seqlen: int,
+        frame_start_t: int,
+        cache_update_mode: str,
+    ) -> dict | None:
+        """Select motion events once per layer and committed clean block."""
+
+        if (
+            not self._motion_event_head_indices
+            or cache_update_mode not in {"default", "clean"}
+            or frame_seqlen <= 0
+            or new_v.shape[1] % frame_seqlen != 0
+        ):
+            return None
+        num_frames = int(new_v.shape[1] // frame_seqlen)
+        key = (int(frame_start_t), num_frames)
+        if (
+            self._motion_event_cached_key == key
+            and self._motion_event_cached_context is not None
+        ):
+            return self._motion_event_cached_context
+
+        b, _, _, d = new_v.shape
+        head_index = torch.as_tensor(
+            self._motion_event_head_indices,
+            device=new_v.device,
+            dtype=torch.long,
+        )
+        frames = new_v.reshape(
+            b,
+            num_frames,
+            frame_seqlen,
+            self.num_heads,
+            d,
+        ).index_select(3, head_index)
+        sample_step = max(
+            1,
+            (frame_seqlen + self.motion_event_sample_tokens - 1)
+            // self.motion_event_sample_tokens,
+        )
+        sampled = frames[:, :, ::sample_step].detach()
+        first_reference = (
+            self._motion_event_prev_sample
+            if (
+                self._motion_event_prev_sample is not None
+                and tuple(self._motion_event_prev_sample.shape)
+                == tuple(sampled[:, 0].shape)
+            )
+            else sampled[:, 0]
+        )
+        previous = torch.cat(
+            [first_reference.unsqueeze(1), sampled[:, :-1]],
+            dim=1,
+        )
+        current_float = sampled.float()
+        previous_float = previous.float()
+        numerator = (current_float - previous_float).square().mean(
+            dim=(0, 2, 3, 4)
+        )
+        denominator = (
+            current_float.square() + previous_float.square()
+        ).mean(dim=(0, 2, 3, 4)).clamp_min_(1e-6)
+        score_values = (numerator / denominator).detach().cpu().tolist()
+        score_values = [float(value) for value in score_values]
+        selected_unsorted = sorted(
+            range(num_frames),
+            key=lambda offset: (score_values[offset], offset),
+            reverse=True,
+        )[: min(self.motion_event_top_k, num_frames)]
+        selected_offsets = sorted(selected_unsorted)
+        selected_scores = [
+            score_values[offset] for offset in selected_offsets
+        ]
+        context = {
+            "frame_start_t": int(frame_start_t),
+            "num_frames": num_frames,
+            "responsive_head_count": len(self._motion_event_head_indices),
+            "responsive_head_ids": list(self._motion_event_head_indices),
+            "sample_step": int(sample_step),
+            "sampled_tokens_per_frame": int(sampled.shape[2]),
+            "all_scores": score_values,
+            "selected_offsets": selected_offsets,
+            "selected_frame_ids": [
+                int(frame_start_t + offset)
+                for offset in selected_offsets
+            ],
+            "selected_scores": selected_scores,
+        }
+        self._motion_event_prev_sample = sampled[:, -1].clone()
+        self._motion_event_cached_key = key
+        self._motion_event_cached_context = context
+        self._trace_motion_event_update(context)
+        if (
+            os.environ.get("PYRAMIDKV_MOTION_DEBUG", "0") == "1"
+            and self.layer_idx in self._motion_trace_layers
+        ):
+            print(
+                "[PyramidKVMotionEvent] "
+                f"layer={self.layer_idx} block={frame_start_t} "
+                f"heads={len(self._motion_event_head_indices)} "
+                f"scores={[round(value, 6) for value in score_values]} "
+                f"selected={context['selected_frame_ids']}",
+                flush=True,
+            )
+        return context
+
+    def switch_scene(
+        self,
+        scene_id: int,
+        *,
+        max_scenes: int = 8,
+        bridge_recent_frames: int = 1,
+        initial: bool = False,
+    ) -> dict[str, object]:
+        """Apply a role-aware scene boundary to explicit compositions.
+
+        Stride memories archive/restore by canonical scene id. Local middle
+        strategies clear their state. The recent window keeps only a small
+        bridge suffix, while static sinks remain untouched.
+        """
+
+        if not self.composition_owns_dynamic:
+            raise RuntimeError(
+                "scene cache requires pyramidkv_composition_owns_dynamic=true"
+            )
+        actions: list[dict] = []
+        if self.compositions_row is not None:
+            for batch_idx in range(self.batch_size):
+                for head_idx, composition in enumerate(self.compositions_row):
+                    seq_idx = batch_idx * self.num_heads + head_idx
+                    for action in composition.switch_scene(
+                        seq_idx,
+                        int(scene_id),
+                        max_scenes=max_scenes,
+                    ):
+                        actions.append(
+                            {
+                                "head": int(head_idx),
+                                "label": int(composition.label),
+                                **action,
+                            }
+                        )
+
+        recent_before = sum(int(value) for value in self._dyn_store_len)
+        if not initial:
+            keep_tokens = (
+                max(0, int(bridge_recent_frames))
+                * int(self._frame_seqlen or self.frame_seq_length or 0)
+            )
+            for seq_idx in range(self.batch_size * self.num_heads):
+                self._keep_dynamic_suffix(seq_idx, keep_tokens)
+        recent_after = sum(int(value) for value in self._dyn_store_len)
+        self._motion_event_prev_sample = None
+        self._motion_event_cached_key = None
+        self._motion_event_cached_context = None
+        self._steady_state_reached = False
+        self._prev_cu_seqlens = None
+        self._invalidate_readout_cache()
+        action_counts = Counter(
+            str(item.get("action", "unknown")) for item in actions
+        )
+        strategy_counts = Counter(
+            str(item.get("strategy", "unknown")) for item in actions
+        )
+        return {
+            "layer": int(self.layer_idx),
+            "scene_id": int(scene_id),
+            "initial": bool(initial),
+            "bridge_recent_frames": int(bridge_recent_frames),
+            "recent_tokens_before": int(recent_before),
+            "recent_tokens_after": int(recent_after),
+            "action_counts": dict(sorted(action_counts.items())),
+            "strategy_counts": dict(sorted(strategy_counts.items())),
+            "sample_actions": actions[:8],
+        }
+
     def reset(self):
         super().reset()
         self._policy_trace_prompt_id += 1
         self._policy_trace_seen.clear()
         self._policy_trace_records = 0
         self._policy_trace_warned = False
+        self._motion_trace_warned = False
         self._captured_sink_frames = [0] * (self.batch_size * self.num_heads)
         self.static_pos = [None] * (self.batch_size * self.num_heads)
         self.dynamic_pos = [None] * (self.batch_size * self.num_heads)
@@ -2322,6 +2564,9 @@ class AdaptiveKVCache(PyramidKVCache):
         self._memory_readout_heads = 0
         self._memory_accepted_heads = 0
         self._structured_memory_last_start = None
+        self._motion_event_prev_sample = None
+        self._motion_event_cached_key = None
+        self._motion_event_cached_context = None
         if self.probecache is not None:
             self.probecache.reset()
         self.last_flat_pos_ids = None
@@ -2693,6 +2938,7 @@ class AdaptiveKVCache(PyramidKVCache):
         cache_update_mode: str,
         frame_seqlen: int = 0,
         frame_start_t: int = 0,
+        motion_event_context: dict | None = None,
     ) -> bool:
         """M6 fast-path: bypass the 360-iter Python loop in update().
 
@@ -2784,6 +3030,7 @@ class AdaptiveKVCache(PyramidKVCache):
                             pos_seq=pos_flat[i],
                             frame_seqlen=frame_seqlen,
                             current_t=frame_start_t,
+                            update_context=motion_event_context,
                         )
             end = starts[i] + lens[i]
             tail = end - l_in
@@ -2884,6 +3131,12 @@ class AdaptiveKVCache(PyramidKVCache):
             grid_sizes=grid_sizes,
             cache_update_mode=cache_update_mode,
         )
+        motion_event_context = self._prepare_motion_event_context(
+            new_v,
+            frame_seqlen=frame_seqlen,
+            frame_start_t=frame_start_t,
+            cache_update_mode=cache_update_mode,
+        )
 
         # M6: Fast-path for steady-state noisy/clean overwrite.
         # When all heads already have dyn_store populated with at least l_new rows
@@ -2898,6 +3151,7 @@ class AdaptiveKVCache(PyramidKVCache):
             new_k_flat=new_k_flat, new_v_flat=new_v_flat, pos_flat=pos_flat,
             l_in=l_new, current_start=current_start, current_end=current_end, cache_update_mode=cache_update_mode,
             frame_seqlen=frame_seqlen, frame_start_t=frame_start_t,
+            motion_event_context=motion_event_context,
         ):
             if current_end is not None:
                 for batch_idx in range(self.batch_size):
@@ -2982,6 +3236,7 @@ class AdaptiveKVCache(PyramidKVCache):
                                 pos_seq=pos_flat[i],
                                 frame_seqlen=frame_seqlen,
                                 current_t=frame_start_t,
+                                update_context=motion_event_context,
                             )
                     elif composition.has_middle:
                         num_frames = (

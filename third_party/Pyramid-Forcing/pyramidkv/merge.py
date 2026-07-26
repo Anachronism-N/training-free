@@ -67,6 +67,19 @@ class MergeStrategy:
         self._complete_block_sets = [set() for _ in range(num_seq)]
         self._invalid_block_ids = [set() for _ in range(num_seq)]
 
+    def reset_sequence(self, idx: int, *, reason: str = "scene_switch") -> dict[str, object]:
+        dropped = len(self._blocks[idx])
+        self._blocks[idx] = OrderedDict()
+        self._complete_block_ids[idx] = deque()
+        self._complete_block_sets[idx] = set()
+        self._invalid_block_ids[idx] = set()
+        return {
+            "strategy": type(self).__name__,
+            "action": "clear_local",
+            "reason": str(reason),
+            "dropped_blocks": int(dropped),
+        }
+
     def _drop_block(self, idx: int, block_id: int) -> None:
         self._blocks[idx].pop(block_id, None)
         if block_id in self._complete_block_sets[idx]:
@@ -232,6 +245,50 @@ class MergeStrategy:
                 continue
             result.append(block.merged_anchor)
         return result
+
+    def debug_state(self, idx: int) -> dict[str, object]:
+        """Return compact non-tensor state for sampled runtime traces."""
+
+        blocks = self._blocks[idx]
+        complete = self._complete_block_sets[idx]
+        incomplete = [
+            {
+                "block_id": int(block_id),
+                "start_t": int(block.start_t),
+                "end_t": int(block.end_t),
+                "seen_count": int(sum(block.seen_slots)),
+            }
+            for block_id, block in blocks.items()
+            if block_id not in complete and block.merged_anchor is None
+        ]
+        completed = [
+            {
+                "block_id": int(block_id),
+                "start_t": int(block.start_t),
+                "end_t": int(block.end_t),
+                "median_t": int(block.median_t),
+                "token_count": int(
+                    block.merged_anchor.token_count
+                    if block.merged_anchor is not None
+                    else 0
+                ),
+            }
+            for block_id, block in blocks.items()
+            if block_id in complete
+        ]
+        return {
+            "block_frames": int(self.block_frames),
+            "capacity": int(self.capacity),
+            "block_count": len(blocks),
+            "complete_block_ids": [
+                int(value) for value in self._complete_block_ids[idx]
+            ],
+            "invalid_block_ids": sorted(
+                int(value) for value in self._invalid_block_ids[idx]
+            ),
+            "incomplete_blocks": incomplete,
+            "completed_blocks": completed,
+        }
 
     def _finalize_block(self, block: _MergeBlock) -> None:
         if (

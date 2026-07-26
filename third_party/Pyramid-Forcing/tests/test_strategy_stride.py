@@ -108,6 +108,34 @@ class TestStrideSelectFrameIds:
         assert ids == []
 
 
+class TestStrideSceneBank:
+    def test_switch_scene_archives_and_restores_anchors(self):
+        strategy = StrideStrategy(interval=1, capacity=4)
+        strategy.reset(1)
+        initial = strategy.switch_scene(0, 0)
+        assert initial["action"] == "initialize_scene"
+        for t in (0, 1):
+            k, v, pos = make_anchor_data(t, FS, HD)
+            strategy.update(0, k, v, pos, FS, t)
+
+        new_scene = strategy.switch_scene(0, 1)
+        assert new_scene["action"] == "new_scene"
+        k, v, pos = make_anchor_data(10, FS, HD)
+        strategy.update(0, k, v, pos, FS, 10)
+
+        recalled = strategy.switch_scene(0, 0)
+        assert recalled["action"] == "restore_scene"
+        assert recalled["restored_frames"] == 2
+        anchors = strategy.collect(
+            0,
+            current_t=20,
+            recent_min_t=19,
+            sink_max_t=-1,
+        )
+        assert [anchor.t for anchor in anchors] == [0, 1]
+        assert strategy.debug_state(0)["active_scene_id"] == 0
+
+
 class TestStrideEdgeCases:
     def test_interval_clamped_to_minimum_1(self):
         ss = StrideStrategy(interval=0)

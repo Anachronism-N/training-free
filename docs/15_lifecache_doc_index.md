@@ -2,10 +2,28 @@
 
 ## Current method (read first)
 
-- `docs/100_v99_binary_cache_recovery_and_paper_story.md`: current recovery
+- `docs/104_v100_responsive_event_cache_and_aba_fast_screen.md`:
+  authoritative current method and immediate server plan. It freezes the
+  tracked old-v98 `304/56` two-role map, factorizes Responsive cache choices,
+  adds clean-V motion-event memory and role-aware A-B-A scene episodes, and
+  defines the 16-cell one-video screen, traces, commands, review gates,
+  deferred broad ablations, provenance, and paper story.
+- `docs/103_v100_final_candidate_and_immediate_plan.md`: superseded
+  middle-relative/stride-cyclic proposal. Retained as design history; do not
+  use its server command as the current experiment.
+- `docs/102_v99_smoke_results_and_decision.md`: corrected smoke interpretation.
+  Binary stride/cyclic is artifact-free on prompt 0; stride/merge failed, but
+  Merge and loss of Wave cyclic were confounded. It defines the remaining
+  one-video PF-AW diagnostic.
+- `docs/101_v98_middle_relative_profiling_results.md`: profiling protocol,
+  reported score statistics, hard gates, and the unresolved impossible
+  `33/327` versus `169/172` PF-overlap claim. Raw artifacts, not prose, are
+  required for the final cross-tab.
+- `docs/100_v99_binary_cache_recovery_and_paper_story.md`: recovery
   protocol. It records the duplicate cache-owner bug, restores the
   quality-tested stride/cyclic binary topology, adds a one-prompt human gate,
-  reuses existing videos, and defines the conditional paper claims.
+  and reuses existing videos. Its pre-result Merge decision tree is superseded
+  by docs/102 and docs/103.
 - `docs/99_v98_experiment_results.md`: historical v98 measurements. The
   videos/metrics remain valid for those runs, but the causal claim that binary
   heads were cleanly disproved is superseded by docs/100.
@@ -83,43 +101,28 @@
 
 Recommended reading order:
 
-1. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
-2. `docs/99_v98_experiment_results.md`
-3. `docs/98_history_polarity_dual_memory_method.md`
-4. `docs/99_v98_32gpu_runbook_and_paper_plan.md`
-5. `docs/97_v97_experiment_results.md`
-6. `docs/95_post_v93_dual_axis_phase_cache.md`
-7. `docs/93_moviebench_10h_128_and_head32_plan.md`
-8. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
-9. `docs/91_transitioncache_paper_story.md`
+1. `docs/104_v100_responsive_event_cache_and_aba_fast_screen.md`
+2. `docs/102_v99_smoke_results_and_decision.md`
+3. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
+4. `docs/99_v98_experiment_results.md`
+5. `docs/98_history_polarity_dual_memory_method.md`
+6. `docs/97_v97_experiment_results.md`
+7. `docs/95_post_v93_dual_axis_phase_cache.md`
+8. `docs/93_moviebench_10h_128_and_head32_plan.md`
+9. `docs/103_v100_final_candidate_and_immediate_plan.md`
 10. `docs/64_related_work_code_provenance_and_claims.md`
 
-The current GPU-pending candidate is v99 binary cache recovery. Each smoke
-invocation generates one new video for a shared prompt while reusing PF and
-earlier binary references. Both neutral-label roles use exclusive
-sink/middle/recent ownership: Supportive heads use sink3+stride4+recent4 and
-Responsive heads use sink1+cyclic4+recent4. A PF-AR neutral map isolates cache
-correctness before the independent history-polarity map is judged. No
-32/128-prompt run should start until that one-prompt parity gate passes. The v95
-Dual-Axis Phase Cache remains a fallback if the v98 binary taxonomy gates
-fail. Matched seeds 0-2 show v78 and PF are effectively tied in mean DINO, so
-a consistent DINO improvement is not currently supportable. v86 counterfactual
-role-conditioned clocks are a negative result: the labels are reproducible but
-do not beat v78, PF-binary, inverse and random controls. Remaining v90 cells
-test lower-risk weak priorities and lifecycle factors. v92 tests a new
-hypothesis: prompt response may be useful for choosing the read timescale even
-though the earlier remote-minus-prompt labels were not useful as hard write
-clocks. This hypothesis does not replace v78 until inverse/random/replica
-controls and human review pass. v93 scales the main comparison to 128
-MovieBench prompts and the classifier controls to 32 MovieBench prompts. The
-complete head32 results support prompt-intervention scores as an orthogonal
-signal, but do not support permanently replacing PF's three-class read
-topology. `docs/95` defines the current Dual-Axis Phase Cache candidate and
-v95 causal screen: PF steady-state reads, prompt-guided startup history
-exposure, trust-qualified middle-state promotion, and weak semantic priority
-after trust gates. ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain as
-negative-result or design history. LifeCache-v1 below is retained as the
-original design snapshot.
+The current pre-result candidate is v100 HP-Event. The immediate step is a
+16-cell, one-video 30-second screen: six Responsive cache choices, four small
+add-ons, and six A-B-A episode controls. The primary hypothesis is
+Supportive `sink3+stride4+recent4` versus Responsive
+`sink3+motion2+cyclic2+recent4`, under exclusive ownership. MovieBench-128 and
+broad ablations are gated on artifact-free videos, preserved motion, real B
+formation, and useful A return. The old v98 classifier, motion cache, scene
+episode, and v78 add-on remain separate claim gates.
+ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain negative-result
+or design history. LifeCache-v1 below is retained as the original design
+snapshot.
 
 ## Historical method checkpoints
 

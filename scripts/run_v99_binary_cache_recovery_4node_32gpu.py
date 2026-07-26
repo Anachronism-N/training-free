@@ -105,6 +105,12 @@ CAUSAL_ONLY_CELLS = (
         "history_stride_merge",
     ),
     Cell(
+        "pf_aw_neutral_stride_cyclic",
+        "pf",
+        "pf_aw_binary_control",
+        "history_stride_cyclic",
+    ),
+    Cell(
         "history_polarity_random_stride_merge",
         "pf",
         "history_polarity_zero_random",
@@ -118,11 +124,29 @@ CAUSAL_CELL_NAMES = (
     "history_polarity_stride_cyclic",
     "history_polarity_random_stride_merge",
 )
+CANDIDATE_CELL_NAMES = (
+    "pf_ar_neutral_stride_cyclic",
+    "pf_aw_neutral_stride_cyclic",
+    "history_polarity_stride_cyclic",
+    "history_polarity_random_stride_cyclic",
+    "history_polarity_inverted_stride_cyclic",
+    "history_polarity_tau_m0p1_stride_cyclic",
+    "history_polarity_tau_p0p1_stride_cyclic",
+    "history_polarity_stride_cyclic_v78",
+)
+MAIN128_CELL_NAMES = (
+    "pf_ar_neutral_stride_cyclic",
+    "history_polarity_stride_cyclic",
+    "history_polarity_stride_cyclic_v78",
+)
 
 SMOKE_CELL_NAMES = {
     "pf-ar": "pf_ar_neutral_stride_cyclic",
     "pf-aw-stride-merge": "pf_aw_neutral_stride_merge",
+    "pf-aw-stride-cyclic": "pf_aw_neutral_stride_cyclic",
     "history-polarity": "history_polarity_stride_cyclic",
+    "history-polarity-random": "history_polarity_random_stride_cyclic",
+    "history-polarity-inverted": "history_polarity_inverted_stride_cyclic",
     "history-polarity-stride-merge": (
         "history_polarity_stride_merge_fixed"
     ),
@@ -136,12 +160,16 @@ def cells_for_mode(
     mode: str,
     smoke_cell: str = "pf-ar",
 ) -> tuple[Cell, ...]:
+    by_name = {cell.name: cell for cell in ALL_CELLS}
     if mode == "smoke1":
         selected = SMOKE_CELL_NAMES[smoke_cell]
-        return tuple(cell for cell in ALL_CELLS if cell.name == selected)
+        return (by_name[selected],)
     if mode == "causal32":
-        by_name = {cell.name: cell for cell in ALL_CELLS}
         return tuple(by_name[name] for name in CAUSAL_CELL_NAMES)
+    if mode == "candidate32":
+        return tuple(by_name[name] for name in CANDIDATE_CELL_NAMES)
+    if mode == "main128":
+        return tuple(by_name[name] for name in MAIN128_CELL_NAMES)
     return CELLS
 
 
@@ -330,6 +358,41 @@ def load_matrix(
     return rows
 
 
+def binary_map_statistics(
+    matrix: list[list[int]],
+    pf_matrix: list[list[int]],
+) -> dict[str, Any]:
+    label_counts = {
+        str(label): sum(row.count(label) for row in matrix)
+        for label in (10, 11)
+    }
+    pf_names = {-1: "wave", 1: "anchor", 2: "veil"}
+    cross_tab: dict[str, dict[str, int]] = {}
+    for pf_label, name in pf_names.items():
+        roles = [
+            matrix[layer][head]
+            for layer, row in enumerate(pf_matrix)
+            for head, value in enumerate(row)
+            if value == pf_label
+        ]
+        cross_tab[name] = {
+            "pf_label": pf_label,
+            "heads": len(roles),
+            "history_supportive": roles.count(10),
+            "history_suppressive": roles.count(11),
+        }
+    if sum(label_counts.values()) != 360:
+        raise ValueError(
+            f"binary map has {sum(label_counts.values())} heads, expected 360"
+        )
+    if sum(item["heads"] for item in cross_tab.values()) != 360:
+        raise ValueError("PF cross-tab does not cover all 360 heads")
+    return {
+        "label_counts": label_counts,
+        "pf_cross_tab": cross_tab,
+    }
+
+
 def validate_map_manifest(
     manifest_path: Path,
     *,
@@ -349,9 +412,24 @@ def validate_map_manifest(
     if not isinstance(maps, dict) or not required.issubset(maps):
         missing = sorted(required - set(maps or {}))
         raise ValueError(f"map manifest is missing recovery maps: {missing}")
+
+    pf_labels = pf_labels.resolve()
+    pf_hash = sha256(pf_labels)
+    manifest_pf_labels = Path(str(payload.get("pf_labels", "")))
+    if not manifest_pf_labels.is_absolute():
+        manifest_pf_labels = manifest_path.parent / manifest_pf_labels
+    if (
+        str(manifest_pf_labels.resolve()) != str(pf_labels)
+        or payload.get("pf_labels_sha256") != pf_hash
+    ):
+        raise ValueError("PF label binding differs from the map manifest")
+    pf_matrix = load_matrix(pf_labels, labels={-1, 1, 2})
+
     resolved: dict[str, dict[str, Any]] = {}
     for name in sorted(required):
         item = maps[name]
+        if not isinstance(item, dict):
+            raise ValueError(f"{name}: map manifest entry must be an object")
         path = Path(str(item["path"]))
         if not path.is_absolute():
             path = manifest_path.parent / path
@@ -359,7 +437,7 @@ def validate_map_manifest(
         actual_hash = sha256(path)
         if actual_hash != item.get("sha256"):
             raise ValueError(f"{name}: map SHA256 mismatch")
-        load_matrix(
+        matrix = load_matrix(
             path,
             labels={10, 11},
             require_all_labels=not name.startswith(
@@ -372,19 +450,31 @@ def validate_map_manifest(
                 "history_polarity_zero_inverted",
             },
         )
+        statistics = binary_map_statistics(matrix, pf_matrix)
+        manifest_counts = item.get("label_counts")
+        if not isinstance(manifest_counts, dict):
+            raise ValueError(f"{name}: manifest has no label_counts object")
+        normalized_counts = {
+            str(label): int(manifest_counts.get(str(label), 0))
+            for label in (10, 11)
+        }
+        if normalized_counts != statistics["label_counts"]:
+            raise ValueError(
+                f"{name}: manifest label_counts differs from map contents; "
+                f"expected={statistics['label_counts']} "
+                f"actual={normalized_counts}"
+            )
+        if item.get("pf_cross_tab") != statistics["pf_cross_tab"]:
+            raise ValueError(
+                f"{name}: manifest pf_cross_tab differs from map contents; "
+                f"expected={statistics['pf_cross_tab']} "
+                f"actual={item.get('pf_cross_tab')}"
+            )
         resolved[name] = {
             "path": str(path),
             "sha256": actual_hash,
+            **statistics,
         }
-    pf_labels = pf_labels.resolve()
-    pf_hash = sha256(pf_labels)
-    if (
-        str(Path(str(payload.get("pf_labels", ""))).resolve())
-        != str(pf_labels)
-        or payload.get("pf_labels_sha256") != pf_hash
-    ):
-        raise ValueError("PF label binding differs from the map manifest")
-    load_matrix(pf_labels, labels={-1, 1, 2})
     resolved["pf_labels"] = {
         "path": str(pf_labels),
         "sha256": pf_hash,
@@ -680,7 +770,7 @@ def audit_videos(
     ]
     run_checked(command, log_path=log)
     payload = json.loads(report.read_text(encoding="utf-8"))
-    if not payload.get("pass"):
+    if not payload.get("ok"):
         raise RuntimeError(f"video audit did not pass: {report}")
     return payload
 
@@ -912,6 +1002,12 @@ def run_cell(
         "cell": asdict(cell),
         "map_path": str(map_path) if map_path else None,
         "map_sha256": map_item["sha256"] if map_item else None,
+        "map_label_counts": (
+            map_item.get("label_counts") if map_item else None
+        ),
+        "map_pf_cross_tab": (
+            map_item.get("pf_cross_tab") if map_item else None
+        ),
         "trace_layers": list(TRACE_LAYERS),
         "trace_stride": TRACE_STRIDE,
         "trace_max_records": TRACE_MAX_RECORDS,
@@ -1066,7 +1162,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "mode",
-        choices=("smoke1", "causal32", "screen32", "main128"),
+        choices=(
+            "smoke1",
+            "causal32",
+            "candidate32",
+            "screen32",
+            "main128",
+        ),
     )
     parser.add_argument(
         "--node-rank",
@@ -1159,7 +1261,7 @@ def parse_args() -> argparse.Namespace:
     ).resolve()
     prompt_name = (
         "MovieGenVideoBench_num32.txt"
-        if args.mode in {"smoke1", "causal32", "screen32"}
+        if args.mode in {"smoke1", "causal32", "candidate32", "screen32"}
         else "MovieGenVideoBench_num128.txt"
     )
     args.prompts = (
@@ -1234,7 +1336,7 @@ def main() -> None:
     prompt_count = len(prompt_lines)
     expected_prompt_count = (
         32
-        if args.mode in {"smoke1", "causal32", "screen32"}
+        if args.mode in {"smoke1", "causal32", "candidate32", "screen32"}
         else 128
     )
     if prompt_count != expected_prompt_count:
@@ -1279,6 +1381,28 @@ def main() -> None:
 
     try:
         manifest_path, maps = ensure_maps(args)
+        selected_map_keys = sorted(
+            {
+                str(cell.map_key)
+                for cell in cells
+                if cell.map_key is not None
+            }
+        )
+        for map_key in selected_map_keys:
+            item = maps[map_key]
+            print(
+                "[V99MapAudit] "
+                + json.dumps(
+                    {
+                        "map": map_key,
+                        "sha256": item["sha256"],
+                        "label_counts": item["label_counts"],
+                        "pf_cross_tab": item["pf_cross_tab"],
+                    },
+                    sort_keys=True,
+                ),
+                flush=True,
+            )
         if smoke_mode:
             start = args.prompt_index
             end = start + 1
@@ -1306,6 +1430,31 @@ def main() -> None:
             / "third_party"
             / "Pyramid-Forcing"
             / "pyramidkv"
+            / "base.py",
+            args.repo_root
+            / "third_party"
+            / "Pyramid-Forcing"
+            / "pyramidkv"
+            / "factory.py",
+            args.repo_root
+            / "third_party"
+            / "Pyramid-Forcing"
+            / "pyramidkv"
+            / "stride.py",
+            args.repo_root
+            / "third_party"
+            / "Pyramid-Forcing"
+            / "pyramidkv"
+            / "cyclic.py",
+            args.repo_root
+            / "third_party"
+            / "Pyramid-Forcing"
+            / "pyramidkv"
+            / "merge.py",
+            args.repo_root
+            / "third_party"
+            / "Pyramid-Forcing"
+            / "pyramidkv"
             / "policy_overrides.py",
             args.repo_root
             / "third_party"
@@ -1319,7 +1468,7 @@ def main() -> None:
             / "causal_inference.py",
         )
         contract = {
-            "version": 1,
+            "version": 2,
             "experiment": "v99_binary_cache_recovery",
             "mode": args.mode,
             "run_commit": run_commit,

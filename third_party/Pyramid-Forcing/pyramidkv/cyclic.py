@@ -43,6 +43,19 @@ class CyclicStrategy:
         self._phase_cursors = [[0 for _ in range(self.period)] for _ in range(num_seq)]
         self._anchor_store.reset(num_seq)
 
+    def reset_sequence(self, idx: int, *, reason: str = "scene_switch") -> dict[str, object]:
+        dropped = sum(len(bucket) for bucket in self._buckets[idx])
+        self._buckets[idx] = [
+            deque(maxlen=self.bucket_cap) for _ in range(self.period)
+        ]
+        self._phase_cursors[idx] = [0 for _ in range(self.period)]
+        return {
+            "strategy": type(self).__name__,
+            "action": "clear_local",
+            "reason": str(reason),
+            "dropped_frames": int(dropped),
+        }
+
     def pop_anchor_store_stats(self) -> dict[str, float]:
         stats = dict(self._anchor_store_stats)
         for key in self._anchor_store_stats:

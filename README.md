@@ -3,30 +3,31 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current GPU-pending step is **v99 binary cache recovery**. A post-hoc
-audit found that v98 binary heads could execute an explicit middle strategy
-and a legacy dynamic-history path at the same time. v99 restores the earlier
-quality-tested binary topology with neutral role ids `10/11`: Supportive heads
-use `sink3 + stride4 + recent4`, while Responsive heads use
-`sink1 + cyclic4 + recent4`. The explicit composition exclusively owns
-sink/middle/recent in these routes; native PF keeps its historical behavior
-for baseline compatibility.
+The current pre-result candidate is **v100 History-Polarity Event Cache
+(HP-Event)**. It uses the reproducible old-v98 two-role map: 304
+History-Supportive heads and 56 Recent-Responsive heads. The exact post-hoc PF
+overlap is Anchor `169/3`, Wave `133/23`, and Veil `2/30`
+(Supportive/Responsive). PF labels are not used to form this map.
 
-The reset is evidence-driven rather than based on a single best metric.
-Earlier MovieBench screens placed v78 and PF first, while prompt-derived maps
-showed mixed metric and human-review behavior. Those results motivate the
-controls, but they do not validate v98: the corrected score, neutral role ids,
-runtime parity, frozen blind review, and paired analysis must all pass on fresh
-videos before the method is treated as a paper candidate.
+Supportive heads use `sink3 + stride4 + recent4`. The primary Responsive
+hypothesis uses `sink3 + motion-event2 + cyclic2 + recent4`: one frame per
+clean block is selected from a layer-shared normalized V-change score, while
+two phase slots preserve short periodic evidence. `cyclic4` with both sink1
+and sink3, `motion4`, and budget-matched `recent8` are explicit controls.
+Merge is diagnostic-only until its binary-route artifact risk is resolved.
 
-The current method, code corrections, one-prompt command, debug contract, and
-conditional paper story are in
-`docs/100_v99_binary_cache_recovery_and_paper_story.md`. Existing SF, PF, and
-old binary videos are reused. Each smoke invocation generates one new
-30-second video; the PF-derived neutral-label parity video is reviewed before
-the independent classifier is run. `docs/99_v98_experiment_results.md`
-retains the old measurements, but its original universal binary-failure
-conclusion is superseded.
+For A-B-A prompts, an optional scene episode archives/restores only Supportive
+stride banks, clears Responsive local middle state, and keeps zero or one
+recent bridge frame. IDF prompt matching selects the recalled scene; every
+similarity, cache action, selected motion frame, and ownership check is written
+to JSONL.
+
+The authoritative method, 16-cell one-video screen, four-node commands,
+debug contract, deferred broad ablations, provenance boundaries, and
+result-dependent paper story are in
+`docs/104_v100_responsive_event_cache_and_aba_fast_screen.md`. The runner is
+`scripts/run_v100_fast_selection_1video.py`. `docs/103` is now the historical
+middle-relative/stride-cyclic proposal.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -64,33 +65,28 @@ prompt-switch/return-recall branch.
 The current hypothesis is that net historical QK support exposes two
 functional groups that need different bounded temporal evidence:
 
-- **Frozen history-polarity score:** per-query middle-minus-recent logit
-  margins are standardized, aggregated per profile, then equally across
-  stride and merge probe topologies before labels are assigned.
-- **Natural offline classification:** score `>= 0` is History-Supportive and
-  score `< 0` is History-Suppressive; PF labels are not used.
+- **Frozen old-v98 classification:** signed historical QK mass `>= 0` is
+  History-Supportive and `< 0` is Recent-Responsive; PF labels are used only
+  for post-hoc analysis.
 - **Supportive memory:** sink3 + stride(interval 6, capacity 4) + recent4.
-- **Responsive memory:** sink1 + cyclic(period 6, capacity 4) + recent4.
-- **Exclusive cache ownership:** explicit composition owns middle history;
-  dynamic cache stores only the declared recent window.
-- **Neutral runtime roles:** labels `10/11` avoid PF's reserved `-1/1/2`
-  semantics.
-- **Trust promotion:** noisy/clean agreement, novelty, age, and budget gate
-  middle-cache writes in a separately run matched v78 follow-up.
-- **Prompt sensitivity is orthogonal:** it is retained only as a possible
-  prompt-switch lifecycle signal, not the steady-state head classifier.
-- **Coherent snapshot ablation:** a separate Echo scene-switch screen selects
-  one complete frame using relevance and uniqueness; it does not replace the
-  single-prompt core.
-- **Fail-closed scope:** no direct archive read, no extra forward, and all role
-  behavior is off by default.
+- **Responsive memory hypothesis:** sink3 + clean-V motion events(capacity 2)
+  + phase cyclic(capacity 2) + recent4.
+- **Equal-budget controls:** cyclic4/sink1, cyclic4/sink3, motion4, and recent8.
+- **Exclusive cache ownership:** explicit composition owns sink, middle, and
+  recent; the legacy dynamic-history owner is disabled.
+- **Scene episodes:** Supportive stride anchors are archived by matched scene;
+  Responsive middle memory resets and rebuilds locally.
+- **Trust promotion:** v78 is optional and retained only if it improves the
+  selected read cache.
+- **Fail-closed scope:** every experimental component is default-off, requires
+  a frozen map/config, and must pass decoded-video and trace audits.
 
-PF's stride/cyclic/merge operators and head-aware caching have prior art. They
-are borrowed components, not contribution claims. v99 first tests whether
-neutral-label binary cache mechanics can reproduce the usable earlier
-stride/cyclic result. Only after that parity gate does it test whether the
-history-polarity statistic and independently frozen membership beat random,
-inverted, and threshold controls.
+PF's stride/cyclic/merge operators and head-aware caching have prior art.
+Echo-Forcing's scene pool and recall lifecycle also have prior art. They are
+borrowed components, not contribution claims. The proposed claims are limited
+to the two-role criterion, generated-motion event memory, role-specific
+composition, auditable ownership, and role-aware scene episodes, and only
+survive if the documented controls support them.
 
 LifeCache-v1 and CEMR remain in the repository as prior prototypes and
 ablation infrastructure.
@@ -135,7 +131,9 @@ training-free/
 |   |-- 97_score_artifact_threshold_pf_merge_experiment.md
 |   |-- 98_history_polarity_dual_memory_method.md
 |   |-- 99_v98_32gpu_runbook_and_paper_plan.md
-|   `-- 100_v99_binary_cache_recovery_and_paper_story.md
+|   |-- 100_v99_binary_cache_recovery_and_paper_story.md
+|   |-- 103_v100_final_candidate_and_immediate_plan.md
+|   `-- 104_v100_responsive_event_cache_and_aba_fast_screen.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -201,6 +199,7 @@ training-free/
 |   |-- extract_v98_middle_relative_scores.py
 |   |-- build_v98_history_polarity_maps.py
 |   |-- run_v98_history_polarity_4node_32gpu.sh
+|   |-- run_v100_fast_selection_1video.py
 |   |-- audit_v98_policy_traces.py
 |   |-- postprocess_v98_history_polarity.sh
 |   |-- analyze_v98_history_polarity.py
@@ -216,7 +215,16 @@ training-free/
 
 ## Implementation Status
 
-The corrected v98 path is implemented but has not yet produced GPU evidence:
+The v100 candidate path and its fail-closed diagnostics are implemented:
+
+- `pyramidkv/motion_event.py`: bounded clean-V motion-event memory with
+  layer-shared selection and per-head frame storage.
+- `pyramidkv/stride.py` and `pipeline/causal_inference.py`: scene-specific
+  Supportive stride banks, IDF A-B-A matching, Responsive local reset, and a
+  configurable zero/one-frame recent bridge.
+- `run_v100_fast_selection_1video.py`: frozen 16-cell, one-video 30-second
+  screen for Responsive policies, small add-ons, and A-B-A episodes, including
+  policy/motion/scene/video audits.
 
 - `run_v98_middle_relative_profile_16gpu.sh` and
   `extract_v98_middle_relative_scores.py`: frozen 64-profile, two-topology
@@ -224,13 +232,17 @@ The corrected v98 path is implemented but has not yet produced GPU evidence:
 - `build_v98_history_polarity_maps.py`: fail-closed map construction from the
   accepted artifact, including natural-zero, random, sign-fraction, and PF
   oracle controls.
-- `run_v98_history_polarity_4node_32gpu.sh`: node-balanced primary matrix,
-  immutable cross-node contract, decoded-video audit, and separate v78
-  follow-up.
+- `run_v99_binary_cache_recovery_4node_32gpu.py`: one-video diagnostics,
+  eight-cell `candidate32`, three-cell `main128`, immutable cross-node
+  contract, decoded-video audit, map cross-tab validation, and exclusive cache
+  trace checks.
+- `postprocess_v100_hp_cache.sh`: v100 contract/video audit, exact-index
+  staging, blind-review preparation/freeze verification, resumable
+  GPU-batched VBench-Long/comprehensive metrics, and temporal-jump evaluation.
 - `audit_v98_policy_traces.py` and
-  `postprocess_v98_history_polarity.sh`: full prompt/layer/head/branch policy
-  audit, native/explicit parity, separated public/private frozen blind review,
-  fingerprinted fixed-protocol metrics, and paired analysis.
+  `postprocess_v98_history_polarity.sh`: historical v98 auditing/evaluation
+  tools. Their hard-coded v98 method contract must not be used as a v100
+  postprocessor.
 
 ProbeCache remains integrated as a completed negative-result branch:
 
@@ -373,31 +385,25 @@ environment.
 The current main-line experiment is documented in:
 
 ```text
-docs/99_v98_32gpu_runbook_and_paper_plan.md
+docs/103_v100_final_candidate_and_immediate_plan.md
 ```
 
-First produce the fresh accepted 64-profile calibration on 16 GPUs:
-
-```bash
-OUT_ROOT="$PWD/runs/v98_middle_relative_scores" \
-GPU_LIST=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 \
-bash scripts/run_v98_middle_relative_profile_16gpu.sh
-```
-
-Then launch the same MovieBench-32 command on four eight-GPU nodes, changing
-only `NODE_RANK`:
+After the one-video PF-AW stride/cyclic diagnostic, launch the same no-Merge
+MovieBench-32 command on four eight-GPU nodes, changing only `NODE_RANK`:
 
 ```bash
 NODE_RANK=0 GPU_LIST=0,1,2,3,4,5,6,7 \
-OUT_ROOT="$PWD/runs/v98_history_polarity_screen32_corrected" \
-bash scripts/run_v98_history_polarity_4node_32gpu.sh screen32
+SCORE_ROOT="$PWD/runs/v98_middle_relative_scores" \
+REUSE_PF_DIR="$PWD/runs/v98_history_polarity_screen32/pf_native" \
+REUSE_PF_BINARY_DIR="$PWD/runs/v93_moviebench128_main/pf_binary_read_v78" \
+OUT_ROOT="$PWD/runs/v100_hp_cache_candidate32" \
+python scripts/run_v99_binary_cache_recovery_4node_32gpu.py candidate32
 ```
 
-Follow the runbook's audit-only postprocess, distribute only the public
-`blind_review/` bundle, freeze the completed scorecard with the private sibling
-ledger still hidden, and only then run fixed-protocol metrics. The runner will
-not allow MovieBench-128 until the screen analysis passes every hard gate.
-v95 remains a documented fallback rather than the current entry point.
+The eight cells occupy all eight GPUs per node and every node runs every method
+on a disjoint prompt shard. Review videos blind before metrics. Run
+`main128` only after the learned map beats its count-matched random and
+inverted controls without motion collapse.
 
 ## Third-Party Code
 

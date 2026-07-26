@@ -21,6 +21,7 @@ for path in (PF, SCRIPTS):
 from pyramidkv.cyclic import CyclicStrategy
 from pyramidkv.factory import build_compositions
 from pyramidkv.merge import MergeStrategy
+from pyramidkv.motion_event import MotionEventStrategy
 from pyramidkv.policy_overrides import (
     HISTORY_SUPPORT_LABEL,
     HISTORY_SUPPRESS_LABEL,
@@ -163,6 +164,66 @@ def test_history_polarity_cyclic_route_restores_wave_sink_contract(tmp_path):
     assert suppressive.middle_strategies[0].bucket_cap == 4
     assert suppressive.sink_frames == 1
     assert suppressive.recent_frames == 4
+
+
+def test_history_polarity_motion_cyclic_has_sink3_and_two_plus_two_budget(
+    tmp_path,
+):
+    labels = tmp_path / "history_polarity_motion.csv"
+    _write_labels(
+        labels,
+        [[HISTORY_SUPPORT_LABEL, HISTORY_SUPPRESS_LABEL]],
+    )
+    overrides = history_polarity_policy_overrides(
+        "stride", "motion_cyclic"
+    )
+    compositions = build_compositions(
+        1,
+        2,
+        torch.full((1, 2), 32760, dtype=torch.int32),
+        csv_path=str(labels),
+        cyclic_enabled=True,
+        cyclic_period=6,
+        cyclic_bucket_cap=4,
+        stride_enabled=True,
+        stride_interval=6,
+        merge_enabled=True,
+        **_factory_kwargs(overrides),
+    )[0]
+    supportive, suppressive = compositions
+
+    assert [type(strategy) for strategy in supportive.middle_strategies] == [
+        StrideStrategy
+    ]
+    assert [type(strategy) for strategy in suppressive.middle_strategies] == [
+        CyclicStrategy,
+        MotionEventStrategy,
+    ]
+    assert suppressive.middle_strategies[0].bucket_cap == 2
+    assert suppressive.middle_strategies[1].capacity == 2
+    assert suppressive.sink_frames == 3
+    assert suppressive.recent_frames == 4
+
+
+def test_history_polarity_cyclic_sink3_isolated_from_wave_sink_contract():
+    overrides = history_polarity_policy_overrides(
+        "stride", "cyclic_sink3"
+    )
+
+    assert overrides["pyramidkv_label_phase_bucket_map"]["11"] == 4
+    assert overrides["pyramidkv_label_sink_frames_map"]["11"] == 3
+
+
+def test_history_polarity_recent8_matches_four_frame_middle_budget():
+    overrides = history_polarity_policy_overrides("stride", "recent8")
+
+    assert overrides["pyramidkv_label_phase_bucket_map"]["11"] == 0
+    assert overrides["pyramidkv_label_merge_enabled_map"]["11"] is False
+    assert (
+        overrides["pyramidkv_label_motion_event_enabled_map"]["11"]
+        is False
+    )
+    assert overrides["pyramidkv_label_recent_frames_map"]["11"] == 8
 
 
 def test_history_polarity_rejects_pf_reserved_labels():

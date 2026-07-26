@@ -2,121 +2,129 @@
 
 Date: 2026-07-26
 
-## 1. Overview
+Status: profiling completed; PF-overlap claims require artifact verification.
 
-The v98 middle-relative QK profiling captures deployment-matched QK head
-scores using the corrected v98 cache definition (exclusive ownership,
-neutral labels 10/11, no legacy fallthrough). These scores replace the v97
-QK head scores for all v99 binary cache recovery experiments.
+## 1. What was measured
 
-## 2. Profiling Configuration
-
-- **Profile pairs**: 16 counterfactual prompt pairs × 2 seeds = 32 jobs per policy
-- **Policies**: uniform_stride and uniform_merge (64 total profiles)
-- **Frames**: 120 (frozen, not adjustable)
-- **Seeds**: 0, 1 (frozen)
-- **Layers**: 30 (layer_idx 0..29)
-- **Heads per layer**: 12
-- **Total heads**: 360
-- **Sink frames**: 3, Recent frames**: 4
-
-## 3. Score Columns
-
-| Column | Description |
-|---|---|
-| `middle_relative_logit_margin` | Primary score: middle-vs-recent QK logit margin |
-| `uniform_stride_margin` | Stride-policy-specific margin |
-| `uniform_merge_margin` | Merge-policy-specific margin |
-| `topology_sign_agreement` | Whether stride and merge agree on sign |
-| `profile_observation_count` | Number of profiling observations |
-| `record_observation_count` | Total QK records across all observations |
-| `profile_positive_fraction` | Fraction of positive logit observations |
-| `bootstrap_sign_agreement` | Sign stability across bootstrap resamples |
-
-## 4. Classification Results (Natural Zero Threshold)
-
-| Role | Label | Count | Fraction |
-|---|---|---|---|
-| Supportive (stable) | 10 | 33 | 9.2% |
-| Suppressive (responsive) | 11 | 327 | 90.8% |
-
-This is a much more conservative classification than the v97 QK scores
-(304/56 = 84%/16%). The middle-relative logit margin identifies far fewer
-heads as needing long-range identity support.
-
-## 5. Acceptance Gates
-
-| Gate | Observed | Required | Passed |
-|---|---|---|---|
-| Complete head grid | 360 | 360 | ✅ |
-| Bootstrap stable head fraction | 0.978 | 0.8 | ✅ |
-| Minority role fraction | 0.092 | 0.05 | ✅ |
-| Topology sign agreement | 0.814 | (diagnostic) | — |
-
-All hard gates passed. The topology sign agreement of 0.814 means that
-stride and merge policies agree on the sign direction for ~81% of heads.
-
-## 6. PF Label Overlap
-
-The v98 map contains 33 Supportive and 327 Suppressive heads. PF's
-three-class system has 172 Anchor, 156 Wave, and 32 Veil heads.
-
-- The 33 Supportive heads are a subset of PF's Anchor class (169/172 Anchor
-  heads map to Supportive).
-- The 327 Suppressive heads include all 156 Wave and 32 Veil heads, plus
-  3 Anchor heads.
-- This means the binary classifier nearly perfectly separates Anchor from
-  Wave+Veil, but all 156 Wave heads lose their cyclic route.
-
-## 7. Comparison with v97 QK Scores
-
-| Metric | v97 QK Scores | v98 Middle-Relative |
-|---|---|---|
-| Score type | CFG + prompt-pair QK response | Middle-vs-recent QK logit margin |
-| Supportive count | 292 (81%) | 33 (9.2%) |
-| Suppressive count | 68 (19%) | 327 (90.8%) |
-| Score SHA-256 | e0f9e702... | 83d2be6a... |
-| Profiling jobs | 32 (CFG + semantic pairs) | 64 (stride + merge, 2 seeds) |
-
-The v98 middle-relative scores produce a very different head distribution.
-The 9.2% Supportive fraction is close to PF's Anchor fraction (172/360 =
-47.8%), but much smaller. This suggests the middle-relative margin is a
-stricter criterion for long-range support.
-
-## 8. Score Artifact
-
-The frozen score artifact is at:
+The profiler estimates, for every attention head, whether its current query
+places relatively more QK logit mass on non-recent middle history or on the
+latest distinct history frames. For one captured query:
 
 ```text
-runs/v98_middle_relative_scores/scores/
-├── qk_head_scores.csv          (360 rows, 10 columns)
-├── qk_head_observations.json   (per-observation records)
-├── qk_head_score_artifact.json (SHA-256 hashes + acceptance gates)
-└── layer_capture_audit.json    (layer source validation)
+margin = standardized(mean(middle logits) - mean(recent logits))
 ```
 
-Score SHA-256: `83d2be6ab2978c3aa13f8d508f29a6fcf0d8fa026bca8bccb319b2a3e10ba53c`
+The first three sink frames and the latest four distinct recent frames are
+excluded from `middle`. Because both terms use the same query, subtracting them
+is invariant to a common additive logit shift. Scores are aggregated within
+each independently generated profile and then across profiles by a median.
 
-## 9. Maps Built from Scores
+This is not a prompt-sensitivity classifier and does not use PF labels to make
+the primary split.
 
-The v99 script builds 8 maps from these scores:
+## 2. Frozen profiling protocol
 
-| Map | Key | Supportive | Suppressive |
-|---|---|---|---|
-| history_polarity_zero | Natural zero threshold | 33 | 327 |
-| history_polarity_zero_random | Layer-wise count-matched random | 33 | 327 |
-| history_polarity_zero_inverted | Inverted direction | 327 | 33 |
-| pf_ar_binary_control | PF Anchor-vs-Rest | 172 | 188 |
-| pf_aw_binary_control | PF (Anchor+Wave)\|Veil | 328 | 32 |
-| + 3 threshold variants | ±0.1 robustness | varies | varies |
+- 8 counterfactual prompt pairs, both sides, 2 seeds
+- 32 profiles under uniform stride and 32 under uniform merge
+- 64 observations per head in total
+- 120 latent frames, conditional branch, noisy update mode
+- 30 layers x 12 heads = 360 heads
+- score field: `middle_relative_logit_margin`
+- natural threshold: zero
 
-## 10. Infrastructure Notes
+The map builder applies:
 
-- Profiling was run on a single 8-GPU H20 node (node221) due to a
-  calibration lock file (`.calibration_run_lock`) that prevents multi-node
-  execution.
-- Stride profiling completed in ~25 minutes (4 batches × 8 jobs).
-- Merge profiling completed in ~25 minutes (4 batches × 8 jobs).
-- Total profiling time: ~50 minutes (excluding model loading).
-- A local config fix (`pyramidkv_prompt_warmup_enabled: false`) was
-  required and hidden via `git update-index --assume-unchanged`.
+```text
+score >= 0  -> label 10, History-Supportive
+score < 0   -> label 11, Recent-Responsive
+```
+
+The zero threshold means equal middle/recent preference and is not selected to
+match a PF class count. Thresholds `-0.1` and `+0.1` are robustness ablations.
+
+## 3. Reported natural-zero counts
+
+The server-side result report states:
+
+| Role | Label | Heads | Fraction |
+|---|---:|---:|---:|
+| History-Supportive | 10 | 33 | 9.2% |
+| Recent-Responsive | 11 | 327 | 90.8% |
+
+These counts are plausible as an independent sparse-global split, but the raw
+CSV and generated map manifest have not been committed. They must therefore be
+treated as reported values until the artifacts below are available.
+
+## 4. Acceptance gates
+
+| Gate | Observed | Required | Status |
+|---|---:|---:|---|
+| complete head grid | 360 | 360 | pass |
+| bootstrap-stable head fraction | 0.978 | 0.80 | pass |
+| minority role fraction | 0.092 | 0.05 | pass |
+| topology sign agreement | 0.814 | 0.80 | pass |
+
+Topology sign agreement is a hard gate in
+`extract_v98_middle_relative_scores.py`; it is not merely diagnostic.
+
+Passing these gates establishes score reproducibility under the frozen
+profiling protocol. It does not establish that the resulting membership
+improves video quality.
+
+## 5. PF-overlap inconsistency in the original report
+
+The first version of this document simultaneously claimed:
+
+- only 33 heads are History-Supportive; and
+- 169 of 172 PF Anchor heads are History-Supportive.
+
+Both cannot be true: if there are 33 Supportive heads in total, at most 33 PF
+Anchor heads can be Supportive. The associated Wave/Veil row totals were also
+inconsistent with 360 heads. Therefore no PF-overlap number from that prose
+report may be cited in a paper or used to name the classes.
+
+The v99 runner now independently reloads every 30x12 CSV, recomputes:
+
+- exact label counts;
+- the Anchor/Wave/Veil x Supportive/Responsive cross-tab; and
+- total-head consistency;
+
+then compares those values with the map manifest. Any discrepancy aborts the
+run. It also prints one `[V99MapAudit]` JSON line per selected map and freezes
+the same statistics in the experiment contract and per-cell config.
+
+## 6. Evidence boundary
+
+Established:
+
+- a shift-invariant middle-vs-recent score was collected for all heads;
+- all frozen profiling stability gates reportedly passed;
+- the score produces a non-degenerate binary split;
+- one independent-map stride/cyclic video was visually free of polygon noise.
+
+Not yet established:
+
+- the exact PF class overlap;
+- that the natural-zero map is better than count-matched random or inverted;
+- that zero is the best quality threshold;
+- that the binary method matches or exceeds native PF on 32/128 prompts.
+
+## 7. Artifacts that must be preserved
+
+Push or archive these small files before making quantitative head-overlap
+claims:
+
+```text
+runs/v98_middle_relative_scores/scores/qk_head_scores.csv
+runs/v98_middle_relative_scores/scores/qk_head_score_artifact.json
+runs/v98_middle_relative_scores/scores/layer_capture_audit.json
+runs/v99_binary_cache_recovery_*/maps/history_polarity_manifest.json
+runs/v99_binary_cache_recovery_*/maps/history_polarity_zero.csv
+runs/v99_binary_cache_recovery_*/maps/head_assignments.csv
+```
+
+The reported score CSV SHA-256 is:
+
+```text
+83d2be6ab2978c3aa13f8d508f29a6fcf0d8fa026bca8bccb319b2a3e10ba53c
+```

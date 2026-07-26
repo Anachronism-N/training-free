@@ -348,7 +348,15 @@ parser.add_argument(
 )
 parser.add_argument(
     "--pyramidkv_binary_responsive_policy",
-    choices=("cyclic", "merge", "recent"),
+    choices=(
+        "cyclic",
+        "cyclic_sink3",
+        "merge",
+        "motion",
+        "motion_cyclic",
+        "recent",
+        "recent8",
+    ),
     default=None,
     help=(
         "Decouple binary role labels from PF labels: label 1 uses Anchor "
@@ -379,8 +387,71 @@ parser.add_argument(
 )
 parser.add_argument(
     "--pyramidkv_history_suppress_policy",
-    choices=("merge", "cyclic", "recent"),
+    choices=(
+        "merge",
+        "cyclic",
+        "cyclic_sink3",
+        "motion",
+        "motion_cyclic",
+        "recent",
+        "recent8",
+    ),
     default="merge",
+)
+parser.add_argument(
+    "--pyramidkv_motion_event_top_k",
+    type=int,
+    default=None,
+    help="Layer-shared motion-event frames selected per clean block.",
+)
+parser.add_argument(
+    "--pyramidkv_motion_event_sample_tokens",
+    type=int,
+    default=None,
+    help="Maximum sampled spatial tokens per frame for V-change scoring.",
+)
+parser.add_argument(
+    "--pyramidkv_scene_cache",
+    action="store_true",
+    help=(
+        "For segmented prompts, archive/restore stride memory by scene and "
+        "clear scene-local middle strategies at each boundary."
+    ),
+)
+parser.add_argument(
+    "--pyramidkv_scene_cache_match_mode",
+    choices=("idf", "embedding"),
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_scene_cache_similarity_threshold",
+    type=float,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_scene_cache_manual_ids",
+    type=str,
+    default=None,
+    help="Optional comma-separated canonical scene ids, e.g. 0,1,0.",
+)
+parser.add_argument(
+    "--pyramidkv_scene_cache_max_scenes",
+    type=int,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_scene_cache_bridge_recent_frames",
+    type=int,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_scene_cache_trace_path",
+    type=str,
+    default=None,
+)
+parser.add_argument(
+    "--pyramidkv_scene_cache_debug",
+    action="store_true",
 )
 parser.add_argument(
     "--pyramidkv_pf_extended_recent_ablation",
@@ -859,6 +930,63 @@ if args.pyramidkv_pf_extended_recent_ablation is not None:
         "replacement=label3 sink=native "
         f"recent={policy_overrides['pyramidkv_label_recent_frames_map']['3']} "
         "middle=none",
+        flush=True,
+    )
+if args.pyramidkv_motion_event_top_k is not None:
+    if args.pyramidkv_motion_event_top_k <= 0:
+        parser.error("--pyramidkv_motion_event_top_k must be positive")
+    config.motion_event_top_k = int(args.pyramidkv_motion_event_top_k)
+if args.pyramidkv_motion_event_sample_tokens is not None:
+    if args.pyramidkv_motion_event_sample_tokens <= 0:
+        parser.error(
+            "--pyramidkv_motion_event_sample_tokens must be positive"
+        )
+    config.motion_event_sample_tokens = int(
+        args.pyramidkv_motion_event_sample_tokens
+    )
+if args.pyramidkv_scene_cache:
+    config.pyramidkv_scene_cache_enabled = True
+if args.pyramidkv_scene_cache_debug:
+    config.pyramidkv_scene_cache_debug = True
+for name in (
+    "match_mode",
+    "similarity_threshold",
+    "max_scenes",
+    "bridge_recent_frames",
+    "trace_path",
+):
+    value = getattr(args, f"pyramidkv_scene_cache_{name}")
+    if value is not None:
+        setattr(config, f"pyramidkv_scene_cache_{name}", value)
+if args.pyramidkv_scene_cache_manual_ids is not None:
+    try:
+        config.pyramidkv_scene_cache_manual_ids = [
+            int(value.strip())
+            for value in args.pyramidkv_scene_cache_manual_ids.split(",")
+            if value.strip()
+        ]
+    except ValueError:
+        parser.error("--pyramidkv_scene_cache_manual_ids must be integers")
+if getattr(config, "pyramidkv_scene_cache_enabled", False):
+    if not getattr(config, "pyramidkv_composition_owns_dynamic", False):
+        parser.error(
+            "--pyramidkv_scene_cache requires an exclusive composition "
+            "policy such as --pyramidkv_history_polarity"
+        )
+    if int(config.pyramidkv_scene_cache_max_scenes) <= 0:
+        parser.error("--pyramidkv_scene_cache_max_scenes must be positive")
+    if int(config.pyramidkv_scene_cache_bridge_recent_frames) < 0:
+        parser.error(
+            "--pyramidkv_scene_cache_bridge_recent_frames must be non-negative"
+        )
+    print(
+        "[SceneCacheConfig] "
+        f"match={config.pyramidkv_scene_cache_match_mode} "
+        f"threshold={float(config.pyramidkv_scene_cache_similarity_threshold):.4f} "
+        f"manual_ids={getattr(config, 'pyramidkv_scene_cache_manual_ids', None)} "
+        f"max_scenes={int(config.pyramidkv_scene_cache_max_scenes)} "
+        f"bridge_recent={int(config.pyramidkv_scene_cache_bridge_recent_frames)} "
+        "owner=HeadComposition",
         flush=True,
     )
 if args.pyramidkv_probecache_debug:

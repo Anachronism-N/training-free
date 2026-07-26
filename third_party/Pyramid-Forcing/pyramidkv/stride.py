@@ -36,10 +36,110 @@ class StrideStrategy:
             "anchor_store_collect_count": 0.0,
             "anchor_store_fallback_count": 0.0,
         }
+        self._scene_banks: list[OrderedDict[int, OrderedDict[int, FrameAnchor]]] = []
+        self._active_scene_ids: list[int | None] = []
+        self._scene_switch_counts: list[int] = []
 
     def reset(self, num_seq: int) -> None:
         self._anchors = [OrderedDict() for _ in range(num_seq)]
         self._anchor_store.reset(num_seq)
+        self._scene_banks = [OrderedDict() for _ in range(num_seq)]
+        self._active_scene_ids = [None for _ in range(num_seq)]
+        self._scene_switch_counts = [0 for _ in range(num_seq)]
+
+    def _materialize(
+        self,
+        idx: int,
+        anchors: OrderedDict[int, FrameAnchor | AnchorStoreRef],
+    ) -> OrderedDict[int, FrameAnchor]:
+        materialized: OrderedDict[int, FrameAnchor] = OrderedDict()
+        for t_val, anchor in anchors.items():
+            if isinstance(anchor, AnchorStoreRef):
+                anchor_k, anchor_v, anchor_pos = self._anchor_store.view(idx, anchor)
+                materialized[t_val] = FrameAnchor(
+                    k=anchor_k.clone(),
+                    v=anchor_v.clone(),
+                    pos=anchor_pos.clone(),
+                    t=int(anchor.t),
+                )
+            else:
+                materialized[t_val] = anchor
+        return materialized
+
+    def switch_scene(
+        self,
+        idx: int,
+        scene_id: int,
+        *,
+        max_scenes: int = 8,
+    ) -> dict[str, object]:
+        """Archive the active stride bank and restore a matching scene bank."""
+
+        target = int(scene_id)
+        max_scenes = max(1, int(max_scenes))
+        current = self._active_scene_ids[idx]
+        banks = self._scene_banks[idx]
+        if current is None:
+            self._active_scene_ids[idx] = target
+            banks[target] = self._anchors[idx]
+            return {
+                "strategy": type(self).__name__,
+                "action": "initialize_scene",
+                "scene_id": target,
+                "restored_frames": 0,
+                "archived_frames": 0,
+            }
+        if current == target:
+            return {
+                "strategy": type(self).__name__,
+                "action": "reuse_active_scene",
+                "scene_id": target,
+                "restored_frames": len(self._anchors[idx]),
+                "archived_frames": len(self._anchors[idx]),
+            }
+
+        archived = self._materialize(idx, self._anchors[idx])
+        banks[current] = archived
+        banks.move_to_end(current)
+        restored = banks.get(target)
+        action = "restore_scene" if restored is not None else "new_scene"
+        if restored is None:
+            restored = OrderedDict()
+        banks[target] = restored
+        banks.move_to_end(target)
+        self._anchors[idx] = restored
+        self._active_scene_ids[idx] = target
+        evicted: list[int] = []
+        while len(banks) > max_scenes:
+            oldest, _ = next(iter(banks.items()))
+            if oldest == target:
+                banks.move_to_end(oldest)
+                continue
+            banks.pop(oldest)
+            evicted.append(int(oldest))
+        self._scene_switch_counts[idx] += 1
+        return {
+            "strategy": type(self).__name__,
+            "action": action,
+            "from_scene_id": int(current),
+            "scene_id": target,
+            "archived_frames": len(archived),
+            "restored_frames": len(restored),
+            "evicted_scene_ids": evicted,
+        }
+
+    def debug_state(self, idx: int) -> dict[str, object]:
+        return {
+            "interval": int(self.interval),
+            "capacity": int(self.capacity),
+            "anchor_frame_ids": [int(value) for value in self._anchors[idx]],
+            "active_scene_id": self._active_scene_ids[idx],
+            "scene_bank_sizes": {
+                str(scene_id): len(anchors)
+                for scene_id, anchors in self._scene_banks[idx].items()
+            },
+            "scene_switch_count": int(self._scene_switch_counts[idx]),
+        }
 
     def pop_anchor_store_stats(self) -> dict[str, float]:
         stats = dict(self._anchor_store_stats)
