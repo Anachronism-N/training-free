@@ -1,341 +1,353 @@
-# v98 4-Node / 32-GPU Runbook and Paper Plan
+# Corrected v98 Calibration, 4-Node / 32-GPU Runbook, and Gates
 
 Date: 2026-07-26
 
-## 1. Implemented files
+Status: superseded for new generation by
+`docs/100_v99_binary_cache_recovery_and_paper_story.md`. Keep this document
+for the exact v98 protocol and artifact audit only. Do not relaunch its
+eight-cell hybrid/merge matrix while diagnosing binary cache correctness.
 
-Core runtime:
+This runbook supersedes the earlier v98 draft. Do not reuse the v97
+absolute-sign score, the draft `304/56` map, a partially populated v98 output
+directory, or any blind-review package created from those inputs.
 
-- `third_party/Pyramid-Forcing/pyramidkv/policy_overrides.py`
-  - neutral labels `10/11`;
-  - Supportive `stride` or `stride+cyclic`;
-  - Suppressive `merge`, `cyclic`, or explicit no-middle.
-- `third_party/Pyramid-Forcing/inference.py`
-  - `--pyramidkv_history_polarity`;
-  - explicit support/suppress policy flags;
-  - runtime marker with labels and policy.
-- `third_party/Pyramid-Forcing/pyramidkv/adaptive_cache.py`
-  - explicit no-middle compositions no longer fall through to legacy cyclic
-    update/read paths.
+## 1. Frozen protocol
 
-Offline maps and analysis:
+All machines must see the same repository and output paths on shared storage,
+at the same clean Git commit. The scripts fail closed on mixed commits,
+any tracked or non-ignored untracked change, hashes, contracts, maps, shards,
+or partial resume state. Ignored `runs/` outputs are allowed. Do not place
+importable scratch code or local overrides in the checkout.
 
-- `scripts/build_v98_history_polarity_maps.py`
-- `scripts/audit_v98_policy_traces.py`
-- `scripts/analyze_v98_history_polarity.py`
+The corrected protocol is:
 
-Server execution:
+- 120 latent output frames, corresponding to 477 decoded frames;
+- 16 fps, 832 x 480;
+- seed 0 with per-prompt reseeding for generation;
+- few-step CFG disabled, hence conditional branch only;
+- Python cache-strategy and packing paths (`PYRAMIDKV_CPP_STRATEGY=0`);
+- four prompt shards; `NODE_RANK` is the shard, and every node runs every
+  primary method;
+- canonical MovieBench prompt content (`num32` or `num128`), not merely the
+  expected number of non-empty lines;
+- exact score, score-artifact, raw-profile, prompt, map, config, checkpoint,
+  source, and contract hashes;
+- decoded video frame-count, fps, resolution, index, and hash audits;
+- a public blind-review bundle separated from its private random assignment
+  seed and method ledger;
+- blind review frozen before automated quality metrics;
+- fixed metric sampling and per-video paired statistics with prompt-level
+  bootstrap intervals;
+- atomic per-node generation, calibration, and postprocessing locks.
 
-- `scripts/run_v98_history_polarity_4node_32gpu.sh`
-- `scripts/postprocess_v98_history_polarity.sh`
+Any deliberate protocol change is a new experiment version, not a v98 resume.
 
-Tests:
+## 2. Stage A: build the corrected head score
 
-- `tests/test_v98_history_polarity.py`
-- `tests/test_v97_policy_contract.py`
-- `third_party/Pyramid-Forcing/tests/test_adaptive_cache.py`
-
-## 2. Required models and locations
-
-Each node must see the same repository path and the same shared output path.
-The default scripts expect:
-
-```text
-third_party/Self-Forcing/
-|-- wan_models/
-|   `-- Wan2.1-T2V-1.3B/
-`-- checkpoints/
-    `-- self_forcing_dmd.pt
-
-third_party/Pyramid-Forcing/
-|-- wan_models/
-|   `-- Wan2.1-T2V-1.3B/
-`-- checkpoints/
-    `-- self_forcing_dmd.pt
-```
-
-Symlinks are acceptable. Override paths through `SF_REPO`, `PF_REPO`,
-`SF_CHECKPOINT`, and `PF_CHECKPOINT` when the server layout differs.
-
-The prompt files must exist:
-
-```text
-third_party/Pyramid-Forcing/prompts/MovieGenVideoBench_num32.txt
-third_party/Pyramid-Forcing/prompts/MovieGenVideoBench_num128.txt
-```
-
-The v97 frozen score files are already versioned:
-
-```text
-runs/v97_qk_head_scores/scores/qk_head_scores.csv
-runs/v97_qk_head_scores/scores/qk_head_score_artifact.json
-```
-
-## 3. First run: 32-prompt correctness screen
-
-Use one shared `OUT_ROOT`. Launch exactly one command on each 8-GPU node.
-
-Node 0:
+Run this once on a 16-GPU machine from a clean committed checkout:
 
 ```bash
-cd /path/to/training-free
-git pull
-NODE_RANK=0 REPO_ROOT="$PWD" \
-OUT_ROOT="$PWD/runs/v98_history_polarity_screen32" \
-GPU_LIST=0,1,2,3,4,5,6,7 \
-nohup bash scripts/run_v98_history_polarity_4node_32gpu.sh screen32 \
-  > runs/v98_screen_node0.nohup.log 2>&1 &
+cd /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free
+
+git status --short
+
+OUT_ROOT="$PWD/runs/v98_middle_relative_scores" \
+GPU_LIST=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 \
+nohup bash scripts/run_v98_middle_relative_profile_16gpu.sh \
+  > runs/v98_middle_relative_profile.nohup.log 2>&1 &
 ```
 
-Node 1:
-
-```bash
-cd /path/to/training-free
-git pull
-NODE_RANK=1 REPO_ROOT="$PWD" \
-OUT_ROOT="$PWD/runs/v98_history_polarity_screen32" \
-GPU_LIST=0,1,2,3,4,5,6,7 \
-nohup bash scripts/run_v98_history_polarity_4node_32gpu.sh screen32 \
-  > runs/v98_screen_node1.nohup.log 2>&1 &
-```
-
-Node 2:
-
-```bash
-cd /path/to/training-free
-git pull
-NODE_RANK=2 REPO_ROOT="$PWD" \
-OUT_ROOT="$PWD/runs/v98_history_polarity_screen32" \
-GPU_LIST=0,1,2,3,4,5,6,7 \
-nohup bash scripts/run_v98_history_polarity_4node_32gpu.sh screen32 \
-  > runs/v98_screen_node2.nohup.log 2>&1 &
-```
-
-Node 3:
-
-```bash
-cd /path/to/training-free
-git pull
-NODE_RANK=3 REPO_ROOT="$PWD" \
-OUT_ROOT="$PWD/runs/v98_history_polarity_screen32" \
-GPU_LIST=0,1,2,3,4,5,6,7 \
-nohup bash scripts/run_v98_history_polarity_4node_32gpu.sh screen32 \
-  > runs/v98_screen_node3.nohup.log 2>&1 &
-```
-
-The global task index is:
+The calibration contains exactly 64 independently generated profiles:
 
 ```text
-global_rank = NODE_RANK * 8 + local_gpu_slot
-method      = global_rank // 4
-prompt shard = global_rank % 4
+8 counterfactual prompt pairs
+x 2 sides
+x 2 seeds (0, 1)
+x 2 uniform probe policies (stride, merge)
+= 64 profiles
 ```
 
-Thus all 32 GPUs run concurrently, each of eight methods receives four prompt
-shards, and every method generates all 32 prompts at 120 frames.
+Only conditional/noisy QK records are scored. For each query, the first three
+sink frames and latest four distinct historical frames are excluded from the
+intervened middle group. The standardized middle-minus-recent margin is
+invariant to a common logit shift. Records are aggregated within profiles,
+profiles within each probe policy, and the two policy estimates receive equal
+weight. Bootstrap resampling uses the counterfactual prompt pair as the
+cluster.
 
-## 4. The eight primary cells
+Successful completion creates:
 
-| Cell | Purpose |
+```text
+runs/v98_middle_relative_scores/run_manifest.env
+runs/v98_middle_relative_scores/scores/qk_head_scores.csv
+runs/v98_middle_relative_scores/scores/qk_head_observations.json
+runs/v98_middle_relative_scores/scores/qk_head_score_artifact.json
+```
+
+The artifact must have:
+
+```text
+version = 2
+method = v98_middle_relative_qk_head_scores
+accepted = true
+score_definition.primary_field = middle_relative_logit_margin
+score_definition.probe_policy_balanced = true
+score_definition.bootstrap_unit = counterfactual_prompt_pair
+bootstrap_protocol.rounds = 500
+bootstrap_protocol.seed = 20260726
+bootstrap_protocol.zero_effect_is_stable = false
+acceptance_protocol.min_stable_head_fraction = 0.80
+acceptance_protocol.min_head_bootstrap_agreement = 0.75
+acceptance_protocol.min_topology_sign_agreement_fraction = 0.80
+acceptance_protocol.min_minority_fraction = 0.05
+```
+
+`accepted=false` or a non-zero extractor exit is a scientific stop, not a
+threshold-tuning invitation. An exact-zero bootstrap estimate counts as
+unstable rather than positive evidence. Cross-topology agreement requires two
+non-zero medians with the same sign, and the positive-rate control counts only
+strictly positive profile estimates. Do not launch video generation.
+
+Before constructing any map, every generation node reruns the calibration
+validator. It parses all 64 profiles, recomputes each head's two policy
+medians, balanced score, strict sign gates, positive fraction, and the frozen
+paired-cluster bootstrap from `qk_head_observations.json`, then compares those
+values against the CSV and artifact. A self-consistent-looking `passed=true`
+field cannot bypass the observed thresholds.
+
+## 3. Stage B: primary MovieBench-32 screen
+
+Use a new shared `OUT_ROOT`. Launch the same command on all four nodes, changing
+only `NODE_RANK` and, if necessary, the local GPU ids:
+
+```bash
+cd /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free
+
+NODE_RANK=0 \
+GPU_LIST=0,1,2,3,4,5,6,7 \
+OUT_ROOT="$PWD/runs/v98_history_polarity_screen32_corrected" \
+nohup bash scripts/run_v98_history_polarity_4node_32gpu.sh screen32 \
+  > runs/v98_screen32_node0.nohup.log 2>&1 &
+```
+
+Repeat with `NODE_RANK=1`, `2`, and `3`. All nodes must use the same absolute
+`OUT_ROOT`, commit, prompt file, models, configs, and calibration artifact.
+
+The primary eight cells are:
+
+| Method | Purpose |
 |---|---|
 | `sf_native` | Native Self-Forcing baseline |
-| `pf_native` | Official PF baseline |
-| `pf_explicit_parity` | Same PF labels and policies through explicit override |
-| `pf_aw_hybrid_merge` | PF-derived binary oracle with the new cache composition |
-| `history_polarity_hybrid_merge` | Main natural-zero method |
-| `history_polarity_stride_merge` | Remove periodic branch from Supportive cache |
-| `history_polarity_hybrid_merge_v78` | Add trusted write admission |
-| `positive_rate_half_hybrid_merge` | Alternative sign-fraction classifier |
+| `pf_native` | Native Pyramid Forcing baseline |
+| `pf_explicit_parity` | Explicit PF policy reconstruction |
+| `pf_aw_hybrid_merge` | PF-derived oracle membership control |
+| `history_polarity_hybrid_merge` | Proposed natural-zero classifier and dual memory |
+| `history_polarity_stride_merge` | Remove the periodic Supportive branch |
+| `history_polarity_zero_random_hybrid_merge` | Layer-wise count-matched random control |
+| `positive_rate_half_hybrid_merge` | Per-profile sign-fraction control |
 
-The parity cell is a hard implementation control. If it is noisy while native
-PF is clean, do not interpret any binary result.
+Each node runs all eight methods on its assigned prompt shard. This removes the
+old method-by-node hardware confound. Within each node, primary GPU slots are
+rotated by offsets `0, 2, 5, 7` for node ranks `0, 1, 2, 3`; the frozen
+contract records and audits that mapping. v78 is not a primary cell.
 
-## 5. Post-processing
+Only one process may own a given `OUT_ROOT + NODE_RANK`. A second launch fails
+on the node lock instead of writing the same logs, traces, videos, or markers.
+Remove a stale lock only after confirming that its recorded process no longer
+exists.
 
-After all four files below exist:
+Generation is complete only when all four files exist and their embedded
+manifest hashes agree:
 
 ```text
-runs/v98_history_polarity_screen32/status/node0.done
-runs/v98_history_polarity_screen32/status/node1.done
-runs/v98_history_polarity_screen32/status/node2.done
-runs/v98_history_polarity_screen32/status/node3.done
+runs/v98_history_polarity_screen32_corrected/status/node0.done
+runs/v98_history_polarity_screen32_corrected/status/node1.done
+runs/v98_history_polarity_screen32_corrected/status/node2.done
+runs/v98_history_polarity_screen32_corrected/status/node3.done
 ```
 
-run on one 8-GPU node:
+The runner validates every decoded video before writing a cell marker. Missing
+or stale policy/transition traces, mismatched video fingerprints, changed
+configs, and mixed contracts force regeneration or abort.
+
+## 4. Stage C: audit and create the blind package
+
+First run postprocessing with metrics disabled. This performs the full
+generation/contract/trace/video audit and creates or verifies the blind
+package:
 
 ```bash
-cd /path/to/training-free
-REPO_ROOT="$PWD" \
-RUN_ROOT="$PWD/runs/v98_history_polarity_screen32" \
-GPU_LIST=0,1,2,3,4,5,6,7 \
+RUN_ROOT="$PWD/runs/v98_history_polarity_screen32_corrected" \
+RUN_VBENCH=0 RUN_COMPREHENSIVE=0 RUN_TEMPORAL=0 RUN_ANALYSIS=0 \
+bash scripts/postprocess_v98_history_polarity.sh screen32
+```
+
+Reviewers score:
+
+```text
+runs/v98_history_polarity_screen32_corrected/blind_review/scorecard.csv
+```
+
+The directory `blind_review/` is the only bundle that reviewers should
+receive. It contains blinded videos, `manifest_public.json`, and
+`scorecard.csv`; it contains neither a deterministic seed nor a method map.
+Keep the sibling directory `blind_review_private/` inaccessible to reviewers.
+It contains `.complete.json`, `key_private.json`, and, after freezing,
+`FROZEN.json`. Formal v98 creation omits `--seed`, so the assignment seed is
+generated privately rather than being reconstructible from the runbook.
+
+For every `*_1_to_5` field, `5` means best: stable identity/background,
+natural motion/camera, artifact-free output, strong prompt alignment, no
+long-range drift, and no repetition/looping. For every `*_0_or_1` field, `1`
+means the named failure is present. Any startup flashback, abrupt jump,
+polygon noise, identity score at most 2, artifact score at most 2,
+long-range-drift score at most 2, or repetition score at most 2 makes that
+video catastrophic for the usability gate.
+
+Do not inspect or grant reviewer access to the private directory while
+scoring. When the scorecard is complete, run postprocessing with metrics
+enabled once; it will stop before metrics and print the exact
+`prepare_blind_review.py ... --freeze` command, including both public and
+private paths. Execute that command as the experiment operator. Freezing binds
+every score row, blinded video, source video, prompt, public manifest, private
+ledger, and source inventory by hash. A scored or frozen package is never
+silently replaced; `FORCE_BLIND=1` is only for an explicitly abandoned
+package.
+
+Only one postprocessor may own a run root. A concurrent launch fails on
+`.postprocess_run_lock` before creating or replacing metric/blind artifacts.
+
+## 5. Stage D: metrics and paired analysis
+
+After the blind package is frozen:
+
+```bash
+RUN_ROOT="$PWD/runs/v98_history_polarity_screen32_corrected" \
+VBENCH_ROOT="/absolute/path/to/VBench" \
+VBENCH_EXPECTED_COMMIT="<audited-vbench-commit>" \
 nohup bash scripts/postprocess_v98_history_polarity.sh screen32 \
-  > runs/v98_screen_postprocess.nohup.log 2>&1 &
+  > runs/v98_screen32_postprocess.nohup.log 2>&1 &
 ```
 
-The postprocessor performs:
+The postprocessor stages immutable metric inputs and fingerprints them before
+running VBench, comprehensive metrics, or the temporal diagnostic. Resume is
+allowed only when the input fingerprint and output hash both match. Before
+staging, it reruns every shard video audit and requires its current video
+fingerprint to equal the generation `.done` marker; replacing a valid video
+after generation is therefore detected. Raw policy traces are also bound by
+SHA-256 into the audit and final analysis.
 
-1. exact indexed-video completeness checks;
-2. strict map-hash and runtime-policy trace validation;
-3. v78 transition trace validation;
-4. blind-review package creation;
-5. VBench-Long on five dimensions;
-6. DINO/comprehensive metrics;
-7. temporal-jump diagnostics;
-8. controlled delta and parity reports.
-
-Freeze this file before reading metrics:
+The v98 metric protocol is not configurable:
 
 ```text
-runs/v98_history_polarity_screen32/blind_review/scorecard.csv
+comprehensive sampled frames: 64
+temporal diagnostic frame step: 2
+VBench dimensions:
+  subject_consistency, background_consistency, aesthetic_quality,
+  imaging_quality, motion_smoothness, dynamic_degree
+paired bootstrap rounds: 2000
+paired bootstrap seed: 20260727
 ```
 
-## 6. Runtime logs to inspect
+`metric_manifest.json` records these values, evaluator file hashes, the clean
+VBench commit, generation contract fingerprint, every staged-video hash, and
+blind-freeze verification. The analyzer validates that manifest before
+reporting a hard gate.
 
-Every PF shard must contain:
-
-```text
-[PyramidKVRuntimePolicy]
-```
-
-Proposed methods must additionally contain:
+Primary outputs include:
 
 ```text
-[HistoryPolarityPolicy] ... support_label=10 suppress_label=11 ...
-legacy_pf_labels=false
-```
-
-The parity method must contain:
-
-```text
-[BinaryPolicyOverride] stable=stride responsive=cyclic
-```
-
-Inspect:
-
-```text
-configs/*.env
-traces/*.policy.jsonl
-traces/*.transition.jsonl
-diagnostics/*.video.json
+metrics/workflow_contract_audit.json
 metrics/policy_trace_audit.json
-metrics/cache_transition_summary.json
+metrics/video_audits/
+metrics/vbench_long_summary.json
+metrics/comprehensive.json
+metrics/temporal_jump.csv
+metrics/blind_frozen_verification.json
+metrics/metric_manifest.json
+metrics/v98_analysis.json
 metrics/v98_analysis.md
 ```
 
-The policy audit verifies:
+The analysis uses matched prompt/video rows. It reports paired bootstrap
+confidence intervals and sample-integrity diagnostics; aggregate-only deltas
+cannot satisfy a paper gate.
 
-- map SHA-256 equals the frozen shard config;
-- proposed traces contain only labels `10/11`;
-- Supportive hybrid reads only `CyclicStrategy + StrideStrategy`;
-- Suppressive reads only `MergeStrategy`;
-- sink/recent are exactly `3/4`;
-- hybrid union never exceeds four frames;
-- all selected layers, all 12 heads, and both CFG branches appear.
+## 6. Stage E: MovieBench-128
 
-## 7. Human review form
-
-For each method, record:
-
-```text
-polygon/noise artifact: yes/no
-identity retention: 1-5
-background continuity: 1-5
-motion continuity: 1-5
-long-range drift: 1-5
-repetition/looping: 1-5
-startup flashback: yes/no
-catastrophic failure time:
-notes:
-```
-
-Any polygon/noise artifact is a hard usability failure regardless of aggregate
-metric rank.
-
-## 8. Second run: MovieGenBench-128
-
-Run the same four commands with:
-
-```text
-screen32 -> main128
-OUT_ROOT -> $PWD/runs/v98_history_polarity_main128
-```
-
-For example on node 0:
+Run `main128` only after the 32-prompt screen passes every hard gate. Use a
+fresh shared output directory:
 
 ```bash
-NODE_RANK=0 REPO_ROOT="$PWD" \
-OUT_ROOT="$PWD/runs/v98_history_polarity_main128" \
+NODE_RANK=0 \
 GPU_LIST=0,1,2,3,4,5,6,7 \
+SCREEN32_RUN_ROOT="$PWD/runs/v98_history_polarity_screen32_corrected" \
+OUT_ROOT="$PWD/runs/v98_history_polarity_main128_corrected" \
 nohup bash scripts/run_v98_history_polarity_4node_32gpu.sh main128 \
-  > runs/v98_main_node0.nohup.log 2>&1 &
+  > runs/v98_main128_node0.nohup.log 2>&1 &
 ```
 
-Repeat for node ranks `1`, `2`, and `3`. Then:
+Repeat for nodes 1-3. Then follow the same audit, blind-review freeze, and
+postprocess sequence with `main128`. Do not mix screen and main artifacts.
+The runner enforces this gate in code: it requires the screen analysis to have
+`hard_gate_pass=true`, rehashes every analysis input, and requires the same
+commit, calibration score, configs, checkpoints, method policies, and
+individual maps before it can publish a main128 contract.
+
+## 7. Optional matched v78 follow-up
+
+Only after the primary blind package is frozen and
+`metrics/v98_analysis.json` reports `hard_gate_pass=true` may v78 be tested.
+It is a fresh, separate two-cell phase under the primary root:
+
+```text
+followup_history_polarity_hybrid_merge_base
+followup_history_polarity_hybrid_merge_v78
+```
+
+Launch all four nodes with the same primary `OUT_ROOT` and
+`FOLLOWUP_V78=1`:
 
 ```bash
-REPO_ROOT="$PWD" \
-RUN_ROOT="$PWD/runs/v98_history_polarity_main128" \
+NODE_RANK=0 FOLLOWUP_V78=1 \
 GPU_LIST=0,1,2,3,4,5,6,7 \
-nohup bash scripts/postprocess_v98_history_polarity.sh main128 \
-  > runs/v98_main_postprocess.nohup.log 2>&1 &
+OUT_ROOT="$PWD/runs/v98_history_polarity_screen32_corrected" \
+bash scripts/run_v98_history_polarity_4node_32gpu.sh screen32
 ```
 
-Do not tune the zero threshold on MovieGenBench-128. The `-0.1/+0.1` maps are
-robustness ablations and must remain labeled as such.
+Postprocess with:
 
-## 9. Result-dependent next step
+```bash
+FOLLOWUP_V78=1 \
+RUN_ROOT="$PWD/runs/v98_history_polarity_screen32_corrected" \
+bash scripts/postprocess_v98_history_polarity.sh screen32
+```
 
-### Main method is clean and competitive
+The follow-up has its own contracts, blind package, metrics, and transition
+trace summary. Its two methods exchange GPU order within node pairs. The
+follow-up gate also requires its mode, commit, canonical prompt, score, and map
+contract to match the completed primary run. It cannot feed the primary
+go/no-go analyzer.
 
-Freeze the exact map hash and cache configuration. Start the paper main table,
-then run seed replication, 60-second extrapolation, and ABA scene-return
-evaluation.
+## 8. Hard stops
 
-### Main method is clean but trusted writes are better
+Stop the experiment if any of these occurs:
 
-Use `history_polarity_hybrid_merge_v78` as the candidate only if the trace
-shows nontrivial acceptance/rejection and blind review confirms the gain.
-Report the base and write-gated variants separately.
+1. calibration is not explicitly accepted;
+2. the two probe policies fail the frozen sign-consistency gate;
+3. a map, artifact, raw profile, prompt, model, config, source, or contract hash
+   changes;
+4. PF native and explicit parity differ beyond their predeclared tolerances;
+5. trace coverage is incomplete for any prompt/layer/head/branch Cartesian
+   cell, or a strategy/parameter/budget differs from the contract;
+6. any decoded video has the wrong index, frame count, fps, resolution, or
+   content hash;
+7. the blind package is incomplete, altered after scoring, or not frozen before
+   metrics;
+8. paired sample keys do not match across methods or a claimed interval crosses
+   the predeclared decision boundary.
 
-### PF oracle works but natural polarity does not
-
-The cache composition is useful but independent discovery is weak. Do not
-call the PF map ours. Analyze the 28 mismatched heads and test only the
-predeclared `-0.1/+0.1` robustness thresholds before deciding whether to
-abandon the classifier.
-
-### PF parity fails
-
-Stop all quality interpretation. Compare native/parity runtime traces and
-configuration hashes first.
-
-### All neutral binary methods fail
-
-Record the binary direction as negative and return to PF/v78. Do not hide the
-failure by using PF's three labels under a new name.
-
-## 10. Paper writing schedule
-
-Paper sections that can be written immediately:
-
-1. problem definition and training-free setting;
-2. history-polarity statistic;
-3. Supportive/Suppressive cache composition;
-4. implementation and complexity;
-5. provenance and distinction from PF;
-6. experimental protocol and ablations.
-
-Sections that must wait for GPU evidence:
-
-1. final method choice, including whether trusted writes remain;
-2. quantitative main table;
-3. qualitative claims about identity, motion, and scene switching;
-4. final abstract and contribution wording.
-
-The current provisional title can be:
-
-> History-Polarity Memory Routing for Training-Free Long Autoregressive Video
-> Generation
-
-This title remains editable if trusted writes or prompt-switch lifecycle
-become central after experiments.
+If parity fails, fix the implementation and start from a new output root. If
+parity passes but neutral binary cells fail, reject the binary story rather
+than silently substituting PF labels or retuning the classifier on video
+results.

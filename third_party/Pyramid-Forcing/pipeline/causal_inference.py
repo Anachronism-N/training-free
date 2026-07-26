@@ -936,7 +936,8 @@ class CausalInferencePipeline(torch.nn.Module):
                         f"policies={dict(sorted(Counter(str(item.policy_type) for item in flat).items()))} "
                         f"middle={dict(sorted(Counter('+'.join(type(strategy).__name__ for strategy in item.middle_strategies) or 'none' for item in flat).items()))} "
                         f"sinks={dict(sorted(Counter(int(item.sink_frames) for item in flat).items()))} "
-                        f"recent={dict(sorted(Counter(int(item.recent_frames) for item in flat).items()))}",
+                        f"recent={dict(sorted(Counter(int(item.recent_frames) for item in flat).items()))} "
+                        f"exclusive_dynamic={bool(hc.pyramidkv_composition_owns_dynamic)}",
                         flush=True,
                     )
 
@@ -1044,6 +1045,7 @@ class CausalInferencePipeline(torch.nn.Module):
                         label_lag_offsets_map=hc.pyramidkv_label_lag_offsets_map,
                         label_sink_frames_map=hc.pyramidkv_label_sink_frames_map,
                         label_stride_enabled_map=hc.pyramidkv_label_stride_enabled_map,
+                        composition_owns_dynamic=hc.pyramidkv_composition_owns_dynamic,
                         capture_frame_id_mode=hc.pyramidkv_capture_frame_id_mode,
                         readout_cache_enabled=hc.pyramidkv_readout_cache_enabled,
                         prompt_value_cache_enabled=hc.pyramidkv_prompt_v_cache_enabled,

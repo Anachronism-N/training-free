@@ -56,6 +56,8 @@ class PyramidKVPipelineConfig:
     pyramidkv_label_merge_patch_size_map: Optional[dict] = None
     pyramidkv_label_merge_capacity_map: Optional[dict] = None
     pyramidkv_hybrid_middle_enabled: bool = False
+    # If true, HeadComposition exclusively owns sink + middle + recent.
+    pyramidkv_composition_owns_dynamic: bool = False
 
     # --- Adaptive cache params ---
     pyramidkv_dynamic_capacity: int = 6240  # was tail_len; 4 * 1560
@@ -268,6 +270,9 @@ class PyramidKVPipelineConfig:
             pyramidkv_label_merge_capacity_map=getattr(args, "pyramidkv_label_merge_capacity_map", None),
             pyramidkv_hybrid_middle_enabled=bool(
                 getattr(args, "pyramidkv_hybrid_middle_enabled", False)
+            ),
+            pyramidkv_composition_owns_dynamic=bool(
+                getattr(args, "pyramidkv_composition_owns_dynamic", False)
             ),
             pyramidkv_dynamic_capacity=getattr(args, "pyramidkv_dynamic_capacity", 4 * frame_seq_length),
             ivc_ratio=getattr(args, "ivc_ratio", 0.1),

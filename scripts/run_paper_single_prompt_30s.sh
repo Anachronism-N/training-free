@@ -317,6 +317,6 @@ if [[ "$PREPARE_REVIEW" == "1" && "$status" -eq 0 ]]; then
 fi
 
 echo "[done] outputs=$OUT_ROOT status=$status"
-echo "[next] freeze $OUT_ROOT/blind_review/scorecard.csv before revealing key_private.json"
+echo "[next] freeze $OUT_ROOT/blind_review/scorecard.csv before revealing $OUT_ROOT/blind_review_private/key_private.json"
 echo "[logs] inspect $OUT_ROOT/traces/*_diagnosis.json and $OUT_ROOT/logs/*.log"
 exit "$status"

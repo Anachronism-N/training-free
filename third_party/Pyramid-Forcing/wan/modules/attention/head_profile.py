@@ -217,7 +217,7 @@ class HeadQKProfileRecorder:
             "records_per_layer_branch": records_per_layer_branch,
         }
         payload = {
-            "version": 2,
+            "version": 3,
             "method": "frame_level_pre_softmax_qk_last_query",
             "metadata": dict(metadata),
             "audit": audit,

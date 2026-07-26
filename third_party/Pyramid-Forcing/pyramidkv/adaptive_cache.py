@@ -182,6 +182,7 @@ class AdaptiveKVCache(PyramidKVCache):
         label_lag_offsets_map: dict | None = None,
         label_sink_frames_map: dict | None = None,
         label_stride_enabled_map: dict | None = None,
+        composition_owns_dynamic: bool = False,
         capture_frame_id_mode: str = "mapped",
         readout_cache_enabled: bool = True,
         prompt_value_cache_enabled: bool = False,
@@ -318,8 +319,10 @@ class AdaptiveKVCache(PyramidKVCache):
             ),
         )
         self._policy_trace_records = 0
-        self._policy_trace_seen: set[tuple[int, int, int, str]] = set()
+        self._policy_trace_prompt_id = 0
+        self._policy_trace_seen: set[tuple[int, int, int, int, str]] = set()
         self._policy_trace_warned = False
+        self._captured_sink_frames = [0] * (self.batch_size * self.num_heads)
         self.sink_len = max(0, int(sink_len))
         self.tail_len = max(0, int(tail_len))
         self.ivc_ratio = float(ivc_ratio)
@@ -685,6 +688,7 @@ class AdaptiveKVCache(PyramidKVCache):
         self.label_lag_offsets_map = self._build_label_lag_offsets_map(label_lag_offsets_map)
         self.label_sink_frames_map = self._build_label_sink_frames_map(label_sink_frames_map)
         self.label_stride_enabled_map = self._build_label_stride_enabled_map(label_stride_enabled_map)
+        self.composition_owns_dynamic = bool(composition_owns_dynamic)
         if self.sink_grid_decoupling and min_cap < max_cap:
             # In class-aware configs (e.g. -1 oscillating, 1 stable), reduced-capacity heads
             # are treated as oscillating heads and receive sink-grid decoupling.
@@ -695,6 +699,7 @@ class AdaptiveKVCache(PyramidKVCache):
         else:
             # If all capacities are equal, keep behavior backward compatible.
             self.decouple_head_flags = [self.sink_grid_decoupling] * self.num_heads
+        self._validate_composition_ownership_contract()
 
         self.static_pos: list[torch.Tensor | None] = [None] * (batch_size * num_heads)
         self.dynamic_pos: list[torch.Tensor | None] = [None] * (batch_size * num_heads)
@@ -896,6 +901,25 @@ class AdaptiveKVCache(PyramidKVCache):
         if not enabled:
             self.reset_profile_stats()
 
+    @staticmethod
+    def _trace_physical_frame_ids(
+        pos: torch.Tensor | None,
+    ) -> list[int]:
+        """Return sorted physical frame ids for debug-only policy traces."""
+
+        if pos is None or pos.numel() == 0:
+            return []
+        return [
+            int(value)
+            for value in torch.unique(
+                _as_long_tensor(pos[:, 0]),
+                sorted=True,
+            )
+            .detach()
+            .cpu()
+            .tolist()
+        ]
+
     def _trace_middle_selection(
         self,
         *,
@@ -904,6 +928,7 @@ class AdaptiveKVCache(PyramidKVCache):
         sync_t_raw: int,
         composition,
         collected,
+        sink_max_t: int | None = None,
     ) -> None:
         if (
             not self._policy_trace_path
@@ -913,7 +938,8 @@ class AdaptiveKVCache(PyramidKVCache):
         ):
             return
         branch = str(getattr(self, "_cfg_branch", "unknown"))
-        key = (seq_idx, head_idx, sync_t_raw, branch)
+        prompt_id = int(self._policy_trace_prompt_id)
+        key = (prompt_id, seq_idx, head_idx, sync_t_raw, branch)
         if key in self._policy_trace_seen:
             return
         self._policy_trace_seen.add(key)
@@ -925,7 +951,8 @@ class AdaptiveKVCache(PyramidKVCache):
                 recent_frames = int(composition.recent_frames)
                 sink_frames = int(composition.sink_frames)
                 tail_min_t = sync_t_raw - recent_frames + 1
-                sink_max_t = 0 if sink_frames > 0 else -1
+                if sink_max_t is None:
+                    sink_max_t = sink_frames - 1 if sink_frames > 0 else -1
                 for strategy in composition.middle_strategies:
                     anchors = strategy.collect(
                         seq_idx,
@@ -933,26 +960,103 @@ class AdaptiveKVCache(PyramidKVCache):
                         tail_min_t,
                         sink_max_t,
                     )
-                    strategies.append(
-                        {
-                            "name": type(strategy).__name__,
-                            "frame_ids": [int(anchor.t) for anchor in anchors],
-                            "token_count": sum(
-                                int(anchor.token_count) for anchor in anchors
-                            ),
-                        }
-                    )
+                    strategy_payload = {
+                        "name": type(strategy).__name__,
+                        "frame_ids": [int(anchor.t) for anchor in anchors],
+                        "token_count": sum(
+                            int(anchor.token_count) for anchor in anchors
+                        ),
+                        "dynamic_rope": bool(
+                            getattr(strategy, "dynamic_rope", False)
+                        ),
+                    }
+                    for field_name in (
+                        "interval",
+                        "capacity",
+                        "period",
+                        "bucket_cap",
+                        "patch_size",
+                        "block_frames",
+                    ):
+                        if hasattr(strategy, field_name):
+                            strategy_payload[field_name] = int(
+                                getattr(strategy, field_name)
+                            )
+                    strategies.append(strategy_payload)
             union_frame_ids = [
                 int(anchor.t)
                 for anchor in collected
                 if hasattr(anchor, "t")
             ]
+            sink_pos = (
+                self.static_pos[seq_idx]
+                if 0 <= seq_idx < len(self.static_pos)
+                else None
+            )
+            recent_pos = (
+                self.dynamic_pos[seq_idx]
+                if 0 <= seq_idx < len(self.dynamic_pos)
+                else None
+            )
+            sink_frame_ids = self._trace_physical_frame_ids(sink_pos)
+            recent_frame_ids = self._trace_physical_frame_ids(recent_pos)
+            frame_seqlen = int(
+                self._frame_seqlen or self.frame_seq_length or 0
+            )
+            sink_token_count = (
+                int(sink_pos.shape[0]) if sink_pos is not None else 0
+            )
+            recent_token_count = (
+                int(recent_pos.shape[0]) if recent_pos is not None else 0
+            )
+            sink_id_set = set(sink_frame_ids)
+            recent_id_set = set(recent_frame_ids)
+            union_id_set = set(union_frame_ids)
+            middle_sink_overlap = sorted(union_id_set & sink_id_set)
+            middle_recent_overlap = sorted(union_id_set & recent_id_set)
+            cache_contract_violations = []
+            exclusive_owner = bool(
+                composition is not None and self.composition_owns_dynamic
+            )
+            if composition is not None:
+                if len(sink_frame_ids) > sink_frames:
+                    cache_contract_violations.append(
+                        "sink_frame_budget_exceeded"
+                    )
+                if (
+                    frame_seqlen > 0
+                    and sink_token_count > sink_frames * frame_seqlen
+                ):
+                    cache_contract_violations.append(
+                        "sink_token_budget_exceeded"
+                    )
+                if exclusive_owner and len(recent_frame_ids) > recent_frames:
+                    cache_contract_violations.append(
+                        "recent_frame_budget_exceeded"
+                    )
+                if (
+                    exclusive_owner
+                    and frame_seqlen > 0
+                    and recent_token_count > recent_frames * frame_seqlen
+                ):
+                    cache_contract_violations.append(
+                        "recent_token_budget_exceeded"
+                    )
+                if middle_sink_overlap:
+                    cache_contract_violations.append(
+                        "middle_overlaps_sink"
+                    )
+                if middle_recent_overlap:
+                    cache_contract_violations.append(
+                        "middle_overlaps_recent"
+                    )
             payload = {
                 "event": "middle_selection",
                 "layer": int(self.layer_idx),
                 "head": int(head_idx),
                 "seq": int(seq_idx),
                 "branch": branch,
+                "prompt_id": prompt_id,
                 "sync_t": int(sync_t_raw),
                 "label": int(self.head_labels[head_idx]),
                 "sink_frames": sink_frames,
@@ -970,6 +1074,27 @@ class AdaptiveKVCache(PyramidKVCache):
                     for anchor in collected
                     if hasattr(anchor, "token_count")
                 ),
+                "sink_frame_ids": sink_frame_ids,
+                "sink_frame_count": len(sink_frame_ids),
+                "sink_token_count": sink_token_count,
+                "recent_frame_ids": recent_frame_ids,
+                "recent_frame_count": len(recent_frame_ids),
+                "recent_token_count": recent_token_count,
+                "frame_seqlen": frame_seqlen,
+                "middle_sink_overlap": middle_sink_overlap,
+                "middle_recent_overlap": middle_recent_overlap,
+                "composition_present": composition is not None,
+                "dynamic_policy_owner": (
+                    "composition_recent"
+                    if exclusive_owner
+                    else "legacy_dynamic"
+                ),
+                "legacy_dynamic_strategy": self._stable_strategy_kind(
+                    head_idx
+                ),
+                "explicit_composition_owns_dynamic": exclusive_owner,
+                "cache_contract_violations": cache_contract_violations,
+                "cache_contract_pass": not cache_contract_violations,
             }
             path = os.path.abspath(self._policy_trace_path)
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -1521,6 +1646,59 @@ class AdaptiveKVCache(PyramidKVCache):
             return ""
         return self._normalize_label_key(self.head_labels[head_idx])
 
+    def _validate_composition_ownership_contract(self) -> None:
+        if not self.composition_owns_dynamic:
+            return
+        if not self.use_osc_frame_mode:
+            raise ValueError(
+                "composition_owns_dynamic requires frame-mode cache routing"
+            )
+        if (
+            self.compositions_row is None
+            or len(self.compositions_row) != self.num_heads
+        ):
+            raise ValueError(
+                "composition_owns_dynamic requires one HeadComposition per head"
+            )
+        requires_static_sink = any(
+            int(composition.sink_frames) > 0
+            for composition in self.compositions_row
+            if composition is not None
+        )
+        if requires_static_sink and not self.is_i2v and (
+            not self.sink_grid_decoupling
+            or not all(self.decouple_head_flags)
+        ):
+            raise ValueError(
+                "exclusive T2V composition requires a static sink owner "
+                "for every head"
+            )
+        if self.probecache is not None or self.structured_memory_enabled:
+            raise ValueError(
+                "composition_owns_dynamic is incompatible with an additional "
+                "ProbeCache or structured-memory read owner"
+            )
+        for head_idx, composition in enumerate(self.compositions_row):
+            if composition is None:
+                raise ValueError(
+                    f"head {head_idx} has no composition under exclusive ownership"
+                )
+            sink_frames = self._head_sink_frames(head_idx)
+            if (
+                sink_frames is not None
+                and int(composition.sink_frames) != int(sink_frames)
+            ):
+                raise ValueError(
+                    f"head {head_idx} sink mismatch: composition="
+                    f"{composition.sink_frames}, runtime={sink_frames}"
+                )
+            recent_frames = self._head_recent_frames(head_idx)
+            if int(composition.recent_frames) != int(recent_frames):
+                raise ValueError(
+                    f"head {head_idx} recent mismatch: composition="
+                    f"{composition.recent_frames}, runtime={recent_frames}"
+                )
+
     def _head_sink_frames(self, head_idx: int) -> int | None:
         label = self._head_label_key(head_idx)
         if label in self.label_sink_frames_map:
@@ -1536,6 +1714,45 @@ class AdaptiveKVCache(PyramidKVCache):
         if self.stable_sink_frames is not None:
             return max(1, int(self.stable_sink_frames))
         return None
+
+    def _middle_sink_max_t(
+        self,
+        *,
+        seq_idx: int,
+        head_idx: int,
+        has_stat: bool,
+        composition=None,
+    ) -> int:
+        """Return the last physical sink-frame id excluded from middle reads."""
+
+        if not has_stat:
+            return -1
+        if composition is not None and not self.composition_owns_dynamic:
+            # Preserve the historical PF read contract for native parity.
+            # Exclusive binary routes exclude their entire declared sink.
+            return 0
+        captured_frames = (
+            self._captured_sink_frames[seq_idx]
+            if 0 <= seq_idx < len(self._captured_sink_frames)
+            else 0
+        )
+        if captured_frames > 0:
+            sink_frames = captured_frames
+        elif composition is not None:
+            sink_frames = max(0, int(composition.sink_frames))
+        else:
+            configured = self._head_sink_frames(head_idx)
+            if configured is not None:
+                sink_frames = max(0, int(configured))
+            else:
+                frame_seqlen = self._frame_seqlen or self.frame_seq_length or 0
+                sink_frames = (
+                    (self.sink_len + int(frame_seqlen) - 1)
+                    // int(frame_seqlen)
+                    if frame_seqlen > 0
+                    else 1
+                )
+        return sink_frames - 1 if sink_frames > 0 else -1
 
     def _has_explicit_recent_override(self, head_idx: int) -> bool:
         label = self._head_label_key(head_idx)
@@ -1709,7 +1926,14 @@ class AdaptiveKVCache(PyramidKVCache):
             return kind
         return None
 
-    def _stride_frame_ids(self, head_idx: int, kind: str, num_frames: int) -> list[int]:
+    def _stride_frame_ids(
+        self,
+        head_idx: int,
+        kind: str,
+        num_frames: int,
+        *,
+        recent_frames: int | None = None,
+    ) -> list[int]:
         if num_frames <= 0:
             return []
 
@@ -1718,9 +1942,14 @@ class AdaptiveKVCache(PyramidKVCache):
         #            + recent K
         # - recent_only: recent K only
         # This supports patterns like "sink3 + every6 (before recent) + recent4".
-        if self._has_explicit_recent_override(head_idx):
+        if recent_frames is not None or self._has_explicit_recent_override(head_idx):
             keep: list[int] = []
-            recent = min(num_frames, self._head_recent_frames(head_idx))
+            recent = min(
+                num_frames,
+                self._head_recent_frames(head_idx)
+                if recent_frames is None
+                else max(1, int(recent_frames)),
+            )
             recent_start = max(0, num_frames - recent)
             keep.extend(range(recent_start, num_frames))
             if kind == "stride":
@@ -1753,8 +1982,12 @@ class AdaptiveKVCache(PyramidKVCache):
         v_seq: torch.Tensor,
         pos_seq: torch.Tensor,
         frame_seqlen: int,
+        *,
+        kind: str | None = None,
+        recent_frames: int | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        kind = self._stable_strategy_kind(head_idx)
+        if kind is None:
+            kind = self._stable_strategy_kind(head_idx)
         if kind is None:
             return k_seq, v_seq, pos_seq
         if frame_seqlen <= 0 or pos_seq.shape[0] < frame_seqlen:
@@ -1769,7 +2002,12 @@ class AdaptiveKVCache(PyramidKVCache):
         if num_frames <= 1:
             return k_seq, v_seq, pos_seq
 
-        keep_f = self._stride_frame_ids(head_idx, kind, num_frames=num_frames)
+        keep_f = self._stride_frame_ids(
+            head_idx,
+            kind,
+            num_frames=num_frames,
+            recent_frames=recent_frames,
+        )
         if not keep_f or len(keep_f) >= num_frames:
             return k_seq, v_seq, pos_seq
 
@@ -1777,9 +2015,15 @@ class AdaptiveKVCache(PyramidKVCache):
         # Build keep_f_tensor sync-free via pinned memory + non_blocking H2D
         # (CUDA Graph capture requires zero host syncs in the forward path).
         device = pos_seq.device
-        keep_f_cpu = torch.tensor(keep_f, dtype=torch.long).pin_memory()
-        keep_f_tensor = torch.empty(len(keep_f), dtype=torch.long, device=device)
-        keep_f_tensor.copy_(keep_f_cpu, non_blocking=True)
+        keep_f_cpu = torch.tensor(keep_f, dtype=torch.long)
+        if device.type == "cuda":
+            keep_f_cpu = keep_f_cpu.pin_memory()
+            keep_f_tensor = torch.empty(
+                len(keep_f), dtype=torch.long, device=device
+            )
+            keep_f_tensor.copy_(keep_f_cpu, non_blocking=True)
+        else:
+            keep_f_tensor = keep_f_cpu.to(device=device)
         offsets = torch.arange(frame_seqlen, dtype=torch.long, device=device)
         keep_idx = (keep_f_tensor.unsqueeze(1) * frame_seqlen + offsets.unsqueeze(0)).flatten()
         return k_seq[keep_idx], v_seq[keep_idx], pos_seq[keep_idx]
@@ -1875,6 +2119,10 @@ class AdaptiveKVCache(PyramidKVCache):
             self.static_k[idx] = sink_k.clone()
             self.static_v[idx] = sink_v.clone()
             self.static_pos[idx] = sink_p.clone()
+            if frame_seqlen > 0:
+                self._captured_sink_frames[idx] = (
+                    take + frame_seqlen - 1
+                ) // frame_seqlen
 
         return k_in[take:], v_in[take:], p_in[take:]
 
@@ -2001,16 +2249,10 @@ class AdaptiveKVCache(PyramidKVCache):
                     )
                 else:
                     # Uniform endpoint-preserving baseline.
-                    middle_count = max_frames - 2
-                    middle_indices = torch.linspace(
-                        1, total - 2, steps=middle_count,
+                    keep = torch.linspace(
+                        0, total - 1, steps=max_frames,
                         device=pooled_k.device,
-                    ).round().to(torch.long).unique(sorted=True)
-                    keep = torch.cat([
-                        torch.tensor([0], device=pooled_k.device, dtype=torch.long),
-                        middle_indices,
-                        torch.tensor([total - 1], device=pooled_k.device, dtype=torch.long),
-                    ]).unique(sorted=True)
+                    ).round().to(torch.long)
                 pooled_k = pooled_k.index_select(0, keep)
                 pooled_v = pooled_v.index_select(0, keep)
                 intervals = intervals.index_select(0, keep.to(intervals.device))
@@ -2057,6 +2299,11 @@ class AdaptiveKVCache(PyramidKVCache):
 
     def reset(self):
         super().reset()
+        self._policy_trace_prompt_id += 1
+        self._policy_trace_seen.clear()
+        self._policy_trace_records = 0
+        self._policy_trace_warned = False
+        self._captured_sink_frames = [0] * (self.batch_size * self.num_heads)
         self.static_pos = [None] * (self.batch_size * self.num_heads)
         self.dynamic_pos = [None] * (self.batch_size * self.num_heads)
         self.update_step = 0
@@ -2702,6 +2949,12 @@ class AdaptiveKVCache(PyramidKVCache):
         for i in range(b * h):
             batch_idx = i // h
             head_idx = i % h
+            composition = (
+                self.compositions_row[head_idx]
+                if self.compositions_row is not None
+                and head_idx < len(self.compositions_row)
+                else None
+            )
             full_cap = self.capacities[head_idx]
             if self.osc_full_kv_retention and self.osc_head_flags[head_idx]:
                 full_cap = self.max_capacity
@@ -2713,29 +2966,36 @@ class AdaptiveKVCache(PyramidKVCache):
                 transition_mask is None or bool(transition_mask[i])
             )
             if (
-                allow_middle_commit
-                and self.use_osc_frame_mode
+                self.use_osc_frame_mode
                 and cache_update_mode in {"default", "clean"}
             ):
-                composition = (
-                    self.compositions_row[head_idx]
-                    if self.compositions_row is not None and head_idx < len(self.compositions_row)
-                    else None
-                )
                 if composition is not None:
-                    if composition.has_middle and not (
-                        cpp_strategy_updated
-                        and self._cpp_strategy_head_supported(head_idx)
-                    ):
-                        composition.update_all(
-                            idx=i,
-                            k_seq=new_k_flat[i],
-                            v_seq=new_v_flat[i],
-                            pos_seq=pos_flat[i],
-                            frame_seqlen=frame_seqlen,
-                            current_t=frame_start_t,
+                    if allow_middle_commit:
+                        if composition.has_middle and not (
+                            cpp_strategy_updated
+                            and self._cpp_strategy_head_supported(head_idx)
+                        ):
+                            composition.update_all(
+                                idx=i,
+                                k_seq=new_k_flat[i],
+                                v_seq=new_v_flat[i],
+                                pos_seq=pos_flat[i],
+                                frame_seqlen=frame_seqlen,
+                                current_t=frame_start_t,
+                            )
+                    elif composition.has_middle:
+                        num_frames = (
+                            int(new_k_flat[i].shape[0]) // frame_seqlen
+                            if frame_seqlen > 0
+                            and int(new_k_flat[i].shape[0]) % frame_seqlen == 0
+                            else 0
                         )
-                else:
+                        composition.discard_range(
+                            idx=i,
+                            current_t=frame_start_t,
+                            num_frames=num_frames,
+                        )
+                elif allow_middle_commit:
                     # Legacy anchors are only valid when no explicit
                     # composition exists. An explicit recent-only composition
                     # must not silently inherit PF's cyclic/lag middle cache.
@@ -2761,13 +3021,36 @@ class AdaptiveKVCache(PyramidKVCache):
                     self.static_k[i] = new_k_flat[i, :self.context_len].clone()
                     self.static_v[i] = new_v_flat[i, :self.context_len].clone()
                     self.static_pos[i] = pos_flat[i, :self.context_len].clone()
+                    if frame_seqlen > 0 and self.context_len > 0:
+                        self._captured_sink_frames[i] = (
+                            self.context_len + frame_seqlen - 1
+                        ) // frame_seqlen
                     if l_new > self.context_len:
+                        initial_k = new_k_flat[i, self.context_len:]
+                        initial_v = new_v_flat[i, self.context_len:]
+                        initial_pos = pos_flat[i, self.context_len:]
+                        if (
+                            self.use_osc_frame_mode
+                            and composition is not None
+                            and self.composition_owns_dynamic
+                        ):
+                            initial_k, initial_v, initial_pos = (
+                                self._apply_stable_strategy(
+                                    head_idx=head_idx,
+                                    k_seq=initial_k,
+                                    v_seq=initial_v,
+                                    pos_seq=initial_pos,
+                                    frame_seqlen=frame_seqlen,
+                                    kind="recent_only",
+                                    recent_frames=int(composition.recent_frames),
+                                )
+                            )
                         self._set_dynamic_store(
                             i,
-                            new_k_flat[i, self.context_len:],
-                            new_v_flat[i, self.context_len:],
-                            pos_flat[i, self.context_len:],
-                            reserve_extra=max(16, (l_new - self.context_len) // 2),
+                            initial_k,
+                            initial_v,
+                            initial_pos,
+                            reserve_extra=max(16, int(initial_k.shape[0]) // 2),
                         )
                     else:
                         self._set_dynamic_empty(i, device=new_k.device, dtype=new_k.dtype)
@@ -2830,17 +3113,36 @@ class AdaptiveKVCache(PyramidKVCache):
             v_merged = self.dynamic_v[i]
             p_merged = self.dynamic_pos[i]
 
-            stable_kind = self._stable_strategy_kind(head_idx)
+            # In exclusive mode, HeadComposition owns all middle history and
+            # dynamic stores only its declared recent window. Native PF keeps
+            # the historical legacy-dynamic behavior for parity.
+            exclusive_owner = bool(
+                composition is not None and self.composition_owns_dynamic
+            )
+            if exclusive_owner:
+                stable_kind = "recent_only"
+                dynamic_recent_frames = max(1, int(composition.recent_frames))
+            else:
+                stable_kind = self._stable_strategy_kind(head_idx)
+                dynamic_recent_frames = self._head_recent_frames(head_idx)
             probecache_managed = (
                 self.probecache is not None
                 and self.probecache.manages_head(head_idx)
             )
             dyn_cap = full_cap
-            if self.use_osc_frame_mode and not self.is_i2v:
+            if self.use_osc_frame_mode and exclusive_owner:
+                dyn_cap = min(
+                    full_cap,
+                    dynamic_recent_frames * frame_seqlen,
+                )
+            elif self.use_osc_frame_mode and not self.is_i2v:
                 # Oscillating heads keep short local recent tail; stable heads can keep wider history
                 # and let stable policies downsample at frame level.
                 if stable_kind is None or probecache_managed:
-                    dyn_cap = min(full_cap, self._head_recent_frames(head_idx) * frame_seqlen)
+                    dyn_cap = min(
+                        full_cap,
+                        dynamic_recent_frames * frame_seqlen,
+                    )
                 else:
                     dyn_cap = full_cap
             elif self.is_i2v:
@@ -2867,10 +3169,27 @@ class AdaptiveKVCache(PyramidKVCache):
                         v_seq=v_merged,
                         pos_seq=p_merged,
                         frame_seqlen=frame_seqlen,
+                        kind=stable_kind,
+                        recent_frames=(
+                            dynamic_recent_frames
+                            if exclusive_owner
+                            else None
+                        ),
                     )
                     reserve_extra = min(max(16, l_in), max(0, dyn_cap - int(k_merged.shape[0])))
                     self._set_dynamic_store(i, k_merged, v_merged, p_merged, reserve_extra=reserve_extra)
                     structural_change = True
+                if (
+                    exclusive_owner
+                    and int(self.dynamic_k[i].shape[0])
+                    > dynamic_recent_frames * frame_seqlen
+                ):
+                    raise RuntimeError(
+                        "exclusive composition leaked history into dynamic "
+                        f"cache at layer={self.layer_idx}, head={head_idx}: "
+                        f"tokens={self.dynamic_k[i].shape[0]}, "
+                        f"budget={dynamic_recent_frames * frame_seqlen}"
+                    )
             else:
                 needs_compaction = (k_merged.shape[0] > dyn_cap)
                 allow_reselect = cache_update_mode in {"default", "clean"}
@@ -3966,6 +4285,12 @@ class AdaptiveKVCache(PyramidKVCache):
         )
         collect_start = perf_counter()
         if composition is not None:
+            sink_max_t = self._middle_sink_max_t(
+                seq_idx=seq_idx,
+                head_idx=head_idx,
+                has_stat=has_stat,
+                composition=composition,
+            )
             if not composition.has_middle:
                 self._record_profile("collect_ms", collect_start)
                 self._trace_middle_selection(
@@ -3974,11 +4299,11 @@ class AdaptiveKVCache(PyramidKVCache):
                     sync_t_raw=sync_t_raw,
                     composition=composition,
                     collected=[],
+                    sink_max_t=sink_max_t,
                 )
                 return ("comp", []), 0
 
             tail_min_t = sync_t_raw - composition.recent_frames + 1
-            sink_max_t = 0 if has_stat else -1
             cpp_collected = self._try_cpp_strategy_collect(
                 seq_idx=seq_idx,
                 head_idx=head_idx,
@@ -3994,6 +4319,7 @@ class AdaptiveKVCache(PyramidKVCache):
                     sync_t_raw=sync_t_raw,
                     composition=composition,
                     collected=cpp_collected,
+                    sink_max_t=sink_max_t,
                 )
                 return ("comp", cpp_collected), sum(
                     int(anchor.token_count) for anchor in cpp_collected
@@ -4015,16 +4341,22 @@ class AdaptiveKVCache(PyramidKVCache):
                 sync_t_raw=sync_t_raw,
                 composition=composition,
                 collected=collected,
+                sink_max_t=sink_max_t,
             )
             return ("comp", collected), n
 
         inline = []
+        sink_max_t = self._middle_sink_max_t(
+            seq_idx=seq_idx,
+            head_idx=head_idx,
+            has_stat=has_stat,
+        )
         if self.use_osc_frame_mode and self._is_phase_sink_head(head_idx):
             phase_idx = sync_t_raw % self.phase_period
             tail_min_t_cyc = sync_t_raw - self._head_recent_frames(head_idx) + 1
             for anchor in self.cyclic_buckets[seq_idx][phase_idx]:
                 anchor_t = anchor[3]
-                if has_stat and anchor_t == 0:
+                if anchor_t <= sink_max_t:
                     continue
                 if anchor_t >= tail_min_t_cyc:
                     continue
@@ -4038,7 +4370,7 @@ class AdaptiveKVCache(PyramidKVCache):
                 target_t = sync_t_raw - lag
                 if target_t < 0:
                     continue
-                if has_stat and target_t == 0:
+                if target_t <= sink_max_t:
                     continue
                 if target_t >= tail_min_t_lag:
                     continue
@@ -4054,6 +4386,7 @@ class AdaptiveKVCache(PyramidKVCache):
             sync_t_raw=sync_t_raw,
             composition=composition,
             collected=[],
+            sink_max_t=sink_max_t,
         )
         return ("inline", inline), n
 
@@ -4211,7 +4544,12 @@ class AdaptiveKVCache(PyramidKVCache):
                 and self._cpp_strategy_head_supported(head_idx)
             ):
                 tail_min_t = sync_t_raw - composition.recent_frames + 1
-                sink_max_t = 0 if has_stat else -1
+                sink_max_t = self._middle_sink_max_t(
+                    seq_idx=i,
+                    head_idx=head_idx,
+                    has_stat=has_stat,
+                    composition=composition,
+                )
                 managed_count = self._try_cpp_strategy_count(
                     seq_idx=i,
                     head_idx=head_idx,

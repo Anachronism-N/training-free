@@ -256,4 +256,4 @@ python "$ROOT/scripts/analyze_v93_moviebench.py" \
     >"$METRICS/logs/v93_analysis.log" 2>&1 || exit 1
 
 echo "[v93-postprocess] mode=$MODE metrics=$METRICS"
-echo "[review] freeze $BLIND_REVIEW/scorecard.csv before opening key_private.json or metrics"
+echo "[review] freeze $BLIND_REVIEW/scorecard.csv before opening ${BLIND_REVIEW}_private/key_private.json or metrics"

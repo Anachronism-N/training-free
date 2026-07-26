@@ -50,6 +50,10 @@ class MergeStrategy:
         self._blocks: list[OrderedDict[int, _MergeBlock]] = []
         self._complete_block_ids: list[deque[int]] = []
         self._complete_block_sets: list[set[int]] = []
+        # A transition rejection invalidates every merge block touched by the
+        # skipped source frames.  Keep only the currently open invalid block;
+        # older ids are pruned once time advances past their end.
+        self._invalid_block_ids: list[set[int]] = []
         # Cached grid metadata. Frame layout is identical across blocks of one run,
         # so patch_cols / num_groups only need to be derived once (one .item() sync
         # at warmup) and can be reused sync-free during steady-state (required for
@@ -61,6 +65,57 @@ class MergeStrategy:
         self._blocks = [OrderedDict() for _ in range(num_seq)]
         self._complete_block_ids = [deque() for _ in range(num_seq)]
         self._complete_block_sets = [set() for _ in range(num_seq)]
+        self._invalid_block_ids = [set() for _ in range(num_seq)]
+
+    def _drop_block(self, idx: int, block_id: int) -> None:
+        self._blocks[idx].pop(block_id, None)
+        if block_id in self._complete_block_sets[idx]:
+            self._complete_block_sets[idx].discard(block_id)
+            try:
+                self._complete_block_ids[idx].remove(block_id)
+            except ValueError:
+                pass
+
+    def _prune_stale_state(self, idx: int, current_t: int) -> None:
+        """Drop partial/invalid blocks that can no longer receive a frame."""
+
+        blocks = self._blocks[idx]
+        complete_set = self._complete_block_sets[idx]
+        for block_id, block in list(blocks.items()):
+            if (
+                block_id not in complete_set
+                and block.merged_anchor is None
+                and block.end_t < current_t
+            ):
+                blocks.pop(block_id, None)
+        invalid = self._invalid_block_ids[idx]
+        stale_invalid = {
+            block_id
+            for block_id in invalid
+            if ((block_id + 1) * self.block_frames - 1) < current_t
+        }
+        invalid.difference_update(stale_invalid)
+
+    def discard_range(self, idx: int, current_t: int, num_frames: int) -> None:
+        """Invalidate merge blocks overlapping a rejected contiguous range.
+
+        A merge anchor is valid only when all ``block_frames`` source frames
+        were admitted.  Once any source frame is rejected, later accepted
+        frames must not recreate a permanently incomplete aggregate for that
+        block.
+        """
+
+        if num_frames <= 0:
+            return
+        start_t = int(current_t)
+        end_t = start_t + int(num_frames) - 1
+        first_block = start_t // self.block_frames
+        last_block = end_t // self.block_frames
+        invalid = self._invalid_block_ids[idx]
+        for block_id in range(first_block, last_block + 1):
+            self._drop_block(idx, block_id)
+            invalid.add(block_id)
+        self._prune_stale_state(idx, end_t)
 
     def update(
         self,
@@ -83,12 +138,17 @@ class MergeStrategy:
         num_frames = k_seq.shape[0] // frame_seqlen
         if t_vals is None:
             t_vals = pos_seq[::frame_seqlen, 0].long().tolist()
+        if not t_vals:
+            return
+        self._prune_stale_state(idx, min(int(t) for t in t_vals))
 
         for frame_idx in range(num_frames):
             start = frame_idx * frame_seqlen
             end = start + frame_seqlen
             t_val = int(t_vals[frame_idx])
             block_id = t_val // self.block_frames
+            if block_id in self._invalid_block_ids[idx]:
+                continue
             start_t = block_id * self.block_frames
             end_t = start_t + self.block_frames - 1
             block = blocks.get(block_id)
@@ -146,6 +206,7 @@ class MergeStrategy:
                 if block_id not in complete_set:
                     complete_ids.append(block_id)
                     complete_set.add(block_id)
+        self._prune_stale_state(idx, max(int(t) for t in t_vals))
         if self.capacity > 0:
             while len(complete_ids) > self.capacity:
                 drop_id = complete_ids.popleft()

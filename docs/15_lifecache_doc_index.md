@@ -2,8 +2,15 @@
 
 ## Current method (read first)
 
+- `docs/100_v99_binary_cache_recovery_and_paper_story.md`: current recovery
+  protocol. It records the duplicate cache-owner bug, restores the
+  quality-tested stride/cyclic binary topology, adds a one-prompt human gate,
+  reuses existing videos, and defines the conditional paper claims.
+- `docs/99_v98_experiment_results.md`: historical v98 measurements. The
+  videos/metrics remain valid for those runs, but the causal claim that binary
+  heads were cleanly disproved is superseded by docs/100.
 - `docs/98_history_polarity_dual_memory_method.md`: current v98 paper
-  candidate. It replaces prompt sensitivity as the static classifier with a
+  hypothesis record. It replaces prompt sensitivity as the static classifier with a
   natural-zero history-polarity split, uses neutral labels `10/11`, defines
   Supportive hybrid stride+cyclic memory and Suppressive compressed memory,
   and records the exact difference from PF.
@@ -11,8 +18,9 @@
   MovieGenBench-32 and MovieGenBench-128 commands, model paths, strict debug
   contracts, post-processing, review gates, and result-dependent paper plan.
 - `docs/97_v97_experiment_results.md`: v97 result record. Its corrected head
-  scores remain valid, but human review found polygon noise in all binary
-  generation cells; those cells are not final quality evidence.
+  captures remain diagnostic, but its absolute-sign score is not a valid input
+  to corrected v98; human review also found polygon noise in all binary
+  generation cells.
 - `docs/97_score_artifact_threshold_pf_merge_experiment.md`: current v97
   correctness reset and 10-hour protocol. It fixes the v96 layer-index
   aliasing bug, saves immutable unthresholded per-head scores, applies manual,
@@ -75,28 +83,27 @@
 
 Recommended reading order:
 
-1. `docs/98_history_polarity_dual_memory_method.md`
-2. `docs/99_v98_32gpu_runbook_and_paper_plan.md`
-3. `docs/97_v97_experiment_results.md`
-4. `docs/97_score_artifact_threshold_pf_merge_experiment.md`
-5. `docs/95_post_v93_dual_axis_phase_cache.md`
-6. `docs/93_moviebench_10h_128_and_head32_plan.md`
-7. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
-8. `docs/91_transitioncache_paper_story.md`
-9. `docs/90_post_v86_analysis_and_v90_experiment.md`
+1. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
+2. `docs/99_v98_experiment_results.md`
+3. `docs/98_history_polarity_dual_memory_method.md`
+4. `docs/99_v98_32gpu_runbook_and_paper_plan.md`
+5. `docs/97_v97_experiment_results.md`
+6. `docs/95_post_v93_dual_axis_phase_cache.md`
+7. `docs/93_moviebench_10h_128_and_head32_plan.md`
+8. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
+9. `docs/91_transitioncache_paper_story.md`
 10. `docs/64_related_work_code_provenance_and_claims.md`
 
-The current GPU-pending candidate is v98 History-Polarity Dual Memory. It
-reuses the corrected v97 score artifact but not the failed prompt-sensitivity
-taxonomy. A natural zero split of normalized signed history support produces
-neutral labels `10/11`; Supportive heads read a budget-matched
-stride2+cyclic2 middle, while Suppressive heads read compressed history.
-The four-node v98 matrix first proves PF explicit parity and then separates
-classifier, cache composition, and trusted writes. The v95 Dual-Axis Phase
-Cache remains a fallback if the v98 binary taxonomy gates fail. v78
-Trust-Conditioned Cache Transition remains one of its optional lifecycle
-components. Matched seeds 0-2 show v78 and PF are effectively tied in mean
-DINO, so a consistent DINO improvement is not currently supportable. v86 counterfactual
+The current GPU-pending candidate is v99 binary cache recovery. Each smoke
+invocation generates one new video for a shared prompt while reusing PF and
+earlier binary references. Both neutral-label roles use exclusive
+sink/middle/recent ownership: Supportive heads use sink3+stride4+recent4 and
+Responsive heads use sink1+cyclic4+recent4. A PF-AR neutral map isolates cache
+correctness before the independent history-polarity map is judged. No
+32/128-prompt run should start until that one-prompt parity gate passes. The v95
+Dual-Axis Phase Cache remains a fallback if the v98 binary taxonomy gates
+fail. Matched seeds 0-2 show v78 and PF are effectively tied in mean DINO, so
+a consistent DINO improvement is not currently supportable. v86 counterfactual
 role-conditioned clocks are a negative result: the labels are reproducible but
 do not beat v78, PF-binary, inverse and random controls. Remaining v90 cells
 test lower-risk weak priorities and lifecycle factors. v92 tests a new

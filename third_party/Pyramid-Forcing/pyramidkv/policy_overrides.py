@@ -109,6 +109,7 @@ def history_polarity_policy_overrides(
 
     support_cyclic = 2 if support == "hybrid" else 0
     suppress_cyclic = 4 if suppress == "cyclic" else 0
+    suppress_sink = 1 if suppress == "cyclic" else 3
     support_key = str(support_label)
     suppress_key = str(suppress_label)
     return {
@@ -131,17 +132,22 @@ def history_polarity_policy_overrides(
         },
         "pyramidkv_label_merge_patch_size_map": {suppress_key: 2},
         "pyramidkv_label_merge_capacity_map": {suppress_key: 4},
-        # Both roles keep the same identity sink and recent context. Only the
-        # middle-history representation changes between the two roles.
+        # A phase-cyclic route uses the quality-tested PF Wave layout:
+        # sink1 + cyclic4 + recent4. Merge/recent routes keep sink3. This
+        # prevents a nominal cache-only recovery from also changing the
+        # cyclic head's positional/sink contract.
         "pyramidkv_label_sink_frames_map": {
             support_key: 3,
-            suppress_key: 3,
+            suppress_key: suppress_sink,
         },
         "pyramidkv_label_recent_frames_map": {
             support_key: 4,
             suppress_key: 4,
         },
         "pyramidkv_hybrid_middle_enabled": support == "hybrid",
+        # The neutral-label route must not inherit a second legacy dynamic
+        # history path alongside its explicit middle strategy.
+        "pyramidkv_composition_owns_dynamic": True,
         "stride_capacity": 2 if support == "hybrid" else 4,
     }
 

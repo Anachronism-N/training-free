@@ -221,4 +221,4 @@ python "$ROOT/scripts/analyze_v95_dual_axis.py" \
     >"$METRICS/logs/v95_analysis.log" 2>&1 || exit 1
 
 echo "[v95-postprocess] metrics=$METRICS"
-echo "[review] freeze $BLIND_REVIEW/scorecard.csv before opening key_private.json or metrics"
+echo "[review] freeze $BLIND_REVIEW/scorecard.csv before opening ${BLIND_REVIEW}_private/key_private.json or metrics"

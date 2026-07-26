@@ -42,6 +42,11 @@ def _factory_kwargs(overrides: dict[str, object]) -> dict[str, object]:
     return {
         key.removeprefix("pyramidkv_"): value
         for key, value in overrides.items()
+        if key
+        not in {
+            "pyramidkv_code_map",
+            "pyramidkv_composition_owns_dynamic",
+        }
     }
 
 
@@ -123,6 +128,41 @@ def test_history_polarity_uses_neutral_labels_and_explicit_routes(tmp_path):
         "10": 32760,
         "11": 32760,
     }
+
+
+def test_history_polarity_cyclic_route_restores_wave_sink_contract(tmp_path):
+    labels = tmp_path / "history_polarity_cyclic.csv"
+    _write_labels(
+        labels,
+        [[HISTORY_SUPPORT_LABEL, HISTORY_SUPPRESS_LABEL]],
+    )
+    overrides = history_polarity_policy_overrides("stride", "cyclic")
+    compositions = build_compositions(
+        1,
+        2,
+        torch.full((1, 2), 32760, dtype=torch.int32),
+        csv_path=str(labels),
+        cyclic_enabled=True,
+        cyclic_period=6,
+        cyclic_bucket_cap=4,
+        stride_enabled=True,
+        stride_interval=6,
+        merge_enabled=True,
+        **_factory_kwargs(overrides),
+    )[0]
+    supportive, suppressive = compositions
+
+    assert [type(strategy) for strategy in supportive.middle_strategies] == [
+        StrideStrategy
+    ]
+    assert supportive.sink_frames == 3
+    assert supportive.recent_frames == 4
+    assert [type(strategy) for strategy in suppressive.middle_strategies] == [
+        CyclicStrategy
+    ]
+    assert suppressive.middle_strategies[0].bucket_cap == 4
+    assert suppressive.sink_frames == 1
+    assert suppressive.recent_frames == 4
 
 
 def test_history_polarity_rejects_pf_reserved_labels():

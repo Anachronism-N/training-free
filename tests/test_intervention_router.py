@@ -102,6 +102,7 @@ def test_hybrid_router_uses_offline_profile(tmp_path):
         config=InterventionRoutingConfig(
             mode="hybrid",
             head_budget_fraction=0.5,
+            min_delta_to_native=0.0,
             min_utility_spread=0.0,
         ),
         state=InterventionRouterState(),
@@ -133,6 +134,7 @@ def test_router_abstains_when_heads_are_indistinguishable():
         attention_call_index=0,
         config=InterventionRoutingConfig(
             mode="online",
+            min_delta_to_native=0.0,
             min_utility_spread=0.05,
         ),
         state=InterventionRouterState(),

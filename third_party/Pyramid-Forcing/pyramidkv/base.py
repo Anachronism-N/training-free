@@ -133,6 +133,27 @@ class HeadComposition:
         for strategy in self.middle_strategies:
             strategy.update(idx, k_seq, v_seq, pos_seq, frame_seqlen, current_t, t_vals=t_vals)
 
+    def discard_range(
+        self,
+        idx: int,
+        current_t: int,
+        num_frames: int,
+    ) -> None:
+        """Notify stateful strategies that source frames were not committed.
+
+        Most middle strategies store independent frame anchors and need no
+        action when a transition gate rejects a write.  Cross-frame
+        aggregators such as :class:`MergeStrategy`, however, must invalidate
+        any partial aggregate that overlaps the skipped range.  The hook is
+        optional so existing strategies keep their simple update/collect
+        protocol.
+        """
+
+        for strategy in self.middle_strategies:
+            discard = getattr(strategy, "discard_range", None)
+            if callable(discard):
+                discard(idx, current_t, num_frames)
+
     def collect_all(
         self,
         idx: int,

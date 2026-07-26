@@ -2,13 +2,24 @@
 
 Date: 2026-07-26
 
-Status: implemented, CPU/static checks passed, GPU evidence pending.
+Status: historical v98 design. Its score definition remains under study, but
+the hybrid/merge cache and "clean binary failure" conclusion are superseded by
+the v99 stride/cyclic recovery in
+`docs/100_v99_binary_cache_recovery_and_paper_story.md`.
+
+Post-hoc audit found that explicit middle strategies could coexist with a
+legacy dynamic-history path, so v98 did not enforce the cache lifecycle
+described below. Treat Sections 4-6 as the exact v98 hypothesis, not as the
+current implementation.
 
 ## 1. Why v97 is not the final conclusion
 
-The v97 head-score artifact remains valid: all 30 layers and 360 heads were
-captured with explicit layer ids, and the raw scores are reusable. The v97
-generation conclusion is not sufficient to reject every binary method.
+The v97 profiling run established useful diagnostics, but its absolute
+historical-logit-sign score is not a valid source for the corrected v98 map.
+The sign of an individual pre-softmax logit changes under an otherwise
+irrelevant common logit shift, and the old statistic mixed immutable sink and
+recent keys with the middle history that v98 actually intervenes on. A fresh
+deployment-matched v98 calibration is therefore mandatory.
 
 Human review found polygon noise in every v97 binary cell. Two implementation
 confounds were subsequently found:
@@ -38,23 +49,36 @@ should not receive the same representation of middle history.
 
 We therefore define two roles:
 
-- **History-Supportive**: historical QK evidence has non-negative net signed
-  support. Preserve complementary sparse-global and periodic evidence.
-- **History-Suppressive**: historical QK evidence is net negative. Preserve a
-  compact recent-history summary rather than many full old frames.
+- **History-Supportive**: middle history has a non-negative standardized margin
+  over the recent reference. Preserve complementary sparse-global and periodic
+  evidence.
+- **History-Suppressive**: the middle-history margin is negative. Preserve a
+  compact history summary rather than many full old frames.
 
 The role ids are `10/11`, deliberately outside PF's reserved `-1/1/2` ids.
 
 ## 3. Offline head discovery
 
-For each conditional attention record, let `a(l,h,t)` be the pre-softmax QK
-logit assigned by head `(l,h)` to historical frame `t`. Define:
+For each conditional/noisy attention record, let `a(l,h,t)` be the pre-softmax
+QK logit assigned by head `(l,h)` to historical frame `t`. Let `R` be the
+latest four distinct historical frame ids, and let `M` be the older history
+after excluding both `R` and the first three immutable sink frames. Define:
 
 ```text
-rho_record(l,h) =
-    sum_t a(l,h,t) / max(sum_t |a(l,h,t)|, epsilon)
+delta_record(l,h) = mean_{t in M} a(l,h,t) - mean_{t in R} a(l,h,t)
 
-rho(l,h) = median_records rho_record(l,h)
+scale_record(l,h) =
+    RMS_centered({a(l,h,t) : t in M union R})
+
+rho_record(l,h) = delta_record(l,h) / max(scale_record(l,h), epsilon)
+
+rho_policy(l,h) =
+    median_profiles(median_records_within_profile(rho_record(l,h)))
+
+rho(l,h) = median(
+    rho_uniform_stride(l,h),
+    rho_uniform_merge(l,h)
+)
 ```
 
 The primary split is the natural zero boundary:
@@ -64,36 +88,43 @@ rho(l,h) >= 0  -> History-Supportive (label 10)
 rho(l,h) <  0  -> History-Suppressive (label 11)
 ```
 
-This threshold is fixed before video generation and does not use PF labels.
-It does not depend on a fitted number of clusters. The score is normalized to
-`[-1, 1]`, so zero has a direct interpretation: whether history contributes
-net positive or net negative pre-softmax evidence.
+This difference is invariant to adding the same constant to every key logit
+for a query. The zero boundary directly means that intervened middle history
+is preferred to the recent reference, or vice versa. It is fixed before video
+generation, does not use PF labels, and does not fit a cluster count.
 
-The current frozen map contains:
+Calibration is frozen at 120 frames, CFG disabled, conditional/noisy records
+only, eight counterfactual prompt pairs, two sides, two seeds, and two probe
+topologies (`uniform_stride` and `uniform_merge`): 64 independent profiles in
+total. Record counts cannot weight a profile, and profile counts cannot weight
+one topology more than the other.
 
-| Role | Heads |
-|---|---:|
-| History-Supportive | 304 |
-| History-Suppressive | 56 |
+The previous `304/56` split and its PF cross-tab came from the superseded
+absolute-sign score. They must not be cited or used by the corrected runner.
+Head counts and PF correspondence are unknown until the fresh artifact passes
+all frozen gates:
 
-PF labels are used only after classification for analysis:
+- complete 30 x 12 head coverage in every profile;
+- at least 75% prompt-pair-cluster bootstrap sign agreement for a head,
+  achieved by at least 80% of heads;
+- stride/merge median signs agree for at least 80% of heads;
+- each final role contains at least 5% of the 360 heads;
+- exact profile, prompt, config, checkpoint, map, manifest, and Git hashes.
 
-| PF class | Supportive | Suppressive | Total |
-|---|---:|---:|---:|
-| Anchor | 169 | 3 | 172 |
-| Wave | 133 | 23 | 156 |
-| Veil | 2 | 30 | 32 |
+The paired bootstrap is frozen at 500 rounds with seed `20260726`. An
+exact-zero reference or resampled estimate is not counted as sign agreement;
+zero evidence cannot manufacture a stability pass. The topology gate likewise
+requires two non-zero policy medians with the same sign. The positive-rate
+control counts only strictly positive per-profile estimates; exact zero is
+non-positive for that control even though the final natural-zero map assigns
+an exactly zero balanced score to the Supportive role.
 
-This is useful correspondence, not the classifier definition. Against the
-PF `(Anchor + Wave) | Veil` merge, the natural split has 92.2% total
-agreement, 92.9% balanced accuracy, and 0.517 suppressive Jaccard. The
-non-identical membership is important: the proposed map is not a renamed PF
-map.
+PF labels are used only after the accepted classification for analysis.
 
 The implemented controls are:
 
 - thresholds `-0.1`, `0`, and `0.1`;
-- positive-logit fraction `>= 0.5`;
+- strict-positive per-profile middle-margin fraction `>= 0.5`;
 - layer-wise count-matched random membership;
 - PF `(Anchor + Wave) | Veil` and `Anchor | (Wave + Veil)` oracle controls.
 
@@ -187,7 +218,7 @@ minimum novelty:         0.01
 maximum commit fraction: 0.75
 stagger period:          1
 maximum age:             6 blocks
-CFG branches:            both
+CFG branches:            conditional only
 ```
 
 Trusted writes become a paper component only if the matched v98 cell improves
@@ -197,7 +228,7 @@ blind review and long-video metrics. They are not bundled into the base result.
 
 | Dimension | Pyramid Forcing | v98 proposed method |
 |---|---|---|
-| Head discovery | Offline sign-rate + FFT periodicity + fallback | Median normalized net signed history support |
+| Head discovery | Offline sign-rate + FFT periodicity + fallback | Shift-invariant middle-vs-recent margin, balanced over stride/merge probes |
 | Number of roles | Anchor / Wave / Veil | Supportive / Suppressive |
 | Threshold | PF tri-pattern rules | Natural zero, no PF-label tuning |
 | Supportive history | Anchor stride or Wave cyclic, selected by PF class | Same stride2 + cyclic2 composition for all Supportive heads |
@@ -252,8 +283,8 @@ The shortest defensible narrative is:
 
 Potential contribution bullets, subject to results:
 
-1. A training-free normalized history-polarity statistic and natural binary
-   head partition.
+1. A training-free, shift-invariant, topology-balanced history-polarity
+   statistic and natural binary head partition.
 2. A role-conditioned dual memory that unifies sparse and periodic evidence
    for Supportive heads and compressed evidence for Suppressive heads.
 3. Reliability/novelty/age-controlled middle-memory writes.
@@ -264,16 +295,20 @@ Potential contribution bullets, subject to results:
 
 The method advances to the paper main table only if:
 
-1. PF native and PF explicit parity are both visually clean and numerically
+1. The new calibration artifact passes coverage, bootstrap, cross-topology,
+   minority-role, dependency-hash, and clean-worktree gates.
+2. PF native and PF explicit parity are both visually clean and numerically
    close.
-2. Runtime traces show only labels `10/11` for proposed cells and exactly the
+3. Runtime traces show only labels `10/11` for proposed cells and exactly the
    declared strategies.
-3. No proposed cell has polygon noise, identity replacement, or repeated
+4. No proposed cell has polygon noise, identity replacement, or repeated
    startup flashbacks.
-4. The natural-zero map beats the positive-rate control and is not equivalent
+5. The natural-zero map beats the positive-rate control and is not equivalent
    to the layer-wise random control.
-5. The hybrid Supportive cache is at least competitive with stride-only.
-6. The best proposed cell has an acceptable quality gap to PF on
+6. The hybrid Supportive cache is at least competitive with stride-only.
+7. Per-video paired bootstrap intervals support the claimed primary
+   differences; aggregate-only deltas are insufficient.
+8. The best proposed cell has an acceptable quality gap to PF on
    MovieGenBench-128 and improves clearly over native SF.
 
 If PF parity fails, stop and fix implementation. If PF parity passes but every

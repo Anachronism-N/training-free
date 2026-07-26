@@ -141,3 +141,71 @@ class TestMergeCollect:
         ms.update(0, k, v, pos, FS, 0)
         with pytest.raises(ValueError, match="Duplicate merge frame slot"):
             ms.update(0, k, v, pos, FS, 0)
+
+    def test_rejected_source_range_invalidates_crossed_partial_blocks(self):
+        ms = MergeStrategy(patch_size=2, capacity=2)
+        ms.reset(1)
+
+        k, v, pos = make_multi_frame_input(
+            [0, 1, 2],
+            frame_seqlen=FS,
+            head_dim=HD,
+        )
+        ms.update(0, k, v, pos, FS, 0)
+        assert list(ms._blocks[0]) == [0]
+
+        # A rejected 3-frame generation block (t=3..5) crosses merge blocks
+        # 0 and 1.  Block 0's accepted prefix must be discarded, while block
+        # 1 remains invalid until its final possible source frame has passed.
+        ms.discard_range(0, current_t=3, num_frames=3)
+        assert 0 not in ms._blocks[0]
+        assert ms._invalid_block_ids[0] == {1}
+
+        k, v, pos = make_multi_frame_input(
+            [6, 7, 8],
+            frame_seqlen=FS,
+            head_dim=HD,
+        )
+        ms.update(0, k, v, pos, FS, 6)
+        assert list(ms._blocks[0]) == [2]
+        assert ms._invalid_block_ids[0] == set()
+
+        k, v, pos = make_multi_frame_input(
+            [9, 10, 11],
+            frame_seqlen=FS,
+            head_dim=HD,
+        )
+        ms.update(0, k, v, pos, FS, 9)
+        collected = ms.collect(
+            0,
+            current_t=12,
+            recent_min_t=12,
+            sink_max_t=-1,
+        )
+        assert [anchor.t for anchor in collected] == [9]
+
+    def test_alternating_three_frame_commits_keep_partial_state_bounded(self):
+        ms = MergeStrategy(patch_size=2, capacity=4)
+        ms.reset(1)
+
+        for generation_block in range(40):
+            start_t = generation_block * 3
+            if generation_block % 2 == 0:
+                t_values = [start_t, start_t + 1, start_t + 2]
+                k, v, pos = make_multi_frame_input(
+                    t_values,
+                    frame_seqlen=FS,
+                    head_dim=HD,
+                )
+                ms.update(0, k, v, pos, FS, start_t)
+            else:
+                ms.discard_range(0, current_t=start_t, num_frames=3)
+
+            incomplete = [
+                block
+                for block in ms._blocks[0].values()
+                if block.merged_anchor is None
+            ]
+            assert len(incomplete) <= 1
+            assert len(ms._invalid_block_ids[0]) <= 1
+            assert len(ms._blocks[0]) <= ms.capacity + 1

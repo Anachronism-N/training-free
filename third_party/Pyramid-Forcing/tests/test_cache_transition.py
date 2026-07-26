@@ -9,6 +9,7 @@ from pyramidkv.adaptive_cache import AdaptiveKVCache
 from pyramidkv.base import HeadComposition
 from pyramidkv.config import PyramidKVConfig
 from pyramidkv.cyclic import CyclicStrategy
+from pyramidkv.merge import MergeStrategy
 from pyramidkv.transition import CacheTransitionConfig, CacheTransitionController
 
 
@@ -41,7 +42,7 @@ def _kv(values) -> tuple[torch.Tensor, torch.Tensor]:
     return tensor, tensor.clone()
 
 
-def test_first_clean_block_initializes_every_head():
+def test_first_clean_block_initialization_respects_commit_budget():
     controller = _controller()
     k, v = _kv([
         1, 0,
@@ -52,8 +53,53 @@ def test_first_clean_block_initializes_every_head():
 
     decision = controller.decide_clean(k, v, block_id=0, branch="cond")
 
-    assert decision.commit_mask == (True, True, True, True)
-    assert decision.reasons == ("initialize",) * 4
+    assert decision.commit_mask == (False, False, True, True)
+    assert decision.reasons == (
+        "initialize_budget_deferred",
+        "initialize_budget_deferred",
+        "initialize",
+        "initialize",
+    )
+
+    second = controller.decide_clean(k, v, block_id=1, branch="cond")
+    assert second.commit_mask == (True, True, False, False)
+    assert second.reasons[:2] == ("initialize", "initialize")
+
+
+def test_warmup_bypasses_quality_gates_but_not_commit_budget():
+    controller = _controller(
+        mode="gate",
+        warmup_blocks=3,
+        max_commit_fraction=0.5,
+    )
+    k, v = _kv([
+        1, 0,
+        0, 1,
+        1, 1,
+        -1, 1,
+    ])
+    controller.decide_clean(k, v, block_id=0, branch="cond")
+    controller.decide_clean(k, v, block_id=1, branch="cond")
+
+    decision = controller.decide_clean(k, v, block_id=2, branch="cond")
+
+    assert sum(decision.commit_mask) == 2
+    assert decision.reasons.count("warmup") == 2
+    assert decision.reasons.count("warmup_budget_deferred") == 2
+
+
+def test_infeasible_commit_fraction_fails_instead_of_exceeding_budget():
+    with pytest.raises(ValueError, match="strict per-batch budget would allow zero"):
+        CacheTransitionController(
+            CacheTransitionConfig(
+                enabled=True,
+                mode="gate",
+                max_commit_fraction=0.5,
+            ),
+            batch_size=1,
+            num_heads=1,
+            layer_idx=0,
+        )
 
 
 def test_denoise_disagreement_rejects_unreliable_candidate():
@@ -158,6 +204,7 @@ def test_forced_refresh_still_respects_transition_budget():
     ])
     controller.decide_clean(first_k, first_v, block_id=0, branch="cond")
     controller.decide_clean(first_k, first_v, block_id=1, branch="cond")
+    controller._ages = [1] * controller.num_seq
 
     decision = controller.decide_clean(
         first_k, first_v, block_id=2, branch="cond"
@@ -228,9 +275,10 @@ def test_reactive_utility_bias_controls_budget_tie():
     first = torch.tensor([[[1.0, 0.0]], [[1.0, 0.0]]])
     changed = torch.tensor([[[0.0, 1.0]], [[0.0, 1.0]]])
     controller.decide_clean(first, first, block_id=0, branch="cond")
+    controller.decide_clean(first, first, block_id=1, branch="cond")
 
     decision = controller.decide_clean(
-        changed, changed, block_id=1, branch="cond"
+        changed, changed, block_id=2, branch="cond"
     )
 
     assert decision.commit_mask == (True, False)
@@ -366,3 +414,71 @@ def test_adaptive_cache_rejected_clean_block_does_not_update_middle():
     assert [anchor.t for anchor in cyclic._buckets[0][0]] == [0]
     assert cache.dynamic_k[0] is not None
     torch.testing.assert_close(cache.dynamic_k[0][-2:], clean[0, :, 0])
+
+
+def test_adaptive_cache_rejection_invalidates_partial_merge_blocks():
+    config = PyramidKVConfig(
+        None,
+        num_layers=1,
+        num_heads=1,
+        default_capacity=32,
+        frame_seq_length=2,
+    )
+    merge = MergeStrategy(patch_size=2, capacity=4)
+    config.compositions = [[HeadComposition(
+        name="L0_H0_merge",
+        label=11,
+        sink_frames=0,
+        recent_frames=1,
+        middle_strategies=[merge],
+        policy_type="merge",
+    )]]
+    cache = AdaptiveKVCache(
+        config=config,
+        batch_size=1,
+        num_heads=1,
+        head_dim=2,
+        layer_idx=0,
+        sink_len=0,
+        tail_len=32,
+        use_osc_frame_mode=True,
+        local_tail_frames=1,
+        cache_transition_enabled=True,
+        cache_transition_mode="gate",
+        cache_transition_min_reliability=0.8,
+        cache_transition_min_novelty=0.0,
+        cache_transition_warmup_blocks=0,
+        cache_transition_max_commit_fraction=1.0,
+    )
+    grid = torch.tensor([[3, 1, 2]], dtype=torch.long)
+    first = torch.zeros((1, 6, 1, 2), dtype=torch.float32)
+    first[..., 0] = 1.0
+    cache.update(
+        first,
+        first,
+        current_start=0,
+        grid_sizes=grid,
+        cache_update_mode="clean",
+    )
+    assert list(merge._blocks[0]) == [0]
+
+    noisy = first.clone()
+    clean = torch.zeros_like(first)
+    clean[..., 1] = 1.0
+    cache.update(
+        noisy,
+        noisy,
+        current_start=6,
+        grid_sizes=grid,
+        cache_update_mode="noisy",
+    )
+    cache.update(
+        clean,
+        clean,
+        current_start=6,
+        grid_sizes=grid,
+        cache_update_mode="clean",
+    )
+
+    assert 0 not in merge._blocks[0]
+    assert merge._invalid_block_ids[0] == {1}

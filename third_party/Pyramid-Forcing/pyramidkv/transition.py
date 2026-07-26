@@ -152,8 +152,12 @@ def _descriptors(k_flat: torch.Tensor, v_flat: torch.Tensor) -> torch.Tensor:
     v_float = v_flat.float()
     k_mean = k_float.mean(dim=1)
     v_mean = v_float.mean(dim=1)
-    k_rms = k_float.square().mean(dim=1).clamp_min(1e-12).sqrt()
-    v_rms = v_float.square().mean(dim=1).clamp_min(1e-12).sqrt()
+    # Keep truly absent feature energy at exactly zero.  Clamping every RMS
+    # component before normalization introduces artificial overlap between
+    # otherwise orthogonal descriptors; F.normalize already handles an
+    # all-zero vector through its eps parameter.
+    k_rms = k_float.square().mean(dim=1).sqrt()
+    v_rms = v_float.square().mean(dim=1).sqrt()
     k_mean = F.normalize(k_mean, dim=-1, eps=1e-6)
     v_mean = F.normalize(v_mean, dim=-1, eps=1e-6)
     k_rms = F.normalize(k_rms, dim=-1, eps=1e-6)
@@ -188,6 +192,16 @@ class CacheTransitionController:
         self.config = config
         self.batch_size = int(batch_size)
         self.num_heads = int(num_heads)
+        if self.batch_size < 1 or self.num_heads < 1:
+            raise ValueError("cache transition batch_size and num_heads must be positive")
+        self._max_commits_per_batch = int(math.floor(
+            config.max_commit_fraction * self.num_heads
+        ))
+        if config.mode != "audit" and self._max_commits_per_batch < 1:
+            raise ValueError(
+                "cache transition max_commit_fraction is too small for num_heads; "
+                "the strict per-batch budget would allow zero commits"
+            )
         self.num_seq = self.batch_size * self.num_heads
         self.layer_idx = int(layer_idx)
         labels = list(head_labels or [1] * self.num_heads)
@@ -362,12 +376,19 @@ class CacheTransitionController:
                 reasons[seq_idx] = "audit_passthrough"
                 continue
             if not self._active_valid[seq_idx]:
-                masks[seq_idx] = True
-                reasons[seq_idx] = "initialize"
+                # Initialization is a middle-cache write too, so it must share
+                # the per-block budget.  Give uninitialized heads priority so
+                # all heads are seeded over successive blocks.
+                utility_values[seq_idx] = 30.0
+                budget_candidates.append((30.0, seq_idx))
+                reasons[seq_idx] = "initialize_candidate"
                 continue
             if self._clean_block_count < self.config.warmup_blocks:
-                masks[seq_idx] = True
-                reasons[seq_idx] = "warmup"
+                # Warmup bypasses reliability/novelty gates, not the declared
+                # maximum commit fraction.
+                utility_values[seq_idx] = 20.0 + utility_biases[seq_idx]
+                budget_candidates.append((utility_values[seq_idx], seq_idx))
+                reasons[seq_idx] = "warmup_candidate"
                 continue
             max_age = effective_max_age[seq_idx]
             if age >= max_age:
@@ -409,22 +430,20 @@ class CacheTransitionController:
                 start = batch_idx * self.num_heads
                 end = start + self.num_heads
                 local = [item for item in budget_candidates if start <= item[1] < end]
-                budget = max(1, int(math.ceil(
-                    self.config.max_commit_fraction * self.num_heads
-                )))
+                budget = self._max_commits_per_batch
                 for _, seq_idx in sorted(local, reverse=True)[:budget]:
                     masks[seq_idx] = True
-                    reasons[seq_idx] = (
-                        "forced_max_age"
-                        if reasons[seq_idx] == "forced_candidate"
-                        else "accepted"
-                    )
+                    reasons[seq_idx] = {
+                        "forced_candidate": "forced_max_age",
+                        "initialize_candidate": "initialize",
+                        "warmup_candidate": "warmup",
+                    }.get(reasons[seq_idx], "accepted")
                 for _, seq_idx in sorted(local, reverse=True)[budget:]:
-                    reasons[seq_idx] = (
-                        "forced_budget_deferred"
-                        if reasons[seq_idx] == "forced_candidate"
-                        else "budget_deferred"
-                    )
+                    reasons[seq_idx] = {
+                        "forced_candidate": "forced_budget_deferred",
+                        "initialize_candidate": "initialize_budget_deferred",
+                        "warmup_candidate": "warmup_budget_deferred",
+                    }.get(reasons[seq_idx], "budget_deferred")
 
         for seq_idx, accepted in enumerate(masks):
             if accepted:

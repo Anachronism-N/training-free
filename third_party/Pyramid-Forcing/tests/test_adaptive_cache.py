@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 
@@ -6,7 +7,9 @@ import torch
 
 from pyramidkv.config import PyramidKVConfig
 from pyramidkv import HeadComposition
+from pyramidkv.cyclic import CyclicStrategy
 from pyramidkv.merge import MergeStrategy
+from pyramidkv.stride import StrideStrategy
 from wan.modules.model import rope_params
 from pyramidkv.adaptive_cache import (
     AdaptiveKVCache,
@@ -134,6 +137,10 @@ def test_reset_clears_cross_prompt_optimization_state():
     cache.structured_memory_v = torch.ones(1, 1, 1, 4)
     cache.structured_memory_intervals = torch.tensor([[0, 0]])
     cache._structured_memory_last_start = 0
+    initial_prompt_id = cache._policy_trace_prompt_id
+    cache._policy_trace_seen.add((initial_prompt_id, 0, 0, 0, "cond"))
+    cache._policy_trace_records = 7
+    cache._policy_trace_warned = True
 
     cache.reset()
 
@@ -150,6 +157,90 @@ def test_reset_clears_cross_prompt_optimization_state():
     assert cache.structured_memory_v is None
     assert cache.structured_memory_intervals is None
     assert cache._structured_memory_last_start is None
+    assert cache._policy_trace_prompt_id == initial_prompt_id + 1
+    assert cache._policy_trace_seen == set()
+    assert cache._policy_trace_records == 0
+    assert not cache._policy_trace_warned
+
+
+def test_policy_trace_restarts_per_prompt_and_reports_strategy_contract(
+    tmp_path,
+    monkeypatch,
+):
+    trace_path = tmp_path / "policy.jsonl"
+    monkeypatch.setenv("PYRAMIDKV_POLICY_TRACE_PATH", str(trace_path))
+    monkeypatch.setenv("PYRAMIDKV_POLICY_TRACE_LAYERS", "0")
+    monkeypatch.setenv("PYRAMIDKV_POLICY_TRACE_STRIDE", "1")
+    monkeypatch.setenv("PYRAMIDKV_POLICY_TRACE_MAX_RECORDS", "10")
+
+    config = _build_config(num_layers=1, num_heads=1, capacities=[16])
+    stride = StrideStrategy(interval=6, capacity=2, dynamic_rope=True)
+    composition = HeadComposition(
+        name="L0_H0_trace",
+        label=10,
+        sink_frames=3,
+        recent_frames=4,
+        middle_strategies=[stride],
+        policy_type="stride",
+        capacity=16,
+    )
+    config.compositions = [[composition]]
+    cache = AdaptiveKVCache(
+        config=config,
+        batch_size=1,
+        num_heads=1,
+        head_dim=4,
+        layer_idx=0,
+        sink_len=6,
+        tail_len=16,
+        sink_grid_decoupling=True,
+        use_osc_frame_mode=True,
+        composition_owns_dynamic=True,
+    )
+
+    trace_args = {
+        "seq_idx": 0,
+        "head_idx": 0,
+        "sync_t_raw": 6,
+        "composition": composition,
+        "collected": [],
+        "sink_max_t": 2,
+    }
+    cache.static_pos[0] = torch.tensor(
+        [[0, 0, 0], [1, 0, 0]],
+        dtype=torch.long,
+    )
+    cache.dynamic_pos[0] = torch.tensor(
+        [[3, 0, 0], [4, 0, 0]],
+        dtype=torch.long,
+    )
+    cache._trace_middle_selection(**trace_args)
+    cache._trace_middle_selection(**trace_args)
+    cache.reset()
+    cache._trace_middle_selection(**trace_args)
+
+    payloads = [
+        json.loads(line)
+        for line in trace_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert len(payloads) == 2
+    assert payloads[1]["prompt_id"] == payloads[0]["prompt_id"] + 1
+    assert payloads[0]["sink_frames"] == 3
+    assert payloads[0]["sink_frame_ids"] == [0, 1]
+    assert payloads[0]["recent_frame_ids"] == [3, 4]
+    assert payloads[0]["explicit_composition_owns_dynamic"]
+    assert payloads[0]["cache_contract_pass"]
+    assert payloads[0]["cache_contract_violations"] == []
+    assert payloads[0]["strategies"] == [
+        {
+            "capacity": 2,
+            "dynamic_rope": True,
+            "frame_ids": [],
+            "interval": 6,
+            "name": "StrideStrategy",
+            "token_count": 0,
+        }
+    ]
 
 
 def test_structured_memory_commits_clean_blocks_once_with_fixed_budget():
@@ -945,9 +1036,18 @@ def test_disable_first_sink_for_osc_heads_only():
     assert cache.static_k[1].shape[0] == 2
 
 
-def test_stable_head_policy_can_be_disabled():
+def test_explicit_composition_dynamic_is_recent_only_with_legacy_stride_map():
     config = _build_config(num_layers=1, num_heads=1, capacities=[128])
-    _set_layer_labels(config, [1])  # stable
+    _set_layer_labels(config, [10])
+    composition = HeadComposition(
+        name="L0_H0_stride",
+        label=10,
+        sink_frames=0,
+        recent_frames=4,
+        policy_type="stride",
+        capacity=128,
+    )
+    config.compositions = [[composition]]
     cache = AdaptiveKVCache(
         config=config,
         batch_size=1,
@@ -960,9 +1060,10 @@ def test_stable_head_policy_can_be_disabled():
         use_osc_frame_mode=True,
         local_tail_frames=10,
         use_stable_head_policies=False,
+        label_recent_frames_map={"10": 4},
+        label_stride_enabled_map={"10": True},
+        composition_owns_dynamic=True,
     )
-    cache.compositions_row = [HeadComposition(name="L0_H0_stride", label=1, sink_frames=0, recent_frames=4, policy_type="stride", capacity=128)]
-    cache.policies_row = cache.compositions_row
     freqs = _build_rope_freqs(4, max_seq_len=256)
     grid_sizes = torch.tensor([[10, 1, 2]], dtype=torch.long)
     k = _make_tokens(0, 20, num_heads=1, head_dim=4)
@@ -970,8 +1071,53 @@ def test_stable_head_policy_can_be_disabled():
     cache.update(k, k.clone(), current_start=0, grid_sizes=grid_sizes, freqs=freqs, cache_update_mode="clean")
 
     t_vals = cache.dynamic_pos[0][:, 0].tolist()
-    assert cache.dynamic_k[0].shape[0] == 20
-    assert sorted(set(t_vals)) == list(range(10))
+    assert cache.dynamic_k[0].shape[0] == 8
+    assert sorted(set(t_vals)) == [6, 7, 8, 9]
+
+
+def test_i2v_first_update_applies_explicit_recent_only_window():
+    config = _build_config(num_layers=1, num_heads=1, capacities=[128])
+    _set_layer_labels(config, [10])
+    config.compositions = [[
+        HeadComposition(
+            name="L0_H0_recent_only",
+            label=10,
+            sink_frames=1,
+            recent_frames=1,
+            middle_strategies=[],
+            policy_type="recent_only",
+            capacity=128,
+        )
+    ]]
+    cache = AdaptiveKVCache(
+        config=config,
+        batch_size=1,
+        num_heads=1,
+        head_dim=4,
+        layer_idx=0,
+        is_i2v=True,
+        context_len=2,
+        sink_len=0,
+        tail_len=128,
+        use_osc_frame_mode=True,
+        local_tail_frames=4,
+        label_recent_frames_map={"10": 1},
+        composition_owns_dynamic=True,
+    )
+    grid_sizes = torch.tensor([[5, 1, 2]], dtype=torch.long)
+    k = _make_tokens(0, 10, num_heads=1, head_dim=4)
+
+    cache.update(
+        k,
+        k.clone(),
+        current_start=0,
+        grid_sizes=grid_sizes,
+        cache_update_mode="clean",
+    )
+
+    assert cache.static_k[0].shape[0] == 2
+    assert cache.dynamic_k[0].shape[0] == 2
+    assert cache.dynamic_pos[0][:, 0].tolist() == [4, 4]
 
 
 def test_per_head_sink_frames_supports_sta_sink3_and_osc_sink1():
@@ -1061,6 +1207,111 @@ def test_explicit_recent_only_composition_does_not_fall_back_to_legacy_cyclic():
     )
     assert middle == ("comp", [])
     assert count == 0
+
+
+def test_explicit_middle_excludes_all_configured_sink_frames():
+    config = _build_config(num_layers=1, num_heads=1, capacities=[64])
+    _set_layer_labels(config, [10])
+    cyclic = CyclicStrategy(period=1, bucket_cap=10)
+    composition = HeadComposition(
+        name="L0_H0_sink3",
+        label=10,
+        sink_frames=3,
+        recent_frames=1,
+        middle_strategies=[cyclic],
+        policy_type="osc",
+        capacity=64,
+    )
+    config.compositions = [[composition]]
+    cache = AdaptiveKVCache(
+        config=config,
+        batch_size=1,
+        num_heads=1,
+        head_dim=4,
+        layer_idx=0,
+        sink_len=6,
+        tail_len=64,
+        sink_grid_decoupling=True,
+        use_osc_frame_mode=True,
+        phase_period=1,
+        local_tail_frames=1,
+        composition_owns_dynamic=True,
+    )
+    grid_sizes = torch.tensor([[7, 1, 2]], dtype=torch.long)
+    k = _make_tokens(0, 14, num_heads=1, head_dim=4)
+
+    cache.update(
+        k,
+        k.clone(),
+        current_start=0,
+        grid_sizes=grid_sizes,
+        cache_update_mode="clean",
+    )
+
+    middle, _ = cache._collect_middle_cache(
+        seq_idx=0,
+        head_idx=0,
+        sync_t_raw=6,
+        has_stat=True,
+    )
+    assert middle[0] == "comp"
+    assert [anchor.t for anchor in middle[1]] == [3, 4, 5]
+
+
+def test_middle_exclusion_uses_actual_short_sink_capture():
+    config = _build_config(num_layers=1, num_heads=1, capacities=[64])
+    _set_layer_labels(config, [10])
+    cyclic = CyclicStrategy(period=1, bucket_cap=10)
+    config.compositions = [[
+        HeadComposition(
+            name="L0_H0_declared_sink3",
+            label=10,
+            sink_frames=3,
+            recent_frames=1,
+            middle_strategies=[cyclic],
+            policy_type="osc",
+            capacity=64,
+        )
+    ]]
+    cache = AdaptiveKVCache(
+        config=config,
+        batch_size=1,
+        num_heads=1,
+        head_dim=4,
+        layer_idx=0,
+        sink_len=6,
+        tail_len=64,
+        sink_grid_decoupling=True,
+        use_osc_frame_mode=True,
+        phase_period=1,
+        local_tail_frames=1,
+    )
+    first_grid = torch.tensor([[2, 1, 2]], dtype=torch.long)
+    first = _make_tokens(0, 4, num_heads=1, head_dim=4)
+    cache.update(
+        first,
+        first.clone(),
+        current_start=0,
+        grid_sizes=first_grid,
+        cache_update_mode="clean",
+    )
+    next_grid = torch.tensor([[3, 1, 2]], dtype=torch.long)
+    following = _make_tokens(4, 6, num_heads=1, head_dim=4)
+    cache.update(
+        following,
+        following.clone(),
+        current_start=4,
+        grid_sizes=next_grid,
+        cache_update_mode="clean",
+    )
+
+    middle, _ = cache._collect_middle_cache(
+        seq_idx=0,
+        head_idx=0,
+        sync_t_raw=5,
+        has_stat=True,
+    )
+    assert [anchor.t for anchor in middle[1]] == [2, 3, 4]
 
 
 def test_merge_strategy_uses_block_median_time_and_single_rope_pass():

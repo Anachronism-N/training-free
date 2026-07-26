@@ -298,6 +298,6 @@ if [[ "$PREPARE_REVIEW" == "1" && "$status" -eq 0 ]]; then
 fi
 
 echo "[done] outputs=$OUT_ROOT status=$status"
-echo "[next] freeze $OUT_ROOT/blind_review/scorecard.csv before revealing key_private.json"
+echo "[next] freeze $OUT_ROOT/blind_review/scorecard.csv before revealing $OUT_ROOT/blind_review_private/key_private.json"
 echo "[logs] inspect Echo recall decisions and our per-layer/per-call diagnosis"
 exit "$status"

@@ -183,4 +183,4 @@ python "$ROOT/scripts/analyze_v97_threshold_pf_merge.py" \
     >"$METRICS/logs/v97_analysis.log" 2>&1 || exit 1
 
 echo "[v97-postprocess] metrics=$METRICS"
-echo "[review] freeze $BLIND_REVIEW/scorecard.csv before opening metrics or key_private.json"
+echo "[review] freeze $BLIND_REVIEW/scorecard.csv before opening metrics or ${BLIND_REVIEW}_private/key_private.json"

@@ -444,7 +444,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--head_qk_profile_kind",
-    choices=("prompt", "temporal"),
+    choices=("prompt", "temporal", "middle_relative"),
     default="prompt",
 )
 parser.add_argument("--head_qk_profile_pair_id", type=str, default=None)
@@ -840,7 +840,9 @@ if args.pyramidkv_history_polarity:
         f"suppress={args.pyramidkv_history_suppress_policy} "
         f"counts=10:{sum(row.count(10) for row in history_rows)},"
         f"11:{sum(row.count(11) for row in history_rows)} "
-        "sink=3 recent=4 legacy_pf_labels=false",
+        "support_sink=3 "
+        f"suppress_sink={policy_overrides['pyramidkv_label_sink_frames_map'][str(HISTORY_SUPPRESS_LABEL)]} "
+        "recent=4 legacy_pf_labels=false exclusive_owner=true",
         flush=True,
     )
 if args.pyramidkv_pf_extended_recent_ablation is not None:
@@ -1223,6 +1225,15 @@ if args.head_qk_profile_output:
                 "data_path": os.path.abspath(args.data_path),
                 "update_modes": args.head_qk_profile_update_modes,
                 "branches": args.head_qk_profile_branches,
+                "num_output_frames": int(args.num_output_frames),
+                "few_step_cfg_enabled": bool(args.few_step_cfg_enabled),
+                "config_path": os.path.abspath(args.config_path),
+                "checkpoint_path": os.path.abspath(args.checkpoint_path),
+                "head_config_path": (
+                    None
+                    if args.pyramidkv_head_config_path is None
+                    else os.path.abspath(args.pyramidkv_head_config_path)
+                ),
             },
         )
     except Exception as e:

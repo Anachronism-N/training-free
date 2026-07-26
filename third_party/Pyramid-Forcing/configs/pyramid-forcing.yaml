@@ -138,6 +138,9 @@ pyramidkv_label_recent_frames_map:
   '1':  4
   '2':  4
 
+# Neutral-label binary routes override this to true. Keeping the native
+# default false preserves existing PF baseline behavior for parity.
+pyramidkv_composition_owns_dynamic: false
 update_interval: 1
 pyramidkv_disable_osc_sink: false
 

@@ -84,7 +84,7 @@ def load_profiles(paths: list[Path]) -> list[dict]:
     profiles = []
     for path in paths:
         payload = torch.load(path, map_location="cpu", weights_only=False)
-        if int(payload.get("version", 0)) not in {1, 2}:
+        if int(payload.get("version", 0)) not in {1, 2, 3}:
             raise ValueError(f"unsupported profile version in {path}")
         metadata = dict(payload.get("metadata") or {})
         records = list(payload.get("records") or [])

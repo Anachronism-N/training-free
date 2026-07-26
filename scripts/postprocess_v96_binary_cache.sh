@@ -159,4 +159,4 @@ python "$ROOT/scripts/analyze_v96_binary_cache.py" \
     >"$METRICS/logs/v96_analysis.log" 2>&1 || exit 1
 
 echo "[v96-postprocess] metrics=$METRICS"
-echo "[review] freeze $BLIND_REVIEW/scorecard.csv before opening metrics or key_private.json"
+echo "[review] freeze $BLIND_REVIEW/scorecard.csv before opening metrics or ${BLIND_REVIEW}_private/key_private.json"

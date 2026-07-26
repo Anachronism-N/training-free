@@ -28,6 +28,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import traceback
@@ -633,11 +634,87 @@ def compute_composite_score(metrics: Dict[str, float]) -> float:
     return score / count
 
 
+INDEXED_VIDEO_PATTERN = re.compile(r"^(\d+)-(\d+)_[^.]+\.mp4$")
+
+
+def find_indexed_videos(
+    video_dir: str | Path,
+    *,
+    expected_indices: set[int],
+    sample_idx: int = 0,
+) -> List[tuple[int, str]]:
+    """Return canonical sample videos ordered by their filename prompt index.
+
+    Inference names videos ``<prompt>-<sample>_<suffix>.mp4``.  The prompt
+    embedded in that filename is the only safe prompt binding: lexicographic
+    directory order would put prompt 10 before prompt 2 and silently evaluate
+    videos against the wrong text.
+    """
+    directory = Path(video_dir)
+    if not directory.is_dir():
+        raise FileNotFoundError(f"video directory does not exist: {directory}")
+
+    indexed: dict[int, Path] = {}
+    malformed: list[str] = []
+    unexpected_samples: list[str] = []
+    for path in sorted(directory.glob("*.mp4")):
+        match = INDEXED_VIDEO_PATTERN.fullmatch(path.name)
+        if match is None:
+            malformed.append(path.name)
+            continue
+        prompt_idx = int(match.group(1))
+        current_sample = int(match.group(2))
+        if current_sample != sample_idx:
+            unexpected_samples.append(path.name)
+            continue
+        if prompt_idx in indexed:
+            raise ValueError(
+                f"{directory}: duplicate sample-{sample_idx} video for "
+                f"prompt index {prompt_idx}: {indexed[prompt_idx].name}, "
+                f"{path.name}"
+            )
+        indexed[prompt_idx] = path
+
+    actual = set(indexed)
+    missing = sorted(expected_indices - actual)
+    extra = sorted(actual - expected_indices)
+    failures: list[str] = []
+    if malformed:
+        failures.append(f"malformed={malformed[:10]}")
+    if unexpected_samples:
+        failures.append(
+            f"unexpected_sample_indices={unexpected_samples[:10]}"
+        )
+    if missing:
+        failures.append(f"missing_prompt_indices={missing[:20]}")
+    if extra:
+        failures.append(f"extra_prompt_indices={extra[:20]}")
+    if failures:
+        raise ValueError(
+            f"{directory}: indexed-video coverage mismatch: "
+            + " ".join(failures)
+        )
+    return [
+        (prompt_idx, str(indexed[prompt_idx]))
+        for prompt_idx in sorted(expected_indices)
+    ]
+
+
 def find_videos(video_dir: str) -> List[str]:
-    """Find all .mp4 files in a directory."""
-    video_dir = Path(video_dir)
-    videos = sorted(video_dir.glob("*.mp4"))
-    return [str(v) for v in videos]
+    """Backward-compatible numeric ordering for callers without prompts."""
+    directory = Path(video_dir)
+    indices: set[int] = set()
+    for path in directory.glob("*.mp4"):
+        match = INDEXED_VIDEO_PATTERN.fullmatch(path.name)
+        if match is not None and int(match.group(2)) == 0:
+            indices.add(int(match.group(1)))
+    return [
+        path
+        for _, path in find_indexed_videos(
+            directory,
+            expected_indices=indices,
+        )
+    ]
 
 
 def load_prompts(prompts_file: str) -> List[str]:
@@ -697,7 +774,23 @@ def main():
 
     # Load prompts
     prompts = load_prompts(args.prompts)
+    if not prompts:
+        raise ValueError(f"prompt file is empty: {args.prompts}")
     print(f"Loaded {len(prompts)} prompts")
+    expected_prompt_indices = set(range(len(prompts)))
+
+    method_names = [Path(value).name for value in args.video_dirs]
+    duplicate_methods = sorted(
+        {
+            name
+            for name in method_names
+            if method_names.count(name) > 1
+        }
+    )
+    if duplicate_methods:
+        raise ValueError(
+            f"video directory basenames must be unique: {duplicate_methods}"
+        )
 
     # Results storage
     all_results = {
@@ -713,19 +806,17 @@ def main():
         print(f"[{dir_idx+1}/{len(args.video_dirs)}] Evaluating: {method_name}")
         print(f"{'='*70}")
 
-        videos = find_videos(video_dir)
-        if not videos:
-            print(f"  [WARN] No .mp4 files found in {video_dir}")
-            continue
+        videos = find_indexed_videos(
+            video_dir,
+            expected_indices=expected_prompt_indices,
+        )
 
         print(f"  Found {len(videos)} videos")
         method_metrics = []
+        evaluated_prompt_indices: list[int] = []
 
-        for vid_idx, video_path in enumerate(videos):
+        for vid_idx, (prompt_idx, video_path) in enumerate(videos):
             video_name = Path(video_path).stem
-
-            # Match prompt to video (by index or filename)
-            prompt_idx = vid_idx if vid_idx < len(prompts) else vid_idx % len(prompts)
             prompt = prompts[prompt_idx]
 
             print(f"\n  [{vid_idx+1}/{len(videos)}] {video_name}")
@@ -753,11 +844,16 @@ def main():
                 # Store
                 key = f"{method_name}/{video_name}"
                 all_results["per_video"][key] = {
+                    "method": method_name,
+                    "prompt_index": prompt_idx,
+                    "sample_index": 0,
+                    "video_name": Path(video_path).name,
                     "video_path": video_path,
                     "prompt": prompt,
                     "metrics": metrics,
                 }
                 method_metrics.append(metrics)
+                evaluated_prompt_indices.append(prompt_idx)
 
                 elapsed = time.time() - t_start
                 print(f"    Done in {elapsed:.1f}s | Composite: {metrics['composite']:.4f} | "
@@ -788,6 +884,7 @@ def main():
                         agg[key] = float("nan")
 
             agg["num_videos"] = len(method_metrics)
+            agg["prompt_indices"] = evaluated_prompt_indices
             all_results["per_method"][method_name] = agg
             print(f"\n  Method aggregate ({len(method_metrics)} videos):")
             print(f"    Composite:          {agg.get('composite', 0):.4f}")

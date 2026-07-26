@@ -2,6 +2,14 @@
 
 Date: 2026-07-26
 
+> **Post-hoc status (v99): causal conclusion superseded.** The numerical
+> results below remain records of the v98 runs, but the claim that "all binary
+> methods fail with a clean implementation" is withdrawn. The binary cells
+> changed the cache topology to hybrid/merge and allowed explicit middle
+> memory to coexist with legacy dynamic history. `pf_explicit_parity` did not
+> exercise that binary route. See
+> `docs/100_v99_binary_cache_recovery_and_paper_story.md`.
+
 ## 1. Implementation Fixes (v97 → v98)
 
 v97 binary cells exhibited polygon noise. Two implementation confounds were
@@ -135,9 +143,9 @@ continuity. Not a clear win.
 **Conclusion**: Adding periodic (cyclic) support to stride-only slightly
 hurts DINO but improves temporal continuity. Mixed result.
 
-## 8. Conclusion
+## 8. Historical conclusion and v99 correction
 
-**Branch C (confirmed): All binary methods fail, even with correct implementation.**
+The original v98 interpretation was:
 
 v98 fixed the v97 implementation confounds (neutral labels, no legacy
 fallthrough). The parity control passes on DINO (-0.0025), confirming the
@@ -157,6 +165,15 @@ different approach to cache policy simplification.
 
 Native PF remains the main engineering baseline. The binary hypothesis is
 recorded as negative with clean implementation.
+
+That final sentence is no longer supported. The parity control validates the
+three-class explicit PF reconstruction, whereas every binary cell used a
+different hybrid/merge topology. A later code audit found duplicate cache
+ownership, incomplete sink exclusion, first-update budget leakage, and Merge
+state hazards. The corrected v99 test therefore restores the earlier
+stride/cyclic binary topology and first runs a single-prompt PF-derived
+membership control. Until that control passes, v98 cannot distinguish a bad
+binary hypothesis from a bad binary cache implementation.
 
 ## 9. Result Files
 
