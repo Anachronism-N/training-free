@@ -2,6 +2,12 @@
 
 Date: 2026-07-27
 
+> **Historical experiment only:** docs/106 found polygon noise in every
+> non-native v100 cell. The runner used the tracked old `304/56` map rather
+> than the intended middle-relative map family. This runner is now disabled
+> by default. Use docs/107 and
+> `scripts/run_v107_polygon_rootcause_1video.py`.
+
 This is the authoritative implementation and experiment document after the
 v99 cache-ownership audit. It supersedes `docs/103` for the immediate
 experiment. `docs/103` remains the record of the earlier middle-relative /

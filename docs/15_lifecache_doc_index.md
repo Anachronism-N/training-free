@@ -2,17 +2,24 @@
 
 ## Current method (read first)
 
+- `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`:
+  authoritative current diagnosis and execution plan. It corrects the causal
+  overclaim in docs/106, identifies the v100 old-map provenance error,
+  rebuilds the intended 33/327 map from frozen artifacts, defines direct
+  PF-AR/PF-AW one-video controls, preserves cyclic4 while screening one
+  additive motion-event slot, and gates all broad experiments.
+- `docs/106_v100_fast_screen_review_results.md`: v100 human-review record.
+  Every non-native old-304/56-map cell had polygon noise. Its original
+  Wave-to-stride and 33/327 overlap interpretation is corrected by docs/107.
 - `docs/104_v100_responsive_event_cache_and_aba_fast_screen.md`:
-  authoritative current method and immediate server plan. It freezes the
+  historical failed-screen protocol. It freezes the
   tracked old-v98 `304/56` two-role map, factorizes Responsive cache choices,
   adds clean-V motion-event memory and role-aware A-B-A scene episodes, and
   defines the 16-cell one-video screen, traces, commands, review gates,
-  deferred broad ablations, provenance, and paper story.
-- `docs/105_v101_paper_ablation_after_fast_screen.md`: parameterized broad
-  follow-up. After v100 manual review selects the candidate, it freezes an
-  eight-cell MovieGenVideoBench-128 full/ablation matrix across four nodes,
-  reuses audited SF/PF/EF baselines, and defines blind review, VBench-Long,
-  comprehensive, and temporal diagnostics.
+  deferred broad ablations, provenance, and paper story. Disabled by default.
+- `docs/105_v101_paper_ablation_after_fast_screen.md`: superseded old-map
+  broad matrix. It is disabled by default and must not be used for paper
+  results.
 - `docs/103_v100_final_candidate_and_immediate_plan.md`: superseded
   middle-relative/stride-cyclic proposal. Retained as design history; do not
   use its server command as the current experiment.
@@ -106,28 +113,24 @@
 
 Recommended reading order:
 
-1. `docs/104_v100_responsive_event_cache_and_aba_fast_screen.md`
-2. `docs/105_v101_paper_ablation_after_fast_screen.md`
+1. `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`
+2. `docs/106_v100_fast_screen_review_results.md`
 3. `docs/102_v99_smoke_results_and_decision.md`
 4. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
-5. `docs/99_v98_experiment_results.md`
-6. `docs/98_history_polarity_dual_memory_method.md`
-7. `docs/97_v97_experiment_results.md`
-8. `docs/95_post_v93_dual_axis_phase_cache.md`
-9. `docs/93_moviebench_10h_128_and_head32_plan.md`
-10. `docs/103_v100_final_candidate_and_immediate_plan.md`
+5. `docs/101_v98_middle_relative_profiling_results.md`
+6. `docs/104_v100_responsive_event_cache_and_aba_fast_screen.md`
+7. `docs/105_v101_paper_ablation_after_fast_screen.md`
+8. `docs/99_v98_experiment_results.md`
+9. `docs/98_history_polarity_dual_memory_method.md`
+10. `docs/97_v97_experiment_results.md`
 11. `docs/64_related_work_code_provenance_and_claims.md`
 
-The current pre-result candidate is v100 HP-Event. The immediate step is a
-16-cell, one-video 30-second screen: six Responsive cache choices, four small
-add-ons, and six A-B-A episode controls. The primary hypothesis is
-Supportive `sink3+stride4+recent4` versus Responsive
-`sink3+motion2+cyclic2+recent4`, under exclusive ownership. MovieBench-128 and
-broad ablations are gated on artifact-free videos, preserved motion, real B
-formation, and useful A return. The old v98 classifier, motion cache, scene
-episode, and v78 add-on remain separate claim gates. Once selected, v101 runs
-the full 128-prompt ablation without regenerating compatible SF/PF/EF
-baselines.
+The immediate step is the v107 eight-cell, one-video 30-second recovery.
+PF-AR/PF-AW isolate Wave-to-stride routing; the rebuilt 33/327 map tests the
+intended independent classifier; cyclic4+motion1, cyclic2+motion2, v78, and
+two A-B-A cells remain separate gates. MovieBench-128 is deferred until one
+single-prompt candidate is artifact-free and its exact map provenance and
+runtime route pass audit.
 ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain negative-result
 or design history. LifeCache-v1 below is retained as the original design
 snapshot.

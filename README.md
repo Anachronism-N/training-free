@@ -3,37 +3,27 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current pre-result candidate is **v100 History-Polarity Event Cache
-(HP-Event)**. It uses the reproducible old-v98 two-role map: 304
-History-Supportive heads and 56 Recent-Responsive heads. The exact post-hoc PF
-overlap is Anchor `169/3`, Wave `133/23`, and Veil `2/30`
-(Supportive/Responsive). PF labels are not used to form this map.
+The current task is the **v107 polygon-noise recovery gate**. Human review in
+`docs/106_v100_fast_screen_review_results.md` found polygon noise in every
+binary v100 cell. Those cells all used the tracked old-v98 `304/56` map, not
+the independently profiled middle-relative map used by the clean v99 smoke
+test. The old map routes 133 PF Wave heads through stride, but v100 did not run
+the PF-AR/PF-AW controls required to prove that this routing caused the noise.
 
-Supportive heads use `sink3 + stride4 + recent4`. The primary Responsive
-hypothesis uses `sink3 + motion-event2 + cyclic2 + recent4`: one frame per
-clean block is selected from a layer-shared normalized V-change score, while
-two phase slots preserve short periodic evidence. `cyclic4` with both sink1
-and sink3, `motion4`, and budget-matched `recent8` are explicit controls.
-Merge is diagnostic-only until its binary-route artifact risk is resolved.
+`scripts/run_v107_polygon_rootcause_1video.py` now rebuilds the intended
+middle-relative map from its frozen score artifact, requires the documented
+`33/327` split, records the real PF cross-tab, and runs eight one-video cells.
+The key causal pair is PF-AR stride/cyclic versus PF-AW stride/cyclic. Candidate
+cells preserve the tested `sink1 + cyclic4 + recent4` route and optionally add
+one clean-V motion-event slot; the older cyclic2+motion2 replacement, v78
+writes, and two A-B-A scene cells are explicit controls.
 
-For A-B-A prompts, an optional scene episode archives/restores only Supportive
-stride banks, clears Responsive local middle state, and keeps zero or one
-recent bridge frame. IDF prompt matching selects the recalled scene; every
-similarity, cache action, selected motion frame, and ownership check is written
-to JSONL.
-
-The authoritative method, 16-cell one-video screen, four-node commands,
-debug contract, deferred broad ablations, provenance boundaries, and
-result-dependent paper story are in
-`docs/104_v100_responsive_event_cache_and_aba_fast_screen.md`. The runner is
-`scripts/run_v100_fast_selection_1video.py`. `docs/103` is now the historical
-middle-relative/stride-cyclic proposal.
-
-After manual review selects the v100 candidate, use
-`docs/105_v101_paper_ablation_after_fast_screen.md` and
-`scripts/run_v101_paper_ablation_4node.py` for the frozen
-MovieGenVideoBench-128 full/ablation matrix. It evaluates eight methods across
-four 32-prompt node shards and reuses already audited SF/PF/EF baselines.
+The authoritative diagnosis, code contract, server commands, decision tree,
+and provisional paper story are in
+`docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`. Do not launch
+MovieGenVideoBench-128 before these eight videos pass human review.
+`docs/104` and `docs/105` are historical reproductions and their runners are
+disabled by default.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -68,24 +58,25 @@ prompt-switch/return-recall branch.
 
 ## Current Hypothesis
 
-The current hypothesis is that net historical QK support exposes two
-functional groups that need different bounded temporal evidence:
+The provisional method is an independently profiled two-role cache, gated by
+v107:
 
-- **Frozen old-v98 classification:** signed historical QK mass `>= 0` is
-  History-Supportive and `< 0` is Recent-Responsive; PF labels are used only
-  for post-hoc analysis.
+- **Intervention-relative classification:** a balanced middle-vs-recent QK
+  margin defines History-Supportive and Recent-Responsive roles at its natural
+  zero boundary. PF labels are excluded from assignment and used only for
+  controls and post-hoc analysis.
 - **Supportive memory:** sink3 + stride(interval 6, capacity 4) + recent4.
-- **Responsive memory hypothesis:** sink3 + clean-V motion events(capacity 2)
-  + phase cyclic(capacity 2) + recent4.
-- **Equal-budget controls:** cyclic4/sink1, cyclic4/sink3, motion4, and recent8.
+- **Responsive base:** sink1 + phase cyclic(period 6, capacity 4) + recent4.
+- **Event augmentation:** optionally add one clean-V high-change frame without
+  deleting cyclic slots. The older cyclic2+motion2 replacement is a control.
 - **Exclusive cache ownership:** explicit composition owns sink, middle, and
   recent; the legacy dynamic-history owner is disabled.
-- **Scene episodes:** Supportive stride anchors are archived by matched scene;
-  Responsive middle memory resets and rebuilds locally.
-- **Trust promotion:** v78 is optional and retained only if it improves the
-  selected read cache.
-- **Fail-closed scope:** every experimental component is default-off, requires
-  a frozen map/config, and must pass decoded-video and trace audits.
+- **Scene episodes:** archive only Supportive stride state, reset Responsive
+  local state, and recall the prior episode for A-B-A return.
+- **Trust promotion:** v78 is retained only if it improves the clean cyclic
+  candidate.
+- **Fail-closed scope:** map source hashes, role counts, runtime routes,
+  decoded videos, and traces must all pass before a result is accepted.
 
 PF's stride/cyclic/merge operators and head-aware caching have prior art.
 Echo-Forcing's scene pool and recall lifecycle also have prior art. They are
@@ -140,7 +131,9 @@ training-free/
 |   |-- 100_v99_binary_cache_recovery_and_paper_story.md
 |   |-- 103_v100_final_candidate_and_immediate_plan.md
 |   |-- 104_v100_responsive_event_cache_and_aba_fast_screen.md
-|   `-- 105_v101_paper_ablation_after_fast_screen.md
+|   |-- 105_v101_paper_ablation_after_fast_screen.md
+|   |-- 106_v100_fast_screen_review_results.md
+|   `-- 107_polygon_noise_rootcause_recovery_and_paper_gate.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -187,6 +180,7 @@ training-free/
 |   |-- run_v95_dual_axis_warmup_16gpu.sh
 |   |-- run_v100_fast_selection_1video.py
 |   |-- run_v101_paper_ablation_4node.py
+|   |-- run_v107_polygon_rootcause_1video.py
 |   |-- postprocess_v101_paper_ablation.sh
 |   |-- postprocess_v95_dual_axis.sh
 |   |-- summarize_prompt_warmup_trace.py
@@ -225,16 +219,21 @@ training-free/
 
 ## Implementation Status
 
-The v100 candidate path and its fail-closed diagnostics are implemented:
+The v107 recovery path and fail-closed diagnostics are implemented:
 
 - `pyramidkv/motion_event.py`: bounded clean-V motion-event memory with
   layer-shared selection and per-head frame storage.
+- `pyramidkv/policy_overrides.py`: `cyclic_motion1` preserves the full
+  cyclic4/sink1/recent4 base and adds one bounded event slot.
 - `pyramidkv/stride.py` and `pipeline/causal_inference.py`: scene-specific
   Supportive stride banks, IDF A-B-A matching, Responsive local reset, and a
   configurable zero/one-frame recent bridge.
-- `run_v100_fast_selection_1video.py`: frozen 16-cell, one-video 30-second
-  screen for Responsive policies, small add-ons, and A-B-A episodes, including
-  policy/motion/scene/video audits.
+- `run_v107_polygon_rootcause_1video.py`: rebuilds and validates the intended
+  33/327 map family, runs PF-AR/PF-AW causal controls and six candidate/A-B-A
+  cells, and freezes policy/motion/scene/video evidence.
+- `run_v100_fast_selection_1video.py` and
+  `run_v101_paper_ablation_4node.py`: historical old-map reproductions,
+  disabled by default after docs/106.
 
 - `run_v98_middle_relative_profile_16gpu.sh` and
   `extract_v98_middle_relative_scores.py`: frozen 64-profile, two-topology
@@ -395,25 +394,22 @@ environment.
 The current main-line experiment is documented in:
 
 ```text
-docs/103_v100_final_candidate_and_immediate_plan.md
+docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md
 ```
 
-After the one-video PF-AW stride/cyclic diagnostic, launch the same no-Merge
-MovieBench-32 command on four eight-GPU nodes, changing only `NODE_RANK`:
+Run the eight one-video recovery cells before any broad experiment. On one
+eight-GPU node:
 
 ```bash
-NODE_RANK=0 GPU_LIST=0,1,2,3,4,5,6,7 \
 SCORE_ROOT="$PWD/runs/v98_middle_relative_scores" \
-REUSE_PF_DIR="$PWD/runs/v98_history_polarity_screen32/pf_native" \
-REUSE_PF_BINARY_DIR="$PWD/runs/v93_moviebench128_main/pf_binary_read_v78" \
-OUT_ROOT="$PWD/runs/v100_hp_cache_candidate32" \
-python scripts/run_v99_binary_cache_recovery_4node_32gpu.py candidate32
+OUT_ROOT="$PWD/runs/v107_polygon_rootcause_1video" \
+NUM_NODES=1 NODE_RANK=0 GPU_LIST=0,1,2,3,4,5,6,7 \
+python scripts/run_v107_polygon_rootcause_1video.py all
 ```
 
-The eight cells occupy all eight GPUs per node and every node runs every method
-on a disjoint prompt shard. Review videos blind before metrics. Run
-`main128` only after the learned map beats its count-matched random and
-inverted controls without motion collapse.
+The runner rejects the tracked old-v98 304/56 map. Review PF-AR versus PF-AW,
+then the rebuilt middle-relative and cache candidates. A 128-prompt runner is
+intentionally deferred until one candidate is artifact-free.
 
 ## Third-Party Code
 

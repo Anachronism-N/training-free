@@ -55,6 +55,7 @@ class Cell:
     scene_manual: bool = False
     motion_top_k: int = 1
     variance_refresh: bool = False
+    map_key: str = "legacy"
 
     @property
     def native(self) -> bool:
@@ -62,7 +63,11 @@ class Cell:
 
     @property
     def uses_motion(self) -> bool:
-        return self.suppress_policy in {"motion", "motion_cyclic"}
+        return self.suppress_policy in {
+            "motion",
+            "motion_cyclic",
+            "cyclic_motion1",
+        }
 
 
 CELLS = (
@@ -287,6 +292,24 @@ def selected_cells(
     return tuple(candidates[node_rank::num_nodes])
 
 
+def resolve_head_map(args: argparse.Namespace, cell: Cell) -> Path:
+    if cell.native:
+        return args.pf_labels
+    head_maps = getattr(args, "head_maps", None)
+    if head_maps is not None:
+        try:
+            return Path(head_maps[cell.map_key])
+        except KeyError as error:
+            raise ValueError(
+                f"{cell.name}: unknown head-map key {cell.map_key!r}"
+            ) from error
+    if cell.map_key != "legacy":
+        raise ValueError(
+            f"{cell.name}: map {cell.map_key!r} requires args.head_maps"
+        )
+    return args.legacy_map
+
+
 def run_checked(
     command: list[str],
     *,
@@ -386,6 +409,12 @@ def expected_policy(
         "motion_cyclic": (
             ("CyclicStrategy", "MotionEventStrategy"),
             3,
+            4,
+            "motion_cyclic",
+        ),
+        "cyclic_motion1": (
+            ("CyclicStrategy", "MotionEventStrategy"),
+            1,
             4,
             "motion_cyclic",
         ),
@@ -638,7 +667,7 @@ def inference_command(
         if cell.prompt_kind == "single"
         else args.aba_prompt_index
     )
-    head_map = args.pf_labels if cell.native else args.legacy_map
+    head_map = resolve_head_map(args, cell)
     command = [
         sys.executable,
         "inference.py",
@@ -786,9 +815,12 @@ def run_cell(
         transition_trace=transition_trace,
         scene_trace=scene_trace,
     )
+    head_map_audit = getattr(args, "head_map_audits", {}).get(cell.map_key)
     cell_config = {
         "version": 1,
-        "experiment": "v100_fast_selection_1video",
+        "experiment": getattr(
+            args, "experiment_name", "v100_fast_selection_1video"
+        ),
         "experiment_contract_sha256": experiment_contract_sha256,
         "cell": asdict(cell),
         "gpu": str(gpu),
@@ -800,6 +832,7 @@ def run_cell(
         ),
         "head_map": str(head_map),
         "head_map_sha256": sha256(head_map),
+        "head_map_audit": head_map_audit,
         "command": command,
     }
     config_sha = write_frozen(config_path, cell_config)
@@ -825,7 +858,7 @@ def run_cell(
             audit_motion_trace(
                 motion_trace,
                 cell=cell,
-                legacy_map=args.legacy_map,
+                legacy_map=head_map,
                 report_path=motion_report,
             )
         if cell.scene_cache:
@@ -898,7 +931,8 @@ def run_cell(
 
     print(
         f"[run] stage={cell.stage} cell={cell.name} gpu={gpu} "
-        f"prompt={prompt_index}",
+        f"prompt={prompt_index} map={cell.map_key} "
+        f"map_sha256={sha256(head_map)}",
         flush=True,
     )
     run_checked(command, cwd=cwd, env=env, log_path=log)
@@ -951,7 +985,7 @@ def run_cell(
         motion = audit_motion_trace(
             motion_trace,
             cell=cell,
-            legacy_map=args.legacy_map,
+            legacy_map=head_map,
             report_path=motion_report,
         )
     scene = None
@@ -1038,6 +1072,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--contract-wait-seconds", type=int, default=900)
+    parser.add_argument(
+        "--reproduce-known-broken-map",
+        action="store_true",
+        help=(
+            "Explicitly reproduce the historical v100 304/56-map screen. "
+            "The non-native cells are known to produce polygon noise."
+        ),
+    )
     args = parser.parse_args()
 
     args.repo_root = args.repo_root.resolve()
@@ -1080,6 +1122,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if not args.reproduce_known_broken_map:
+        raise SystemExit(
+            "v100 is frozen as a historical 304/56-map reproduction and is "
+            "disabled by default after docs/106. Use "
+            "scripts/run_v107_polygon_rootcause_1video.py for recovery, or "
+            "pass --reproduce-known-broken-map only to reproduce v100."
+        )
     if args.num_nodes <= 0:
         raise SystemExit("--num-nodes must be positive")
     if not 0 <= args.node_rank < args.num_nodes:

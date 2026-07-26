@@ -205,6 +205,45 @@ def test_history_polarity_motion_cyclic_has_sink3_and_two_plus_two_budget(
     assert suppressive.recent_frames == 4
 
 
+def test_history_polarity_cyclic_motion1_preserves_wave_cache_and_adds_event(
+    tmp_path,
+):
+    labels = tmp_path / "history_polarity_cyclic_motion1.csv"
+    _write_labels(
+        labels,
+        [[HISTORY_SUPPORT_LABEL, HISTORY_SUPPRESS_LABEL]],
+    )
+    overrides = history_polarity_policy_overrides(
+        "stride", "cyclic_motion1"
+    )
+    compositions = build_compositions(
+        1,
+        2,
+        torch.full((1, 2), 32760, dtype=torch.int32),
+        csv_path=str(labels),
+        cyclic_enabled=True,
+        cyclic_period=6,
+        cyclic_bucket_cap=4,
+        stride_enabled=True,
+        stride_interval=6,
+        merge_enabled=True,
+        **_factory_kwargs(overrides),
+    )[0]
+    supportive, suppressive = compositions
+
+    assert [type(strategy) for strategy in supportive.middle_strategies] == [
+        StrideStrategy
+    ]
+    assert [type(strategy) for strategy in suppressive.middle_strategies] == [
+        CyclicStrategy,
+        MotionEventStrategy,
+    ]
+    assert suppressive.middle_strategies[0].bucket_cap == 4
+    assert suppressive.middle_strategies[1].capacity == 1
+    assert suppressive.sink_frames == 1
+    assert suppressive.recent_frames == 4
+
+
 def test_history_polarity_cyclic_sink3_isolated_from_wave_sink_contract():
     overrides = history_polarity_policy_overrides(
         "stride", "cyclic_sink3"

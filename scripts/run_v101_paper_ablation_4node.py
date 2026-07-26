@@ -632,6 +632,14 @@ def parse_args() -> argparse.Namespace:
         default=env_path("THRESHOLD_P0P1_MAP"),
     )
     parser.add_argument("--contract-wait-seconds", type=int, default=900)
+    parser.add_argument(
+        "--allow-unrecovered-v101",
+        action="store_true",
+        help=(
+            "Run the historical broad matrix despite the docs/106 "
+            "polygon-noise finding. Intended only for reproduction."
+        ),
+    )
     args = parser.parse_args()
 
     args.candidate_transition = args.candidate_transition == "on"
@@ -685,6 +693,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if not args.allow_unrecovered_v101:
+        raise SystemExit(
+            "v101 is disabled: its default 304/56 classifier family failed "
+            "the v100 visual screen. Run the v107 one-video recovery first; "
+            "pass --allow-unrecovered-v101 only for historical reproduction."
+        )
     if args.num_nodes != 4:
         raise SystemExit("v101 paper ablation is frozen to exactly 4 nodes")
     if not 0 <= args.node_rank < args.num_nodes:

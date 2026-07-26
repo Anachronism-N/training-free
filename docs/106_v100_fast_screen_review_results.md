@@ -2,6 +2,15 @@
 
 Date: 2026-07-27
 
+> **Post-review correction:** sections 2.2, 3.2, and 5 below overstate the
+> cause. v100 proves that the tracked old-v98 `304/56` map and its routing
+> failed in every tested binary cell; it does not isolate Wave-to-stride as
+> the cause because PF-AR and PF-AW stride/cyclic controls were not run.
+> Moreover, a map with only 33 Supportive heads cannot identify 169 Anchor
+> heads as Supportive. The raw 33/327 map is not committed. The corrected
+> interpretation, fail-closed map rebuild, and direct causal controls are in
+> `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`.
+
 ## 1. Review Summary
 
 All 16 cells were generated on 4 nodes (4 cells per node, 1 GPU each, prompt 0,

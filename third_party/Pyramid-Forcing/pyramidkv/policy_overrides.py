@@ -28,6 +28,7 @@ def binary_head_policy_overrides(
         "merge",
         "motion",
         "motion_cyclic",
+        "cyclic_motion1",
         "recent",
         "recent8",
     }:
@@ -37,15 +38,27 @@ def binary_head_policy_overrides(
 
     responsive_cyclic = (
         4
-        if responsive in {"cyclic", "cyclic_sink3"}
+        if responsive in {"cyclic", "cyclic_sink3", "cyclic_motion1"}
         else 2
         if responsive == "motion_cyclic"
         else 0
     )
     responsive_merge = responsive == "merge"
-    responsive_motion = responsive in {"motion", "motion_cyclic"}
-    responsive_motion_capacity = 4 if responsive == "motion" else 2
-    responsive_sink = 1 if responsive == "cyclic" else 3
+    responsive_motion = responsive in {
+        "motion",
+        "motion_cyclic",
+        "cyclic_motion1",
+    }
+    responsive_motion_capacity = (
+        4
+        if responsive == "motion"
+        else 1
+        if responsive == "cyclic_motion1"
+        else 2
+    )
+    responsive_sink = (
+        1 if responsive in {"cyclic", "cyclic_motion1"} else 3
+    )
     responsive_recent = 8 if responsive == "recent8" else 4
     stable_cyclic = 2 if stable == "hybrid" else 0
     return {
@@ -92,7 +105,8 @@ def binary_head_policy_overrides(
             "2": 4,
         },
         "pyramidkv_hybrid_middle_enabled": (
-            stable == "hybrid" or responsive == "motion_cyclic"
+            stable == "hybrid"
+            or responsive in {"motion_cyclic", "cyclic_motion1"}
         ),
         # Hybrid reads at most two stride and two phase-aligned frames.
         "stride_capacity": 2 if stable == "hybrid" else 4,
@@ -124,6 +138,7 @@ def history_polarity_policy_overrides(
         "cyclic_sink3",
         "motion",
         "motion_cyclic",
+        "cyclic_motion1",
         "recent",
         "recent8",
     }:
@@ -145,14 +160,26 @@ def history_polarity_policy_overrides(
     support_cyclic = 2 if support == "hybrid" else 0
     suppress_cyclic = (
         4
-        if suppress in {"cyclic", "cyclic_sink3"}
+        if suppress in {"cyclic", "cyclic_sink3", "cyclic_motion1"}
         else 2
         if suppress == "motion_cyclic"
         else 0
     )
-    suppress_motion = suppress in {"motion", "motion_cyclic"}
-    suppress_motion_capacity = 4 if suppress == "motion" else 2
-    suppress_sink = 1 if suppress == "cyclic" else 3
+    suppress_motion = suppress in {
+        "motion",
+        "motion_cyclic",
+        "cyclic_motion1",
+    }
+    suppress_motion_capacity = (
+        4
+        if suppress == "motion"
+        else 1
+        if suppress == "cyclic_motion1"
+        else 2
+    )
+    suppress_sink = (
+        1 if suppress in {"cyclic", "cyclic_motion1"} else 3
+    )
     suppress_recent = 8 if suppress == "recent8" else 4
     support_key = str(support_label)
     suppress_key = str(suppress_label)
@@ -196,7 +223,8 @@ def history_polarity_policy_overrides(
             suppress_key: suppress_recent,
         },
         "pyramidkv_hybrid_middle_enabled": (
-            support == "hybrid" or suppress == "motion_cyclic"
+            support == "hybrid"
+            or suppress in {"motion_cyclic", "cyclic_motion1"}
         ),
         # The neutral-label route must not inherit a second legacy dynamic
         # history path alongside its explicit middle strategy.

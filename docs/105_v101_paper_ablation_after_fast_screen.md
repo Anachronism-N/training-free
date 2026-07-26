@@ -1,7 +1,8 @@
 # v101: 128-Prompt Paper Ablation After the One-Video Screen
 
-Status: implementation-ready, but **do not launch until v100 videos have been
-manually reviewed**.
+Status: **superseded and disabled by default**. docs/106 showed polygon noise
+in every v100 binary cell, so this old `304/56`-map 128-prompt matrix must not
+be launched for paper results. Run the fail-closed recovery in docs/107 first.
 
 This document covers the broad experiment that follows
 `docs/104_v100_responsive_event_cache_and_aba_fast_screen.md`.
