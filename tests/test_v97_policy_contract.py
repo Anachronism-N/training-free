@@ -22,7 +22,10 @@ from pyramidkv.cyclic import CyclicStrategy
 from pyramidkv.factory import build_compositions
 from pyramidkv.merge import MergeStrategy
 from pyramidkv.policy_overrides import (
+    HISTORY_SUPPORT_LABEL,
+    HISTORY_SUPPRESS_LABEL,
     binary_head_policy_overrides,
+    history_polarity_policy_overrides,
     pf_class_extended_recent_overrides,
 )
 from pyramidkv.stride import StrideStrategy
@@ -75,6 +78,59 @@ def test_hybrid_support_and_merge_responsive_are_budget_matched(tmp_path):
     assert responsive.middle_strategies[0].capacity == 4
     assert responsive.sink_frames == 3
     assert responsive.recent_frames == 4
+
+
+def test_history_polarity_uses_neutral_labels_and_explicit_routes(tmp_path):
+    labels = tmp_path / "history_polarity.csv"
+    _write_labels(
+        labels,
+        [[HISTORY_SUPPORT_LABEL, HISTORY_SUPPRESS_LABEL]],
+    )
+    overrides = history_polarity_policy_overrides("hybrid", "merge")
+    compositions = build_compositions(
+        1,
+        2,
+        torch.full((1, 2), 32760, dtype=torch.int32),
+        csv_path=str(labels),
+        cyclic_enabled=True,
+        cyclic_period=6,
+        cyclic_bucket_cap=4,
+        stride_enabled=True,
+        stride_interval=6,
+        merge_enabled=True,
+        **_factory_kwargs(overrides),
+    )[0]
+    supportive, suppressive = compositions
+
+    assert supportive.label == 10
+    assert [type(strategy) for strategy in supportive.middle_strategies] == [
+        CyclicStrategy,
+        StrideStrategy,
+    ]
+    assert supportive.middle_strategies[0].bucket_cap == 2
+    assert supportive.middle_strategies[1].capacity == 2
+    assert supportive.sink_frames == 3
+    assert supportive.recent_frames == 4
+
+    assert suppressive.label == 11
+    assert [type(strategy) for strategy in suppressive.middle_strategies] == [
+        MergeStrategy
+    ]
+    assert suppressive.middle_strategies[0].capacity == 4
+    assert suppressive.sink_frames == 3
+    assert suppressive.recent_frames == 4
+    assert overrides["pyramidkv_code_map"] == {
+        "10": 32760,
+        "11": 32760,
+    }
+
+
+def test_history_polarity_rejects_pf_reserved_labels():
+    with pytest.raises(ValueError, match="must not reuse PF labels"):
+        history_polarity_policy_overrides(
+            support_label=1,
+            suppress_label=11,
+        )
 
 
 def test_pf_extended_recent_replaces_only_selected_class(tmp_path):

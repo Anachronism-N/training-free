@@ -1,4 +1,5 @@
 import argparse
+import csv
 import time
 import torch
 import os
@@ -362,6 +363,24 @@ parser.add_argument(
         "Middle policy for label 1 in a binary map. Hybrid uses two stride "
         "and two phase-aligned slots under the same four-frame read budget."
     ),
+)
+parser.add_argument(
+    "--pyramidkv_history_polarity",
+    action="store_true",
+    help=(
+        "Route neutral labels 10/11 as History-Supportive/Suppressive heads. "
+        "This path is independent of PF's reserved -1/1/2 class semantics."
+    ),
+)
+parser.add_argument(
+    "--pyramidkv_history_support_policy",
+    choices=("stride", "hybrid"),
+    default="hybrid",
+)
+parser.add_argument(
+    "--pyramidkv_history_suppress_policy",
+    choices=("merge", "cyclic", "recent"),
+    default="merge",
 )
 parser.add_argument(
     "--pyramidkv_pf_extended_recent_ablation",
@@ -738,12 +757,17 @@ if args.pyramidkv_probecache:
 if args.pyramidkv_head_config_path is not None:
     config.pyramidkv_config_path = args.pyramidkv_head_config_path
     config.pyramidkv_policy_csv_path = args.pyramidkv_head_config_path
-if (
-    args.pyramidkv_binary_responsive_policy is not None
-    and args.pyramidkv_pf_extended_recent_ablation is not None
-):
+selected_policy_overrides = sum(
+    (
+        args.pyramidkv_binary_responsive_policy is not None,
+        args.pyramidkv_history_polarity,
+        args.pyramidkv_pf_extended_recent_ablation is not None,
+    )
+)
+if selected_policy_overrides > 1:
     parser.error(
-        "binary policy override and PF extended-recent ablation are mutually exclusive"
+        "binary, history-polarity, and PF extended-recent policy overrides "
+        "are mutually exclusive"
     )
 if args.pyramidkv_binary_responsive_policy is not None:
     from pyramidkv.policy_overrides import binary_head_policy_overrides
@@ -759,6 +783,64 @@ if args.pyramidkv_binary_responsive_policy is not None:
         f"stable={args.pyramidkv_binary_stable_policy} "
         f"responsive={args.pyramidkv_binary_responsive_policy} "
         "sink_recent=role_specific",
+        flush=True,
+    )
+if args.pyramidkv_history_polarity:
+    if args.pyramidkv_head_config_path is None:
+        parser.error(
+            "--pyramidkv_history_polarity requires "
+            "--pyramidkv_head_config_path with neutral labels 10/11"
+        )
+    try:
+        with open(
+            args.pyramidkv_head_config_path,
+            "r",
+            encoding="utf-8",
+            newline="",
+        ) as handle:
+            history_rows = [
+                [int(value.strip()) for value in row]
+                for row in csv.reader(handle)
+                if row
+            ]
+    except (OSError, ValueError) as error:
+        parser.error(f"invalid history-polarity head map: {error}")
+    if len(history_rows) != 30 or any(
+        len(row) != 12 for row in history_rows
+    ):
+        parser.error(
+            "history-polarity head map must be a complete 30x12 matrix"
+        )
+    history_labels = {
+        value for row in history_rows for value in row
+    }
+    if history_labels != {10, 11}:
+        parser.error(
+            "history-polarity head map must contain only and both "
+            "neutral labels 10/11"
+        )
+    from pyramidkv.policy_overrides import (
+        HISTORY_SUPPORT_LABEL,
+        HISTORY_SUPPRESS_LABEL,
+        history_polarity_policy_overrides,
+    )
+
+    policy_overrides = history_polarity_policy_overrides(
+        args.pyramidkv_history_support_policy,
+        args.pyramidkv_history_suppress_policy,
+        capacity=int(config.pyramidkv_default_capacity or 32760),
+    )
+    for field_name, field_value in policy_overrides.items():
+        setattr(config, field_name, field_value)
+    print(
+        "[HistoryPolarityPolicy] "
+        f"support_label={HISTORY_SUPPORT_LABEL} "
+        f"suppress_label={HISTORY_SUPPRESS_LABEL} "
+        f"support={args.pyramidkv_history_support_policy} "
+        f"suppress={args.pyramidkv_history_suppress_policy} "
+        f"counts=10:{sum(row.count(10) for row in history_rows)},"
+        f"11:{sum(row.count(11) for row in history_rows)} "
+        "sink=3 recent=4 legacy_pf_labels=false",
         flush=True,
     )
 if args.pyramidkv_pf_extended_recent_ablation is not None:

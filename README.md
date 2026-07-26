@@ -3,14 +3,13 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current GPU-pending paper candidate is the **v97 immutable-score binary
-cache screen**. It records corrected 30-layer pre-softmax temporal QK response
-scores under paired prompt interventions, freezes those scores before any
-classification, and evaluates manual thresholds, GMM/Otsu diagnostics,
-positive-logit splits, and two explicitly PF-derived binary merges. Head
-membership and cache policy are independently ablated. All behavior is
-inference-only, default-off, and adds no model forward during normal
-generation.
+The current GPU-pending paper candidate is **v98 History-Polarity Dual
+Memory**. It splits heads at the natural zero point of normalized signed
+historical QK support, uses neutral role ids `10/11`, and routes Supportive
+heads to a four-slot stride+cyclic memory while Suppressive heads receive
+compressed middle history. An optional v78 variant gates middle writes by
+reliability, novelty, age, and budget. All behavior is inference-only,
+default-off, and adds no model forward during normal generation.
 
 The selection is evidence-driven rather than based on a single best metric.
 MovieBench-32 places v78 and PF first (`0.9331` and `0.9313` DINO), while
@@ -22,9 +21,12 @@ startup flashback but developed later jumps. v95 therefore tests prompt roles
 as a phase-limited visibility and weak update-priority signal while keeping PF
 reads fixed.
 
-The authoritative v97 method, v96 layer-index correction, immutable score
-artifact, 16-GPU matrix, debug contract, and decision gates are in
-`docs/97_score_artifact_threshold_pf_merge_experiment.md`. The v95
+The authoritative method and distinction from PF are in
+`docs/98_history_polarity_dual_memory_method.md`; four-node/32-GPU commands,
+model paths, debug contracts, and paper gates are in
+`docs/99_v98_32gpu_runbook_and_paper_plan.md`. The corrected v97 score
+artifact remains the offline source, but all v97 binary videos had polygon
+noise under human review and are not final quality evidence. The v95
 Dual-Axis Phase Cache remains a fallback. v93 main-128 is still incomplete;
 partial PF/v78/prompt results must not be compared as if they used the same
 prompt set.
@@ -62,34 +64,34 @@ prompt-switch/return-recall branch.
 
 ## Current Hypothesis
 
-The current hypothesis is that prompt intervention exposes two head groups
-that need different bounded temporal evidence:
+The current hypothesis is that net historical QK support exposes two
+functional groups that need different bounded temporal evidence:
 
-- **Frozen prompt-response score:** robust conditional/unconditional and
-  counterfactual-prompt QK changes are saved before labels are assigned.
-- **Offline classification:** manual thresholds are primary; GMM, Otsu,
-  positive-logit fraction, and PF-derived binary merges are explicit
-  alternatives and controls.
-- **Prompt-Stable cache:** sink3 + long-range stride + recent4.
-- **Prompt-Responsive cache:** sink3 + Veil-style merge + recent4, tested
-  directly against Wave-style cyclic and recent-only fallbacks.
-- **Post-hoc correspondence:** overlap with PF Anchor and Wave QK sign/FFT
-  statistics are reported after classification, never used to set the map.
+- **Frozen history-polarity score:** the median normalized signed history
+  logit mass is saved before labels are assigned.
+- **Natural offline classification:** score `>= 0` is History-Supportive and
+  score `< 0` is History-Suppressive; PF labels are not used.
+- **Supportive dual memory:** sink3 + stride2 + phase-cyclic2 + recent4.
+- **Suppressive compressed memory:** sink3 + spatially merged middle4 +
+  recent4.
+- **Neutral runtime roles:** labels `10/11` avoid PF's reserved `-1/1/2`
+  semantics.
 - **Trust promotion:** noisy/clean agreement, novelty, age, and budget gate
-  middle-cache writes in selected v78 ablations.
+  middle-cache writes in the matched v78 ablation.
+- **Prompt sensitivity is orthogonal:** it is retained only as a possible
+  prompt-switch lifecycle signal, not the steady-state head classifier.
 - **Coherent snapshot ablation:** a separate Echo scene-switch screen selects
   one complete frame using relevance and uniqueness; it does not replace the
   single-prompt core.
 - **Fail-closed scope:** no direct archive read, no extra forward, and all role
   behavior is off by default.
 
-PF's stride/cyclic/merge operators, head-aware caching, and novelty-based
-memory updates have prior art. They are borrowed components, not contribution
-claims. v97 tests whether our prompt-intervention score, binary membership,
-and membership-to-policy coupling have causal value using PF-derived merges,
-random, reversed, sign-rate, and cache-policy controls. The old v96 learned
-maps are invalid because of a layer-index aliasing bug and are retained only
-as superseded design history.
+PF's stride/cyclic/merge operators and head-aware caching have prior art. They
+are borrowed components, not contribution claims. v98 tests whether the
+history-polarity statistic, independently frozen binary membership, dual
+memory composition, and trusted writes have causal value using PF parity,
+PF-derived oracle, positive-rate, and cache-policy controls. The old v96 maps
+remain invalid because of a layer-index aliasing bug.
 
 LifeCache-v1 and CEMR remain in the repository as prior prototypes and
 ablation infrastructure.
@@ -131,7 +133,9 @@ training-free/
 |   |-- 93_moviebench_10h_128_and_head32_plan.md
 |   |-- 95_post_v93_dual_axis_phase_cache.md
 |   |-- 96_qk_threshold_binary_cache_method_and_experiment.md
-|   `-- 97_score_artifact_threshold_pf_merge_experiment.md
+|   |-- 97_score_artifact_threshold_pf_merge_experiment.md
+|   |-- 98_history_polarity_dual_memory_method.md
+|   `-- 99_v98_32gpu_runbook_and_paper_plan.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -193,6 +197,11 @@ training-free/
 |   |-- postprocess_v97_threshold_pf_merge.sh
 |   |-- analyze_v97_threshold_pf_merge.py
 |   |-- run_v97_10h.sh
+|   |-- build_v98_history_polarity_maps.py
+|   |-- run_v98_history_polarity_4node_32gpu.sh
+|   |-- audit_v98_policy_traces.py
+|   |-- postprocess_v98_history_polarity.sh
+|   |-- analyze_v98_history_polarity.py
 |   |-- summarize_commit_forcing_trace.py
 |   `-- ...
 |-- src/

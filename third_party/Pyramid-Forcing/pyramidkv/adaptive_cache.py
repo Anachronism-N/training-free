@@ -2722,8 +2722,11 @@ class AdaptiveKVCache(PyramidKVCache):
                     if self.compositions_row is not None and head_idx < len(self.compositions_row)
                     else None
                 )
-                if composition is not None and composition.has_middle:
-                    if not (cpp_strategy_updated and self._cpp_strategy_head_supported(head_idx)):
+                if composition is not None:
+                    if composition.has_middle and not (
+                        cpp_strategy_updated
+                        and self._cpp_strategy_head_supported(head_idx)
+                    ):
                         composition.update_all(
                             idx=i,
                             k_seq=new_k_flat[i],
@@ -2733,6 +2736,9 @@ class AdaptiveKVCache(PyramidKVCache):
                             current_t=frame_start_t,
                         )
                 else:
+                    # Legacy anchors are only valid when no explicit
+                    # composition exists. An explicit recent-only composition
+                    # must not silently inherit PF's cyclic/lag middle cache.
                     self._update_cyclic_anchors(
                         idx=i,
                         k_seq=new_k_flat[i],
@@ -3959,7 +3965,18 @@ class AdaptiveKVCache(PyramidKVCache):
             else None
         )
         collect_start = perf_counter()
-        if composition is not None and composition.has_middle:
+        if composition is not None:
+            if not composition.has_middle:
+                self._record_profile("collect_ms", collect_start)
+                self._trace_middle_selection(
+                    seq_idx=seq_idx,
+                    head_idx=head_idx,
+                    sync_t_raw=sync_t_raw,
+                    composition=composition,
+                    collected=[],
+                )
+                return ("comp", []), 0
+
             tail_min_t = sync_t_raw - composition.recent_frames + 1
             sink_max_t = 0 if has_stat else -1
             cpp_collected = self._try_cpp_strategy_collect(
@@ -3978,14 +3995,20 @@ class AdaptiveKVCache(PyramidKVCache):
                     composition=composition,
                     collected=cpp_collected,
                 )
-                return ("comp", cpp_collected), sum(int(anchor.token_count) for anchor in cpp_collected)
-            collected = composition.collect_all(seq_idx, sync_t_raw, tail_min_t, sink_max_t)
+                return ("comp", cpp_collected), sum(
+                    int(anchor.token_count) for anchor in cpp_collected
+                )
+            collected = composition.collect_all(
+                seq_idx, sync_t_raw, tail_min_t, sink_max_t
+            )
             self._record_profile("collect_ms", collect_start)
             for anchor in collected:
                 n += int(anchor.token_count)
                 if getattr(anchor, "source_kind", "tensor") == "anchor_store":
                     self._profile_stats["anchor_store_anchor_count"] += 1.0
-                    self._profile_stats["anchor_store_token_count"] += float(anchor.token_count)
+                    self._profile_stats["anchor_store_token_count"] += float(
+                        anchor.token_count
+                    )
             self._trace_middle_selection(
                 seq_idx=seq_idx,
                 head_idx=head_idx,

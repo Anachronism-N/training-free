@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 
+HISTORY_SUPPORT_LABEL = 10
+HISTORY_SUPPRESS_LABEL = 11
+
+
 def binary_head_policy_overrides(
     stable_policy: str,
     responsive_policy: str,
@@ -65,6 +69,80 @@ def binary_head_policy_overrides(
         "pyramidkv_hybrid_middle_enabled": stable == "hybrid",
         # Hybrid reads at most two stride and two phase-aligned frames.
         "stride_capacity": 2 if stable == "hybrid" else 4,
+    }
+
+
+def history_polarity_policy_overrides(
+    support_policy: str = "hybrid",
+    suppress_policy: str = "merge",
+    *,
+    support_label: int = HISTORY_SUPPORT_LABEL,
+    suppress_label: int = HISTORY_SUPPRESS_LABEL,
+    capacity: int = 32760,
+) -> dict[str, object]:
+    """Return cache routes for PF-independent history-polarity labels.
+
+    The labels deliberately avoid PF's ``-1/1/2`` class ids. Several legacy
+    cache paths still attach special behavior to those ids, so reusing them
+    would make a nominally binary map an implicit PF ablation.
+    """
+
+    support = str(support_policy).strip().lower()
+    suppress = str(suppress_policy).strip().lower()
+    if support not in {"stride", "hybrid"}:
+        raise ValueError("history support policy must be stride or hybrid")
+    if suppress not in {"merge", "cyclic", "recent"}:
+        raise ValueError(
+            "history suppress policy must be merge, cyclic, or recent"
+        )
+
+    support_label = int(support_label)
+    suppress_label = int(suppress_label)
+    if support_label == suppress_label:
+        raise ValueError("history polarity labels must be distinct")
+    reserved = {-1, 1, 2}
+    if support_label in reserved or suppress_label in reserved:
+        raise ValueError(
+            "history polarity labels must not reuse PF labels -1, 1, or 2"
+        )
+    capacity = max(1, int(capacity))
+
+    support_cyclic = 2 if support == "hybrid" else 0
+    suppress_cyclic = 4 if suppress == "cyclic" else 0
+    support_key = str(support_label)
+    suppress_key = str(suppress_label)
+    return {
+        "pyramidkv_code_map": {
+            support_key: capacity,
+            suppress_key: capacity,
+        },
+        "pyramidkv_label_phase_bucket_map": {
+            support_key: support_cyclic,
+            suppress_key: suppress_cyclic,
+        },
+        "pyramidkv_label_stride_enabled_map": {
+            support_key: True,
+            suppress_key: False,
+        },
+        "pyramidkv_label_stride_interval_map": {support_key: 6},
+        "pyramidkv_label_merge_enabled_map": {
+            support_key: False,
+            suppress_key: suppress == "merge",
+        },
+        "pyramidkv_label_merge_patch_size_map": {suppress_key: 2},
+        "pyramidkv_label_merge_capacity_map": {suppress_key: 4},
+        # Both roles keep the same identity sink and recent context. Only the
+        # middle-history representation changes between the two roles.
+        "pyramidkv_label_sink_frames_map": {
+            support_key: 3,
+            suppress_key: 3,
+        },
+        "pyramidkv_label_recent_frames_map": {
+            support_key: 4,
+            suppress_key: 4,
+        },
+        "pyramidkv_hybrid_middle_enabled": support == "hybrid",
+        "stride_capacity": 2 if support == "hybrid" else 4,
     }
 
 

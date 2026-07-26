@@ -2,6 +2,17 @@
 
 ## Current method (read first)
 
+- `docs/98_history_polarity_dual_memory_method.md`: current v98 paper
+  candidate. It replaces prompt sensitivity as the static classifier with a
+  natural-zero history-polarity split, uses neutral labels `10/11`, defines
+  Supportive hybrid stride+cyclic memory and Suppressive compressed memory,
+  and records the exact difference from PF.
+- `docs/99_v98_32gpu_runbook_and_paper_plan.md`: four-node/eight-GPU-per-node
+  MovieGenBench-32 and MovieGenBench-128 commands, model paths, strict debug
+  contracts, post-processing, review gates, and result-dependent paper plan.
+- `docs/97_v97_experiment_results.md`: v97 result record. Its corrected head
+  scores remain valid, but human review found polygon noise in all binary
+  generation cells; those cells are not final quality evidence.
 - `docs/97_score_artifact_threshold_pf_merge_experiment.md`: current v97
   correctness reset and 10-hour protocol. It fixes the v96 layer-index
   aliasing bug, saves immutable unthresholded per-head scores, applies manual,
@@ -64,23 +75,25 @@
 
 Recommended reading order:
 
-1. `docs/97_score_artifact_threshold_pf_merge_experiment.md`
-2. `docs/96_qk_threshold_binary_cache_method_and_experiment.md`
-3. `docs/95_post_v93_dual_axis_phase_cache.md`
-4. `docs/93_moviebench_10h_128_and_head32_plan.md`
-5. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
-6. `docs/90_post_v86_analysis_and_v90_experiment.md`
-7. `docs/91_transitioncache_paper_story.md`
-8. `docs/89_v86_human_review_and_combined_analysis.md`
-9. `docs/88_transitioncache_v86_partial_results.md`
+1. `docs/98_history_polarity_dual_memory_method.md`
+2. `docs/99_v98_32gpu_runbook_and_paper_plan.md`
+3. `docs/97_v97_experiment_results.md`
+4. `docs/97_score_artifact_threshold_pf_merge_experiment.md`
+5. `docs/95_post_v93_dual_axis_phase_cache.md`
+6. `docs/93_moviebench_10h_128_and_head32_plan.md`
+7. `docs/92_prompt_contrastive_binary_cache_and_uniqueness_plan.md`
+8. `docs/91_transitioncache_paper_story.md`
+9. `docs/90_post_v86_analysis_and_v90_experiment.md`
 10. `docs/64_related_work_code_provenance_and_claims.md`
 
-The current GPU-pending candidate is the v97 score-artifact binary cache.
-It replaces invalid v96 learned maps with corrected explicit-layer profiles,
-freezes unthresholded scores before classification, sweeps declared manual
-thresholds, and tests both prompt-derived and PF-derived binary maps with
-merge/cyclic/recent cache controls. The v95 Dual-Axis Phase Cache remains the
-fallback if the v97 binary taxonomy gates fail. v78
+The current GPU-pending candidate is v98 History-Polarity Dual Memory. It
+reuses the corrected v97 score artifact but not the failed prompt-sensitivity
+taxonomy. A natural zero split of normalized signed history support produces
+neutral labels `10/11`; Supportive heads read a budget-matched
+stride2+cyclic2 middle, while Suppressive heads read compressed history.
+The four-node v98 matrix first proves PF explicit parity and then separates
+classifier, cache composition, and trusted writes. The v95 Dual-Axis Phase
+Cache remains a fallback if the v98 binary taxonomy gates fail. v78
 Trust-Conditioned Cache Transition remains one of its optional lifecycle
 components. Matched seeds 0-2 show v78 and PF are effectively tied in mean
 DINO, so a consistent DINO improvement is not currently supportable. v86 counterfactual

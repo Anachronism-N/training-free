@@ -1010,6 +1010,59 @@ def test_per_head_sink_frames_supports_sta_sink3_and_osc_sink1():
     assert cache.static_k[1].shape[0] == 6
 
 
+def test_explicit_recent_only_composition_does_not_fall_back_to_legacy_cyclic():
+    config = _build_config(num_layers=1, num_heads=1, capacities=[64])
+    _set_layer_labels(config, [-1])
+    cache = AdaptiveKVCache(
+        config=config,
+        batch_size=1,
+        num_heads=1,
+        head_dim=4,
+        layer_idx=0,
+        sink_len=2,
+        tail_len=64,
+        sink_grid_decoupling=True,
+        use_osc_frame_mode=True,
+        phase_period=6,
+        phase_bucket_capacity_frames=4,
+        local_tail_frames=1,
+    )
+    cache.compositions_row = [
+        HeadComposition(
+            name="L0_H0_recent_only",
+            label=-1,
+            sink_frames=1,
+            recent_frames=1,
+            middle_strategies=[],
+            policy_type="recent_only",
+            capacity=64,
+        )
+    ]
+    cache.policies_row = cache.compositions_row
+    freqs = _build_rope_freqs(4, max_seq_len=64)
+    grid_sizes = torch.tensor([[4, 1, 2]], dtype=torch.long)
+    k = _make_tokens(0, 8, num_heads=1, head_dim=4)
+
+    cache.update(
+        k,
+        k.clone(),
+        current_start=0,
+        grid_sizes=grid_sizes,
+        freqs=freqs,
+        cache_update_mode="clean",
+    )
+
+    assert all(len(bucket) == 0 for bucket in cache.cyclic_buckets[0])
+    middle, count = cache._collect_middle_cache(
+        seq_idx=0,
+        head_idx=0,
+        sync_t_raw=4,
+        has_stat=True,
+    )
+    assert middle == ("comp", [])
+    assert count == 0
+
+
 def test_merge_strategy_uses_block_median_time_and_single_rope_pass():
     config = _build_config(num_layers=1, num_heads=1, capacities=[128])
     _set_layer_labels(config, [1])
