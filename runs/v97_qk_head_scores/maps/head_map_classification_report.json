@@ -1,0 +1,2761 @@
+{
+  "automatic_thresholds": {
+    "prompt_gmm2": 1.8676756268779904,
+    "prompt_otsu": 2.070080481864073
+  },
+  "classification_is_posthoc": true,
+  "gmm": [
+    {
+      "bic": 1508.6157997572095,
+      "components": 1,
+      "log_likelihood": -748.4217958471546,
+      "means": [
+        0.397871460864904
+      ],
+      "variances": [
+        3.74350298252093
+      ],
+      "weights": [
+        1.0
+      ]
+    },
+    {
+      "bic": 1189.9522834222746,
+      "components": 2,
+      "log_likelihood": -580.2608816325119,
+      "means": [
+        -0.062252734619366236,
+        2.960686679794849
+      ],
+      "variances": [
+        0.5530659465283655,
+        13.766471349378135
+      ],
+      "weights": [
+        0.8477891441388907,
+        0.15221085586111008
+      ]
+    },
+    {
+      "bic": 1153.0041499814474,
+      "components": 3,
+      "log_likelihood": -552.9576588649231,
+      "means": [
+        -0.16592919335485964,
+        1.7006216821120428,
+        10.020812457210024
+      ],
+      "variances": [
+        0.4326096477857663,
+        2.68345953695562,
+        55.50329547702438
+      ],
+      "weights": [
+        0.7642274437575878,
+        0.22090280309628266,
+        0.014869753146130382
+      ]
+    }
+  ],
+  "gmm_gates": {
+    "bic_1_minus_2": 318.6635163349349,
+    "bic_3_minus_2": -36.94813344082718,
+    "two_components_preferred_to_one": true,
+    "two_components_preferred_to_three": false
+  },
+  "main_threshold": 1.0,
+  "manual_thresholds": [
+    0.0,
+    0.5,
+    1.0,
+    1.5,
+    2.0
+  ],
+  "map_agreement": {
+    "pf_anchor_vs_rest__pf_anchor_wave_vs_veil": {
+      "label_agreement": 0.5666666666666667,
+      "responsive_jaccard": 0.1702127659574468
+    },
+    "prompt_gmm2__pf_anchor_vs_rest": {
+      "label_agreement": 0.5055555555555555,
+      "responsive_jaccard": 0.1188118811881188
+    },
+    "prompt_gmm2__pf_anchor_wave_vs_veil": {
+      "label_agreement": 0.8388888888888889,
+      "responsive_jaccard": 0.09375
+    },
+    "prompt_gmm2__prompt_otsu": {
+      "label_agreement": 0.9944444444444445,
+      "responsive_jaccard": 0.9473684210526315
+    },
+    "prompt_gmm2__prompt_tau_1_random": {
+      "label_agreement": 0.7666666666666667,
+      "responsive_jaccard": 0.11578947368421053
+    },
+    "prompt_gmm2__prompt_tau_1_reversed": {
+      "label_agreement": 0.7055555555555556,
+      "responsive_jaccard": 0.0
+    },
+    "prompt_gmm2__sign_rpos_0p5": {
+      "label_agreement": 0.8222222222222222,
+      "responsive_jaccard": 0.1794871794871795
+    },
+    "prompt_otsu__pf_anchor_vs_rest": {
+      "label_agreement": 0.5055555555555555,
+      "responsive_jaccard": 0.11442786069651742
+    },
+    "prompt_otsu__pf_anchor_wave_vs_veil": {
+      "label_agreement": 0.8444444444444444,
+      "responsive_jaccard": 0.0967741935483871
+    },
+    "prompt_otsu__prompt_tau_1_random": {
+      "label_agreement": 0.7666666666666667,
+      "responsive_jaccard": 0.10638297872340426
+    },
+    "prompt_otsu__prompt_tau_1_reversed": {
+      "label_agreement": 0.7111111111111111,
+      "responsive_jaccard": 0.0
+    },
+    "prompt_otsu__sign_rpos_0p5": {
+      "label_agreement": 0.8277777777777777,
+      "responsive_jaccard": 0.18421052631578946
+    },
+    "prompt_tau_0__pf_anchor_vs_rest": {
+      "label_agreement": 0.5055555555555555,
+      "responsive_jaccard": 0.34798534798534797
+    },
+    "prompt_tau_0__pf_anchor_wave_vs_veil": {
+      "label_agreement": 0.4888888888888889,
+      "responsive_jaccard": 0.0707070707070707
+    },
+    "prompt_tau_0__prompt_gmm2": {
+      "label_agreement": 0.6055555555555555,
+      "responsive_jaccard": 0.2111111111111111
+    },
+    "prompt_tau_0__prompt_otsu": {
+      "label_agreement": 0.6,
+      "responsive_jaccard": 0.2
+    },
+    "prompt_tau_0__prompt_tau_0p5": {
+      "label_agreement": 0.8027777777777778,
+      "responsive_jaccard": 0.6055555555555555
+    },
+    "prompt_tau_0__prompt_tau_1": {
+      "label_agreement": 0.6888888888888889,
+      "responsive_jaccard": 0.37777777777777777
+    },
+    "prompt_tau_0__prompt_tau_1_random": {
+      "label_agreement": 0.5166666666666667,
+      "responsive_jaccard": 0.17535545023696683
+    },
+    "prompt_tau_0__prompt_tau_1_reversed": {
+      "label_agreement": 0.3111111111111111,
+      "responsive_jaccard": 0.0
+    },
+    "prompt_tau_0__prompt_tau_1p5": {
+      "label_agreement": 0.6416666666666667,
+      "responsive_jaccard": 0.2833333333333333
+    },
+    "prompt_tau_0__prompt_tau_2": {
+      "label_agreement": 0.6,
+      "responsive_jaccard": 0.2
+    },
+    "prompt_tau_0__sign_rpos_0p5": {
+      "label_agreement": 0.5166666666666667,
+      "responsive_jaccard": 0.14705882352941177
+    },
+    "prompt_tau_0p5__pf_anchor_vs_rest": {
+      "label_agreement": 0.49166666666666664,
+      "responsive_jaccard": 0.2375
+    },
+    "prompt_tau_0p5__pf_anchor_wave_vs_veil": {
+      "label_agreement": 0.6805555555555556,
+      "responsive_jaccard": 0.1015625
+    },
+    "prompt_tau_0p5__prompt_gmm2": {
+      "label_agreement": 0.8027777777777778,
+      "responsive_jaccard": 0.3486238532110092
+    },
+    "prompt_tau_0p5__prompt_otsu": {
+      "label_agreement": 0.7972222222222223,
+      "responsive_jaccard": 0.3302752293577982
+    },
+    "prompt_tau_0p5__prompt_tau_1": {
+      "label_agreement": 0.8861111111111111,
+      "responsive_jaccard": 0.6238532110091743
+    },
+    "prompt_tau_0p5__prompt_tau_1_random": {
+      "label_agreement": 0.6416666666666667,
+      "responsive_jaccard": 0.1568627450980392
+    },
+    "prompt_tau_0p5__prompt_tau_1_reversed": {
+      "label_agreement": 0.5083333333333333,
+      "responsive_jaccard": 0.0
+    },
+    "prompt_tau_0p5__prompt_tau_1p5": {
+      "label_agreement": 0.8388888888888889,
+      "responsive_jaccard": 0.46788990825688076
+    },
+    "prompt_tau_0p5__prompt_tau_2": {
+      "label_agreement": 0.7972222222222223,
+      "responsive_jaccard": 0.3302752293577982
+    },
+    "prompt_tau_0p5__sign_rpos_0p5": {
+      "label_agreement": 0.6916666666666667,
+      "responsive_jaccard": 0.1897810218978102
+    },
+    "prompt_tau_1__pf_anchor_vs_rest": {
+      "label_agreement": 0.4888888888888889,
+      "responsive_jaccard": 0.16363636363636364
+    },
+    "prompt_tau_1__pf_anchor_wave_vs_veil": {
+      "label_agreement": 0.7777777777777778,
+      "responsive_jaccard": 0.1111111111111111
+    },
+    "prompt_tau_1__prompt_gmm2": {
+      "label_agreement": 0.9166666666666666,
+      "responsive_jaccard": 0.5588235294117647
+    },
+    "prompt_tau_1__prompt_otsu": {
+      "label_agreement": 0.9111111111111111,
+      "responsive_jaccard": 0.5294117647058824
+    },
+    "prompt_tau_1__prompt_tau_1_random": {
+      "label_agreement": 0.7055555555555556,
+      "responsive_jaccard": 0.12396694214876033
+    },
+    "prompt_tau_1__prompt_tau_1_reversed": {
+      "label_agreement": 0.6222222222222222,
+      "responsive_jaccard": 0.0
+    },
+    "prompt_tau_1__prompt_tau_1p5": {
+      "label_agreement": 0.9527777777777777,
+      "responsive_jaccard": 0.75
+    },
+    "prompt_tau_1__prompt_tau_2": {
+      "label_agreement": 0.9111111111111111,
+      "responsive_jaccard": 0.5294117647058824
+    },
+    "prompt_tau_1__sign_rpos_0p5": {
+      "label_agreement": 0.7833333333333333,
+      "responsive_jaccard": 0.22
+    },
+    "prompt_tau_1_random__pf_anchor_vs_rest": {
+      "label_agreement": 0.49444444444444446,
+      "responsive_jaccard": 0.1689497716894977
+    },
+    "prompt_tau_1_random__pf_anchor_wave_vs_veil": {
+      "label_agreement": 0.7555555555555555,
+      "responsive_jaccard": 0.06382978723404255
+    },
+    "prompt_tau_1_random__prompt_tau_1_reversed": {
+      "label_agreement": 0.7,
+      "responsive_jaccard": 0.11475409836065574
+    },
+    "prompt_tau_1_random__sign_rpos_0p5": {
+      "label_agreement": 0.7055555555555556,
+      "responsive_jaccard": 0.07017543859649122
+    },
+    "prompt_tau_1_reversed__pf_anchor_vs_rest": {
+      "label_agreement": 0.4722222222222222,
+      "responsive_jaccard": 0.14798206278026907
+    },
+    "prompt_tau_1_reversed__pf_anchor_wave_vs_veil": {
+      "label_agreement": 0.7777777777777778,
+      "responsive_jaccard": 0.1111111111111111
+    },
+    "prompt_tau_1_reversed__sign_rpos_0p5": {
+      "label_agreement": 0.7166666666666667,
+      "responsive_jaccard": 0.08928571428571429
+    },
+    "prompt_tau_1p5__pf_anchor_vs_rest": {
+      "label_agreement": 0.5027777777777778,
+      "responsive_jaccard": 0.14354066985645933
+    },
+    "prompt_tau_1p5__pf_anchor_wave_vs_veil": {
+      "label_agreement": 0.8083333333333333,
+      "responsive_jaccard": 0.09210526315789473
+    },
+    "prompt_tau_1p5__prompt_gmm2": {
+      "label_agreement": 0.9638888888888889,
+      "responsive_jaccard": 0.7450980392156863
+    },
+    "prompt_tau_1p5__prompt_otsu": {
+      "label_agreement": 0.9583333333333334,
+      "responsive_jaccard": 0.7058823529411765
+    },
+    "prompt_tau_1p5__prompt_tau_1_random": {
+      "label_agreement": 0.7361111111111112,
+      "responsive_jaccard": 0.11214953271028037
+    },
+    "prompt_tau_1p5__prompt_tau_1_reversed": {
+      "label_agreement": 0.6694444444444444,
+      "responsive_jaccard": 0.0
+    },
+    "prompt_tau_1p5__prompt_tau_2": {
+      "label_agreement": 0.9583333333333334,
+      "responsive_jaccard": 0.7058823529411765
+    },
+    "prompt_tau_1p5__sign_rpos_0p5": {
+      "label_agreement": 0.8138888888888889,
+      "responsive_jaccard": 0.22093023255813954
+    },
+    "prompt_tau_2__pf_anchor_vs_rest": {
+      "label_agreement": 0.5055555555555555,
+      "responsive_jaccard": 0.11442786069651742
+    },
+    "prompt_tau_2__pf_anchor_wave_vs_veil": {
+      "label_agreement": 0.8444444444444444,
+      "responsive_jaccard": 0.0967741935483871
+    },
+    "prompt_tau_2__prompt_gmm2": {
+      "label_agreement": 0.9944444444444445,
+      "responsive_jaccard": 0.9473684210526315
+    },
+    "prompt_tau_2__prompt_otsu": {
+      "label_agreement": 1.0,
+      "responsive_jaccard": 1.0
+    },
+    "prompt_tau_2__prompt_tau_1_random": {
+      "label_agreement": 0.7666666666666667,
+      "responsive_jaccard": 0.10638297872340426
+    },
+    "prompt_tau_2__prompt_tau_1_reversed": {
+      "label_agreement": 0.7111111111111111,
+      "responsive_jaccard": 0.0
+    },
+    "prompt_tau_2__sign_rpos_0p5": {
+      "label_agreement": 0.8277777777777777,
+      "responsive_jaccard": 0.18421052631578946
+    },
+    "sign_rpos_0p5__pf_anchor_vs_rest": {
+      "label_agreement": 0.6111111111111112,
+      "responsive_jaccard": 0.2670157068062827
+    },
+    "sign_rpos_0p5__pf_anchor_wave_vs_veil": {
+      "label_agreement": 0.9222222222222223,
+      "responsive_jaccard": 0.5087719298245614
+    }
+  },
+  "maps": {
+    "pf_anchor_extended_recent": {
+      "family": "pf_class_contribution_ablation",
+      "label_counts": {
+        "-1": 156,
+        "2": 32,
+        "3": 172
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/pf_anchor_extended_recent.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 8,
+          "3": 4
+        },
+        {
+          "-1": 10,
+          "3": 2
+        },
+        {
+          "-1": 9,
+          "2": 1,
+          "3": 2
+        },
+        {
+          "-1": 7,
+          "3": 5
+        },
+        {
+          "-1": 6,
+          "2": 1,
+          "3": 5
+        },
+        {
+          "-1": 11,
+          "3": 1
+        },
+        {
+          "-1": 5,
+          "2": 1,
+          "3": 6
+        },
+        {
+          "-1": 5,
+          "2": 2,
+          "3": 5
+        },
+        {
+          "-1": 7,
+          "2": 2,
+          "3": 3
+        },
+        {
+          "-1": 6,
+          "2": 2,
+          "3": 4
+        },
+        {
+          "-1": 3,
+          "2": 1,
+          "3": 8
+        },
+        {
+          "-1": 3,
+          "2": 2,
+          "3": 7
+        },
+        {
+          "-1": 6,
+          "2": 2,
+          "3": 4
+        },
+        {
+          "-1": 1,
+          "2": 2,
+          "3": 9
+        },
+        {
+          "-1": 3,
+          "2": 2,
+          "3": 7
+        },
+        {
+          "-1": 1,
+          "2": 1,
+          "3": 10
+        },
+        {
+          "-1": 4,
+          "2": 1,
+          "3": 7
+        },
+        {
+          "-1": 8,
+          "2": 1,
+          "3": 3
+        },
+        {
+          "-1": 2,
+          "3": 10
+        },
+        {
+          "-1": 4,
+          "2": 2,
+          "3": 6
+        },
+        {
+          "-1": 8,
+          "3": 4
+        },
+        {
+          "-1": 5,
+          "2": 1,
+          "3": 6
+        },
+        {
+          "-1": 1,
+          "2": 2,
+          "3": 9
+        },
+        {
+          "-1": 3,
+          "2": 2,
+          "3": 7
+        },
+        {
+          "-1": 4,
+          "2": 1,
+          "3": 7
+        },
+        {
+          "-1": 5,
+          "2": 1,
+          "3": 6
+        },
+        {
+          "-1": 4,
+          "2": 1,
+          "3": 7
+        },
+        {
+          "-1": 5,
+          "2": 1,
+          "3": 6
+        },
+        {
+          "-1": 5,
+          "3": 7
+        },
+        {
+          "-1": 7,
+          "3": 5
+        }
+      ],
+      "pf_cross_tab": null,
+      "replacement_label": 3,
+      "replacement_policy": "same_sink_plus_recent8_no_middle",
+      "sha256": "a8385aee8a908a23b12dd2cd053e342bdebdd77aa295df56f22809f85ba36331",
+      "target_class": "anchor",
+      "target_label": 1
+    },
+    "pf_anchor_vs_rest": {
+      "family": "pf_label_merge_control",
+      "label_counts": {
+        "-1": 188,
+        "1": 172
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/pf_anchor_vs_rest.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 8,
+          "1": 4
+        },
+        {
+          "-1": 10,
+          "1": 2
+        },
+        {
+          "-1": 10,
+          "1": 2
+        },
+        {
+          "-1": 7,
+          "1": 5
+        },
+        {
+          "-1": 7,
+          "1": 5
+        },
+        {
+          "-1": 11,
+          "1": 1
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 7,
+          "1": 5
+        },
+        {
+          "-1": 9,
+          "1": 3
+        },
+        {
+          "-1": 8,
+          "1": 4
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 8,
+          "1": 4
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 9,
+          "1": 3
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 8,
+          "1": 4
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 7,
+          "1": 5
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 0,
+          "stable_or_support": 172
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 32,
+          "stable_or_support": 0
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 156,
+          "stable_or_support": 0
+        }
+      },
+      "sha256": "f910a18de2c47a62349c50a8b719b2b27b9ab33294b708f14e2bd023055b3770",
+      "support": [
+        "anchor"
+      ],
+      "suppress": [
+        "wave",
+        "veil"
+      ]
+    },
+    "pf_anchor_wave_vs_veil": {
+      "family": "pf_label_merge_control",
+      "label_counts": {
+        "-1": 32,
+        "1": 328
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/pf_anchor_wave_vs_veil.csv",
+      "per_layer_label_counts": [
+        {
+          "1": 12
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "1": 12
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 0,
+          "stable_or_support": 172
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 32,
+          "stable_or_support": 0
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 0,
+          "stable_or_support": 156
+        }
+      },
+      "sha256": "1bdd4b800b3e6304cbcbadd5828ef396f3fa1df9adf1f43d32038106d6368832",
+      "support": [
+        "anchor",
+        "wave"
+      ],
+      "suppress": [
+        "veil"
+      ]
+    },
+    "pf_native": {
+      "family": "pf_native_reference",
+      "label_counts": {
+        "-1": 156,
+        "1": 172,
+        "2": 32
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/pf_native.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 8,
+          "1": 4
+        },
+        {
+          "-1": 10,
+          "1": 2
+        },
+        {
+          "-1": 9,
+          "1": 2,
+          "2": 1
+        },
+        {
+          "-1": 7,
+          "1": 5
+        },
+        {
+          "-1": 6,
+          "1": 5,
+          "2": 1
+        },
+        {
+          "-1": 11,
+          "1": 1
+        },
+        {
+          "-1": 5,
+          "1": 6,
+          "2": 1
+        },
+        {
+          "-1": 5,
+          "1": 5,
+          "2": 2
+        },
+        {
+          "-1": 7,
+          "1": 3,
+          "2": 2
+        },
+        {
+          "-1": 6,
+          "1": 4,
+          "2": 2
+        },
+        {
+          "-1": 3,
+          "1": 8,
+          "2": 1
+        },
+        {
+          "-1": 3,
+          "1": 7,
+          "2": 2
+        },
+        {
+          "-1": 6,
+          "1": 4,
+          "2": 2
+        },
+        {
+          "-1": 1,
+          "1": 9,
+          "2": 2
+        },
+        {
+          "-1": 3,
+          "1": 7,
+          "2": 2
+        },
+        {
+          "-1": 1,
+          "1": 10,
+          "2": 1
+        },
+        {
+          "-1": 4,
+          "1": 7,
+          "2": 1
+        },
+        {
+          "-1": 8,
+          "1": 3,
+          "2": 1
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 4,
+          "1": 6,
+          "2": 2
+        },
+        {
+          "-1": 8,
+          "1": 4
+        },
+        {
+          "-1": 5,
+          "1": 6,
+          "2": 1
+        },
+        {
+          "-1": 1,
+          "1": 9,
+          "2": 2
+        },
+        {
+          "-1": 3,
+          "1": 7,
+          "2": 2
+        },
+        {
+          "-1": 4,
+          "1": 7,
+          "2": 1
+        },
+        {
+          "-1": 5,
+          "1": 6,
+          "2": 1
+        },
+        {
+          "-1": 4,
+          "1": 7,
+          "2": 1
+        },
+        {
+          "-1": 5,
+          "1": 6,
+          "2": 1
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 7,
+          "1": 5
+        }
+      ],
+      "pf_cross_tab": null,
+      "sha256": "3768a00c692bd18284a3cde82d76e4d83052d46959a0dda22abfd58d3d784a86",
+      "source": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/configs/head_configs/best_labels.csv",
+      "source_sha256": "80f861deaecd89c2f514c42a0ce5fd390bf1ec4e557dae7241401050e0de605d"
+    },
+    "pf_veil_extended_recent": {
+      "family": "pf_class_contribution_ablation",
+      "label_counts": {
+        "-1": 156,
+        "1": 172,
+        "3": 32
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/pf_veil_extended_recent.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 8,
+          "1": 4
+        },
+        {
+          "-1": 10,
+          "1": 2
+        },
+        {
+          "-1": 9,
+          "1": 2,
+          "3": 1
+        },
+        {
+          "-1": 7,
+          "1": 5
+        },
+        {
+          "-1": 6,
+          "1": 5,
+          "3": 1
+        },
+        {
+          "-1": 11,
+          "1": 1
+        },
+        {
+          "-1": 5,
+          "1": 6,
+          "3": 1
+        },
+        {
+          "-1": 5,
+          "1": 5,
+          "3": 2
+        },
+        {
+          "-1": 7,
+          "1": 3,
+          "3": 2
+        },
+        {
+          "-1": 6,
+          "1": 4,
+          "3": 2
+        },
+        {
+          "-1": 3,
+          "1": 8,
+          "3": 1
+        },
+        {
+          "-1": 3,
+          "1": 7,
+          "3": 2
+        },
+        {
+          "-1": 6,
+          "1": 4,
+          "3": 2
+        },
+        {
+          "-1": 1,
+          "1": 9,
+          "3": 2
+        },
+        {
+          "-1": 3,
+          "1": 7,
+          "3": 2
+        },
+        {
+          "-1": 1,
+          "1": 10,
+          "3": 1
+        },
+        {
+          "-1": 4,
+          "1": 7,
+          "3": 1
+        },
+        {
+          "-1": 8,
+          "1": 3,
+          "3": 1
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 4,
+          "1": 6,
+          "3": 2
+        },
+        {
+          "-1": 8,
+          "1": 4
+        },
+        {
+          "-1": 5,
+          "1": 6,
+          "3": 1
+        },
+        {
+          "-1": 1,
+          "1": 9,
+          "3": 2
+        },
+        {
+          "-1": 3,
+          "1": 7,
+          "3": 2
+        },
+        {
+          "-1": 4,
+          "1": 7,
+          "3": 1
+        },
+        {
+          "-1": 5,
+          "1": 6,
+          "3": 1
+        },
+        {
+          "-1": 4,
+          "1": 7,
+          "3": 1
+        },
+        {
+          "-1": 5,
+          "1": 6,
+          "3": 1
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 7,
+          "1": 5
+        }
+      ],
+      "pf_cross_tab": null,
+      "replacement_label": 3,
+      "replacement_policy": "same_sink_plus_recent5_no_middle",
+      "sha256": "3e16e7aa20aa78e716316e9f882754ee52a258a15358195b93f98932967c3e0b",
+      "target_class": "veil",
+      "target_label": 2
+    },
+    "pf_wave_extended_recent": {
+      "family": "pf_class_contribution_ablation",
+      "label_counts": {
+        "1": 172,
+        "2": 32,
+        "3": 156
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/pf_wave_extended_recent.csv",
+      "per_layer_label_counts": [
+        {
+          "1": 4,
+          "3": 8
+        },
+        {
+          "1": 2,
+          "3": 10
+        },
+        {
+          "1": 2,
+          "2": 1,
+          "3": 9
+        },
+        {
+          "1": 5,
+          "3": 7
+        },
+        {
+          "1": 5,
+          "2": 1,
+          "3": 6
+        },
+        {
+          "1": 1,
+          "3": 11
+        },
+        {
+          "1": 6,
+          "2": 1,
+          "3": 5
+        },
+        {
+          "1": 5,
+          "2": 2,
+          "3": 5
+        },
+        {
+          "1": 3,
+          "2": 2,
+          "3": 7
+        },
+        {
+          "1": 4,
+          "2": 2,
+          "3": 6
+        },
+        {
+          "1": 8,
+          "2": 1,
+          "3": 3
+        },
+        {
+          "1": 7,
+          "2": 2,
+          "3": 3
+        },
+        {
+          "1": 4,
+          "2": 2,
+          "3": 6
+        },
+        {
+          "1": 9,
+          "2": 2,
+          "3": 1
+        },
+        {
+          "1": 7,
+          "2": 2,
+          "3": 3
+        },
+        {
+          "1": 10,
+          "2": 1,
+          "3": 1
+        },
+        {
+          "1": 7,
+          "2": 1,
+          "3": 4
+        },
+        {
+          "1": 3,
+          "2": 1,
+          "3": 8
+        },
+        {
+          "1": 10,
+          "3": 2
+        },
+        {
+          "1": 6,
+          "2": 2,
+          "3": 4
+        },
+        {
+          "1": 4,
+          "3": 8
+        },
+        {
+          "1": 6,
+          "2": 1,
+          "3": 5
+        },
+        {
+          "1": 9,
+          "2": 2,
+          "3": 1
+        },
+        {
+          "1": 7,
+          "2": 2,
+          "3": 3
+        },
+        {
+          "1": 7,
+          "2": 1,
+          "3": 4
+        },
+        {
+          "1": 6,
+          "2": 1,
+          "3": 5
+        },
+        {
+          "1": 7,
+          "2": 1,
+          "3": 4
+        },
+        {
+          "1": 6,
+          "2": 1,
+          "3": 5
+        },
+        {
+          "1": 7,
+          "3": 5
+        },
+        {
+          "1": 5,
+          "3": 7
+        }
+      ],
+      "pf_cross_tab": null,
+      "replacement_label": 3,
+      "replacement_policy": "same_sink_plus_recent8_no_middle",
+      "sha256": "cce771a26140786afc9f572ac29c4a3de0cebebe49a1c2fc3c37e7ce3b59690f",
+      "target_class": "wave",
+      "target_label": -1
+    },
+    "prompt_gmm2": {
+      "family": "prompt_consensus_automatic_threshold",
+      "label_counts": {
+        "-1": 38,
+        "1": 322
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/prompt_gmm2.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 2,
+          "1": 10
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 14,
+          "stable_or_support": 158
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 6,
+          "stable_or_support": 26
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 18,
+          "stable_or_support": 138
+        }
+      },
+      "score_column": "consensus_score",
+      "sha256": "89d8ce061283ac87b6a76990be110fdb0ac44663ed089e6dbc4eb0c747e5115c",
+      "threshold": 1.8676756268779904
+    },
+    "prompt_otsu": {
+      "family": "prompt_consensus_automatic_threshold",
+      "label_counts": {
+        "-1": 36,
+        "1": 324
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/prompt_otsu.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "1": 12
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 13,
+          "stable_or_support": 159
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 6,
+          "stable_or_support": 26
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 17,
+          "stable_or_support": 139
+        }
+      },
+      "score_column": "consensus_score",
+      "sha256": "07aa676f8aeb27d914e951db75008f04af8d0437d2f78fec6bb4f6f895f6db4b",
+      "threshold": 2.070080481864073
+    },
+    "prompt_tau_0": {
+      "family": "prompt_consensus_manual_threshold",
+      "label_counts": {
+        "-1": 180,
+        "1": 180
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/prompt_tau_0.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 7,
+          "1": 5
+        },
+        {
+          "-1": 7,
+          "1": 5
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 7,
+          "1": 5
+        },
+        {
+          "-1": 7,
+          "1": 5
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 7,
+          "1": 5
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 6,
+          "1": 6
+        },
+        {
+          "-1": 7,
+          "1": 5
+        },
+        {
+          "-1": 6,
+          "1": 6
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 85,
+          "stable_or_support": 87
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 14,
+          "stable_or_support": 18
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 81,
+          "stable_or_support": 75
+        }
+      },
+      "score_column": "consensus_score",
+      "sha256": "78ea83306c9c2d3cc31b6086ba36c81f36f4661a689ad8c845bbdc410e5a4769",
+      "threshold": 0.0
+    },
+    "prompt_tau_0p5": {
+      "family": "prompt_consensus_manual_threshold",
+      "label_counts": {
+        "-1": 109,
+        "1": 251
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/prompt_tau_0p5.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 5,
+          "1": 7
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 4,
+          "1": 8
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 52,
+          "stable_or_support": 120
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 13,
+          "stable_or_support": 19
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 44,
+          "stable_or_support": 112
+        }
+      },
+      "score_column": "consensus_score",
+      "sha256": "12944b650230454cf77f8cbd7568d9e273ead04ef1796ad37b585d2329ac69a9",
+      "threshold": 0.5
+    },
+    "prompt_tau_1": {
+      "family": "prompt_consensus_manual_threshold",
+      "label_counts": {
+        "-1": 68,
+        "1": 292
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/prompt_tau_1.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 32,
+          "stable_or_support": 140
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 10,
+          "stable_or_support": 22
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 26,
+          "stable_or_support": 130
+        }
+      },
+      "score_column": "consensus_score",
+      "sha256": "59ab043cca4e1620f229ecdf6006cddf9b9352ec9fc59eba42d5dbaa2ef507e2",
+      "threshold": 1.0
+    },
+    "prompt_tau_1_random": {
+      "family": "count_matched_layerwise_random_control",
+      "label_counts": {
+        "-1": 68,
+        "1": 292
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/prompt_tau_1_random.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 31,
+          "stable_or_support": 141
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 6,
+          "stable_or_support": 26
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 31,
+          "stable_or_support": 125
+        }
+      },
+      "reference": "prompt_tau_1",
+      "seed": 2026,
+      "sha256": "d6698edd9712b5f523b57dd1417550f301a6c9cc9f4d08cb37359282a8377414"
+    },
+    "prompt_tau_1_reversed": {
+      "family": "count_matched_layerwise_reversed_control",
+      "label_counts": {
+        "-1": 68,
+        "1": 292
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/prompt_tau_1_reversed.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 35,
+          "stable_or_support": 137
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 10,
+          "stable_or_support": 22
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 23,
+          "stable_or_support": 133
+        }
+      },
+      "reference": "prompt_tau_1",
+      "sha256": "3ba3835d679942b84b121049f46094d55620c0bc1db4125a1a43cece72bbe861"
+    },
+    "prompt_tau_1p5": {
+      "family": "prompt_consensus_manual_threshold",
+      "label_counts": {
+        "-1": 51,
+        "1": 309
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/prompt_tau_1p5.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 21,
+          "stable_or_support": 151
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 7,
+          "stable_or_support": 25
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 23,
+          "stable_or_support": 133
+        }
+      },
+      "score_column": "consensus_score",
+      "sha256": "4ac60ab12552ff055560077c666bdecc9edc7c497a7386e434e77bb9336b43a6",
+      "threshold": 1.5
+    },
+    "prompt_tau_2": {
+      "family": "prompt_consensus_manual_threshold",
+      "label_counts": {
+        "-1": 36,
+        "1": 324
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/prompt_tau_2.csv",
+      "per_layer_label_counts": [
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "1": 12
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "1": 12
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 13,
+          "stable_or_support": 159
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 6,
+          "stable_or_support": 26
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 17,
+          "stable_or_support": 139
+        }
+      },
+      "score_column": "consensus_score",
+      "sha256": "07aa676f8aeb27d914e951db75008f04af8d0437d2f78fec6bb4f6f895f6db4b",
+      "threshold": 2.0
+    },
+    "sign_rpos_0p5": {
+      "family": "positive_logit_fraction",
+      "label_counts": {
+        "-1": 54,
+        "1": 306
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/maps/sign_rpos_0p5.csv",
+      "per_layer_label_counts": [
+        {
+          "1": 12
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 4,
+          "1": 8
+        },
+        {
+          "-1": 1,
+          "1": 11
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 3,
+          "1": 9
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "-1": 2,
+          "1": 10
+        },
+        {
+          "1": 12
+        },
+        {
+          "-1": 1,
+          "1": 11
+        }
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "pf_label": 1,
+          "responsive_or_suppress": 3,
+          "stable_or_support": 169
+        },
+        "veil": {
+          "pf_label": 2,
+          "responsive_or_suppress": 29,
+          "stable_or_support": 3
+        },
+        "wave": {
+          "pf_label": -1,
+          "responsive_or_suppress": 22,
+          "stable_or_support": 134
+        }
+      },
+      "score_column": "positive_rate",
+      "sha256": "d53104fea5ef1989208aa4793f05bcf27670b52987a158f499e4356292f9dce8",
+      "support_rule": "positive_rate >= threshold",
+      "threshold": 0.5
+    }
+  },
+  "method": "offline_head_map_classification_from_immutable_scores",
+  "num_heads": 12,
+  "num_layers": 30,
+  "pf_labels_used_to_construct_prompt_maps": false,
+  "score_artifact": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/scores/qk_head_score_artifact.json",
+  "score_csv": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v97_qk_head_scores/scores/qk_head_scores.csv",
+  "score_csv_sha256": "e0f9e70238ea06dec7298bd4a558467c2fb15e05e2a703e757eb0a6f9a362a6d",
+  "sign_thresholds": [
+    0.5
+  ],
+  "version": 1
+}
