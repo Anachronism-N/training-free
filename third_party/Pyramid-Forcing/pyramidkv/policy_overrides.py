@@ -130,9 +130,17 @@ def history_polarity_policy_overrides(
 
     support = str(support_policy).strip().lower()
     suppress = str(suppress_policy).strip().lower()
-    if support not in {"stride", "hybrid", "cyclic"}:
+    if support not in {
+        "stride",
+        "hybrid",
+        "cyclic",
+        "recent8",
+        "landmark",
+        "motion_pair",
+        "landmark_motion",
+    }:
         raise ValueError(
-            "history support policy must be stride, hybrid, or cyclic"
+            "unsupported history support policy"
         )
     if suppress not in {
         "merge",
@@ -145,6 +153,9 @@ def history_polarity_policy_overrides(
         "recent5",
         "recent8",
         "recent8_sink1",
+        "landmark",
+        "motion_pair",
+        "landmark_motion",
     }:
         raise ValueError(
             "unsupported history suppress policy"
@@ -183,9 +194,45 @@ def history_polarity_policy_overrides(
         if suppress == "cyclic_motion1"
         else 2
     )
+    support_landmark_capacity = (
+        4
+        if support == "landmark"
+        else 2
+        if support == "landmark_motion"
+        else 0
+    )
+    suppress_landmark_capacity = (
+        4
+        if suppress == "landmark"
+        else 2
+        if suppress == "landmark_motion"
+        else 0
+    )
+    support_motion_pair_capacity = (
+        2
+        if support == "motion_pair"
+        else 1
+        if support == "landmark_motion"
+        else 0
+    )
+    suppress_motion_pair_capacity = (
+        2
+        if suppress == "motion_pair"
+        else 1
+        if suppress == "landmark_motion"
+        else 0
+    )
     suppress_sink = (
         1
-        if suppress in {"cyclic", "cyclic_motion1", "recent8_sink1"}
+        if suppress
+        in {
+            "cyclic",
+            "cyclic_motion1",
+            "recent8_sink1",
+            "landmark",
+            "motion_pair",
+            "landmark_motion",
+        }
         else 3
     )
     suppress_recent = (
@@ -195,7 +242,19 @@ def history_polarity_policy_overrides(
         if suppress in {"recent8", "recent8_sink1"}
         else 4
     )
-    support_sink = 1 if support == "cyclic" else 3
+    support_sink = (
+        1
+        if support
+        in {
+            "cyclic",
+            "recent8",
+            "landmark",
+            "motion_pair",
+            "landmark_motion",
+        }
+        else 3
+    )
+    support_recent = 8 if support == "recent8" else 4
     support_key = str(support_label)
     suppress_key = str(suppress_label)
     return {
@@ -225,20 +284,30 @@ def history_polarity_policy_overrides(
         "pyramidkv_label_motion_event_capacity_map": {
             suppress_key: suppress_motion_capacity,
         },
-        # A phase-cyclic route uses sink1 + cyclic4 + recent4. Merge and
-        # compact recent-only routes keep sink3. recent8_sink1 is the
-        # frame-budget-matched local-window control for a cyclic route.
+        "pyramidkv_label_semantic_landmark_capacity_map": {
+            support_key: support_landmark_capacity,
+            suppress_key: suppress_landmark_capacity,
+        },
+        "pyramidkv_label_coherent_motion_pair_capacity_map": {
+            support_key: support_motion_pair_capacity,
+            suppress_key: suppress_motion_pair_capacity,
+        },
+        # Cyclic and role-event routes use sink1. Legacy Merge and compact
+        # recent-only routes keep sink3. recent8_sink1 and support recent8
+        # are nine-frame local-window controls.
         "pyramidkv_label_sink_frames_map": {
             support_key: support_sink,
             suppress_key: suppress_sink,
         },
         "pyramidkv_label_recent_frames_map": {
-            support_key: 4,
+            support_key: support_recent,
             suppress_key: suppress_recent,
         },
         "pyramidkv_hybrid_middle_enabled": (
             support == "hybrid"
             or suppress in {"motion_cyclic", "cyclic_motion1"}
+            or support == "landmark_motion"
+            or suppress == "landmark_motion"
         ),
         # The neutral-label route must not inherit a second legacy dynamic
         # history path alongside its explicit middle strategy.

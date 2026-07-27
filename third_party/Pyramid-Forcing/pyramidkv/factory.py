@@ -15,6 +15,7 @@ from .cyclic import CyclicStrategy
 from .lag import LagStrategy
 from .merge import MergeStrategy
 from .motion_event import MotionEventStrategy
+from .role_event import CoherentMotionStrategy, SemanticLandmarkStrategy
 from .stride import StrideStrategy
 from .recent import RecentStrategy
 
@@ -281,6 +282,8 @@ def build_compositions(
     label_merge_capacity_map: dict | None = None,
     label_motion_event_enabled_map: dict | None = None,
     label_motion_event_capacity_map: dict | None = None,
+    label_semantic_landmark_capacity_map: dict | None = None,
+    label_coherent_motion_pair_capacity_map: dict | None = None,
     hybrid_middle_enabled: bool = False,
 ) -> list[list[HeadComposition]]:
     """Build per-layer, per-head HeadComposition instances.
@@ -307,6 +310,32 @@ def build_compositions(
     motion_event_map = _build_bool_map(label_motion_event_enabled_map)
     motion_event_capacity_map = _build_capacity_map(
         label_motion_event_capacity_map
+    )
+    landmark_capacity_map = _build_int_map(
+        label_semantic_landmark_capacity_map,
+        min_value=0,
+    )
+    coherent_motion_pair_capacity_map = _build_int_map(
+        label_coherent_motion_pair_capacity_map,
+        min_value=0,
+    )
+    active_landmark_capacities = {
+        key: value
+        for key, value in landmark_capacity_map.items()
+        if value > 0
+    }
+    active_motion_capacities = {
+        key: value
+        for key, value in coherent_motion_pair_capacity_map.items()
+        if value > 0
+    }
+    shared_landmark_context = (
+        len(active_landmark_capacities) > 1
+        and len(set(active_landmark_capacities.values())) == 1
+    )
+    shared_motion_context = (
+        len(active_motion_capacities) > 1
+        and len(set(active_motion_capacities.values())) == 1
     )
 
     compositions: list[list[HeadComposition]] = []
@@ -368,6 +397,12 @@ def build_compositions(
                 motion_event_enabled=motion_event_enabled,
                 motion_event_map=motion_event_map,
             )
+            landmark_capacity = landmark_capacity_map.get(label_key, 0)
+            coherent_motion_pair_capacity = (
+                coherent_motion_pair_capacity_map.get(label_key, 0)
+            )
+            use_landmark = landmark_capacity > 0
+            use_coherent_motion = coherent_motion_pair_capacity > 0
 
             active_middle = []
             if use_cyclic:
@@ -378,9 +413,14 @@ def build_compositions(
                 active_middle.append("merge")
             if use_motion_event:
                 active_middle.append("motion_event")
+            if use_landmark:
+                active_middle.append("semantic_landmark")
+            if use_coherent_motion:
+                active_middle.append("coherent_motion")
             hybrid_pair = set(active_middle) in (
                 {"cyclic", "stride"},
                 {"cyclic", "motion_event"},
+                {"semantic_landmark", "coherent_motion"},
             )
             if len(active_middle) > 1 and not (
                 hybrid_middle_enabled and hybrid_pair
@@ -450,6 +490,40 @@ def build_compositions(
                 )
                 policy_type = (
                     "motion_cyclic" if use_cyclic else "motion_event"
+                )
+
+            if use_landmark:
+                strategies.append(
+                    SemanticLandmarkStrategy(
+                        capacity=landmark_capacity,
+                        context_key=(
+                            "landmark:all"
+                            if shared_landmark_context
+                            else f"landmark:{label_key}"
+                        ),
+                        min_frame_t=sink,
+                        dynamic_rope=True,
+                    )
+                )
+                policy_type = "semantic_landmark"
+
+            if use_coherent_motion:
+                strategies.append(
+                    CoherentMotionStrategy(
+                        pair_capacity=coherent_motion_pair_capacity,
+                        context_key=(
+                            "motion:all"
+                            if shared_motion_context
+                            else f"motion:{label_key}"
+                        ),
+                        min_frame_t=sink,
+                        dynamic_rope=True,
+                    )
+                )
+                policy_type = (
+                    "landmark_motion"
+                    if use_landmark
+                    else "coherent_motion"
                 )
 
             name = f"L{layer_idx}_H{head_idx}_{policy_type}"

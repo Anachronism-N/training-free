@@ -28,16 +28,20 @@ sink1+cyclic4+recent4. Only the 56 Suppressive heads changed cache policy.
    later frames across all configurations. This is likely a property of the
    base generation dynamics, not the cache policy.
 
-4. **No visible difference between suppress policies**: All 5 cells are
-   visually similar. The 56-head Suppressive cache has minimal impact.
+4. **Visible but modest differences between policies**: Human review found
+   differences among the five videos, but one prompt is insufficient to rank
+   them reliably. The result shows that the 56-head route is not inert; it
+   does not yet identify the best Suppressive memory.
 
 ## 3. Decision
 
-Per v109 doc rule 6: Suppressive cache routing is not yet a contribution.
-The contribution must come from the Supportive cache and binary membership.
+v109 establishes implementation viability, not a final policy. The next
+experiment must replace the unexplained cyclic carrier and the periodic
+middle policies with content-driven Supportive and Suppressive memories while
+holding the old-v98 304/56 membership and total read budget fixed.
 
 ## 4. Next Steps
 
-- Run the promoted 33/327 stride/cyclic method on 32 diverse prompts
-- Compare against PF-AR and PF native controls
-- If screen32 passes, run main128 for paper evidence
+- Run the v111 non-periodic one-video cache screen.
+- Select a candidate only after blind visual review and trace audit.
+- Promote exactly one candidate to the v112 MovieGenBench-32 comparison.

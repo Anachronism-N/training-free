@@ -57,6 +57,8 @@ class PyramidKVPipelineConfig:
     pyramidkv_label_merge_capacity_map: Optional[dict] = None
     pyramidkv_label_motion_event_enabled_map: Optional[dict] = None
     pyramidkv_label_motion_event_capacity_map: Optional[dict] = None
+    pyramidkv_label_semantic_landmark_capacity_map: Optional[dict] = None
+    pyramidkv_label_coherent_motion_pair_capacity_map: Optional[dict] = None
     pyramidkv_hybrid_middle_enabled: bool = False
     # If true, HeadComposition exclusively owns sink + middle + recent.
     pyramidkv_composition_owns_dynamic: bool = False
@@ -292,6 +294,16 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_label_motion_event_capacity_map=getattr(
                 args, "pyramidkv_label_motion_event_capacity_map", None
+            ),
+            pyramidkv_label_semantic_landmark_capacity_map=getattr(
+                args,
+                "pyramidkv_label_semantic_landmark_capacity_map",
+                None,
+            ),
+            pyramidkv_label_coherent_motion_pair_capacity_map=getattr(
+                args,
+                "pyramidkv_label_coherent_motion_pair_capacity_map",
+                None,
             ),
             pyramidkv_hybrid_middle_enabled=bool(
                 getattr(args, "pyramidkv_hybrid_middle_enabled", False)

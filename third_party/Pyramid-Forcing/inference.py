@@ -383,7 +383,15 @@ parser.add_argument(
 )
 parser.add_argument(
     "--pyramidkv_history_support_policy",
-    choices=("stride", "hybrid", "cyclic"),
+    choices=(
+        "stride",
+        "hybrid",
+        "cyclic",
+        "recent8",
+        "landmark",
+        "motion_pair",
+        "landmark_motion",
+    ),
     default="hybrid",
 )
 parser.add_argument(
@@ -399,6 +407,9 @@ parser.add_argument(
         "recent5",
         "recent8",
         "recent8_sink1",
+        "landmark",
+        "motion_pair",
+        "landmark_motion",
     ),
     default="merge",
 )

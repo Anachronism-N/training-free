@@ -1,6 +1,7 @@
 import json
 import os
 import torch
+import torch.nn.functional as F
 from collections import Counter, OrderedDict, deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -35,6 +36,11 @@ from .transition import CacheTransitionConfig, CacheTransitionController
 from .probecache import ProbeCacheConfig, ProbeCacheController
 from .prompt_warmup import PromptWarmupShield, PromptWarmupShieldConfig
 from .motion_event import MotionEventStrategy
+from .role_event import (
+    ROLE_EVENT_GROUPS_KEY,
+    CoherentMotionStrategy,
+    SemanticLandmarkStrategy,
+)
 
 
 def _as_long_tensor(tensor: torch.Tensor) -> torch.Tensor:
@@ -337,6 +343,18 @@ class AdaptiveKVCache(PyramidKVCache):
             if value.strip()
         }
         self._motion_trace_warned = False
+        self._role_event_trace_path = os.environ.get(
+            "PYRAMIDKV_ROLE_EVENT_TRACE_PATH", ""
+        ).strip()
+        role_event_trace_layers = os.environ.get(
+            "PYRAMIDKV_ROLE_EVENT_TRACE_LAYERS", "0,7,15,23,29"
+        )
+        self._role_event_trace_layers = {
+            int(value.strip())
+            for value in role_event_trace_layers.split(",")
+            if value.strip()
+        }
+        self._role_event_trace_warned = False
         self._captured_sink_frames = [0] * (self.batch_size * self.num_heads)
         self.sink_len = max(0, int(sink_len))
         self.tail_len = max(0, int(tail_len))
@@ -705,6 +723,18 @@ class AdaptiveKVCache(PyramidKVCache):
                 for strategy in composition.middle_strategies
             )
         ]
+        self._role_event_head_groups: dict[str, list[int]] = {}
+        for head_idx, composition in enumerate(self.compositions_row or []):
+            for strategy in composition.middle_strategies:
+                if isinstance(
+                    strategy,
+                    (SemanticLandmarkStrategy, CoherentMotionStrategy),
+                ):
+                    self._role_event_head_groups.setdefault(
+                        str(strategy.context_key),
+                        [],
+                    ).append(int(head_idx))
+        self._role_event_prev_samples: dict[str, torch.Tensor] = {}
         self._motion_event_prev_sample: torch.Tensor | None = None
         self._motion_event_cached_key: tuple[int, int] | None = None
         self._motion_event_cached_context: dict | None = None
@@ -2359,8 +2389,162 @@ class AdaptiveKVCache(PyramidKVCache):
                 )
                 self._motion_trace_warned = True
 
+    def _trace_role_event_update(self, payload: dict) -> None:
+        if (
+            not self._role_event_trace_path
+            or self.layer_idx not in self._role_event_trace_layers
+        ):
+            return
+        try:
+            event = {
+                "event": "role_event_features",
+                "layer": int(self.layer_idx),
+                "branch": str(getattr(self, "_cfg_branch", "unknown")),
+                "prompt_id": int(self._policy_trace_prompt_id),
+                **payload,
+            }
+            path = os.path.abspath(self._role_event_trace_path)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(event, sort_keys=True) + "\n")
+        except Exception as exc:  # Debug output must not change inference.
+            if not self._role_event_trace_warned:
+                print(
+                    "[PyramidKVRoleEventTraceError] "
+                    f"layer={self.layer_idx} error={exc!r}",
+                    flush=True,
+                )
+                self._role_event_trace_warned = True
+
+    def _prepare_role_event_groups(
+        self,
+        new_k: torch.Tensor,
+        new_v: torch.Tensor,
+        *,
+        frame_seqlen: int,
+        frame_start_t: int,
+    ) -> dict[str, dict]:
+        if not self._role_event_head_groups:
+            return {}
+        b, length, _, d = new_v.shape
+        num_frames = int(length // frame_seqlen)
+        groups: dict[str, dict] = {}
+        for context_key, head_ids in sorted(
+            self._role_event_head_groups.items()
+        ):
+            head_index = torch.as_tensor(
+                sorted(set(int(value) for value in head_ids)),
+                device=new_v.device,
+                dtype=torch.long,
+            )
+            k_frames = new_k.reshape(
+                b,
+                num_frames,
+                frame_seqlen,
+                self.num_heads,
+                d,
+            ).index_select(3, head_index)
+            v_frames = new_v.reshape(
+                b,
+                num_frames,
+                frame_seqlen,
+                self.num_heads,
+                d,
+            ).index_select(3, head_index)
+            sample_step = max(
+                1,
+                (frame_seqlen + self.motion_event_sample_tokens - 1)
+                // self.motion_event_sample_tokens,
+            )
+            sampled_k = k_frames[:, :, ::sample_step].detach()
+            sampled_v = v_frames[:, :, ::sample_step].detach()
+            k_mean = sampled_k.float().mean(dim=(2, 3))
+            v_mean = sampled_v.float().mean(dim=(2, 3))
+            v_std = sampled_v.float().std(dim=(2, 3), unbiased=False)
+            descriptors = F.normalize(
+                torch.cat([k_mean, v_mean, v_std], dim=-1),
+                dim=-1,
+                eps=1e-6,
+            )
+
+            previous_sample = self._role_event_prev_samples.get(context_key)
+            if (
+                previous_sample is None
+                or tuple(previous_sample.shape)
+                != tuple(sampled_v[:, 0].shape)
+            ):
+                previous_sample = sampled_v[:, 0]
+            previous = torch.cat(
+                [previous_sample.unsqueeze(1), sampled_v[:, :-1]],
+                dim=1,
+            )
+            current_float = sampled_v.float()
+            previous_float = previous.float()
+            numerator = (current_float - previous_float).square().mean(
+                dim=(2, 3, 4)
+            )
+            denominator = (
+                current_float.square() + previous_float.square()
+            ).mean(dim=(2, 3, 4)).clamp_min_(1e-6)
+            motion_scores = numerator / denominator
+            self._role_event_prev_samples[context_key] = (
+                sampled_v[:, -1].clone()
+            )
+
+            descriptor_cpu = descriptors.detach().cpu()
+            motion_cpu = motion_scores.detach().cpu()
+            groups[context_key] = {
+                "frame_start_t": int(frame_start_t),
+                "num_frames": int(num_frames),
+                "head_ids": [int(value) for value in head_index.tolist()],
+                "sample_step": int(sample_step),
+                "sampled_tokens_per_frame": int(sampled_v.shape[2]),
+                "descriptors": descriptor_cpu,
+                "motion_scores": motion_cpu,
+            }
+            adjacent_similarity = (
+                (descriptor_cpu[:, 1:] * descriptor_cpu[:, :-1])
+                .sum(dim=-1)
+                .mean(dim=0)
+                .tolist()
+                if num_frames > 1
+                else []
+            )
+            trace_payload = {
+                "context_key": context_key,
+                "frame_start_t": int(frame_start_t),
+                "num_frames": int(num_frames),
+                "head_count": int(head_index.numel()),
+                "head_ids": [int(value) for value in head_index.tolist()],
+                "sample_step": int(sample_step),
+                "descriptor_dim": int(descriptor_cpu.shape[-1]),
+                "motion_scores": [
+                    round(float(value), 8)
+                    for value in motion_cpu.mean(dim=0).tolist()
+                ],
+                "adjacent_semantic_similarity": [
+                    round(float(value), 8)
+                    for value in adjacent_similarity
+                ],
+            }
+            self._trace_role_event_update(trace_payload)
+            if (
+                os.environ.get("PYRAMIDKV_ROLE_EVENT_DEBUG", "0") == "1"
+                and self.layer_idx in self._role_event_trace_layers
+            ):
+                print(
+                    "[PyramidKVRoleEvent] "
+                    f"layer={self.layer_idx} block={frame_start_t} "
+                    f"group={context_key} heads={head_index.numel()} "
+                    f"motion={trace_payload['motion_scores']} "
+                    f"semantic={trace_payload['adjacent_semantic_similarity']}",
+                    flush=True,
+                )
+        return groups
+
     def _prepare_motion_event_context(
         self,
+        new_k: torch.Tensor,
         new_v: torch.Tensor,
         *,
         frame_seqlen: int,
@@ -2371,7 +2555,11 @@ class AdaptiveKVCache(PyramidKVCache):
 
         if (
             not self._motion_event_head_indices
-            or cache_update_mode not in {"default", "clean"}
+            and not self._role_event_head_groups
+        ):
+            return None
+        if (
+            cache_update_mode not in {"default", "clean"}
             or frame_seqlen <= 0
             or new_v.shape[1] % frame_seqlen != 0
         ):
@@ -2384,88 +2572,100 @@ class AdaptiveKVCache(PyramidKVCache):
         ):
             return self._motion_event_cached_context
 
-        b, _, _, d = new_v.shape
-        head_index = torch.as_tensor(
-            self._motion_event_head_indices,
-            device=new_v.device,
-            dtype=torch.long,
-        )
-        frames = new_v.reshape(
-            b,
-            num_frames,
-            frame_seqlen,
-            self.num_heads,
-            d,
-        ).index_select(3, head_index)
-        sample_step = max(
-            1,
-            (frame_seqlen + self.motion_event_sample_tokens - 1)
-            // self.motion_event_sample_tokens,
-        )
-        sampled = frames[:, :, ::sample_step].detach()
-        first_reference = (
-            self._motion_event_prev_sample
-            if (
-                self._motion_event_prev_sample is not None
-                and tuple(self._motion_event_prev_sample.shape)
-                == tuple(sampled[:, 0].shape)
+        context: dict[str, object] = {"num_heads": int(self.num_heads)}
+        if self._motion_event_head_indices:
+            b, _, _, d = new_v.shape
+            head_index = torch.as_tensor(
+                self._motion_event_head_indices,
+                device=new_v.device,
+                dtype=torch.long,
             )
-            else sampled[:, 0]
+            frames = new_v.reshape(
+                b,
+                num_frames,
+                frame_seqlen,
+                self.num_heads,
+                d,
+            ).index_select(3, head_index)
+            sample_step = max(
+                1,
+                (frame_seqlen + self.motion_event_sample_tokens - 1)
+                // self.motion_event_sample_tokens,
+            )
+            sampled = frames[:, :, ::sample_step].detach()
+            first_reference = (
+                self._motion_event_prev_sample
+                if (
+                    self._motion_event_prev_sample is not None
+                    and tuple(self._motion_event_prev_sample.shape)
+                    == tuple(sampled[:, 0].shape)
+                )
+                else sampled[:, 0]
+            )
+            previous = torch.cat(
+                [first_reference.unsqueeze(1), sampled[:, :-1]],
+                dim=1,
+            )
+            current_float = sampled.float()
+            previous_float = previous.float()
+            numerator = (current_float - previous_float).square().mean(
+                dim=(0, 2, 3, 4)
+            )
+            denominator = (
+                current_float.square() + previous_float.square()
+            ).mean(dim=(0, 2, 3, 4)).clamp_min_(1e-6)
+            score_values = (numerator / denominator).detach().cpu().tolist()
+            score_values = [float(value) for value in score_values]
+            selected_unsorted = sorted(
+                range(num_frames),
+                key=lambda offset: (score_values[offset], offset),
+                reverse=True,
+            )[: min(self.motion_event_top_k, num_frames)]
+            selected_offsets = sorted(selected_unsorted)
+            selected_scores = [
+                score_values[offset] for offset in selected_offsets
+            ]
+            legacy_context = {
+                "frame_start_t": int(frame_start_t),
+                "num_frames": num_frames,
+                "responsive_head_count": len(self._motion_event_head_indices),
+                "responsive_head_ids": list(self._motion_event_head_indices),
+                "sample_step": int(sample_step),
+                "sampled_tokens_per_frame": int(sampled.shape[2]),
+                "all_scores": score_values,
+                "selected_offsets": selected_offsets,
+                "selected_frame_ids": [
+                    int(frame_start_t + offset)
+                    for offset in selected_offsets
+                ],
+                "selected_scores": selected_scores,
+            }
+            context.update(legacy_context)
+            self._motion_event_prev_sample = sampled[:, -1].clone()
+            self._trace_motion_event_update(legacy_context)
+            if (
+                os.environ.get("PYRAMIDKV_MOTION_DEBUG", "0") == "1"
+                and self.layer_idx in self._motion_trace_layers
+            ):
+                print(
+                    "[PyramidKVMotionEvent] "
+                    f"layer={self.layer_idx} block={frame_start_t} "
+                    f"heads={len(self._motion_event_head_indices)} "
+                    f"scores={[round(value, 6) for value in score_values]} "
+                    f"selected={legacy_context['selected_frame_ids']}",
+                    flush=True,
+                )
+
+        role_groups = self._prepare_role_event_groups(
+            new_k,
+            new_v,
+            frame_seqlen=frame_seqlen,
+            frame_start_t=frame_start_t,
         )
-        previous = torch.cat(
-            [first_reference.unsqueeze(1), sampled[:, :-1]],
-            dim=1,
-        )
-        current_float = sampled.float()
-        previous_float = previous.float()
-        numerator = (current_float - previous_float).square().mean(
-            dim=(0, 2, 3, 4)
-        )
-        denominator = (
-            current_float.square() + previous_float.square()
-        ).mean(dim=(0, 2, 3, 4)).clamp_min_(1e-6)
-        score_values = (numerator / denominator).detach().cpu().tolist()
-        score_values = [float(value) for value in score_values]
-        selected_unsorted = sorted(
-            range(num_frames),
-            key=lambda offset: (score_values[offset], offset),
-            reverse=True,
-        )[: min(self.motion_event_top_k, num_frames)]
-        selected_offsets = sorted(selected_unsorted)
-        selected_scores = [
-            score_values[offset] for offset in selected_offsets
-        ]
-        context = {
-            "frame_start_t": int(frame_start_t),
-            "num_frames": num_frames,
-            "responsive_head_count": len(self._motion_event_head_indices),
-            "responsive_head_ids": list(self._motion_event_head_indices),
-            "sample_step": int(sample_step),
-            "sampled_tokens_per_frame": int(sampled.shape[2]),
-            "all_scores": score_values,
-            "selected_offsets": selected_offsets,
-            "selected_frame_ids": [
-                int(frame_start_t + offset)
-                for offset in selected_offsets
-            ],
-            "selected_scores": selected_scores,
-        }
-        self._motion_event_prev_sample = sampled[:, -1].clone()
+        if role_groups:
+            context[ROLE_EVENT_GROUPS_KEY] = role_groups
         self._motion_event_cached_key = key
         self._motion_event_cached_context = context
-        self._trace_motion_event_update(context)
-        if (
-            os.environ.get("PYRAMIDKV_MOTION_DEBUG", "0") == "1"
-            and self.layer_idx in self._motion_trace_layers
-        ):
-            print(
-                "[PyramidKVMotionEvent] "
-                f"layer={self.layer_idx} block={frame_start_t} "
-                f"heads={len(self._motion_event_head_indices)} "
-                f"scores={[round(value, 6) for value in score_values]} "
-                f"selected={context['selected_frame_ids']}",
-                flush=True,
-            )
         return context
 
     def switch_scene(
@@ -2515,6 +2715,7 @@ class AdaptiveKVCache(PyramidKVCache):
                 self._keep_dynamic_suffix(seq_idx, keep_tokens)
         recent_after = sum(int(value) for value in self._dyn_store_len)
         self._motion_event_prev_sample = None
+        self._role_event_prev_samples.clear()
         self._motion_event_cached_key = None
         self._motion_event_cached_context = None
         self._steady_state_reached = False
@@ -2545,6 +2746,7 @@ class AdaptiveKVCache(PyramidKVCache):
         self._policy_trace_records = 0
         self._policy_trace_warned = False
         self._motion_trace_warned = False
+        self._role_event_trace_warned = False
         self._captured_sink_frames = [0] * (self.batch_size * self.num_heads)
         self.static_pos = [None] * (self.batch_size * self.num_heads)
         self.dynamic_pos = [None] * (self.batch_size * self.num_heads)
@@ -2565,6 +2767,7 @@ class AdaptiveKVCache(PyramidKVCache):
         self._memory_accepted_heads = 0
         self._structured_memory_last_start = None
         self._motion_event_prev_sample = None
+        self._role_event_prev_samples.clear()
         self._motion_event_cached_key = None
         self._motion_event_cached_context = None
         if self.probecache is not None:
@@ -3132,6 +3335,7 @@ class AdaptiveKVCache(PyramidKVCache):
             cache_update_mode=cache_update_mode,
         )
         motion_event_context = self._prepare_motion_event_context(
+            new_k,
             new_v,
             frame_seqlen=frame_seqlen,
             frame_start_t=frame_start_t,

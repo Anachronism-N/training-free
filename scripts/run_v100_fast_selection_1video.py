@@ -69,6 +69,17 @@ class Cell:
             "cyclic_motion1",
         }
 
+    @property
+    def uses_role_event(self) -> bool:
+        policies = {
+            str(self.support_policy),
+            str(self.suppress_policy),
+        }
+        return bool(
+            policies
+            & {"landmark", "motion_pair", "landmark_motion"}
+        )
+
 
 CELLS = (
     # 1. Responsive cache selection.
@@ -206,6 +217,22 @@ def write_frozen(path: Path, payload: Any) -> str:
             if temp.exists():
                 temp.unlink()
     return digest
+
+
+def write_runtime_json(path: Path, payload: Any) -> None:
+    """Atomically replace mutable status output without weakening contracts."""
+
+    content = (
+        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    ).encode("utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
+    temp.write_bytes(content)
+    try:
+        temp.replace(path)
+    finally:
+        if temp.exists():
+            temp.unlink()
 
 
 def wait_for_frozen(path: Path, payload: Any, timeout_seconds: int) -> str:
@@ -392,6 +419,19 @@ def expected_policy(
     label: int,
 ) -> tuple[tuple[str, ...], int, int, str]:
     if label == 10:
+        if cell.support_policy == "recent8":
+            return ((), 1, 8, "stride")
+        if cell.support_policy == "landmark":
+            return (("SemanticLandmarkStrategy",), 1, 4, "semantic_landmark")
+        if cell.support_policy == "motion_pair":
+            return (("CoherentMotionStrategy",), 1, 4, "coherent_motion")
+        if cell.support_policy == "landmark_motion":
+            return (
+                ("SemanticLandmarkStrategy", "CoherentMotionStrategy"),
+                1,
+                4,
+                "landmark_motion",
+            )
         if cell.support_policy == "cyclic":
             return (("CyclicStrategy",), 1, 4, "osc")
         if cell.support_policy == "hybrid":
@@ -424,6 +464,24 @@ def expected_policy(
         "recent5": ((), 3, 5, "stride"),
         "recent8": ((), 3, 8, "stride"),
         "recent8_sink1": ((), 1, 8, "stride"),
+        "landmark": (
+            ("SemanticLandmarkStrategy",),
+            1,
+            4,
+            "semantic_landmark",
+        ),
+        "motion_pair": (
+            ("CoherentMotionStrategy",),
+            1,
+            4,
+            "coherent_motion",
+        ),
+        "landmark_motion": (
+            ("SemanticLandmarkStrategy", "CoherentMotionStrategy"),
+            1,
+            4,
+            "landmark_motion",
+        ),
     }[cell.suppress_policy]
 
 
@@ -491,6 +549,63 @@ def audit_policy_trace(
                         f"line {line_number}: cache contract failed "
                         f"{event['cache_contract_violations']}"
                     )
+                if cell.uses_role_event:
+                    union_count = int(event["union_frame_count"])
+                    actual_total = (
+                        int(event["sink_frame_count"])
+                        + union_count
+                        + int(event["recent_frame_count"])
+                    )
+                    if union_count > 4:
+                        failures.append(
+                            f"line {line_number}: role-event middle has "
+                            f"{union_count} frames, expected at most 4"
+                        )
+                    if actual_total > 9:
+                        failures.append(
+                            f"line {line_number}: role-event read has "
+                            f"{actual_total} frame equivalents, expected "
+                            "at most 9"
+                        )
+                    for item in event["strategies"]:
+                        name = str(item["name"])
+                        state = item.get("state")
+                        if not isinstance(state, dict):
+                            failures.append(
+                                f"line {line_number}: {name} has no "
+                                "auditable state"
+                            )
+                            continue
+                        if name == "SemanticLandmarkStrategy":
+                            frame_ids = [
+                                int(value)
+                                for value in state.get(
+                                    "anchor_frame_ids",
+                                    [],
+                                )
+                            ]
+                            if len(frame_ids) > int(state["capacity"]):
+                                failures.append(
+                                    f"line {line_number}: landmark bank "
+                                    "exceeds capacity"
+                                )
+                        elif name == "CoherentMotionStrategy":
+                            pairs = state.get("pair_frame_ids", [])
+                            if len(pairs) > int(state["pair_capacity"]):
+                                failures.append(
+                                    f"line {line_number}: motion-pair bank "
+                                    "exceeds pair capacity"
+                                )
+                            unique_frames = {
+                                int(value)
+                                for pair in pairs
+                                for value in pair
+                            }
+                            if len(unique_frames) > int(state["capacity"]):
+                                failures.append(
+                                    f"line {line_number}: motion-pair bank "
+                                    "exceeds frame capacity"
+                                )
             except (IndexError, KeyError, TypeError, ValueError) as error:
                 failures.append(f"line {line_number}: malformed event: {error}")
     if records == 0:
@@ -590,6 +705,178 @@ def audit_motion_trace(
     if failures:
         raise RuntimeError(
             f"motion trace audit failed for {cell.name}: {failures[:5]}"
+        )
+    return payload
+
+
+def audit_role_event_trace(
+    path: Path,
+    *,
+    cell: Cell,
+    head_map: Path,
+    report_path: Path,
+) -> dict[str, Any]:
+    labels = read_matrix(head_map, {10, 11})
+
+    def landmark_capacity(policy: str | None) -> int:
+        return 4 if policy == "landmark" else 2 if policy == "landmark_motion" else 0
+
+    def motion_capacity(policy: str | None) -> int:
+        return 2 if policy == "motion_pair" else 1 if policy == "landmark_motion" else 0
+
+    support_landmark = landmark_capacity(cell.support_policy)
+    suppress_landmark = landmark_capacity(cell.suppress_policy)
+    support_motion = motion_capacity(cell.support_policy)
+    suppress_motion = motion_capacity(cell.suppress_policy)
+    shared_landmark = (
+        support_landmark > 0
+        and support_landmark == suppress_landmark
+    )
+    shared_motion = (
+        support_motion > 0
+        and support_motion == suppress_motion
+    )
+
+    def policy_groups(policy: str | None, label: int) -> set[str]:
+        groups: set[str] = set()
+        if landmark_capacity(policy):
+            groups.add(
+                "landmark:all"
+                if shared_landmark
+                else f"landmark:{label}"
+            )
+        if motion_capacity(policy):
+            groups.add(
+                "motion:all"
+                if shared_motion
+                else f"motion:{label}"
+            )
+        return groups
+
+    expected_heads_by_group: dict[tuple[int, str], list[int]] = {}
+    support_groups = policy_groups(cell.support_policy, 10)
+    suppress_groups = policy_groups(cell.suppress_policy, 11)
+    for layer in TRACE_LAYERS:
+        for label, groups in (
+            (10, support_groups),
+            (11, suppress_groups),
+        ):
+            for key in groups:
+                head_ids = (
+                    list(range(len(labels[layer])))
+                    if key.endswith(":all")
+                    else [
+                        head
+                        for head, value in enumerate(labels[layer])
+                        if int(value) == label
+                    ]
+                )
+                if head_ids:
+                    expected_heads_by_group[(layer, key)] = head_ids
+    expected = set(expected_heads_by_group)
+
+    observed: set[tuple[int, str]] = set()
+    failures: list[str] = []
+    records = 0
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, raw in enumerate(handle, start=1):
+            if not raw.strip():
+                continue
+            try:
+                event = json.loads(raw)
+                if event["event"] != "role_event_features":
+                    raise ValueError(f"unexpected event {event['event']!r}")
+                layer = int(event["layer"])
+                context_key = str(event["context_key"])
+                role_text, label_text = context_key.split(":", maxsplit=1)
+                if role_text not in {"landmark", "motion"}:
+                    raise ValueError("unknown role-event context prefix")
+                if label_text not in {"all", "10", "11"}:
+                    raise ValueError(
+                        "role-event suffix must be all, 10, or 11"
+                    )
+                expected_heads = expected_heads_by_group.get(
+                    (layer, context_key)
+                )
+                if expected_heads is None:
+                    raise ValueError(
+                        f"unexpected role-event group {(layer, context_key)}"
+                    )
+                observed_heads = [int(value) for value in event["head_ids"]]
+                if observed_heads != expected_heads:
+                    raise ValueError(
+                        f"head ids {observed_heads} != {expected_heads}"
+                    )
+                if int(event["head_count"]) != len(expected_heads):
+                    raise ValueError("head count differs from map")
+                num_frames = int(event["num_frames"])
+                motion_scores = [
+                    float(value) for value in event["motion_scores"]
+                ]
+                semantic_scores = [
+                    float(value)
+                    for value in event["adjacent_semantic_similarity"]
+                ]
+                if len(motion_scores) != num_frames:
+                    raise ValueError("motion score count differs from frames")
+                if len(semantic_scores) != max(0, num_frames - 1):
+                    raise ValueError(
+                        "semantic score count differs from adjacent edges"
+                    )
+                if any(
+                    not math.isfinite(value) or value < 0.0
+                    for value in motion_scores
+                ):
+                    raise ValueError(
+                        "role-event motion scores must be finite and non-negative"
+                    )
+                if any(
+                    not math.isfinite(value) or not -1.001 <= value <= 1.001
+                    for value in semantic_scores
+                ):
+                    raise ValueError(
+                        "role-event semantic scores must be finite cosines"
+                    )
+                records += 1
+                observed.add((layer, context_key))
+            except (
+                KeyError,
+                TypeError,
+                ValueError,
+                json.JSONDecodeError,
+            ) as error:
+                failures.append(f"line {line_number}: {error}")
+    if records == 0:
+        failures.append("role-event trace has no records")
+    missing = expected - observed
+    if missing:
+        failures.append(
+            f"role-event trace is missing groups {sorted(missing)}"
+        )
+    unexpected = observed - expected
+    if unexpected:
+        failures.append(
+            f"role-event trace has unexpected groups {sorted(unexpected)}"
+        )
+    payload = {
+        "version": 1,
+        "cell": cell.name,
+        "records": records,
+        "observed": [
+            {"layer": layer, "context_key": key}
+            for layer, key in sorted(observed)
+        ],
+        "expected": [
+            {"layer": layer, "context_key": key}
+            for layer, key in sorted(expected)
+        ],
+        "failures": failures[:100],
+        "ok": not failures,
+    }
+    write_frozen(report_path, payload)
+    if failures:
+        raise RuntimeError(
+            f"role-event trace audit failed for {cell.name}: {failures[:5]}"
         )
     return payload
 
@@ -797,6 +1084,9 @@ def run_cell(
     log = args.out_root / "logs" / f"{cell.name}.log"
     policy_trace = args.out_root / "traces" / f"{cell.name}.policy.jsonl"
     motion_trace = args.out_root / "traces" / f"{cell.name}.motion.jsonl"
+    role_event_trace = (
+        args.out_root / "traces" / f"{cell.name}.role_event.jsonl"
+    )
     transition_trace = (
         args.out_root / "traces" / f"{cell.name}.transition.jsonl"
     )
@@ -809,6 +1099,9 @@ def run_cell(
     )
     motion_report = (
         args.out_root / "diagnostics" / f"{cell.name}.motion.json"
+    )
+    role_event_report = (
+        args.out_root / "diagnostics" / f"{cell.name}.role_event.json"
     )
     scene_report = (
         args.out_root / "diagnostics" / f"{cell.name}.scene.json"
@@ -866,6 +1159,13 @@ def run_cell(
                 legacy_map=head_map,
                 report_path=motion_report,
             )
+        if cell.uses_role_event:
+            audit_role_event_trace(
+                role_event_trace,
+                cell=cell,
+                head_map=head_map,
+                report_path=role_event_report,
+            )
         if cell.scene_cache:
             audit_scene_trace(
                 scene_trace,
@@ -882,10 +1182,12 @@ def run_cell(
     for stale in (
         policy_trace,
         motion_trace,
+        role_event_trace,
         transition_trace,
         scene_trace,
         policy_report,
         motion_report,
+        role_event_report,
         scene_report,
         video_report,
     ):
@@ -933,6 +1235,19 @@ def run_cell(
     else:
         env.pop("PYRAMIDKV_MOTION_TRACE_PATH", None)
         env.pop("PYRAMIDKV_MOTION_DEBUG", None)
+    if cell.uses_role_event:
+        env.update(
+            {
+                "PYRAMIDKV_ROLE_EVENT_TRACE_PATH": str(role_event_trace),
+                "PYRAMIDKV_ROLE_EVENT_TRACE_LAYERS": ",".join(
+                    str(value) for value in TRACE_LAYERS
+                ),
+                "PYRAMIDKV_ROLE_EVENT_DEBUG": "1",
+            }
+        )
+    else:
+        env.pop("PYRAMIDKV_ROLE_EVENT_TRACE_PATH", None)
+        env.pop("PYRAMIDKV_ROLE_EVENT_DEBUG", None)
 
     print(
         f"[run] stage={cell.stage} cell={cell.name} gpu={gpu} "
@@ -948,6 +1263,7 @@ def run_cell(
         "OutOfMemoryError",
         "PyramidKVPolicyTraceError",
         "PyramidKVMotionTraceError",
+        "PyramidKVRoleEventTraceError",
     )
     hits = [
         signature for signature in failure_signatures
@@ -971,6 +1287,11 @@ def run_cell(
         raise RuntimeError(f"{cell.name}: scene-cache switch marker is missing")
     if cell.uses_motion and "[PyramidKVMotionEvent]" not in log_text:
         raise RuntimeError(f"{cell.name}: motion-event marker is missing")
+    if (
+        cell.uses_role_event
+        and "[PyramidKVRoleEvent]" not in log_text
+    ):
+        raise RuntimeError(f"{cell.name}: role-event marker is missing")
 
     video = audit_video(
         args,
@@ -993,6 +1314,14 @@ def run_cell(
             legacy_map=head_map,
             report_path=motion_report,
         )
+    role_event = None
+    if cell.uses_role_event:
+        role_event = audit_role_event_trace(
+            role_event_trace,
+            cell=cell,
+            head_map=head_map,
+            report_path=role_event_report,
+        )
     scene = None
     if cell.scene_cache:
         scene = audit_scene_trace(
@@ -1011,6 +1340,9 @@ def run_cell(
         "video_fingerprint": video["input_fingerprint"],
         "policy_records": policy["records"],
         "motion_records": None if motion is None else motion["records"],
+        "role_event_records": (
+            None if role_event is None else role_event["records"]
+        ),
         "scene_events": None if scene is None else scene["events"],
         "completed_at_unix": int(time.time()),
     }

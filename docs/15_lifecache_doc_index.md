@@ -2,8 +2,23 @@
 
 ## Current method (read first)
 
+- `docs/111_nonperiodic_role_event_cache_screen.md`: authoritative current
+  one-video experiment. It freezes the old-v98 304/56 diagnostic partition,
+  removes stride/cyclic/Merge from every candidate, introduces semantic
+  landmark and coherent motion-pair memories, defines eight budget-matched
+  cells, strict cache/trace audits, human-review gates, and claim boundaries.
+- `docs/112_v112_moviebench32_promotion_and_vbench.md`: gated follow-up after
+  v111 review. It promotes one selected candidate to MovieGenBench-32 against
+  three role-neutral controls on four nodes/32 GPUs, publishes audited video
+  directories, and runs six VBench-Long dimensions.
+- `docs/110_v109_review_results.md`: corrected v109 human review. All five
+  old-v98-map routes are artifact-free and visibly but modestly different;
+  the result establishes viability but does not select a final cache.
+- `docs/109_legacy_v98_suppressive_cache_1video_screen.md`: historical
+  cyclic-carrier diagnostic that made v111 possible. Its cyclic carrier is
+  explicitly not the final Supportive mechanism.
 - `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`:
-  authoritative current diagnosis and execution plan. It corrects the causal
+  earlier recovery diagnosis. It corrects the causal
   overclaim in docs/106, identifies the v100 old-map provenance error,
   rebuilds the intended 33/327 map from frozen artifacts, defines direct
   PF-AR/PF-AW one-video controls, preserves cyclic4 while screening one
@@ -113,24 +128,25 @@
 
 Recommended reading order:
 
-1. `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`
-2. `docs/106_v100_fast_screen_review_results.md`
-3. `docs/102_v99_smoke_results_and_decision.md`
-4. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
-5. `docs/101_v98_middle_relative_profiling_results.md`
-6. `docs/104_v100_responsive_event_cache_and_aba_fast_screen.md`
-7. `docs/105_v101_paper_ablation_after_fast_screen.md`
-8. `docs/99_v98_experiment_results.md`
-9. `docs/98_history_polarity_dual_memory_method.md`
-10. `docs/97_v97_experiment_results.md`
-11. `docs/64_related_work_code_provenance_and_claims.md`
+1. `docs/111_nonperiodic_role_event_cache_screen.md`
+2. `docs/112_v112_moviebench32_promotion_and_vbench.md`
+3. `docs/110_v109_review_results.md`
+4. `docs/109_legacy_v98_suppressive_cache_1video_screen.md`
+5. `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`
+6. `docs/106_v100_fast_screen_review_results.md`
+7. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
+8. `docs/101_v98_middle_relative_profiling_results.md`
+9. `docs/99_v98_experiment_results.md`
+10. `docs/98_history_polarity_dual_memory_method.md`
+11. `docs/97_v97_experiment_results.md`
+12. `docs/64_related_work_code_provenance_and_claims.md`
 
-The immediate step is the v107 eight-cell, one-video 30-second recovery.
-PF-AR/PF-AW isolate Wave-to-stride routing; the rebuilt 33/327 map tests the
-intended independent classifier; cyclic4+motion1, cyclic2+motion2, v78, and
-two A-B-A cells remain separate gates. MovieBench-128 is deferred until one
-single-prompt candidate is artifact-free and its exact map provenance and
-runtime route pass audit.
+The immediate step is the v111 eight-cell, one-video 30-second screen. It
+tests non-periodic semantic landmark and coherent motion-pair memories under
+the frozen 304/56 map. Only one artifact-free candidate selected by blind
+review and trace audit advances to v112 MovieGenBench-32. Existing PF/SF
+videos are reused when their prompt, seed, checkpoint, and frame contracts
+match; MovieBench-128 remains deferred.
 ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain negative-result
 or design history. LifeCache-v1 below is retained as the original design
 snapshot.
