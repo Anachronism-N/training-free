@@ -3,37 +3,41 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current task is the **corrected v111 non-periodic role-event cache
-screen**. The first v111 server run completed four Landmark/Recent cells
-without polygon noise. Four two-pair Motion cells crashed because the
-1-of-2 bank-fill state incorrectly dereferenced a nonexistent eviction
-victim. The reviewed fix separates fill and replacement spacing checks and
-adds pair-state invariants and decision telemetry.
+The current task is the **v115 role-conditioned memory cache search**.
+Completed v111 experiments show that a four-frame semantic Landmark cache is
+the strongest observed Supportive route. A two-pair motion cache is clean only
+when Landmark support is present and has not shown an independent gain over a
+larger recent window.
 
-v111 holds that map and a nine-frame read budget fixed while removing stride,
-cyclic, and Merge from every candidate. It tests two content-driven memories:
+v115 keeps the frozen old-v98 `304/56` diagnostic partition and a strict
+nine-frame-equivalent read budget, while testing both roles rather than only
+changing Suppressive heads. It adds four content-driven middle memories:
 
-- semantic landmarks selected by clean-K/V coherence and coverage novelty;
-- semantically coherent high-motion adjacent frame pairs selected by an
-  online motion quantile and bounded event replacement.
+- temporal prototypes represented by exact-frame medoids, without KV
+  averaging;
+- relevance/uniqueness coherent snapshots;
+- bounded non-recent semantic retrieval with MMR top-k readout;
+- spatially covered 75% sparse snapshots.
 
-Eight one-prompt, seed-matched, 30-second cells isolate all-Recent,
-role-neutral memory, Supportive memory, Suppressive memory, and their
-combinations. Runtime audits check exact head membership, shared contexts for
-same-route controls, exclusive sink/middle/recent ownership, frame/token
-budgets, actual bank contents, admission decisions, and video integrity.
+A compact Suppressive route retains one semantically coherent high-motion
+adjacent pair and six recent frames. Sixteen one-prompt, seed-matched,
+30-second cells separately sweep Supportive and Suppressive caches, test joint
+candidates, and include role-neutral controls. Runtime audits verify exact
+head membership, exclusive sink/middle/recent ownership, actual token budget,
+frame ids, update decisions and decoded video properties.
 
-Only one blind-review winner may advance to v112. The v112 runner distributes
-four methods x 32 MovieGenVideoBench prompts over four nodes/32 GPUs and
-prepares audited VBench-Long directories. Existing compatible SF/PF results
-are reused rather than regenerated.
+After human review, at most two candidates plus two controls advance to the
+frozen diverse MovieGenBench-16 v116 screen. v116 publishes audited directories
+for VBench-Long and the repository's eight auxiliary diagnostics across four
+nodes/32 GPUs. Existing compatible v111/SF/PF results are references and are
+not regenerated.
 
-The current design and targeted rerun commands are in
-`docs/111_nonperiodic_role_event_cache_screen.md`; the first-run review and
-corrected causal interpretation are in
-`docs/113_v111_review_results_and_bug_record.md`; the gated 32-prompt and
-VBench-Long protocol is in `docs/112_v112_moviebench32_promotion_and_vbench.md`.
-The document index is `docs/15_lifecache_doc_index.md`.
+The current design and one-video commands are in
+`docs/115_v115_role_memory_design_and_1video_screen.md`; completed v111
+evidence is in `docs/114_v111_motion_pair2_rerun_review.md`; the gated
+MovieBench-16 protocol is in
+`docs/116_v116_moviebench16_evaluation_runbook.md`. The document index is
+`docs/15_lifecache_doc_index.md`.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -72,16 +76,17 @@ prompt-switch/return-recall branch.
   Veil-like extremes while leaving Wave mixed. It is useful for cache search
   but comes from an absolute QK-sign statistic that is not shift invariant;
   it is not yet a paper-ready classifier.
-- **Supportive semantic memory:** `sink1 + landmark4 + recent4`, or a
-  four-frame union of two landmarks and one motion pair, preserves identity,
-  layout, and complementary long-horizon states without periodic sampling.
-- **Suppressive coherent-motion memory:** `sink1 + two motion pairs + recent4`
-  retains high-change evidence only when adjacent states remain semantically
-  coherent. Event spacing and replacement prevent collapse into a short or
-  periodic window.
-- **Role-neutral controls:** all-Landmark and all-Motion share one layer-wide
-  selection context, so the binary map cannot influence their selected
-  frames.
+- **Supportive memory search:** Landmark4 is the current reference. Temporal
+  prototypes are the leading new candidate because they compress contiguous
+  redundant history into real-frame medoids; snapshots, bounded retrieval and
+  sparse snapshots remain experimental until v115 review.
+- **Suppressive local-motion search:** `sink1 + one coherent motion pair +
+  recent6` tests whether a small motion bridge is useful without cyclic
+  sampling. Recent8 and compact prototype/snapshot/retrieval routes provide
+  matched alternatives.
+- **Role-neutral controls:** all-Prototype, all-Snapshot, all-Landmark and
+  all-Recent controls determine whether a gain depends on the 304/56 route or
+  only on the memory mechanism.
 - **Exclusive ownership:** explicit composition is the only owner of sink,
   middle, and recent. The legacy PF dynamic-history path is disabled.
 - **Fail-closed evidence:** frozen hashes, exact map counts, runtime routes,
@@ -93,11 +98,12 @@ prompt-switch/return-recall branch.
   method.
 
 PF/SF provide the inference base, cache composition, and dynamic-RoPE
-infrastructure and must be cited. EF-style coherent snapshots and earlier
-uniqueness/coverage memories motivate the event criteria and must be cited as
-inspiration. The possible contribution is the validated binary role
-criterion plus role-conditioned non-periodic landmark/motion memory, not
-ownership of those prior components.
+infrastructure and must be cited. EF motivates coherent snapshot selection;
+LongLive-RAG motivates bounded non-recent retrieval; the internal
+Flash-VAReason notes motivate sparse core-token coverage. These sources must
+be cited as inspiration. The possible contribution is a validated binary
+role criterion plus role-conditioned cache lifecycle under one budget, not
+ownership of prior snapshot, retrieval or token-compression components.
 
 LifeCache-v1 and CEMR remain in the repository as prior prototypes and
 ablation infrastructure.
@@ -151,10 +157,14 @@ training-free/
 |   |-- 109_legacy_v98_suppressive_cache_1video_screen.md
 |   |-- 110_v109_review_results.md
 |   |-- 111_nonperiodic_role_event_cache_screen.md
-|   `-- 112_v112_moviebench32_promotion_and_vbench.md
+|   |-- 112_v112_moviebench32_promotion_and_vbench.md
+|   |-- 114_v111_motion_pair2_rerun_review.md
+|   |-- 115_v115_role_memory_design_and_1video_screen.md
+|   `-- 116_v116_moviebench16_evaluation_runbook.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
+|   |-- moviegenbench_diverse16.json
 |   |-- v86_single_long_complex_16.txt
 |   `-- ...
 |-- scripts/
