@@ -60,6 +60,17 @@ def test_v120_default_table_has_paired_sf_pf_and_ours():
     assert ours.suppress_policy == "motion_pair1"
 
 
+def test_v120_baseline_only_table_has_no_role_memory_method():
+    methods = v120.methods_for(())
+    assert [(method.key, method.engine) for method in methods] == [
+        ("sf_native", "sf"),
+        ("pf_native", "pf"),
+    ]
+    assert methods[0].source_cell is None
+    assert methods[1].source_cell.native
+    assert methods[1].source_cell.map_key == "pf"
+
+
 def test_v120_four_node_partition_is_balanced_and_complete():
     methods = v120.methods_for(v120.DEFAULT_CANDIDATES)
     shards = [

@@ -203,6 +203,15 @@ def parse_args() -> argparse.Namespace:
             ",".join(DEFAULT_CANDIDATES),
         ),
     )
+    parser.add_argument(
+        "--baseline-only",
+        action="store_true",
+        default=os.environ.get("V120_BASELINE_ONLY", "0") == "1",
+        help=(
+            "generate/audit only sf_native and pf_native in an isolated "
+            "method set; no v119 promotion is required"
+        ),
+    )
     parser.add_argument("--list-candidates", action="store_true")
     parser.add_argument(
         "--node-rank",
@@ -263,10 +272,13 @@ def parse_args() -> argparse.Namespace:
         for key, (cell_name, role) in _CANDIDATE_SPECS.items():
             print(f"{key}\t{role}\t{cell_name}")
         raise SystemExit(0)
-    try:
-        args.candidate_keys = parse_candidate_keys(args.candidates)
-    except ValueError as error:
-        parser.error(str(error))
+    if args.baseline_only:
+        args.candidate_keys = ()
+    else:
+        try:
+            args.candidate_keys = parse_candidate_keys(args.candidates)
+        except ValueError as error:
+            parser.error(str(error))
 
     args.repo_root = args.repo_root.resolve()
     args.sf_repo = (
@@ -309,12 +321,15 @@ def parse_args() -> argparse.Namespace:
         args.repo_root / "prompts" / "paper_scene_switch_sf_3.txt"
     ).resolve()
     args.aba_prompt_index = 0
-    candidate_digest = hashlib.sha256(
-        ",".join(args.candidate_keys).encode("utf-8")
-    ).hexdigest()[:12]
-    args.method_set_id = (
-        f"ours{len(args.candidate_keys)}_{candidate_digest}"
-    )
+    if args.baseline_only:
+        args.method_set_id = "baselines_seed0"
+    else:
+        candidate_digest = hashlib.sha256(
+            ",".join(args.candidate_keys).encode("utf-8")
+        ).hexdigest()[:12]
+        args.method_set_id = (
+            f"ours{len(args.candidate_keys)}_{candidate_digest}"
+        )
     args.out_root = (
         args.out_root
         or args.repo_root / "runs" / EXPERIMENT / args.method_set_id
@@ -330,7 +345,11 @@ def load_prompts(args: argparse.Namespace) -> list[str]:
         raise SystemExit("--node-rank must be within [0, num-nodes)")
     if args.seed != 0:
         raise SystemExit("the frozen v120 main table requires seed 0")
-    if args.mode == "generate" and not args.promotion_approved:
+    if (
+        args.mode == "generate"
+        and not args.baseline_only
+        and not args.promotion_approved
+    ):
         raise SystemExit(
             "v120 is gated by v119 one-video review; set "
             "V119_PROMOTION_APPROVED=1 after recording the decision"
@@ -390,6 +409,7 @@ def experiment_contract(
         "version": 1,
         "experiment": EXPERIMENT,
         "method_set_id": args.method_set_id,
+        "baseline_only": bool(args.baseline_only),
         "candidate_keys": list(args.candidate_keys),
         "seed": 0,
         "prompt_count": PROMPT_COUNT,

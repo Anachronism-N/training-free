@@ -139,6 +139,43 @@ the same prompt file, prompt index, seed 0, and per-prompt reseeding.
 
 ## 7. v120 generation
 
+### Baselines may run before v119 promotion
+
+When an experimental v119 cache is still under correctness review, SF and PF
+may be generated in an isolated method set without enabling any role-memory
+candidate:
+
+```bash
+export REPO_ROOT=/path/to/training-free
+cd "$REPO_ROOT"
+git pull --ff-only
+
+export V120_BASELINE_ONLY=1
+export NUM_NODES=4
+export NODE_RANK=0
+export GPU_LIST=0,1,2,3,4,5,6,7
+
+python scripts/run_v120_moviebench32_main.py generate
+```
+
+Run the same command on nodes 1-3 with the corresponding `NODE_RANK`. This
+creates `runs/v120_moviebench32_main/baselines_seed0` and schedules only 64
+videos, 16 per node. It does not require `V119_PROMOTION_APPROVED`.
+
+After all nodes finish:
+
+```bash
+python scripts/run_v120_moviebench32_main.py audit
+```
+
+Keep `V120_BASELINE_ONLY=1` for the audit command. Do not run the full
+SF/PF/ours command or VBench collection until the experimental cache has
+passed the correctness review. The baseline set is intentionally isolated;
+the final result collector must record its separate contract rather than
+silently mixing files.
+
+### Full SF/PF/ours run
+
 Example with the bounded Retrieval+Motion candidate:
 
 ```bash
