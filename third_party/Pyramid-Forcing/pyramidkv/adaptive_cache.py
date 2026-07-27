@@ -47,6 +47,7 @@ from .role_memory import (
     TemporalPrototypeStrategy,
     UniqueSnapshotStrategy,
 )
+from .safety import validate_exclusive_opening_partition
 
 
 def _as_long_tensor(tensor: torch.Tensor) -> torch.Tensor:
@@ -1096,6 +1097,22 @@ class AdaptiveKVCache(PyramidKVCache):
             exclusive_owner = bool(
                 composition is not None and self.composition_owns_dynamic
             )
+            sink_time_synchronised = bool(
+                sink_frame_ids
+                and self.decouple_head_flags[head_idx]
+            )
+            sink_rope_time = (
+                int(self._map_sink_time(sync_t_raw))
+                if sink_time_synchronised
+                else None
+            )
+            opening_recent_starved = bool(
+                exclusive_owner
+                and sync_t_raw == 0
+                and sink_frame_ids
+                and not recent_frame_ids
+                and recent_frames > 0
+            )
             if composition is not None:
                 if len(sink_frame_ids) > sink_frames:
                     cache_contract_violations.append(
@@ -1128,6 +1145,10 @@ class AdaptiveKVCache(PyramidKVCache):
                     cache_contract_violations.append(
                         "middle_overlaps_recent"
                     )
+                if opening_recent_starved:
+                    cache_contract_violations.append(
+                        "opening_recent_starved"
+                    )
             payload = {
                 "event": "middle_selection",
                 "layer": int(self.layer_idx),
@@ -1155,9 +1176,15 @@ class AdaptiveKVCache(PyramidKVCache):
                 "sink_frame_ids": sink_frame_ids,
                 "sink_frame_count": len(sink_frame_ids),
                 "sink_token_count": sink_token_count,
+                "sink_time_synchronised": sink_time_synchronised,
+                "sink_rope_time": sink_rope_time,
+                "sink_collapses_multiple_physical_times": bool(
+                    sink_time_synchronised and len(sink_frame_ids) > 1
+                ),
                 "recent_frame_ids": recent_frame_ids,
                 "recent_frame_count": len(recent_frame_ids),
                 "recent_token_count": recent_token_count,
+                "opening_recent_starved": opening_recent_starved,
                 "frame_seqlen": frame_seqlen,
                 "middle_sink_overlap": middle_sink_overlap,
                 "middle_recent_overlap": middle_recent_overlap,
@@ -2154,6 +2181,43 @@ class AdaptiveKVCache(PyramidKVCache):
             sink_frames = self._head_sink_frames(head_idx)
             if sink_frames is not None:
                 sink_len = sink_frames * frame_seqlen
+
+        if (
+            self.composition_owns_dynamic
+            and current_start == 0
+            and frame_seqlen > 0
+            and k_in.shape[0] > 0
+        ):
+            if int(k_in.shape[0]) % int(frame_seqlen) != 0:
+                raise ValueError(
+                    "exclusive cache opening must contain complete frames: "
+                    f"layer={self.layer_idx} head={head_idx} "
+                    f"tokens={int(k_in.shape[0])} frame_seqlen={frame_seqlen}"
+                )
+            composition = (
+                self.compositions_row[head_idx]
+                if self.compositions_row is not None
+                and head_idx < len(self.compositions_row)
+                else None
+            )
+            if composition is None:
+                raise ValueError(
+                    "exclusive cache opening has no head composition: "
+                    f"layer={self.layer_idx} head={head_idx}"
+                )
+            opening_frames = int(k_in.shape[0]) // int(frame_seqlen)
+            try:
+                validate_exclusive_opening_partition(
+                    sink_frames=int(composition.sink_frames),
+                    recent_frames=int(composition.recent_frames),
+                    opening_frames=opening_frames,
+                )
+            except ValueError as error:
+                raise ValueError(
+                    f"{error}; layer={self.layer_idx} head={head_idx} "
+                    f"label={composition.label}. Use sink1 or a "
+                    "warm-start-safe sink lifecycle."
+                ) from error
 
         if sink_len <= 0:
             return k_in, v_in, p_in

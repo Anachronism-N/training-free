@@ -1,11 +1,15 @@
 # v119 Candidate Refinement and v120 MovieBench-32 Runbook
 
+> Post-result correction: the two sink3 cells produced polygon noise and are
+> retired. Current safe execution and split baseline/ours commands are in
+> `docs/121_v119_sink3_bugfix_and_v120_safe_launch.md`.
+
 ## 1. Goal
 
 This round has two strictly separated stages:
 
 1. **v119, one prompt:** resolve the remaining Retrieval and sink-budget
-   questions with five new 30 s videos.
+   questions with five new 30 s videos. This stage is complete.
 2. **v120, 32 prompts:** run only SF, native PF, and one manually promoted
    binary-cache candidate, then evaluate all methods with VBench-Long.
 
@@ -44,6 +48,11 @@ History-Suppressive heads.
 `FFE` means full-frame equivalent. The 11-FFE method is a diagnostic and
 cannot be claimed as a budget-matched main method.
 
+Post-result status: the first three Retrieval cells are clean. Both sink3
+cells produced polygon noise because the complete three-frame opening block
+was captured as a time-synchronised sink with zero dynamic recent frames.
+They are invalid candidates and blocked from new runs.
+
 Existing controls must be reused rather than regenerated:
 
 - v116 `legacy_v98_support_landmark4_suppress_motion_pair1`
@@ -66,12 +75,11 @@ export NODE_RANK=0
 export GPU_LIST=0,1,2,3,4,5,6,7
 export OUT_ROOT="$REPO_ROOT/runs/v119_candidate_refinement_1video"
 
-python scripts/run_v119_candidate_refinement_1video.py all
+python scripts/run_v119_candidate_refinement_1video.py retrieval
 ```
 
-Run the same command on the other three nodes with `NODE_RANK=1`, `2`, and
-`3`. The frozen partition is `[2, 1, 1, 1]` videos per node, so this stage
-uses little GPU time.
+The command is retained only for reproducing the three safe Retrieval cells.
+The completed sink3 outputs must not be regenerated or promoted.
 
 Each completed cell must have all of the following:
 
@@ -96,7 +104,7 @@ Review the full 30 s video, with extra attention to 20-30 s:
 2. prefer stable identity and background over a small short-term sharpness
    difference;
 3. when visually tied, prefer a 9-FFE method with a simple causal mechanism;
-4. never promote `sink3_extra` merely because it has two extra frames;
+4. reject both sink3 cells because they violate the opening-cache contract;
 5. record the selected key before starting v120.
 
 Recommended decision order:
@@ -105,8 +113,7 @@ Recommended decision order:
    late enlargement;
 2. `landmark_retrieval1_age24` if bounded Retrieval is clean but the hybrid
    hurts motion;
-3. `landmark_motion1_sink3_budget9` if sink3 clearly helps under equal budget;
-4. retain `landmark_motion1` when none of the v119 refinements improves the
+3. retain `landmark_motion1` when neither Retrieval refinement improves the
    existing balanced candidate.
 
 The promotion key is a runner alias, not the full video directory name.
@@ -169,10 +176,31 @@ python scripts/run_v120_moviebench32_main.py audit
 ```
 
 Keep `V120_BASELINE_ONLY=1` for the audit command. Do not run the full
-SF/PF/ours command or VBench collection until the experimental cache has
-passed the correctness review. The baseline set is intentionally isolated;
-the final result collector must record its separate contract rather than
-silently mixing files.
+SF/PF/ours command until the experimental cache has passed correctness
+review. Baseline VBench may run separately with `V120_SCOPE=baselines`.
+
+### Ours-only run reusing completed baselines
+
+After review, generate the established v116 control and the clean v119 hybrid
+without regenerating SF/PF:
+
+```bash
+unset V120_BASELINE_ONLY
+export V120_OURS_ONLY=1
+export V119_PROMOTION_APPROVED=1
+export V120_CANDIDATES=landmark_motion1,landmark_retrieval_motion
+export NUM_NODES=4
+export NODE_RANK=0
+export GPU_LIST=0,1,2,3,4,5,6,7
+
+python scripts/run_v120_moviebench32_main.py generate --ours-only
+```
+
+Run on all four nodes, then audit once on node 0 with the same environment:
+
+```bash
+python scripts/run_v120_moviebench32_main.py audit --ours-only
+```
 
 ### Full SF/PF/ours run
 
@@ -241,6 +269,10 @@ collect once on node 0:
 bash scripts/run_v120_vbench_long.sh collect
 ```
 
+For split generation, set `V120_SCOPE=baselines` or `V120_SCOPE=ours` before
+the corresponding evaluation. Merge their summaries with
+`scripts/merge_v120_vbench_summaries.py`; the exact command is in docs/121.
+
 Outputs:
 
 ```text
@@ -262,12 +294,7 @@ The three v119 Retrieval variants isolate different causes:
 - `Retrieval1 age24 -> Retrieval1 age24 + MotionPair1` tests whether
   retrieval needs a motion-preserving companion.
 
-The two sink variants separate extra capacity from allocation:
-
-- `sink3_extra` asks whether more sink frames help at all;
-- `sink3_budget9` asks whether they are worth replacing Landmark/recent
-  frames.
-
-Therefore, a negative result is still diagnostic. It should not trigger a
-large cache redesign before the traces identify which component was actually
-read and at what age.
+The sink variants are a negative correctness result. They changed every head
+to sink3, collapsed the complete opening block into the static sink, and left
+no dynamic recent frame. They cannot be used to infer whether a later
+Supportive-only sink lifecycle would help.

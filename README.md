@@ -10,8 +10,8 @@ candidate. Retrieval2 had competitive metrics but showed possible late scale
 enlargement, while Prototype4 remained a technically stronger but less stable
 Supportive alternative.
 
-v119 keeps the frozen old-v98 `304/56` diagnostic partition and tests only
-five new 30-second videos:
+v119 kept the frozen old-v98 `304/56` diagnostic partition and tested five
+new 30-second videos:
 
 - Retrieval top-1 instead of top-2;
 - Retrieval top-1 with a 24-latent-frame age bound;
@@ -19,17 +19,24 @@ five new 30-second videos:
 - sink3 with an expanded 11-frame-equivalent budget;
 - sink3 with a budget-matched 9-frame reallocation.
 
+The three Retrieval cells were clean. Both sink3 cells produced polygon noise:
+all 360 heads captured the complete three-frame opening block as a
+time-synchronised static sink, leaving no dynamic recent frames. The sink3
+cells are retired, a runtime guard now rejects this layout before generation,
+and v120 no longer exposes a sink3 candidate.
+
 The default cache remains sink1 plus a content-selected middle bank plus
 recent frames. MotionPair1 occupies two adjacent latent frames, not one.
 Runtime audits freeze the exact sink/middle/recent allocation, exclusive cache
 ownership, Retrieval ages and selections, motion-pair lifecycle, original
 position sidecars, and decoded video properties.
 
-After one v119 candidate passes manual review, v120 runs fresh `sf_native`,
-`pf_native`, and one promoted ours method on the same 32 MovieBench prompts,
-seed 0, and 30-second generation contract. VBench-Long's six dimensions are
-the primary quantitative criterion; DINO is secondary and is not used for
-promotion in this round.
+v120 can run `sf_native` and `pf_native` first, then generate ours separately
+without repeating the baselines. The recommended ours pair is the established
+`landmark_motion1` control and the clean `landmark_retrieval_motion`
+candidate. All methods use the same 32 MovieBench prompts, seed 0, and
+30-second contract. VBench-Long's six dimensions are the primary quantitative
+criterion.
 
 The latest v116 interpretation is in `docs/118_v116_review_results.md`.
 The exact v119 allocations, four-node commands, v120 SF/PF/ours runner, model
@@ -38,6 +45,9 @@ paths, VBench commands, and decision rules are in
 index is `docs/15_lifecache_doc_index.md`. The corrected historical-trick
 ledger, post-selection ablation queue, and conditional paper story are in
 `docs/120_post_selection_trick_ledger_and_paper_story.md`.
+The sink3 code audit, fail-closed fix, safe v120 commands, and split VBench
+merge procedure are in
+`docs/121_v119_sink3_bugfix_and_v120_safe_launch.md`.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -76,9 +86,8 @@ prompt-switch/return-recall branch.
   Veil-like extremes while leaving Wave mixed. It is useful for cache search
   but comes from an absolute QK-sign statistic that is not shift invariant;
   it is not yet a paper-ready classifier.
-- **Supportive memory:** Landmark4 is the stable reference. v119 tests whether
-  two of its four slots should be exchanged for sink context under a fixed
-  budget.
+- **Supportive memory:** Landmark4 with sink1 is the stable reference. The
+  all-head sink3 warm start is retired after the v119 polygon-noise failure.
 - **Suppressive memory:** MotionPair1 is the balanced reference. Retrieval is
   weakened to top-1, optionally age-bounded, and optionally combined with one
   adjacent motion pair to diagnose late enlargement without losing dynamics.
@@ -162,7 +171,9 @@ training-free/
 |   |-- 117_post_v115_targeted_candidate_plan.md
 |   |-- 118_v116_review_results.md
 |   |-- 119_candidate_refinement_and_moviebench32_runbook.md
-|   `-- 120_post_selection_trick_ledger_and_paper_story.md
+|   |-- 120_post_selection_trick_ledger_and_paper_story.md
+|   |-- 120_v119_review_and_sink3_bug.md
+|   `-- 121_v119_sink3_bugfix_and_v120_safe_launch.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -182,6 +193,7 @@ training-free/
 |   |-- run_v119_candidate_refinement_1video.py
 |   |-- run_v120_moviebench32_main.py
 |   |-- run_v120_vbench_long.sh
+|   |-- merge_v120_vbench_summaries.py
 |   |-- run_v81_probecache_profile_16gpu.sh
 |   |-- run_v81_probecache_16gpu.sh
 |   |-- postprocess_v81_probecache.sh

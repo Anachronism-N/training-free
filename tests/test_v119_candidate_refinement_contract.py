@@ -32,10 +32,11 @@ v119 = _load(
 
 
 def test_v119_matrix_is_minimal_and_has_explicit_allocations():
-    assert len(v119.CELLS) == 5
-    assert len({cell.name for cell in v119.CELLS}) == 5
+    assert len(v119.CELLS) == 3
+    assert len({cell.name for cell in v119.CELLS}) == 3
     assert [cell.stage for cell in v119.CELLS].count("retrieval") == 3
-    assert [cell.stage for cell in v119.CELLS].count("sink") == 2
+    assert len(v119.RETIRED_SINK3_CELLS) == 2
+    assert v119.cells_for_mode("sink") == ()
 
     expected = {
         "legacy_v98_landmark4_retrieval1": {
@@ -55,28 +56,15 @@ def test_v119_matrix_is_minimal_and_has_explicit_allocations():
                 "retrieval_motion",
             ),
         },
-        "legacy_v98_landmark4_motion1_sink3_extra": {
-            10: (("SemanticLandmarkStrategy",), 3, 4, "semantic_landmark"),
-            11: (("CoherentMotionStrategy",), 3, 6, "coherent_motion"),
-        },
-        "legacy_v98_landmark2_motion1_sink3_budget9": {
-            10: (("SemanticLandmarkStrategy",), 3, 4, "semantic_landmark"),
-            11: (("CoherentMotionStrategy",), 3, 4, "coherent_motion"),
-        },
     }
     for cell in v119.CELLS:
         assert {
             label: fast.expected_policy(cell, label) for label in (10, 11)
         } == expected[cell.name]
 
-    extra = next(
-        cell for cell in v119.CELLS if cell.history_budget_profile == "sink3_extra"
-    )
-    assert extra.max_full_frame_equivalents == 11
     assert all(
         cell.max_full_frame_equivalents == 9
         for cell in v119.CELLS
-        if cell is not extra
     )
 
 
@@ -87,7 +75,7 @@ def test_v119_four_node_partition_is_complete_and_nonoverlapping():
     ]
     names = [cell.name for shard in shards for cell in shard]
 
-    assert [len(shard) for shard in shards] == [2, 1, 1, 1]
+    assert [len(shard) for shard in shards] == [1, 1, 1, 0]
     assert len(names) == len(set(names)) == len(v119.CELLS)
 
 
@@ -125,18 +113,6 @@ def test_v119_command_wires_age_and_budget_profiles(tmp_path):
         command.index("--pyramidkv_history_budget_profile") + 1
     ] == "default"
 
-    sink_cell = next(
-        item
-        for item in v119.CELLS
-        if item.history_budget_profile == "sink3_budget9"
-    )
-    command, _, _, _ = fast.inference_command(
-        args,
-        cell=sink_cell,
-        output=tmp_path / "videos",
-        transition_trace=tmp_path / "transition.jsonl",
-        scene_trace=tmp_path / "scene.jsonl",
-    )
-    assert command[
-        command.index("--pyramidkv_history_budget_profile") + 1
-    ] == "sink3_budget9"
+    assert {
+        cell.history_budget_profile for cell in v119.RETIRED_SINK3_CELLS
+    } == {"sink3_extra", "sink3_budget9"}

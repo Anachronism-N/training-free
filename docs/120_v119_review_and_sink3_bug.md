@@ -2,7 +2,8 @@
 
 日期：2026-07-27
 
-状态：v119 5-cell 生成完成；2 个 sink3 cell 出现多边形噪声，根因已定位。
+状态：v119 5-cell 生成完成；2 个 sink3 cell 出现多边形噪声；代码级故障已确认，
+更严格的因果边界和修复见 docs/121。
 
 ## 1. 人工 Review 结果
 
@@ -111,6 +112,23 @@ effective_sink = min(configured_sink, max(1, available_frames - min_recent))
 
 本轮推荐方案 C，因为 v119 的 retrieval variants 已通过 review，sink3 不是
 v120 的必要候选。方案 A/B 留作后续消融实验。
+
+### 2.5 后续代码审计修正
+
+后续审计确认，`recent=[]` 是明确的错误症状，但“Suppressive sink3 单独导致噪声”
+并未被 v119 因果隔离：
+
+1. 两个 profile 同时把 304 Supportive 和 56 Suppressive，即全部 360 heads，
+   都改成 sink3；
+2. static sink 的三个物理帧会在 readout 时使用同一个同步 RoPE 时间；
+3. old-v98 Supportive 中包含 133 个 PF Wave heads，Suppressive 中还有 23 个；
+4. PF native 的部分 Anchor/Veil heads 本身可以使用 sink3，因此不能把 sink3 或
+   某一角色单独宣布为根因。
+
+当前可证明的是“old-v98 304/56 显式 composition 下的 all-head sink3 三帧 warm
+start 不安全”。代码现在会在首块 sink 吞掉全部帧时直接报错，并额外记录 sink
+物理时间、映射 RoPE 时间和 recent starvation。两个 sink3 cell 已从 v120 候选中
+移除，不再采用方案 A 的未经验证修补。
 
 ## 3. v119 候选评价
 

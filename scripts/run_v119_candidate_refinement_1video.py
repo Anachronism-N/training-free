@@ -50,6 +50,12 @@ CELLS = (
         support_policy="landmark",
         suppress_policy="retrieval1_motion1_age24",
     ),
+)
+
+# These completed v119 diagnostics are retained for provenance only. They
+# capture the full three-frame opening block as a time-synchronised sink and
+# are blocked from all new runs.
+RETIRED_SINK3_CELLS = (
     Cell(
         "legacy_v98_landmark4_motion1_sink3_extra",
         "sink",
@@ -73,6 +79,8 @@ CELLS = (
 def cells_for_mode(mode: str) -> tuple[Cell, ...]:
     if mode == "all":
         return CELLS
+    if mode == "sink":
+        return ()
     return tuple(cell for cell in CELLS if cell.stage == mode)
 
 
@@ -183,6 +191,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def validate_inputs(args: argparse.Namespace) -> list[str]:
+    if args.mode == "sink":
+        raise SystemExit(
+            "v119 sink3 cells were retired after polygon-noise review; "
+            "run retrieval mode or use commit 5f70cac only for provenance"
+        )
     if args.num_nodes <= 0:
         raise SystemExit("--num-nodes must be positive")
     if not 0 <= args.node_rank < args.num_nodes:
@@ -281,15 +294,10 @@ def main() -> None:
                     "motion pair(2 frames) + recent5 = 9"
                 ),
             },
-            "sink3_extra": {
-                "supportive": "sink3 + landmark4 + recent4 = 11",
-                "suppressive": "sink3 + one motion pair(2) + recent6 = 11",
-            },
-            "sink3_budget9": {
-                "supportive": "sink3 + landmark2 + recent4 = 9",
-                "suppressive": "sink3 + one motion pair(2) + recent4 = 9",
-            },
         },
+        "retired_sink3_cells": [
+            asdict(cell) for cell in RETIRED_SINK3_CELLS
+        ],
         "invariants": {
             "clean_kv_only": True,
             "exclusive_dynamic_owner": True,

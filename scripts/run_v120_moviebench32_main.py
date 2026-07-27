@@ -72,10 +72,6 @@ _CANDIDATE_SPECS = {
         "legacy_v98_landmark4_retrieval1_motion1_age24",
         "v119_bounded_retrieval_motion",
     ),
-    "landmark_motion1_sink3_budget9": (
-        "legacy_v98_landmark2_motion1_sink3_budget9",
-        "v119_budget_matched_sink3",
-    ),
 }
 
 
@@ -93,31 +89,42 @@ def parse_candidate_keys(raw: str) -> tuple[str, ...]:
     return keys
 
 
-def methods_for(candidate_keys: tuple[str, ...]) -> tuple[Method, ...]:
-    methods = [
-        Method("sf_native", "sf", None, "baseline"),
-        Method(
-            "pf_native",
-            "pf",
-            Cell(
-                "pf_native_source",
-                "baseline",
-                "single",
-                suppress_policy=None,
-                map_key="pf",
-            ),
-            "baseline",
-        ),
-    ]
-    methods.extend(
-        Method(
-            f"ours_{key}",
-            "pf",
-            _CELLS_BY_NAME[_CANDIDATE_SPECS[key][0]],
-            _CANDIDATE_SPECS[key][1],
+def methods_for(
+    candidate_keys: tuple[str, ...],
+    *,
+    scope: str = "all",
+) -> tuple[Method, ...]:
+    if scope not in {"all", "baselines", "ours"}:
+        raise ValueError(f"unsupported method scope: {scope!r}")
+    methods: list[Method] = []
+    if scope in {"all", "baselines"}:
+        methods.extend(
+            [
+                Method("sf_native", "sf", None, "baseline"),
+                Method(
+                    "pf_native",
+                    "pf",
+                    Cell(
+                        "pf_native_source",
+                        "baseline",
+                        "single",
+                        suppress_policy=None,
+                        map_key="pf",
+                    ),
+                    "baseline",
+                ),
+            ]
         )
-        for key in candidate_keys
-    )
+    if scope in {"all", "ours"}:
+        methods.extend(
+            Method(
+                f"ours_{key}",
+                "pf",
+                _CELLS_BY_NAME[_CANDIDATE_SPECS[key][0]],
+                _CANDIDATE_SPECS[key][1],
+            )
+            for key in candidate_keys
+        )
     return tuple(methods)
 
 
@@ -212,6 +219,15 @@ def parse_args() -> argparse.Namespace:
             "method set; no v119 promotion is required"
         ),
     )
+    parser.add_argument(
+        "--ours-only",
+        action="store_true",
+        default=os.environ.get("V120_OURS_ONLY", "0") == "1",
+        help=(
+            "generate/audit only promoted ours methods in an isolated "
+            "method set so completed baselines are not regenerated"
+        ),
+    )
     parser.add_argument("--list-candidates", action="store_true")
     parser.add_argument(
         "--node-rank",
@@ -272,13 +288,17 @@ def parse_args() -> argparse.Namespace:
         for key, (cell_name, role) in _CANDIDATE_SPECS.items():
             print(f"{key}\t{role}\t{cell_name}")
         raise SystemExit(0)
+    if args.baseline_only and args.ours_only:
+        parser.error("--baseline-only and --ours-only are mutually exclusive")
     if args.baseline_only:
         args.candidate_keys = ()
+        args.method_scope = "baselines"
     else:
         try:
             args.candidate_keys = parse_candidate_keys(args.candidates)
         except ValueError as error:
             parser.error(str(error))
+        args.method_scope = "ours" if args.ours_only else "all"
 
     args.repo_root = args.repo_root.resolve()
     args.sf_repo = (
@@ -327,8 +347,9 @@ def parse_args() -> argparse.Namespace:
         candidate_digest = hashlib.sha256(
             ",".join(args.candidate_keys).encode("utf-8")
         ).hexdigest()[:12]
+        prefix = "ours_only" if args.ours_only else "ours"
         args.method_set_id = (
-            f"ours{len(args.candidate_keys)}_{candidate_digest}"
+            f"{prefix}{len(args.candidate_keys)}_{candidate_digest}"
         )
     args.out_root = (
         args.out_root
@@ -875,7 +896,10 @@ def audit_published(
 def main() -> None:
     args = parse_args()
     prompts = load_prompts(args)
-    methods = methods_for(args.candidate_keys)
+    methods = methods_for(
+        args.candidate_keys,
+        scope=args.method_scope,
+    )
     args.out_root.mkdir(parents=True, exist_ok=True)
     for name in (
         "logs",

@@ -61,7 +61,7 @@ def test_v120_default_table_has_paired_sf_pf_and_ours():
 
 
 def test_v120_baseline_only_table_has_no_role_memory_method():
-    methods = v120.methods_for(())
+    methods = v120.methods_for((), scope="baselines")
     assert [(method.key, method.engine) for method in methods] == [
         ("sf_native", "sf"),
         ("pf_native", "pf"),
@@ -69,6 +69,42 @@ def test_v120_baseline_only_table_has_no_role_memory_method():
     assert methods[0].source_cell is None
     assert methods[1].source_cell.native
     assert methods[1].source_cell.map_key == "pf"
+
+
+def test_v120_ours_only_table_does_not_regenerate_baselines():
+    methods = v120.methods_for(
+        ("landmark_motion1", "landmark_retrieval_motion"),
+        scope="ours",
+    )
+    assert [method.key for method in methods] == [
+        "ours_landmark_motion1",
+        "ours_landmark_retrieval_motion",
+    ]
+    assert all(method.engine == "pf" for method in methods)
+
+
+def test_v120_ours_only_uses_isolated_method_set(monkeypatch):
+    monkeypatch.delenv("V120_BASELINE_ONLY", raising=False)
+    monkeypatch.delenv("V120_OURS_ONLY", raising=False)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_v120_moviebench32_main.py",
+            "--ours-only",
+            "--candidates",
+            "landmark_motion1,landmark_retrieval_motion",
+        ],
+    )
+
+    args = v120.parse_args()
+
+    assert args.method_scope == "ours"
+    assert args.method_set_id == "ours_only2_9b9ca1a08d27"
+    assert args.candidate_keys == (
+        "landmark_motion1",
+        "landmark_retrieval_motion",
+    )
 
 
 def test_v120_four_node_partition_is_balanced_and_complete():
@@ -92,17 +128,17 @@ def test_v120_four_node_partition_is_balanced_and_complete():
 
 def test_v120_exposes_v119_promotable_allocations():
     methods = v120.methods_for(
-        ("landmark_retrieval_motion", "landmark_motion1_sink3_budget9")
+        ("landmark_retrieval1_age24", "landmark_retrieval_motion")
     )
-    hybrid = methods[2].source_cell
-    sink3 = methods[3].source_cell
+    bounded = methods[2].source_cell
+    hybrid = methods[3].source_cell
 
+    assert bounded.suppress_policy == "retrieval1_age24"
+    assert bounded.history_budget_profile == "default"
     assert hybrid.suppress_policy == "retrieval1_motion1_age24"
     assert hybrid.history_budget_profile == "default"
-    assert sink3.support_policy == "landmark"
-    assert sink3.suppress_policy == "motion_pair1"
-    assert sink3.history_budget_profile == "sink3_budget9"
-    assert sink3.max_full_frame_equivalents == 9
+    with pytest.raises(ValueError, match="unknown"):
+        v120.parse_candidate_keys("landmark_motion1_sink3_budget9")
 
 
 def test_v120_vbench_script_requires_32_prompt_manifest_and_six_dimensions():
@@ -118,3 +154,10 @@ def test_v120_vbench_script_requires_32_prompt_manifest_and_six_dimensions():
         "dynamic_degree",
     ):
         assert dimension in text
+
+
+def test_v120_vbench_supports_separate_baseline_and_ours_scopes():
+    text = (SCRIPTS / "run_v120_vbench_long.sh").read_text(encoding="utf-8")
+    assert 'SCOPE="${V120_SCOPE:-all}"' in text
+    assert 'METHOD_SET_ID="baselines_seed0"' in text
+    assert '"ours_only" if sys.argv[2] == "ours" else "ours"' in text

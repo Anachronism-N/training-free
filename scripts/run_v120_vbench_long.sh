@@ -7,24 +7,33 @@ if [[ "$ACTION" != "eval" && "$ACTION" != "collect" ]]; then
     echo "usage: bash scripts/run_v120_vbench_long.sh eval|collect"
     exit 2
 fi
-if [[ "${V119_PROMOTION_APPROVED:-0}" != "1" ]]; then
+ROOT="${REPO_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free}"
+CANDIDATES_CSV="${V120_CANDIDATES:-landmark_motion1}"
+SCOPE="${V120_SCOPE:-all}"
+if [[ "$SCOPE" != "all" && "$SCOPE" != "baselines" && "$SCOPE" != "ours" ]]; then
+    echo "[error] V120_SCOPE must be all, baselines, or ours"
+    exit 2
+fi
+if [[ "$SCOPE" != "baselines" && "${V119_PROMOTION_APPROVED:-0}" != "1" ]]; then
     echo "[blocked] set V119_PROMOTION_APPROVED=1 after one-video review"
     exit 2
 fi
-
-ROOT="${REPO_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free}"
-CANDIDATES_CSV="${V120_CANDIDATES:-landmark_motion1}"
-METHOD_SET_ID="$(
-    python - "$CANDIDATES_CSV" <<'PY'
+if [[ "$SCOPE" == "baselines" ]]; then
+    METHOD_SET_ID="baselines_seed0"
+else
+    METHOD_SET_ID="$(
+        python - "$CANDIDATES_CSV" "$SCOPE" <<'PY'
 import hashlib
 import sys
 
 keys = [value.strip() for value in sys.argv[1].split(",") if value.strip()]
 if not 1 <= len(keys) <= 2 or len(keys) != len(set(keys)):
     raise SystemExit("V120_CANDIDATES must contain one or two unique keys")
-print(f"ours{len(keys)}_{hashlib.sha256(','.join(keys).encode()).hexdigest()[:12]}")
+prefix = "ours_only" if sys.argv[2] == "ours" else "ours"
+print(f"{prefix}{len(keys)}_{hashlib.sha256(','.join(keys).encode()).hexdigest()[:12]}")
 PY
-)" || exit 2
+    )" || exit 2
+fi
 RUN_ROOT="${RUN_ROOT:-$ROOT/runs/v120_moviebench32_main/$METHOD_SET_ID}"
 MANIFEST="$RUN_ROOT/published_manifest.json"
 VBENCH_ROOT="${VBENCH_ROOT:-$ROOT/../research_sprint/bench_baselines/VBench}"
@@ -44,7 +53,7 @@ fi
     exit 2
 }
 mapfile -t METHODS < <(
-    python - "$MANIFEST" <<'PY'
+    python - "$MANIFEST" "$SCOPE" <<'PY'
 import json
 import sys
 
@@ -53,12 +62,25 @@ if not payload.get("ok"):
     raise SystemExit("published manifest is not successful")
 if int(payload.get("prompt_count", 0)) != 32:
     raise SystemExit("published manifest is not MovieBench-32")
-for row in payload["methods"]:
-    print(row["key"])
+keys = [row["key"] for row in payload["methods"]]
+scope = sys.argv[2]
+if scope == "baselines" and keys != ["sf_native", "pf_native"]:
+    raise SystemExit(f"baseline manifest has unexpected methods: {keys}")
+if scope == "ours" and (
+    not 1 <= len(keys) <= 2
+    or any(not key.startswith("ours_") for key in keys)
+):
+    raise SystemExit(f"ours manifest has unexpected methods: {keys}")
+if scope == "all" and (
+    len(keys) < 3
+    or keys[:2] != ["sf_native", "pf_native"]
+):
+    raise SystemExit(f"full manifest has unexpected methods: {keys}")
+print("\n".join(keys))
 PY
 )
-[[ "${#METHODS[@]}" -ge 3 ]] || {
-    echo "[error] manifest must contain SF, PF, and at least one ours method"
+[[ "${#METHODS[@]}" -gt 0 ]] || {
+    echo "[error] manifest contains no methods"
     exit 2
 }
 

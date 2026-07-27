@@ -6,6 +6,9 @@ Status: v119/v120 code is ready. This document freezes what may be tested
 after the base cache is selected and prevents old exploratory claims from
 being reused without their later corrections.
 
+Post-result correction: both sink3 cells produced polygon noise and are
+retired. See `docs/121_v119_sink3_bugfix_and_v120_safe_launch.md`.
+
 ## 1. Immediate decision sequence
 
 The current sequence is deliberately narrow:
@@ -76,9 +79,10 @@ it can also:
 - consume capacity that would otherwise represent motion or new structure;
 - make an unequal-budget method look better merely because it stores more.
 
-Therefore v119 contains both an 11-FFE `sink3-extra` diagnostic and a
-budget-matched 9-FFE `sink3-budget9` candidate. Sink3 is promoted only if the
-budget-matched form helps; the extra-capacity form is not a valid main method.
+v119 contained both an 11-FFE `sink3-extra` diagnostic and a budget-matched
+9-FFE `sink3-budget9` candidate. Both failed with polygon noise because all
+three opening frames became time-synchronised static sink and no recent frame
+remained. Neither is promotable.
 
 ### 2.3 Why MotionPair1 uses two frames
 
@@ -373,7 +377,8 @@ The paper must not say:
 - that generic token compression improves generation;
 - that Retrieval2 is better before the scale-enlargement issue is resolved;
 - that CEMR improves single-prompt extrapolation;
-- or that borrowed snapshot/retrieval principles originated in this work.
+- that borrowed snapshot/retrieval principles originated in this work;
+- or that v119 established a beneficial sink3 lifecycle.
 
 The defensible story is a measured combination of a distinct binary
 profiling criterion and an independently designed role-conditioned cache,
