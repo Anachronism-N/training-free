@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run SF, PF, and promoted binary-cache candidates on MovieBench-32."""
+"""Run SF, PF, and promoted binary-cache candidates on MovieBench."""
 
 from __future__ import annotations
 
@@ -33,7 +33,12 @@ from run_v119_candidate_refinement_1video import CELLS as V119_CELLS
 
 EXPERIMENT = "v120_moviebench32_main"
 PROMPT_COUNT = 32
+TASK_STAGE = "moviebench32"
+PUBLISHED_TAG = "v120"
+RUN_LABEL = "v120"
+DEFAULT_PROMPT_PATH: str | None = None
 DEFAULT_CANDIDATES = ("landmark_motion1",)
+ALLOW_PARTIAL_SCOPE = True
 
 
 @dataclass(frozen=True)
@@ -80,7 +85,7 @@ def parse_candidate_keys(raw: str) -> tuple[str, ...]:
     if not keys:
         raise ValueError("at least one ours candidate is required")
     if len(keys) > 2:
-        raise ValueError("MovieBench-32 main allows at most two ours candidates")
+        raise ValueError("MovieBench main allows at most two ours candidates")
     if len(keys) != len(set(keys)):
         raise ValueError("candidate list contains duplicates")
     unknown = sorted(set(keys) - set(_CANDIDATE_SPECS))
@@ -136,7 +141,7 @@ def task_cell(method: Method, prompt_index: int) -> Cell:
     if method.source_cell is None:
         return Cell(
             task_name(method, prompt_index),
-            "moviebench32",
+            TASK_STAGE,
             "single",
             suppress_policy=None,
             map_key="sf",
@@ -144,7 +149,7 @@ def task_cell(method: Method, prompt_index: int) -> Cell:
     return replace(
         method.source_cell,
         name=task_name(method, prompt_index),
-        stage="moviebench32",
+        stage=TASK_STAGE,
     )
 
 
@@ -169,7 +174,7 @@ def selected_tasks(
 
 def published_name(prompt_index: int, *, indexed: bool = False) -> str:
     if indexed:
-        return f"{int(prompt_index):06d}-0_v120.mp4"
+        return f"{int(prompt_index):06d}-0_{PUBLISHED_TAG}.mp4"
     return f"{int(prompt_index):06d}.mp4"
 
 
@@ -290,6 +295,12 @@ def parse_args() -> argparse.Namespace:
         raise SystemExit(0)
     if args.baseline_only and args.ours_only:
         parser.error("--baseline-only and --ours-only are mutually exclusive")
+    if not ALLOW_PARTIAL_SCOPE and (args.baseline_only or args.ours_only):
+        parser.error(
+            f"{RUN_LABEL} requires one paired run containing SF, PF, and "
+            "all frozen candidates; clear V120_BASELINE_ONLY and "
+            "V120_OURS_ONLY"
+        )
     if args.baseline_only:
         args.candidate_keys = ()
         args.method_scope = "baselines"
@@ -332,10 +343,14 @@ def parse_args() -> argparse.Namespace:
         / "head_maps"
         / "legacy_v98_absolute_sign_304_56.csv"
     ).resolve()
-    args.prompts = (
-        args.prompts
-        or args.pf_repo / "prompts" / "MovieGenVideoBench_num32.txt"
-    ).resolve()
+    default_prompts = (
+        Path(DEFAULT_PROMPT_PATH)
+        if DEFAULT_PROMPT_PATH is not None
+        else args.pf_repo
+        / "prompts"
+        / f"MovieGenVideoBench_num{PROMPT_COUNT}.txt"
+    )
+    args.prompts = (args.prompts or default_prompts).resolve()
     args.single_prompts = args.prompts
     args.aba_prompts = (
         args.repo_root / "prompts" / "paper_scene_switch_sf_3.txt"
@@ -365,14 +380,14 @@ def load_prompts(args: argparse.Namespace) -> list[str]:
     if not 0 <= args.node_rank < args.num_nodes:
         raise SystemExit("--node-rank must be within [0, num-nodes)")
     if args.seed != 0:
-        raise SystemExit("the frozen v120 main table requires seed 0")
+        raise SystemExit(f"the frozen {RUN_LABEL} main table requires seed 0")
     if (
         args.mode == "generate"
         and not args.baseline_only
         and not args.promotion_approved
     ):
         raise SystemExit(
-            "v120 is gated by v119 one-video review; set "
+            f"{RUN_LABEL} is gated by v119 one-video review; set "
             "V119_PROMOTION_APPROVED=1 after recording the decision"
         )
     required = (
@@ -397,7 +412,8 @@ def load_prompts(args: argparse.Namespace) -> list[str]:
     ]
     if len(prompts) != PROMPT_COUNT:
         raise SystemExit(
-            f"v120 requires exactly {PROMPT_COUNT} prompts, found {len(prompts)}"
+            f"{RUN_LABEL} requires exactly {PROMPT_COUNT} prompts, "
+            f"found {len(prompts)}"
         )
     return prompts
 
@@ -409,7 +425,7 @@ def experiment_contract(
     prompts: list[str],
     map_audit: dict[str, object],
 ) -> dict[str, object]:
-    implementation_paths = (
+    implementation_paths = [
         Path(__file__).resolve(),
         args.repo_root / "scripts" / "run_v100_fast_selection_1video.py",
         args.repo_root / "scripts" / "run_v115_role_memory_cache_1video.py",
@@ -425,7 +441,10 @@ def experiment_contract(
         args.pf_repo / "pyramidkv" / "policy_overrides.py",
         args.pf_repo / "pyramidkv" / "role_event.py",
         args.pf_repo / "pyramidkv" / "role_memory.py",
-    )
+    ]
+    entrypoint = Path(sys.argv[0]).resolve()
+    if entrypoint.is_file() and entrypoint not in implementation_paths:
+        implementation_paths.append(entrypoint)
     return {
         "version": 1,
         "experiment": EXPERIMENT,
@@ -760,7 +779,7 @@ def run_worker(
     results = []
     for method, prompt_index, cell in tasks:
         print(
-            f"[v120-task] gpu={gpu} method={method.key} "
+            f"[{RUN_LABEL}-task] gpu={gpu} method={method.key} "
             f"prompt={prompt_index}",
             flush=True,
         )
@@ -942,7 +961,7 @@ def main() -> None:
             args.contract_wait_seconds,
         )
     print(
-        "[V120Contract] "
+        f"[{RUN_LABEL.upper()}Contract] "
         + canonical_json(
             {
                 "method_set_id": args.method_set_id,
@@ -984,7 +1003,7 @@ def main() -> None:
     worker_tasks = [tasks[index::len(gpus)] for index in range(len(gpus))]
     worker_tasks = [items for items in worker_tasks if items]
     print(
-        f"[v120] node={args.node_rank}/{args.num_nodes} "
+        f"[{RUN_LABEL}] node={args.node_rank}/{args.num_nodes} "
         f"tasks={len(tasks)} workers={len(worker_tasks)} "
         f"out={args.out_root}",
         flush=True,

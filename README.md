@@ -3,12 +3,17 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current task is the **v119 candidate refinement followed by the v120
-MovieBench-32 main comparison**. v116 found
-`Supportive=Landmark4, Suppressive=MotionPair1` to be the most balanced
-candidate. Retrieval2 had competitive metrics but showed possible late scale
-enlargement, while Prototype4 remained a technically stronger but less stable
-Supportive alternative.
+The current task is the **v125 MovieBench-128 final-candidate comparison**.
+The 32-prompt v120 screen is complete. v125 directly promotes the bounded
+Retrieval1-age24 candidate and the bounded Retrieval1+MotionPair1 candidate to
+128 rewritten MovieBench prompts, seed 0, and 30-second generation.
+
+Because the supplied benchmark uses Qwen-rewritten wording, v125 regenerates
+all four paired methods under the same prompt file: native SF, native PF, and
+the two finalists. The table is evaluated on subject consistency, background
+consistency, aesthetic quality, imaging quality, motion smoothness, and dynamic
+degree. Evaluation is sharded by method and dimension across four eight-GPU
+nodes, with explicit RAFT/AMT model preflight and paired 128-prompt statistics.
 
 v119 kept the frozen old-v98 `304/56` diagnostic partition and tested five
 new 30-second videos:
@@ -31,12 +36,17 @@ Runtime audits freeze the exact sink/middle/recent allocation, exclusive cache
 ownership, Retrieval ages and selections, motion-pair lifecycle, original
 position sidecars, and decoded video properties.
 
-v120 can run `sf_native` and `pf_native` first, then generate ours separately
-without repeating the baselines. The recommended ours pair is the established
-`landmark_motion1` control and the clean `landmark_retrieval_motion`
-candidate. All methods use the same 32 MovieBench prompts, seed 0, and
-30-second contract. VBench-Long's six dimensions are the primary quantitative
-criterion.
+The v120 aggregate results show Ours above SF in DINO consistency, drift,
+raw long-range clip2clip, aesthetic quality, and imaging quality. Against PF,
+Ours is close in imaging and drift but lower in DINO and raw long-range
+consistency. Human review reports better visual behavior than the aggregate
+ranking suggests. This is currently treated as a metric-alignment question,
+not as evidence that Ours quantitatively beats PF.
+
+The standard VBench subject/background fusion compresses high-range
+clip2clip differences, while consistency and smoothness can reward static or
+repetitive behavior. The missing dynamic-degree result and conflicting
+auxiliary loop tables must be resolved before the paper story is frozen.
 
 The latest v116 interpretation is in `docs/118_v116_review_results.md`.
 The exact v119 allocations, four-node commands, v120 SF/PF/ours runner, model
@@ -48,6 +58,12 @@ ledger, post-selection ablation queue, and conditional paper story are in
 The sink3 code audit, fail-closed fix, safe v120 commands, and split VBench
 merge procedure are in
 `docs/121_v119_sink3_bugfix_and_v120_safe_launch.md`.
+The v120 aggregate tables are in `docs/122` and `docs/123`. Their corrected
+interpretation, integrity blockers, no-regeneration follow-up, and claim
+boundaries are in `docs/124_v120_metric_human_alignment_audit.md`.
+The final 10-hour generation/evaluation matrix, exact four-node commands,
+model locations, frozen comparison assembly, and paper decision rule are in
+`docs/125_v125_moviebench128_final_candidate_runbook.md`.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -91,6 +107,10 @@ prompt-switch/return-recall branch.
 - **Suppressive memory:** MotionPair1 is the balanced reference. Retrieval is
   weakened to top-1, optionally age-bounded, and optionally combined with one
   adjacent motion pair to diagnose late enlargement without losing dynamics.
+- **v120 evidence:** all three promoted Ours candidates improve several
+  long-range/quality means over SF. `retrieval1_age24` is the simpler
+  quantitative candidate; `retrieval_motion` is the richer candidate if blind
+  review confirms its visual and motion advantage.
 - **Deferred ablations:** all-head, random/inverted labels, role count and
   capacity curves are run only after the main cache is selected.
 - **Exclusive ownership:** explicit composition is the only owner of sink,
@@ -173,7 +193,11 @@ training-free/
 |   |-- 119_candidate_refinement_and_moviebench32_runbook.md
 |   |-- 120_post_selection_trick_ledger_and_paper_story.md
 |   |-- 120_v119_review_and_sink3_bug.md
-|   `-- 121_v119_sink3_bugfix_and_v120_safe_launch.md
+|   |-- 121_v119_sink3_bugfix_and_v120_safe_launch.md
+|   |-- 122_v120_moviebench32_results.md
+|   |-- 123_v120_vbench_analysis_dino_and_pf_alignment.md
+|   |-- 124_v120_metric_human_alignment_audit.md
+|   `-- 125_v125_moviebench128_final_candidate_runbook.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -194,6 +218,13 @@ training-free/
 |   |-- run_v120_moviebench32_main.py
 |   |-- run_v120_vbench_long.sh
 |   |-- merge_v120_vbench_summaries.py
+|   |-- analyze_v120_paired_metrics.py
+|   |-- run_v125_moviebench128_main.py
+|   |-- prepare_v125_moviebench128_comparison.py
+|   |-- prepare_v125_vbench_splits.py
+|   |-- run_v125_moviebench128_10h.sh
+|   |-- run_v125_vbench_long.sh
+|   |-- merge_v125_vbench_long_parts.py
 |   |-- run_v81_probecache_profile_16gpu.sh
 |   |-- run_v81_probecache_16gpu.sh
 |   |-- postprocess_v81_probecache.sh
@@ -268,6 +299,30 @@ training-free/
 
 ## Implementation Status
 
+The current v125 paper-scale path is implemented:
+
+- `run_v125_moviebench128_main.py`: four-method, 512-video generation with
+  frozen Qwen-rewrite prompt, map, implementation, and decoded-video contracts.
+- `prepare_v125_moviebench128_comparison.py`: fail-closed four-method
+  comparison assembly with exact prompt and generation-contract checks.
+- `prepare_v125_vbench_splits.py`: one-time atomic two-second clip splitting,
+  preventing concurrent VBench dimensions from mutating the same input tree.
+- `run_v125_vbench_long.sh`: 24 method-by-dimension jobs, one process per GPU,
+  RAFT/AMT preflight, resumable markers, and complete dynamic-degree coverage.
+- `merge_v125_vbench_long_parts.py`: strict dimension merge, provenance table,
+  and machine-readable/CSV/Markdown summaries.
+
+The supporting v119/v120 path and result-analysis safeguards are implemented:
+
+- `run_v119_candidate_refinement_1video.py`: bounded Retrieval1,
+  Retrieval1+MotionPair1, and retired sink3 provenance cells.
+- `run_v120_moviebench32_main.py`: split SF/PF/Ours generation, frozen
+  32-prompt contracts, exact resume, publication, and decoded-video audit.
+- `run_v120_vbench_long.sh` and `merge_v120_vbench_summaries.py`:
+  six-dimension evaluation and isolated-result merge.
+- `analyze_v120_paired_metrics.py`: fail-closed per-prompt VBench and
+  comprehensive analysis with confidence intervals and W/T/L counts.
+
 The v111/v112 non-periodic cache path and fail-closed diagnostics are
 implemented:
 
@@ -290,7 +345,7 @@ implemented:
 - `run_v107_polygon_rootcause_1video.py`,
   `run_v100_fast_selection_1video.py`, and
   `run_v101_paper_ablation_4node.py`: historical recovery/reproduction
-  infrastructure; use docs/111 for the current command.
+  infrastructure; see docs/107 and docs/111 for their historical commands.
 
 - `run_v98_middle_relative_profile_16gpu.sh` and
   `extract_v98_middle_relative_scores.py`: frozen 64-profile, two-topology
@@ -451,23 +506,27 @@ environment.
 The current main-line experiment is documented in:
 
 ```text
-docs/111_nonperiodic_role_event_cache_screen.md
+docs/124_v120_metric_human_alignment_audit.md
 ```
 
-The initial run already produced the four Landmark/Recent videos. Preserve
-those outputs and run only the four corrected Motion-pair2 cells on one
-four-GPU node, using a fresh output root:
+Preserve all v120 videos. Push only the small metric JSON and frozen contracts,
+then run paired analysis over the existing results:
 
 ```bash
-OUT_ROOT="$PWD/runs/v111_motion_pair2_fix_1video" \
-NUM_NODES=1 NODE_RANK=0 GPU_LIST=0,1,2,3 \
-python scripts/run_v111_role_event_cache_1video.py motion_pair2
+python scripts/analyze_v120_paired_metrics.py \
+  --vbench sf_native=/path/sf_native/results.json \
+  --vbench pf_native=/path/pf_native/results.json \
+  --vbench ours_landmark_retrieval_motion=/path/ours/results.json \
+  --comprehensive /path/all_results_summary.json \
+  --references sf_native pf_native \
+  --candidates ours_landmark_retrieval_motion \
+  --output-json /path/v120_paired_analysis.json \
+  --output-md /path/v120_paired_analysis.md
 ```
 
-Review the complete eight-cell matrix blind, inspect the role-event summary,
-and record one candidate only if it matches or beats the strongest
-role-neutral control. The 32-prompt runner refuses generation until
-`V111_PROMOTION_APPROVED=1`. MovieGenVideoBench-128 remains deferred.
+The analyzer fails closed unless every requested metric covers prompt indices
+0 through 31. Final cache selection requires paired statistics plus blind
+review; MovieGenVideoBench-128 remains the subsequent paper-scale confirmation.
 
 ## Third-Party Code
 

@@ -2,6 +2,11 @@
 
 日期：2026-07-28
 
+> 审计更正：官方评测使用预先计算的固定 mapping table，并非对每个待评方法独立
+> 做分位数重排。高分区间压缩现象存在，但本文第 3.2 节的原因表述不准确。
+> `docs/122` 与本文的 DINO 辅助指标表也存在口径冲突。论文级解释和待补文件见
+> `docs/124_v120_metric_human_alignment_audit.md`。
+
 状态：VBench-Long 5 维度 + DINO comprehensive 完成；temporal_flickering 重试中。
 待 temporal_flickering 完成后统一推送。
 
@@ -35,11 +40,11 @@ slow-fast 方法：
 
 最终分数 = 0.5 × inclip + 0.5 × mapped_clip2clip
 
-### 3.2 quantile_map 压缩长期差异
+### 3.2 固定 mapping table 压缩高分区间的长期差异
 
-`vbench2_beta_long/utils.py:37` 的 `quantile_map` 函数对**每个方法独立**做分位数
-映射，将 clip2clip 分数映射到 inclip 分布上。这导致方法间长期一致性差异被
-完全消除：
+VBench-Long 使用预先计算的固定 mapping table，将 clip2clip 分数映射到
+inclip 的量纲。该表在本实验所在的高分区间斜率很小，导致方法间长期一致性差异
+被大幅压缩：
 
 | Method | raw clip2clip (长期) | mapped clip2clip | 差异压缩 |
 |---|---:|---:|---|
@@ -73,7 +78,7 @@ slow-fast 方法：
 都超过 SF。SF 在长期一致性上垫底。VBench overall 分数被 quantile_map 掩盖了
 这一差异。
 
-## 4. DINO Comprehensive 结果 (直接测长期身份保持)
+## 4. DINO Comprehensive 结果 (长期全局表观诊断)
 
 | Method | DINO consistency | Drift slope | CLIP | BG | Loop | Composite |
 |---|---:|---:|---:|---:|---:|---:|
@@ -86,15 +91,15 @@ slow-fast 方法：
 ### 4.1 关键发现
 
 1. **DINO consistency**: PF (0.9283) > Ours (~0.905) > SF (0.8867)
-   - 所有 ours 方法显著优于 SF (+0.019)
-   - DINO 直接测量 30 秒范围内的身份特征相似度，不受 quantile_map 影响
+   - 所有 ours 方法的聚合均值高于 SF (+0.019)
+   - DINO 测量 30 秒范围内的全局表观特征相似度，不受 quantile mapping 影响
 
 2. **Drift slope**: SF (-0.00461) 比 Ours (-0.0024) **漂移快 2 倍**
-   - SF 的身份每秒漂移 0.0046，Ours 仅 0.0024
-   - 这直接证明 SF 在长视频中身份漂移严重，而 Ours 保持稳定
+   - 当前斜率单位是每个均匀采样点，不是每秒
+   - 该聚合结果支持 SF 漂移更快，仍需逐 prompt 配对统计
 
 3. **Composite**: Ours (retrieval1_age24, 0.6443) > SF (0.6433) > PF (0.6428)
-   - 我们的方法在综合分上最高！
+   - 这是仓库内部手工加权诊断分，差值很小，不作为论文主结果
 
 4. **CLIP text alignment**: 所有方法非常接近 (0.295-0.296)
 
@@ -124,7 +129,7 @@ kv_cache_size = local_attn_size(21) × frame_seq_length(13) = 273 tokens = 21 �
 SF 只能记住最近 1.3 秒的视频内容，这解释了：
 - VBench inclip 高 (2 秒 clip 内一致)
 - VBench clip2clip 低 (长期漂移)
-- DINO consistency 低 (身份漂移)
+- DINO consistency 低 (全局表观漂移)
 - Drift slope 大 (漂移快)
 
 ## 6. 与 PF 论文对齐分析
@@ -190,9 +195,9 @@ PF 论文在 30 秒视频上报告了 8 个维度 (0-100 scale)：
 
 ### 7.3 DINO Comprehensive
 
-**最有效**: 直接测量 30 秒范围的 DINO 身份一致性和 drift slope，
-不受 quantile_map 影响。DINO consistency 和 drift slope 清楚地证明了
-Ours 优于 SF。
+**有用的补充诊断**: 测量 30 秒范围的 DINO 全局表观一致性和 drift slope，
+不受 quantile mapping 影响。聚合均值支持 Ours 优于 SF，但 DINO 也会奖励
+静止或重复，且逐 prompt 置信区间仍待补齐。
 
 ### 7.4 评测策略建议
 

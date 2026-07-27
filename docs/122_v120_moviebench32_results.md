@@ -2,7 +2,13 @@
 
 日期：2026-07-28
 
-状态：VBench-Long 7 维度全部完成 (官方代码 + 官方 RAFT 模型) + DINO comprehensive 完成。
+> 审计提示：本文保留服务器端原始汇总。关于 VBench mapping、drift 单位、
+> 两份 DINO 表不一致和论文 claim 边界的更正，见
+> `docs/124_v120_metric_human_alignment_audit.md`。在原始逐 prompt JSON
+> 推送前，不应使用本文中的“显著”措辞。
+
+状态：VBench 5 维度 + DINO comprehensive 完成；temporal_flickering 部分完成；
+dynamic_degree 待官方 RAFT 模型。
 
 ## 1. 实验规模
 
@@ -47,7 +53,8 @@
 ## 3. clip2clip 分析：VBench-Long 的 quantile_map 问题
 
 VBench-Long 使用 slow-fast 方法，包含 inclip (短期) 和 clip2clip (长期) 分数。
-但 `quantile_map` 函数对每个方法独立做分位数映射，**消除了方法间长期差异**。
+官方固定 mapping table 将 clip2clip 映射到 inclip 的量纲；其高分区间较平，
+因此**大幅压缩了这里的方法间长期差异**。
 
 ### 原始 clip2clip 排名 (未映射, 直接反映长期一致性)
 
@@ -88,15 +95,15 @@ VBench-Long 使用 slow-fast 方法，包含 inclip (短期) 和 clip2clip (长�
 ### 关键发现
 
 1. **DINO consistency**: PF (0.9283) > Ours (~0.905) > SF (0.8867)
-   - 所有 ours 方法显著优于 SF (+0.019)
+   - 所有 ours 方法的聚合均值高于 SF (+0.019)
    - DINO 直接测量 30 秒范围的 DINOv2 特征相似度
 
 2. **Drift slope**: SF (-0.00461) 比 Ours (-0.0024) **漂移快 2 倍**
-   - SF 的身份每秒漂移 0.0046，Ours 仅 0.0024
-   - 直接证明 SF 在长视频中身份漂移严重
+   - 当前单位是每个均匀采样点，不是每秒
+   - 该结果支持 SF 的全局表观漂移更快，仍需逐 prompt 配对统计
 
-3. **Composite**: Ours (retrieval1_age24, 0.6443) 最高
-   - 我们的方法在综合分上超过 SF 和 PF
+3. **Diagnostic composite**: Ours (retrieval1_age24, 0.6443) 名义最高
+   - 这是仓库内部手工加权分且差值很小，不作为论文主结果
 
 ## 5. SF Cache 分析
 
@@ -117,53 +124,43 @@ kv_cache_size = local_attn_size(21) × frame_seq_length(13) = 273 tokens = 21 �
 SF 只能记住最近 1.3 秒，这解释了：
 - VBench inclip 高 (2 秒 clip 内一致)
 - VBench clip2clip 低 (长期漂移)
-- DINO consistency 低 (身份漂移)
+- DINO consistency 低 (全局表观漂移)
 - Drift slope 大 (漂移快)
 
-## 6. temporal_flickering + dynamic_degree (完成, 官方 RAFT 模型)
+## 6. temporal_flickering (完成, 无 static filter)
 
-| Method | temporal_flickering | dynamic_degree (×100) |
-|---|---:|---:|
-| sf_native | **0.98222** | 35.62 |
-| pf_native | 0.97599 | **55.62** |
-| ours_retrieval1_age24 | 0.97373 | 52.92 |
-| ours_motion1 | 0.97225 | 55.00 |
-| ours_retrieval_motion | 0.97239 | 50.42 |
+| Method | temporal_flickering |
+|---|---:|
+| sf_native | **0.98222** |
+| pf_native | 0.97599 |
+| ours_retrieval1_age24 | 0.97373 |
+| ours_retrieval_motion | 0.97239 |
+| ours_motion1 | 0.97225 |
 
-### PF 论文对齐 (dynamic_degree)
-
-| | Our SF | Paper SF | Our PF | Paper PF |
-|---|---:|---:|---:|---:|
-| Dynamic Degree | 35.62 | 44.34 | 55.62 | 55.07 |
-
-- **PF 对齐良好** (+0.55)，证明 RAFT 模型和代码正确
-- **SF 偏低** (-8.72)，因 32 vs 128 prompts 子集中动态场景较少
-
-### 关键发现
-
-- **SF dynamic_degree (35.62) 远低于 Ours (~50-55)** — SF 生成视频动态性差，运动冻结严重
-- **Ours dynamic_degree 接近 PF** — 我们的方法保持了良好的运动动态性
-- temporal_flickering: SF 最高 (滑窗短期最平滑)，Ours 略低 (历史帧混合引入变化)
+注: 无 static filter (官方 RAFT 模型不可用, static filter 为可选预处理)。
+SF 最高 (滑窗 21 帧短期最平滑), Ours 略低 (因 retrieval/motion 引入历史帧
+混合, 增加了一些帧间变化, 但换取了长期一致性)。
 
 ## 7. 缺失维度
 
 | 维度 | 状态 | 原因 |
 |---|---|---|
+| dynamic_degree | 待官方 RAFT 模型 | Dropbox 被封锁，需手动下载上传 |
 | overall_consistency | 未评测 | 不支持 long_custom_input 模式 |
 | semantic dimensions | 不适用 | 需要 VBench 标准 prompts |
 
 ## 8. 综合分析
 
-### 8.1 Ours vs SF: 视觉质量显著优于 SF
+### 8.1 Ours vs SF: 多项聚合均值优于 SF
 
 | 指标 | Ours 最佳 | SF | 差值 | 结论 |
 |---|---:|---:|---:|---|
-| aesthetic (VBench) | 64.23 | 62.35 | +1.88 | Ours 显著优 |
-| imaging (VBench) | 71.81 | 70.55 | +1.26 | Ours 显著优 |
-| DINO consistency | 0.9052 | 0.8867 | +0.019 | Ours 显著优 |
-| Drift slope | -0.00223 | -0.00461 | 2× 更稳定 | Ours 显著优 |
+| aesthetic (VBench) | 64.23 | 62.35 | +1.88 | Ours 均值更高 |
+| imaging (VBench) | 71.81 | 70.55 | +1.26 | Ours 均值更高 |
+| DINO consistency | 0.9052 | 0.8867 | +0.019 | Ours 均值更高 |
+| Drift slope | -0.00223 | -0.00461 | 2× 更接近 0 | Ours 均值更高 |
 | subject clip2clip | 0.86214 | 0.85673 | +0.005 | Ours 优 |
-| background clip2clip | 0.88788 | 0.86032 | +0.028 | Ours 显著优 |
+| background clip2clip | 0.88788 | 0.86032 | +0.028 | Ours 均值更高 |
 
 ### 8.2 Ours vs PF: 差距很窄，部分维度接近
 
@@ -178,7 +175,7 @@ SF 只能记住最近 1.3 秒，这解释了：
 
 | 候选 | DINO | Drift | Imaging | 推荐 |
 |---|---:|---:|---:|---|
-| retrieval1_age24 | 0.9047 | -0.00236 | 71.42 | composite 最高 |
+| retrieval1_age24 | 0.9047 | -0.00236 | 71.42 | diagnostic composite 最高 |
 | retrieval_motion | 0.9052 | -0.00246 | 71.81 | imaging 最佳 |
 | motion1 | 0.9052 | -0.00223 | 71.61 | drift 最佳 |
 
