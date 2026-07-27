@@ -588,6 +588,21 @@ class CoherentMotionStrategy:
                 ),
             )
             pairs = self._pairs[idx]
+            pair_end_ts: list[int] = []
+            for stored_end_t, record in pairs.items():
+                stored_end = int(stored_end_t)
+                record_start = int(record.start.t)
+                record_end = int(record.end.t)
+                if (
+                    stored_end != record_end
+                    or record_start + 1 != record_end
+                ):
+                    raise RuntimeError(
+                        "coherent-motion bank invariant failed for "
+                        f"{self.context_key} idx={idx}: key={stored_end}, "
+                        f"record=({record_start},{record_end})"
+                    )
+                pair_end_ts.append(stored_end)
             filling = len(pairs) < self.pair_capacity
             victim_end_t: int | None = None
             victim_utility: float | None = None
@@ -601,6 +616,11 @@ class CoherentMotionStrategy:
                         int(item[0]),
                     ),
                 )
+                if victim_end_t is None:
+                    raise RuntimeError(
+                        "full coherent-motion bank has no eviction victim for "
+                        f"{self.context_key} idx={idx}"
+                    )
                 victim_utility = float(victim.utility)
                 victim_stale = (
                     int(candidate["end_t"]) - int(victim_end_t)
@@ -609,11 +629,21 @@ class CoherentMotionStrategy:
                 improves = float(candidate["utility"]) >= (
                     victim_utility * (1.0 + self.replacement_margin)
                 )
+            retained_pair_end_ts = [
+                end_t
+                for end_t in pair_end_ts
+                if victim_end_t is None or end_t != int(victim_end_t)
+            ]
+            spacing_checks = [
+                {
+                    "end_t": int(end_t),
+                    "distance": abs(int(candidate["end_t"]) - int(end_t)),
+                }
+                for end_t in retained_pair_end_ts
+            ]
             spacing_ok = all(
-                int(end_t) == int(victim_end_t)
-                or abs(int(candidate["end_t"]) - int(end_t))
-                >= self.min_pair_spacing
-                for end_t in pairs
+                int(item["distance"]) >= self.min_pair_spacing
+                for item in spacing_checks
             )
             motion_ok = (
                 len(history) < self.warmup_edges
@@ -649,6 +679,9 @@ class CoherentMotionStrategy:
                         float(candidate["identity_similarity"]), 6
                     ),
                     "utility": round(float(candidate["utility"]), 6),
+                    "candidate_count": len(candidates),
+                    "bank_size_before": len(pairs),
+                    "filling": bool(filling),
                     "victim_end_t": victim_end_t,
                     "victim_utility": (
                         None
@@ -657,6 +690,11 @@ class CoherentMotionStrategy:
                     ),
                     "victim_stale": bool(victim_stale),
                     "improves_victim": bool(improves),
+                    "retained_pair_end_ts": retained_pair_end_ts,
+                    "spacing_checks": spacing_checks,
+                    "spacing_ok": bool(spacing_ok),
+                    "motion_ok": bool(motion_ok),
+                    "replacement_ok": bool(replacement_ok),
                     "accepted": bool(accepted),
                     "reason": reason,
                 }

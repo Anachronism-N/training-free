@@ -596,9 +596,28 @@ def audit_policy_trace(
                                     f"line {line_number}: motion-pair bank "
                                     "exceeds pair capacity"
                                 )
+                            normalized_pairs = []
+                            for pair_index, pair in enumerate(pairs):
+                                if (
+                                    not isinstance(pair, (list, tuple))
+                                    or len(pair) != 2
+                                ):
+                                    failures.append(
+                                        f"line {line_number}: motion pair "
+                                        f"{pair_index} is malformed: {pair!r}"
+                                    )
+                                    continue
+                                start_t, end_t = (int(pair[0]), int(pair[1]))
+                                normalized_pairs.append((start_t, end_t))
+                                if start_t + 1 != end_t:
+                                    failures.append(
+                                        f"line {line_number}: motion pair "
+                                        f"{pair_index} is not adjacent: "
+                                        f"{pair!r}"
+                                    )
                             unique_frames = {
-                                int(value)
-                                for pair in pairs
+                                value
+                                for pair in normalized_pairs
                                 for value in pair
                             }
                             if len(unique_frames) > int(state["capacity"]):
@@ -606,6 +625,42 @@ def audit_policy_trace(
                                     f"line {line_number}: motion-pair bank "
                                     "exceeds frame capacity"
                                 )
+                            min_spacing = int(state["min_pair_spacing"])
+                            end_times = sorted(
+                                end_t for _, end_t in normalized_pairs
+                            )
+                            if any(
+                                right - left < min_spacing
+                                for left, right in zip(
+                                    end_times,
+                                    end_times[1:],
+                                )
+                            ):
+                                failures.append(
+                                    f"line {line_number}: motion-pair bank "
+                                    f"violates end-time spacing {min_spacing}: "
+                                    f"{end_times}"
+                                )
+                            last_decision = state.get("last_decision", {})
+                            if last_decision.get("candidate_pair") is not None:
+                                required = {
+                                    "bank_size_before",
+                                    "filling",
+                                    "retained_pair_end_ts",
+                                    "spacing_checks",
+                                    "spacing_ok",
+                                    "motion_ok",
+                                    "replacement_ok",
+                                }
+                                missing = sorted(
+                                    required - set(last_decision)
+                                )
+                                if missing:
+                                    failures.append(
+                                        f"line {line_number}: motion-pair "
+                                        "decision is missing debug fields "
+                                        f"{missing}"
+                                    )
             except (IndexError, KeyError, TypeError, ValueError) as error:
                 failures.append(f"line {line_number}: malformed event: {error}")
     if records == 0:

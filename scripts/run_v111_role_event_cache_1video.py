@@ -91,6 +91,13 @@ CELLS = (
 def cells_for_mode(mode: str) -> tuple[Cell, ...]:
     if mode == "all":
         return CELLS
+    if mode == "motion_pair2":
+        return tuple(
+            cell
+            for cell in CELLS
+            if cell.support_policy == "motion_pair"
+            or cell.suppress_policy == "motion_pair"
+        )
     return tuple(cell for cell in CELLS if cell.stage == mode)
 
 
@@ -114,7 +121,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "mode",
         nargs="?",
-        choices=("controls", "support", "joint", "all"),
+        choices=("controls", "support", "joint", "motion_pair2", "all"),
         default="all",
     )
     parser.add_argument(

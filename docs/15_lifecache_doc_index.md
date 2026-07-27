@@ -2,6 +2,11 @@
 
 ## Current method (read first)
 
+- `docs/113_v111_review_results_and_bug_record.md`: first v111 server review.
+  It records four clean Landmark/Recent outputs, identifies the exact
+  Motion-pair2 second-slot fill crash, documents the reviewed fix and targeted
+  four-cell rerun, and prevents one-prompt viability from being overstated as
+  a role-conditioned gain.
 - `docs/111_nonperiodic_role_event_cache_screen.md`: authoritative current
   one-video experiment. It freezes the old-v98 304/56 diagnostic partition,
   removes stride/cyclic/Merge from every candidate, introduces semantic
@@ -128,25 +133,26 @@
 
 Recommended reading order:
 
-1. `docs/111_nonperiodic_role_event_cache_screen.md`
-2. `docs/112_v112_moviebench32_promotion_and_vbench.md`
-3. `docs/110_v109_review_results.md`
-4. `docs/109_legacy_v98_suppressive_cache_1video_screen.md`
-5. `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`
-6. `docs/106_v100_fast_screen_review_results.md`
-7. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
-8. `docs/101_v98_middle_relative_profiling_results.md`
-9. `docs/99_v98_experiment_results.md`
-10. `docs/98_history_polarity_dual_memory_method.md`
-11. `docs/97_v97_experiment_results.md`
-12. `docs/64_related_work_code_provenance_and_claims.md`
+1. `docs/113_v111_review_results_and_bug_record.md`
+2. `docs/111_nonperiodic_role_event_cache_screen.md`
+3. `docs/112_v112_moviebench32_promotion_and_vbench.md`
+4. `docs/110_v109_review_results.md`
+5. `docs/109_legacy_v98_suppressive_cache_1video_screen.md`
+6. `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`
+7. `docs/106_v100_fast_screen_review_results.md`
+8. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
+9. `docs/101_v98_middle_relative_profiling_results.md`
+10. `docs/99_v98_experiment_results.md`
+11. `docs/98_history_polarity_dual_memory_method.md`
+12. `docs/97_v97_experiment_results.md`
+13. `docs/64_related_work_code_provenance_and_claims.md`
 
-The immediate step is the v111 eight-cell, one-video 30-second screen. It
-tests non-periodic semantic landmark and coherent motion-pair memories under
-the frozen 304/56 map. Only one artifact-free candidate selected by blind
-review and trace audit advances to v112 MovieGenBench-32. Existing PF/SF
-videos are reused when their prompt, seed, checkpoint, and frame contracts
-match; MovieBench-128 remains deferred.
+The immediate step is the corrected four-cell Motion-pair2 one-video rerun;
+the four completed Landmark/Recent videos must not be regenerated. Review all
+eight outputs together and inspect the fill/replacement traces. Only a
+candidate that matches or beats the strongest role-neutral control advances
+to v112 MovieGenBench-32. Existing PF/SF videos are reused when their prompt,
+seed, checkpoint, and frame contracts match; MovieBench-128 remains deferred.
 ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain negative-result
 or design history. LifeCache-v1 below is retained as the original design
 snapshot.

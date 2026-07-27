@@ -3,10 +3,12 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current task is the **v111 non-periodic role-event cache screen**. v109
-showed that the old-v98 `304/56` two-role map is artifact-free when the
-Supportive carrier is not forced through stride, but its five videos have
-visible, modest differences and do not determine a final cache.
+The current task is the **corrected v111 non-periodic role-event cache
+screen**. The first v111 server run completed four Landmark/Recent cells
+without polygon noise. Four two-pair Motion cells crashed because the
+1-of-2 bank-fill state incorrectly dereferenced a nonexistent eviction
+victim. The reviewed fix separates fill and replacement spacing checks and
+adds pair-state invariants and decision telemetry.
 
 v111 holds that map and a nine-frame read budget fixed while removing stride,
 cyclic, and Merge from every candidate. It tests two content-driven memories:
@@ -26,11 +28,12 @@ four methods x 32 MovieGenVideoBench prompts over four nodes/32 GPUs and
 prepares audited VBench-Long directories. Existing compatible SF/PF results
 are reused rather than regenerated.
 
-The current design and one-video commands are in
-`docs/111_nonperiodic_role_event_cache_screen.md`; the gated 32-prompt and
-VBench-Long protocol is in
-`docs/112_v112_moviebench32_promotion_and_vbench.md`. The document index is
-`docs/15_lifecache_doc_index.md`.
+The current design and targeted rerun commands are in
+`docs/111_nonperiodic_role_event_cache_screen.md`; the first-run review and
+corrected causal interpretation are in
+`docs/113_v111_review_results_and_bug_record.md`; the gated 32-prompt and
+VBench-Long protocol is in `docs/112_v112_moviebench32_promotion_and_vbench.md`.
+The document index is `docs/15_lifecache_doc_index.md`.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -424,17 +427,19 @@ The current main-line experiment is documented in:
 docs/111_nonperiodic_role_event_cache_screen.md
 ```
 
-Run the eight one-video cache cells before any broad experiment. On one
-eight-GPU node:
+The initial run already produced the four Landmark/Recent videos. Preserve
+those outputs and run only the four corrected Motion-pair2 cells on one
+four-GPU node, using a fresh output root:
 
 ```bash
-OUT_ROOT="$PWD/runs/v111_role_event_cache_1video" \
-NUM_NODES=1 NODE_RANK=0 GPU_LIST=0,1,2,3,4,5,6,7 \
-python scripts/run_v111_role_event_cache_1video.py all
+OUT_ROOT="$PWD/runs/v111_motion_pair2_fix_1video" \
+NUM_NODES=1 NODE_RANK=0 GPU_LIST=0,1,2,3 \
+python scripts/run_v111_role_event_cache_1video.py motion_pair2
 ```
 
-Review the eight videos blind, inspect the role-event summary, and record one
-candidate before enabling v112. The 32-prompt runner refuses generation until
+Review the complete eight-cell matrix blind, inspect the role-event summary,
+and record one candidate only if it matches or beats the strongest
+role-neutral control. The 32-prompt runner refuses generation until
 `V111_PROMOTION_APPROVED=1`. MovieGenVideoBench-128 remains deferred.
 
 ## Third-Party Code

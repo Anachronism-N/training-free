@@ -133,6 +133,22 @@ def test_v111_partition_runs_every_cell_exactly_once():
     assert set(names) == {cell.name for cell in runner.CELLS}
 
 
+def test_v111_motion_pair2_mode_selects_only_the_four_failed_cells():
+    cells = runner.cells_for_mode("motion_pair2")
+
+    assert [cell.name for cell in cells] == [
+        "legacy_v98_all_motion_pair2_control",
+        "legacy_v98_support_recent8_suppress_motion_pair2",
+        "legacy_v98_support_landmark4_suppress_motion_pair2",
+        "legacy_v98_support_landmark2_motion1_suppress_motion_pair2",
+    ]
+    assert all(
+        cell.support_policy == "motion_pair"
+        or cell.suppress_policy == "motion_pair"
+        for cell in cells
+    )
+
+
 def test_v112_full_suite_is_four_methods_times_32_prompts():
     candidate = "support_landmark_suppress_motion"
     methods = v112.methods_for(candidate, "full")
@@ -351,6 +367,58 @@ def test_coherent_motion_keeps_high_motion_adjacent_pair_not_periodic_frame():
     )
     assert [anchor.t for anchor in collected] == [2, 3]
     assert all(anchor.source_kind == "coherent_motion" for anchor in collected)
+
+
+def test_coherent_motion_fills_second_slot_then_replaces_a_full_bank():
+    strategy = CoherentMotionStrategy(
+        pair_capacity=2,
+        context_key="motion:11",
+        min_frame_t=1,
+        min_pair_spacing=4,
+    )
+    strategy.reset(1)
+    descriptors = torch.tensor(
+        [[[1.0, 0.0], [0.99, 0.01], [0.98, 0.02], [0.97, 0.03]]],
+        dtype=torch.float32,
+    )
+    descriptors = torch.nn.functional.normalize(descriptors, dim=-1)
+
+    def update_block(frame_start_t: int, peak_motion: float) -> None:
+        strategy.set_update_context(
+            _features(
+                "motion:11",
+                descriptors,
+                torch.tensor([[0.0, 0.1, peak_motion, 0.2]]),
+                frame_start_t=frame_start_t,
+            )
+        )
+        k, v, pos = _kv_block(4, base=float(frame_start_t * 10))
+        strategy.update(0, k, v, pos, 1, frame_start_t)
+
+    update_block(1, 0.9)
+    update_block(5, 1.0)
+
+    filled = strategy.debug_state(0)
+    assert filled["pair_frame_ids"] == [[2, 3], [6, 7]]
+    assert filled["last_decision"]["filling"] is True
+    assert filled["last_decision"]["victim_end_t"] is None
+    assert filled["last_decision"]["retained_pair_end_ts"] == [3]
+    assert filled["last_decision"]["spacing_checks"] == [
+        {"end_t": 3, "distance": 4}
+    ]
+
+    update_block(9, 1.2)
+
+    replaced = strategy.debug_state(0)
+    assert replaced["accepted_count"] == 3
+    assert replaced["evicted_count"] == 1
+    assert replaced["pair_frame_ids"] == [[6, 7], [10, 11]]
+    assert replaced["last_decision"]["filling"] is False
+    assert replaced["last_decision"]["victim_end_t"] == 3
+    assert replaced["last_decision"]["retained_pair_end_ts"] == [7]
+    assert replaced["last_decision"]["spacing_checks"] == [
+        {"end_t": 7, "distance": 4}
+    ]
 
 
 def test_v111_command_wires_old_map_and_new_policies(tmp_path):

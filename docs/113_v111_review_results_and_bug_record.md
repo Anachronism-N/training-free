@@ -25,15 +25,21 @@ Date: 2026-07-27
 | support_landmark2_motion1_suppress_motion_pair2 | same |
 | support_recent8_suppress_motion_pair2 | same |
 
-**Bug location:** `third_party/Pyramid-Forcing/pyramidkv/role_event.py`, line 613.
+**Pre-fix bug location:** `third_party/Pyramid-Forcing/pyramidkv/role_event.py`,
+line 613.
 
-**Root cause:** The motion-pair eviction logic calls `int(victim_end_t)` where
-`victim_end_t` is `None`. This occurs when the eviction candidate search finds
-no victim with a valid `end_t` field. The code does not guard against `None`
-before calling `int()`.
+**Root cause after code review:** `pair_capacity=2` has a valid intermediate
+state in which one pair is stored and the bank is still filling. No eviction
+victim should exist in that state, so `victim_end_t=None` is intentional. The
+spacing check nevertheless cast `victim_end_t` to `int` for every existing
+pair. The crash therefore occurs while filling slot 2, not because a stored
+pair is missing its `end_t`.
 
-**Fix needed:** Add a `None` check before the `int()` call, or ensure
-`end_t` is always set when a motion-pair entry is created.
+**Fix:** When filling, check spacing against every stored pair. When replacing
+a full bank, check spacing against every pair except the selected victim. The
+implementation now also validates that each bank key equals the record's
+`end_t`, validates pair adjacency, and records the retained end times and
+spacing distances in the policy trace.
 
 ## 2. Human Review
 
@@ -58,50 +64,56 @@ split produces a usable result.
 
 ### 2.4 support_landmark2_motion1_suppress_recent8 — ✅ Good
 
-Supportive heads use landmark2+motion1 (3-frame middle); Suppressive heads
-use recent8. Subject identity enlarges mid-video but recovers later. Visually
-comparable to landmark4_suppress_recent8.
+Supportive heads use landmark2+motion1 (at most 4 middle frames: two landmarks
+plus both endpoints of one motion pair); Suppressive heads use recent8.
+Subject identity enlarges mid-video but recovers later. Visually comparable
+to landmark4_suppress_recent8.
 
 ## 3. Key Observations
 
-1. **Landmark memory works**: The semantic landmark selection produces stable
-   identity without stride, cyclic, or merge. This is a new cache primitive
-   not borrowed from PF.
+1. **Landmark memory is viable on prompt 0**: The role-neutral Landmark4 and
+   both Landmark-based candidates completed without polygon noise. One prompt
+   establishes implementation viability, not a general quality gain.
 
-2. **Role-conditioned split is visible**: The candidate cells
-   (landmark4+recent8, landmark2+motion1+recent8) are usable, while the
-   all-recent8 control is explicitly not a method. The role split adds value
-   beyond a uniform cache.
+2. **A role-conditioned gain is not established yet**: The heterogeneous
+   candidates and the all-Landmark control are all visually usable. Without a
+   blind ranking across the complete matrix or multi-prompt metrics, this
+   result cannot show that the 304/56 routing adds value over a uniform cache.
 
-3. **Mid-video identity fluctuation**: Both candidate cells show identity
-   enlargement in the middle portion. This may be caused by the landmark
-   memory selecting a frame that temporarily destabilizes identity. The
-   recovery in later frames suggests the landmark mechanism self-corrects.
+3. **Mid-video identity fluctuation needs trace correlation**: Both candidates
+   show identity enlargement in the middle portion. Landmark replacement is
+   one hypothesis, but self-correction or landmark causality cannot be claimed
+   until the selected-frame trace is aligned with the failure timestamp.
 
-4. **Motion-pair is untested**: The motion_pair2 strategy crashed before
-   generating any video. Its quality is unknown.
+4. **Motion-pair is only partially tested**: The one-pair component inside
+   `landmark2+motion1` completed. Every two-pair route crashed while filling
+   its second slot, so isolated Motion-pair quality and Suppressive Motion
+   routing remain unknown.
 
-5. **No polygon noise**: None of the 4 successful cells show polygon noise.
-   The landmark+recent approach avoids the stride/cyclic/merge artifact
-   entirely.
+5. **No polygon noise was observed in the four completed prompt-0 videos**:
+   This is evidence that Landmark/Recent routes can execute cleanly, but it
+   does not yet establish that the strategy generally avoids such artifacts.
 
 ## 4. Bug Record
 
 ### 4.1 motion_pair2 NoneType crash
 
 - **File:** `third_party/Pyramid-Forcing/pyramidkv/role_event.py`
-- **Line:** 613
+- **Pre-fix line:** 613
 - **Error:** `TypeError: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'`
-- **Trigger:** Any cell using `suppress_policy=motion_pair2` or
-  `support_policy` containing motion_pair2.
+- **Trigger:** A `CoherentMotionStrategy(pair_capacity=2)` update when the bank
+  already contains one pair and attempts to evaluate a second pair.
 - **Affected cells:** 4 of 8 v111 cells.
-- **Fix:** Guard `victim_end_t` against `None` before `int()` conversion, or
-  ensure `end_t` is always populated when creating motion-pair entries.
-- **Status:** Unfixed. Needs code change before re-running motion_pair2 cells.
+- **Unaffected evidence:** The hybrid `pair_capacity=1` route completed, which
+  is consistent with the exact trigger above.
+- **Fix:** Separate filling from replacement spacing checks; add bank
+  invariants, decision telemetry, and a regression test covering both the
+  second fill and a later full-bank replacement.
+- **Status:** Code-fixed in the current branch; GPU-server rerun pending.
 
 ## 5. Decision
 
-### 5.1 Promoted candidates
+### 5.1 Provisional viable candidates
 
 Two candidates are visually viable:
 
@@ -111,21 +123,24 @@ Two candidates are visually viable:
 Both show minor mid-video identity fluctuation but recover. Neither has
 polygon noise.
 
-### 5.2 Rejected
+### 5.2 Controls and pending cells
 
-- `all_recent8_control`: not a method (just longer recent window)
-- `all_motion_pair2_control` and all motion_pair2 cells: crashed, untested
+- `all_recent8_control`: retain as a budget-matched control, not a contribution.
+- `all_motion_pair2_control` and all Motion-pair2 cells: not rejected on
+  quality; they require the corrected targeted rerun.
 
 ### 5.3 Next steps
 
-1. **Fix motion_pair2 bug** and re-run the 4 failed cells.
-2. **Longer extrapolation test**: The current 30-second videos show mid-video
-   identity fluctuation that recovers. A 60-second or 90-second test would
-   determine whether the recovery is stable or whether identity degrades
-   further over longer horizons.
-3. **32-prompt screen**: If motion_pair2 is fixed and at least one candidate
-   remains clean, run v112 (32 prompts × 4 methods).
-4. **VBench-Long + DINO**: After 32-prompt screen passes blind review.
+1. **Run the corrected four-cell Motion-pair2 subset** using the dedicated
+   `motion_pair2` mode and a fresh output directory.
+2. **Blind-review all eight cells together**. Do not compare only the four new
+   outputs in isolation, and do not infer a role gain merely from viability.
+3. **Inspect policy traces** for fill/replacement counts, selected pairs,
+   spacing checks, and the frames around the observed mid-video enlargement.
+4. **32-prompt screen**: If a heterogeneous candidate beats or matches the
+   strongest role-neutral control, run v112 (32 prompts × 4 methods).
+5. **VBench-Long + DINO**: Compute only after the 32-prompt generation and
+   audit pass. A 60- or 90-second stress test follows candidate selection.
 
 ## 6. Comparison with Previous Rounds
 

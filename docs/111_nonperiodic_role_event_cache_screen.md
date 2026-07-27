@@ -226,6 +226,28 @@ Every node must use the same checkout, prompt file, checkpoint, map, and
 shared output directory. Nonzero nodes wait for node 0's frozen contract and
 refuse a mismatched run.
 
+### 5.1 Corrected Motion-pair2 targeted rerun
+
+The first server run completed the four Landmark/Recent cells but exposed a
+bug while a two-pair bank filled its second slot. After applying the reviewed
+fix, do not regenerate the four completed videos. Use a fresh output root and
+run only the four affected cells:
+
+```bash
+export OUT_ROOT="$PWD/runs/v111_motion_pair2_fix_1video"
+NUM_NODES=1 NODE_RANK=0 GPU_LIST=0,1,2,3 \
+python scripts/run_v111_role_event_cache_1video.py motion_pair2
+
+python scripts/analyze_v111_role_event_traces.py \
+  --run-root "$OUT_ROOT"
+```
+
+The rerun must show `filling=true`, `victim_end_t=null`, and a non-empty
+`spacing_checks` list when slot 2 is considered. Once full, replacement
+decisions must show `filling=false`, a concrete victim, and spacing checks
+against only the retained pair. Any pair-state invariant error is a hard
+implementation failure.
+
 ## 6. Human Review and Promotion
 
 Review all eight videos blind. For each, record:

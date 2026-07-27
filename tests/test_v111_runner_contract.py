@@ -26,6 +26,61 @@ spec.loader.exec_module(runner)
 import run_v100_fast_selection_1video as fast
 
 
+def _write_motion_policy_trace(
+    path: Path,
+    *,
+    pair_frame_ids: list[list[int]],
+) -> None:
+    rows = []
+    for layer in fast.TRACE_LAYERS:
+        rows.append(
+            {
+                "event": "middle_selection",
+                "layer": layer,
+                "head": 0,
+                "label": 10,
+                "strategies": [
+                    {
+                        "name": "CoherentMotionStrategy",
+                        "state": {
+                            "pair_capacity": 2,
+                            "capacity": 4,
+                            "min_pair_spacing": 4,
+                            "pair_frame_ids": pair_frame_ids,
+                            "last_decision": {
+                                "candidate_pair": [10, 11],
+                                "bank_size_before": 2,
+                                "filling": False,
+                                "retained_pair_end_ts": [7],
+                                "spacing_checks": [
+                                    {"end_t": 7, "distance": 4}
+                                ],
+                                "spacing_ok": True,
+                                "motion_ok": True,
+                                "replacement_ok": True,
+                            },
+                        },
+                    }
+                ],
+                "sink_frames": 1,
+                "recent_frames": 4,
+                "policy_type": "coherent_motion",
+                "explicit_composition_owns_dynamic": True,
+                "cache_contract_pass": True,
+                "cache_contract_violations": [],
+                "union_frame_count": len(
+                    {value for pair in pair_frame_ids for value in pair}
+                ),
+                "sink_frame_count": 1,
+                "recent_frame_count": 4,
+            }
+        )
+    path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+
 def test_matrix_is_eight_nonperiodic_budget_matched_cells():
     assert len(runner.CELLS) == 8
     assert len({cell.name for cell in runner.CELLS}) == 8
@@ -54,6 +109,75 @@ def test_partition_is_complete_and_nonoverlapping():
 
     assert [len(shard) for shard in shards] == [2, 2, 2, 2]
     assert len(names) == len(set(names)) == 8
+
+
+def test_motion_pair2_rerun_contains_only_failed_capacity_two_cells():
+    cells = runner.cells_for_mode("motion_pair2")
+
+    assert len(cells) == 4
+    assert [cell.name for cell in cells] == [
+        "legacy_v98_all_motion_pair2_control",
+        "legacy_v98_support_recent8_suppress_motion_pair2",
+        "legacy_v98_support_landmark4_suppress_motion_pair2",
+        "legacy_v98_support_landmark2_motion1_suppress_motion_pair2",
+    ]
+
+
+def test_policy_audit_accepts_adjacent_well_spaced_motion_pairs(tmp_path):
+    head_map = tmp_path / "map.csv"
+    with head_map.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        for _ in range(30):
+            writer.writerow([10] * 12)
+    trace = tmp_path / "policy.jsonl"
+    _write_motion_policy_trace(
+        trace,
+        pair_frame_ids=[[2, 3], [6, 7]],
+    )
+    cell = next(
+        item
+        for item in runner.CELLS
+        if item.name == "legacy_v98_all_motion_pair2_control"
+    )
+
+    payload = fast.audit_policy_trace(
+        trace,
+        cell=cell,
+        head_map=head_map,
+        report_path=tmp_path / "audit.json",
+    )
+
+    assert payload["ok"] is True
+
+
+def test_policy_audit_rejects_motion_pair_spacing_violation(tmp_path):
+    head_map = tmp_path / "map.csv"
+    with head_map.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        for _ in range(30):
+            writer.writerow([10] * 12)
+    trace = tmp_path / "policy.jsonl"
+    _write_motion_policy_trace(
+        trace,
+        pair_frame_ids=[[2, 3], [5, 6]],
+    )
+    cell = next(
+        item
+        for item in runner.CELLS
+        if item.name == "legacy_v98_all_motion_pair2_control"
+    )
+
+    try:
+        fast.audit_policy_trace(
+            trace,
+            cell=cell,
+            head_map=head_map,
+            report_path=tmp_path / "audit.json",
+        )
+    except RuntimeError as error:
+        assert "violates end-time spacing" in str(error)
+    else:
+        raise AssertionError("motion-pair spacing violation was not rejected")
 
 
 def test_tracked_old_map_is_exactly_304_56():
