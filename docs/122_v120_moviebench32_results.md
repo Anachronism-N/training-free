@@ -121,18 +121,19 @@ SF 只能记住最近 1.3 秒，这解释了：
 - DINO consistency 低 (身份漂移)
 - Drift slope 大 (漂移快)
 
-## 6. temporal_flickering (部分完成)
+## 6. temporal_flickering (完成, 无 static filter)
 
 | Method | temporal_flickering |
 |---|---:|
-| sf_native | 待完成 (batch 1 运行中) |
-| pf_native | 待完成 (batch 1 运行中) |
-| ours_motion1 | 0.97225 |
-| ours_retrieval1_age24 | 待完成 (batch 1 运行中) |
+| sf_native | **0.98222** |
+| pf_native | 0.97599 |
+| ours_retrieval1_age24 | 0.97373 |
 | ours_retrieval_motion | 0.97239 |
+| ours_motion1 | 0.97225 |
 
-注: 无 static filter (RAFT 模型不可用)。static filter 是可选预处理，
-不影响评测代码的官方性。
+注: 无 static filter (官方 RAFT 模型不可用, static filter 为可选预处理)。
+SF 最高 (滑窗 21 帧短期最平滑), Ours 略低 (因 retrieval/motion 引入历史帧
+混合, 增加了一些帧间变化, 但换取了长期一致性)。
 
 ## 7. 缺失维度
 
