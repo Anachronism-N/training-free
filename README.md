@@ -35,7 +35,9 @@ The latest v116 interpretation is in `docs/118_v116_review_results.md`.
 The exact v119 allocations, four-node commands, v120 SF/PF/ours runner, model
 paths, VBench commands, and decision rules are in
 `docs/119_candidate_refinement_and_moviebench32_runbook.md`. The document
-index is `docs/15_lifecache_doc_index.md`.
+index is `docs/15_lifecache_doc_index.md`. The corrected historical-trick
+ledger, post-selection ablation queue, and conditional paper story are in
+`docs/120_post_selection_trick_ledger_and_paper_story.md`.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -159,7 +161,8 @@ training-free/
 |   |-- 116_v116_moviebench16_evaluation_runbook.md
 |   |-- 117_post_v115_targeted_candidate_plan.md
 |   |-- 118_v116_review_results.md
-|   `-- 119_candidate_refinement_and_moviebench32_runbook.md
+|   |-- 119_candidate_refinement_and_moviebench32_runbook.md
+|   `-- 120_post_selection_trick_ledger_and_paper_story.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
