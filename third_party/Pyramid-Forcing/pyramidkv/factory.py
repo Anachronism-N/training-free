@@ -310,6 +310,7 @@ def build_compositions(
     label_semantic_landmark_capacity_map: dict | None = None,
     label_coherent_motion_pair_capacity_map: dict | None = None,
     label_semantic_retrieval_capacity_map: dict | None = None,
+    label_semantic_retrieval_max_age_map: dict | None = None,
     label_temporal_prototype_capacity_map: dict | None = None,
     label_unique_snapshot_capacity_map: dict | None = None,
     label_sparse_snapshot_capacity_map: dict | None = None,
@@ -351,6 +352,10 @@ def build_compositions(
     )
     semantic_retrieval_capacity_map = _build_int_map(
         label_semantic_retrieval_capacity_map,
+        min_value=0,
+    )
+    semantic_retrieval_max_age_map = _build_int_map(
+        label_semantic_retrieval_max_age_map,
         min_value=0,
     )
     temporal_prototype_capacity_map = _build_int_map(
@@ -498,6 +503,10 @@ def build_compositions(
             semantic_retrieval_capacity = (
                 semantic_retrieval_capacity_map.get(label_key, 0)
             )
+            semantic_retrieval_max_age = semantic_retrieval_max_age_map.get(
+                label_key,
+                0,
+            )
             temporal_prototype_capacity = (
                 temporal_prototype_capacity_map.get(label_key, 0)
             )
@@ -539,6 +548,7 @@ def build_compositions(
                 {"cyclic", "stride"},
                 {"cyclic", "motion_event"},
                 {"semantic_landmark", "coherent_motion"},
+                {"coherent_motion", "semantic_retrieval"},
             )
             if len(active_middle) > 1 and not (
                 hybrid_middle_enabled and hybrid_pair
@@ -654,10 +664,19 @@ def build_compositions(
                             else f"retrieval:{label_key}"
                         ),
                         min_frame_t=sink,
+                        max_age=(
+                            semantic_retrieval_max_age
+                            if semantic_retrieval_max_age > 0
+                            else None
+                        ),
                         dynamic_rope=True,
                     )
                 )
-                policy_type = "semantic_retrieval"
+                policy_type = (
+                    "retrieval_motion"
+                    if use_coherent_motion
+                    else "semantic_retrieval"
+                )
 
             if use_temporal_prototype:
                 strategies.append(

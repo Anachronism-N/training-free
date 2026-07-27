@@ -2,8 +2,17 @@
 
 ## Current method (read first)
 
+- `docs/119_candidate_refinement_and_moviebench32_runbook.md`: authoritative
+  current execution plan. It freezes five one-prompt Retrieval/sink allocation
+  tests, records exact latent-frame budgets and debug contracts, then runs
+  fresh SF/PF/one-ours MovieBench-32 generation and six VBench-Long dimensions
+  on four nodes after manual promotion.
+- `docs/118_v116_review_results.md`: latest 16-prompt evidence.
+  Landmark4/MotionPair1 is the most balanced candidate; Retrieval2 is
+  competitive but has possible late scale enlargement; the next experiment
+  must isolate retrieval strength, age and motion support.
 - `docs/117_post_v115_targeted_candidate_plan.md`: authoritative current
-  decision. It corrects the interpretation of one-prompt Suppressive
+  pre-v116 decision. It corrects the interpretation of one-prompt Suppressive
   viability, defines the nine-method MovieBench-16 matrix, defers all-head
   controls to ablation, adds paired metric analysis, and prioritizes the
   remaining capacity/lifecycle/sink experiments.
@@ -157,28 +166,29 @@
 
 Recommended reading order:
 
-1. `docs/116_v115_review_results.md`
-2. `docs/117_post_v115_targeted_candidate_plan.md`
-3. `docs/116_v116_moviebench16_evaluation_runbook.md`
-4. `docs/115_v115_role_memory_design_and_1video_screen.md`
-5. `docs/114_v111_motion_pair2_rerun_review.md`
-6. `docs/113_v111_review_results_and_bug_record.md`
-7. `docs/111_nonperiodic_role_event_cache_screen.md`
-8. `docs/110_v109_review_results.md`
-9. `docs/109_legacy_v98_suppressive_cache_1video_screen.md`
-10. `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`
-11. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
-12. `docs/101_v98_middle_relative_profiling_results.md`
-13. `docs/98_history_polarity_dual_memory_method.md`
-14. `docs/97_v97_experiment_results.md`
-15. `docs/64_related_work_code_provenance_and_claims.md`
+1. `docs/119_candidate_refinement_and_moviebench32_runbook.md`
+2. `docs/118_v116_review_results.md`
+3. `docs/117_post_v115_targeted_candidate_plan.md`
+4. `docs/116_v116_moviebench16_evaluation_runbook.md`
+5. `docs/116_v115_review_results.md`
+6. `docs/115_v115_role_memory_design_and_1video_screen.md`
+7. `docs/114_v111_motion_pair2_rerun_review.md`
+8. `docs/113_v111_review_results_and_bug_record.md`
+9. `docs/111_nonperiodic_role_event_cache_screen.md`
+10. `docs/110_v109_review_results.md`
+11. `docs/109_legacy_v98_suppressive_cache_1video_screen.md`
+12. `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`
+13. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
+14. `docs/101_v98_middle_relative_profiling_results.md`
+15. `docs/98_history_polarity_dual_memory_method.md`
+16. `docs/97_v97_experiment_results.md`
+17. `docs/64_related_work_code_provenance_and_claims.md`
 
-The immediate step is the v116 nine-method MovieBench-16 paired screen.
-Recover missing v115 done markers from existing artifacts without inference,
-then compare the seven Suppressive caches under fixed Landmark4 support. Do
-not spend the current screen on all-head controls; those belong to the final
-ablation after the main cache is selected. Existing baseline videos are reused
-only when prompt, seed, checkpoint, frame, FPS and code contracts match.
+The immediate step is the v119 five-video refinement. Promote at most one
+clean, well-motivated cache to v120, then run fresh SF/PF/ours videos on all
+32 prompts and evaluate VBench-Long. Do not spend this main comparison on
+all-head controls or historical tricks; those belong to the final ablation
+after the base cache is selected.
 ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain negative-result
 or design history. LifeCache-v1 below is retained as the original snapshot.
 

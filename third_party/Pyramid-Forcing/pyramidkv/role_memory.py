@@ -85,6 +85,7 @@ class SemanticRetrievalStrategy:
         min_spacing: int = 1,
         min_similarity: float = -0.25,
         diversity_weight: float = 0.20,
+        max_age: int | None = None,
         dynamic_rope: bool = True,
     ):
         self.capacity = max(1, int(capacity))
@@ -97,6 +98,10 @@ class SemanticRetrievalStrategy:
         self.min_spacing = max(1, int(min_spacing))
         self.min_similarity = float(min_similarity)
         self.diversity_weight = min(1.0, max(0.0, float(diversity_weight)))
+        normalized_max_age = 0 if max_age is None else int(max_age)
+        self.max_age = (
+            None if normalized_max_age <= 0 else normalized_max_age
+        )
         self.dynamic_rope = bool(dynamic_rope)
         self._archives: list[OrderedDict[int, _MemoryRecord]] = []
         self._queries: list[torch.Tensor | None] = []
@@ -273,18 +278,34 @@ class SemanticRetrievalStrategy:
         sink_max_t: int,
     ) -> list[CollectedAnchor]:
         query = self._queries[idx]
-        eligible = [
+        eligible_before_age = [
             (int(t_val), record)
             for t_val, record in self._archives[idx].items()
             if int(t_val) > int(sink_max_t)
             and int(t_val) < int(recent_min_t)
         ]
+        eligible = [
+            (t_val, record)
+            for t_val, record in eligible_before_age
+            if self.max_age is None
+            or int(current_t) - int(t_val) <= self.max_age
+        ]
+        age_filtered = len(eligible_before_age) - len(eligible)
         if query is None or not eligible:
             self._last_retrievals[idx] = {
                 "query_t": int(current_t),
+                "eligible_before_age": len(eligible_before_age),
                 "eligible": len(eligible),
+                "age_filtered": age_filtered,
+                "max_age": self.max_age,
                 "selected": [],
-                "reason": "empty",
+                "reason": (
+                    "age_gate"
+                    if query is not None
+                    and eligible_before_age
+                    and not eligible
+                    else "empty"
+                ),
             }
             return []
 
@@ -329,11 +350,15 @@ class SemanticRetrievalStrategy:
 
         self._last_retrievals[idx] = {
             "query_t": int(current_t),
+            "eligible_before_age": len(eligible_before_age),
             "eligible": len(eligible),
+            "age_filtered": age_filtered,
+            "max_age": self.max_age,
             "gated": len(gated),
             "selected": [
                 {
                     "t": int(t_val),
+                    "age": int(current_t) - int(t_val),
                     "similarity": round(float(rel), 6),
                     "mmr": round(float(mmr), 6),
                 }
@@ -382,6 +407,7 @@ class SemanticRetrievalStrategy:
             "archive_capacity": int(self.archive_capacity),
             "min_similarity": float(self.min_similarity),
             "diversity_weight": float(self.diversity_weight),
+            "max_age": self.max_age,
             "archive_frame_ids": [
                 int(value) for value in self._archives[idx]
             ],

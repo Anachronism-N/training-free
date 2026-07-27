@@ -60,6 +60,7 @@ class PyramidKVPipelineConfig:
     pyramidkv_label_semantic_landmark_capacity_map: Optional[dict] = None
     pyramidkv_label_coherent_motion_pair_capacity_map: Optional[dict] = None
     pyramidkv_label_semantic_retrieval_capacity_map: Optional[dict] = None
+    pyramidkv_label_semantic_retrieval_max_age_map: Optional[dict] = None
     pyramidkv_label_temporal_prototype_capacity_map: Optional[dict] = None
     pyramidkv_label_unique_snapshot_capacity_map: Optional[dict] = None
     pyramidkv_label_sparse_snapshot_capacity_map: Optional[dict] = None
@@ -313,6 +314,11 @@ class PyramidKVPipelineConfig:
             pyramidkv_label_semantic_retrieval_capacity_map=getattr(
                 args,
                 "pyramidkv_label_semantic_retrieval_capacity_map",
+                None,
+            ),
+            pyramidkv_label_semantic_retrieval_max_age_map=getattr(
+                args,
+                "pyramidkv_label_semantic_retrieval_max_age_map",
                 None,
             ),
             pyramidkv_label_temporal_prototype_capacity_map=getattr(

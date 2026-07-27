@@ -394,6 +394,9 @@ parser.add_argument(
         "landmark_motion",
         "retrieval",
         "retrieval2",
+        "retrieval1",
+        "retrieval1_age24",
+        "retrieval1_motion1_age24",
         "prototype",
         "prototype2",
         "snapshot",
@@ -421,6 +424,9 @@ parser.add_argument(
         "landmark_motion",
         "retrieval",
         "retrieval2",
+        "retrieval1",
+        "retrieval1_age24",
+        "retrieval1_motion1_age24",
         "prototype",
         "prototype2",
         "snapshot",
@@ -428,6 +434,15 @@ parser.add_argument(
         "sparse75",
     ),
     default="merge",
+)
+parser.add_argument(
+    "--pyramidkv_history_budget_profile",
+    choices=("default", "sink3_extra", "sink3_budget9"),
+    default="default",
+    help=(
+        "Explicit sink/middle/recent allocation for history-polarity routes. "
+        "sink3_budget9 is valid only for landmark/motion_pair1."
+    ),
 )
 parser.add_argument(
     "--pyramidkv_motion_event_top_k",
@@ -931,6 +946,7 @@ if args.pyramidkv_history_polarity:
         args.pyramidkv_history_support_policy,
         args.pyramidkv_history_suppress_policy,
         capacity=int(config.pyramidkv_default_capacity or 32760),
+        budget_profile=args.pyramidkv_history_budget_profile,
     )
     for field_name, field_value in policy_overrides.items():
         setattr(config, field_name, field_value)
@@ -940,6 +956,7 @@ if args.pyramidkv_history_polarity:
         f"suppress_label={HISTORY_SUPPRESS_LABEL} "
         f"support={args.pyramidkv_history_support_policy} "
         f"suppress={args.pyramidkv_history_suppress_policy} "
+        f"budget={args.pyramidkv_history_budget_profile} "
         f"counts=10:{sum(row.count(10) for row in history_rows)},"
         f"11:{sum(row.count(11) for row in history_rows)} "
         f"support_sink={policy_overrides['pyramidkv_label_sink_frames_map'][str(HISTORY_SUPPORT_LABEL)]} "

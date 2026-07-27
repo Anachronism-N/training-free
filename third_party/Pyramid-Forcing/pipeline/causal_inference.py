@@ -1210,6 +1210,7 @@ class CausalInferencePipeline(torch.nn.Module):
                     label_semantic_landmark_capacity_map=hc.pyramidkv_label_semantic_landmark_capacity_map,
                     label_coherent_motion_pair_capacity_map=hc.pyramidkv_label_coherent_motion_pair_capacity_map,
                     label_semantic_retrieval_capacity_map=hc.pyramidkv_label_semantic_retrieval_capacity_map,
+                    label_semantic_retrieval_max_age_map=hc.pyramidkv_label_semantic_retrieval_max_age_map,
                     label_temporal_prototype_capacity_map=hc.pyramidkv_label_temporal_prototype_capacity_map,
                     label_unique_snapshot_capacity_map=hc.pyramidkv_label_unique_snapshot_capacity_map,
                     label_sparse_snapshot_capacity_map=hc.pyramidkv_label_sparse_snapshot_capacity_map,

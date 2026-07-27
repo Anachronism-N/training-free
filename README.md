@@ -3,43 +3,39 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current task is the **post-v115 MovieGenBench-16 candidate comparison**.
-All 16 v115 one-prompt cells completed. Landmark4 remains the most stable
-Supportive route, Prototype4 is the strongest alternative, and the different
-Suppressive caches are visually distinguishable but cannot be ranked reliably
-from one video.
+The current task is the **v119 candidate refinement followed by the v120
+MovieBench-32 main comparison**. v116 found
+`Supportive=Landmark4, Suppressive=MotionPair1` to be the most balanced
+candidate. Retrieval2 had competitive metrics but showed possible late scale
+enlargement, while Prototype4 remained a technically stronger but less stable
+Supportive alternative.
 
-v115 keeps the frozen old-v98 `304/56` diagnostic partition and a strict
-nine-frame-equivalent read budget, while testing both roles rather than only
-changing Suppressive heads. It adds four content-driven middle memories:
+v119 keeps the frozen old-v98 `304/56` diagnostic partition and tests only
+five new 30-second videos:
 
-- temporal prototypes represented by exact-frame medoids, without KV
-  averaging;
-- relevance/uniqueness coherent snapshots;
-- bounded non-recent semantic retrieval with MMR top-k readout;
-- spatially covered 75% sparse snapshots.
+- Retrieval top-1 instead of top-2;
+- Retrieval top-1 with a 24-latent-frame age bound;
+- age-bounded Retrieval1 plus one coherent high-motion adjacent pair;
+- sink3 with an expanded 11-frame-equivalent budget;
+- sink3 with a budget-matched 9-frame reallocation.
 
-A compact Suppressive route retains one semantically coherent high-motion
-adjacent pair and six recent frames. Sixteen one-prompt, seed-matched,
-30-second cells separately sweep Supportive and Suppressive caches, test joint
-candidates, and include role-neutral controls. Runtime audits verify exact
-head membership, exclusive sink/middle/recent ownership, actual token budget,
-frame ids, update decisions and decoded video properties.
+The default cache remains sink1 plus a content-selected middle bank plus
+recent frames. MotionPair1 occupies two adjacent latent frames, not one.
+Runtime audits freeze the exact sink/middle/recent allocation, exclusive cache
+ownership, Retrieval ages and selections, motion-pair lifecycle, original
+position sidecars, and decoded video properties.
 
-The v116 screen therefore fixes `Supportive=Landmark4` and compares seven
-Suppressive routes: Recent8, Motion-pair1/2, Prototype2, Snapshot2,
-Retrieval2, and Sparse75. Two Prototype-Supportive candidates are retained,
-for nine methods x 16 prompts = 144 videos. v116 publishes audited directories
-for VBench-Long and eight auxiliary diagnostics across four nodes/32 GPUs,
-then produces paired per-prompt deltas against Landmark4/Recent8. All-head and
-classification controls are deferred to the final ablation after selecting
-the main cache.
+After one v119 candidate passes manual review, v120 runs fresh `sf_native`,
+`pf_native`, and one promoted ours method on the same 32 MovieBench prompts,
+seed 0, and 30-second generation contract. VBench-Long's six dimensions are
+the primary quantitative criterion; DINO is secondary and is not used for
+promotion in this round.
 
-The v115 result is in `docs/116_v115_review_results.md`; the targeted decision
-and cache-experiment priorities are in
-`docs/117_post_v115_targeted_candidate_plan.md`; complete v116 commands are in
-`docs/116_v116_moviebench16_evaluation_runbook.md`. The document index is
-`docs/15_lifecache_doc_index.md`.
+The latest v116 interpretation is in `docs/118_v116_review_results.md`.
+The exact v119 allocations, four-node commands, v120 SF/PF/ours runner, model
+paths, VBench commands, and decision rules are in
+`docs/119_candidate_refinement_and_moviebench32_runbook.md`. The document
+index is `docs/15_lifecache_doc_index.md`.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -78,11 +74,12 @@ prompt-switch/return-recall branch.
   Veil-like extremes while leaving Wave mixed. It is useful for cache search
   but comes from an absolute QK-sign statistic that is not shift invariant;
   it is not yet a paper-ready classifier.
-- **Supportive memory:** Landmark4 is the stable reference. Prototype4 remains
-  the only alternative Supportive cache promoted to multi-prompt evaluation.
-- **Suppressive cache selection:** seven budget-matched Recent, Motion,
-  Prototype, Snapshot, Retrieval and Sparse routes are evaluated under the
-  same Landmark4 support. One-prompt viability is not treated as equivalence.
+- **Supportive memory:** Landmark4 is the stable reference. v119 tests whether
+  two of its four slots should be exchanged for sink context under a fixed
+  budget.
+- **Suppressive memory:** MotionPair1 is the balanced reference. Retrieval is
+  weakened to top-1, optionally age-bounded, and optionally combined with one
+  adjacent motion pair to diagnose late enlargement without losing dynamics.
 - **Deferred ablations:** all-head, random/inverted labels, role count and
   capacity curves are run only after the main cache is selected.
 - **Exclusive ownership:** explicit composition is the only owner of sink,
@@ -160,7 +157,9 @@ training-free/
 |   |-- 115_v115_role_memory_design_and_1video_screen.md
 |   |-- 116_v115_review_results.md
 |   |-- 116_v116_moviebench16_evaluation_runbook.md
-|   `-- 117_post_v115_targeted_candidate_plan.md
+|   |-- 117_post_v115_targeted_candidate_plan.md
+|   |-- 118_v116_review_results.md
+|   `-- 119_candidate_refinement_and_moviebench32_runbook.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -177,6 +176,9 @@ training-free/
 |   |-- run_v76_multiscale_commit_16gpu.sh
 |   |-- run_v77_commit_closure_16gpu.sh
 |   |-- run_v78_cache_transition_16gpu.sh
+|   |-- run_v119_candidate_refinement_1video.py
+|   |-- run_v120_moviebench32_main.py
+|   |-- run_v120_vbench_long.sh
 |   |-- run_v81_probecache_profile_16gpu.sh
 |   |-- run_v81_probecache_16gpu.sh
 |   |-- postprocess_v81_probecache.sh

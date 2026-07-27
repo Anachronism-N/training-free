@@ -120,6 +120,7 @@ def history_polarity_policy_overrides(
     support_label: int = HISTORY_SUPPORT_LABEL,
     suppress_label: int = HISTORY_SUPPRESS_LABEL,
     capacity: int = 32760,
+    budget_profile: str = "default",
 ) -> dict[str, object]:
     """Return cache routes for PF-independent history-polarity labels.
 
@@ -141,6 +142,9 @@ def history_polarity_policy_overrides(
         "landmark_motion",
         "retrieval",
         "retrieval2",
+        "retrieval1",
+        "retrieval1_age24",
+        "retrieval1_motion1_age24",
         "prototype",
         "prototype2",
         "snapshot",
@@ -167,6 +171,9 @@ def history_polarity_policy_overrides(
         "landmark_motion",
         "retrieval",
         "retrieval2",
+        "retrieval1",
+        "retrieval1_age24",
+        "retrieval1_motion1_age24",
         "prototype",
         "prototype2",
         "snapshot",
@@ -187,6 +194,15 @@ def history_polarity_policy_overrides(
             "history polarity labels must not reuse PF labels -1, 1, or 2"
         )
     capacity = max(1, int(capacity))
+    budget = str(budget_profile).strip().lower()
+    if budget not in {"default", "sink3_extra", "sink3_budget9"}:
+        raise ValueError(f"unsupported history budget profile: {budget!r}")
+    if budget == "sink3_budget9" and (
+        support != "landmark" or suppress != "motion_pair1"
+    ):
+        raise ValueError(
+            "sink3_budget9 is defined only for landmark/motion_pair1"
+        )
 
     support_cyclic = (
         4 if support == "cyclic" else 2 if support == "hybrid" else 0
@@ -228,7 +244,7 @@ def history_polarity_policy_overrides(
         2
         if support == "motion_pair"
         else 1
-        if support == "motion_pair1"
+        if support in {"motion_pair1", "retrieval1_motion1_age24"}
         else 1
         if support == "landmark_motion"
         else 0
@@ -237,19 +253,47 @@ def history_polarity_policy_overrides(
         2
         if suppress == "motion_pair"
         else 1
-        if suppress == "motion_pair1"
+        if suppress in {"motion_pair1", "retrieval1_motion1_age24"}
         else 1
         if suppress == "landmark_motion"
         else 0
     )
     support_retrieval_capacity = (
-        4 if support == "retrieval" else 2 if support == "retrieval2" else 0
+        4
+        if support == "retrieval"
+        else 2
+        if support == "retrieval2"
+        else 1
+        if support
+        in {
+            "retrieval1",
+            "retrieval1_age24",
+            "retrieval1_motion1_age24",
+        }
+        else 0
     )
     suppress_retrieval_capacity = (
         4
         if suppress == "retrieval"
         else 2
         if suppress == "retrieval2"
+        else 1
+        if suppress
+        in {
+            "retrieval1",
+            "retrieval1_age24",
+            "retrieval1_motion1_age24",
+        }
+        else 0
+    )
+    support_retrieval_max_age = (
+        24
+        if support in {"retrieval1_age24", "retrieval1_motion1_age24"}
+        else 0
+    )
+    suppress_retrieval_max_age = (
+        24
+        if suppress in {"retrieval1_age24", "retrieval1_motion1_age24"}
         else 0
     )
     support_prototype_capacity = (
@@ -287,6 +331,9 @@ def history_polarity_policy_overrides(
             "landmark_motion",
             "retrieval",
             "retrieval2",
+            "retrieval1",
+            "retrieval1_age24",
+            "retrieval1_motion1_age24",
             "prototype",
             "prototype2",
             "snapshot",
@@ -300,6 +347,8 @@ def history_polarity_policy_overrides(
         if suppress in {"recent5", "sparse75"}
         else 8
         if suppress in {"recent8", "recent8_sink1"}
+        else 7
+        if suppress in {"retrieval1", "retrieval1_age24"}
         else 6
         if suppress
         in {
@@ -308,6 +357,8 @@ def history_polarity_policy_overrides(
             "prototype2",
             "snapshot2",
         }
+        else 5
+        if suppress == "retrieval1_motion1_age24"
         else 4
     )
     support_sink = (
@@ -322,6 +373,9 @@ def history_polarity_policy_overrides(
             "landmark_motion",
             "retrieval",
             "retrieval2",
+            "retrieval1",
+            "retrieval1_age24",
+            "retrieval1_motion1_age24",
             "prototype",
             "prototype2",
             "snapshot",
@@ -335,6 +389,8 @@ def history_polarity_policy_overrides(
         if support == "recent8"
         else 5
         if support == "sparse75"
+        else 7
+        if support in {"retrieval1", "retrieval1_age24"}
         else 6
         if support
         in {
@@ -343,8 +399,19 @@ def history_polarity_policy_overrides(
             "prototype2",
             "snapshot2",
         }
+        else 5
+        if support == "retrieval1_motion1_age24"
         else 4
     )
+    if budget == "sink3_extra":
+        support_sink = 3
+        suppress_sink = 3
+    elif budget == "sink3_budget9":
+        support_sink = 3
+        suppress_sink = 3
+        support_landmark_capacity = 2
+        support_recent = 4
+        suppress_recent = 4
     support_key = str(support_label)
     suppress_key = str(suppress_label)
     return {
@@ -386,6 +453,10 @@ def history_polarity_policy_overrides(
             support_key: support_retrieval_capacity,
             suppress_key: suppress_retrieval_capacity,
         },
+        "pyramidkv_label_semantic_retrieval_max_age_map": {
+            support_key: support_retrieval_max_age,
+            suppress_key: suppress_retrieval_max_age,
+        },
         "pyramidkv_label_temporal_prototype_capacity_map": {
             support_key: support_prototype_capacity,
             suppress_key: suppress_prototype_capacity,
@@ -418,6 +489,8 @@ def history_polarity_policy_overrides(
             or suppress in {"motion_cyclic", "cyclic_motion1"}
             or support == "landmark_motion"
             or suppress == "landmark_motion"
+            or support == "retrieval1_motion1_age24"
+            or suppress == "retrieval1_motion1_age24"
         ),
         # The neutral-label route must not inherit a second legacy dynamic
         # history path alongside its explicit middle strategy.

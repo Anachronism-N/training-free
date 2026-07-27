@@ -17,6 +17,7 @@ if str(PF_ROOT) not in sys.path:
 from pyramidkv.factory import build_compositions
 from pyramidkv.policy_overrides import history_polarity_policy_overrides
 from pyramidkv.role_event import ROLE_EVENT_GROUPS_KEY
+from pyramidkv.role_event import CoherentMotionStrategy
 from pyramidkv.role_memory import (
     SemanticRetrievalStrategy,
     SparseSnapshotStrategy,
@@ -122,6 +123,47 @@ def test_semantic_retrieval_is_bounded_and_excludes_recent_frames():
     assert len(state["last_retrieval"].get("selected", [])) == 0
     state_after = strategy.debug_state(0)
     assert len(state_after["last_retrieval"]["selected"]) == len(collected)
+
+
+def test_semantic_retrieval_age_gate_is_applied_and_audited():
+    strategy = SemanticRetrievalStrategy(
+        capacity=2,
+        archive_capacity=8,
+        context_key="retrieval:11",
+        min_frame_t=1,
+        min_spacing=1,
+        max_age=4,
+    )
+    strategy.reset(1)
+    for frame_start in (1, 3, 5, 7):
+        desc = _descriptors([[1.0, 0.0], [0.9, 0.1]])
+        strategy.set_update_context(
+            _features(
+                "retrieval:11",
+                desc,
+                torch.zeros((1, 2)),
+                frame_start_t=frame_start,
+            )
+        )
+        k, v, pos = _kv_block(2, 1, base=float(frame_start * 10))
+        pos[:, 0] += frame_start
+        strategy.update(0, k, v, pos, 1, frame_start)
+
+    current_t = 10
+    collected = strategy.collect(
+        0,
+        current_t=current_t,
+        recent_min_t=10,
+        sink_max_t=0,
+    )
+    state = strategy.debug_state(0)
+    retrieval = state["last_retrieval"]
+    assert state["max_age"] == 4
+    assert retrieval["eligible_before_age"] >= retrieval["eligible"]
+    assert retrieval["age_filtered"] > 0
+    assert collected
+    assert all(current_t - anchor.t <= 4 for anchor in collected)
+    assert all(item["age"] <= 4 for item in retrieval["selected"])
 
 
 def test_temporal_prototype_compresses_a_coherent_run_to_one_medoid():
@@ -283,3 +325,61 @@ def test_factory_builds_only_requested_role_memory_routes(
     ]
     assert [item.sink_frames for item in compositions] == [1, 1]
     assert [item.recent_frames for item in compositions] == list(recent)
+
+
+def test_factory_builds_bounded_retrieval_motion_hybrid(tmp_path):
+    labels = tmp_path / "history_roles.csv"
+    with labels.open("w", encoding="utf-8", newline="") as handle:
+        csv.writer(handle).writerow([10, 11])
+    overrides = history_polarity_policy_overrides(
+        "landmark",
+        "retrieval1_motion1_age24",
+    )
+    compositions = build_compositions(
+        1,
+        2,
+        torch.full((1, 2), 32760, dtype=torch.int32),
+        csv_path=str(labels),
+        cyclic_enabled=True,
+        stride_enabled=True,
+        merge_enabled=True,
+        **_factory_kwargs(overrides),
+    )[0]
+
+    suppressive = compositions[1]
+    assert [type(item) for item in suppressive.middle_strategies] == [
+        CoherentMotionStrategy,
+        SemanticRetrievalStrategy,
+    ]
+    assert suppressive.sink_frames == 1
+    assert suppressive.recent_frames == 5
+    assert suppressive.policy_type == "retrieval_motion"
+    assert suppressive.middle_strategies[0].pair_capacity == 1
+    assert suppressive.middle_strategies[1].capacity == 1
+    assert suppressive.middle_strategies[1].max_age == 24
+
+
+def test_sink3_budget_profiles_are_explicit_and_budget_matched():
+    extra = history_polarity_policy_overrides(
+        "landmark",
+        "motion_pair1",
+        budget_profile="sink3_extra",
+    )
+    matched = history_polarity_policy_overrides(
+        "landmark",
+        "motion_pair1",
+        budget_profile="sink3_budget9",
+    )
+    assert extra["pyramidkv_label_sink_frames_map"] == {"10": 3, "11": 3}
+    assert extra["pyramidkv_label_semantic_landmark_capacity_map"]["10"] == 4
+    assert extra["pyramidkv_label_recent_frames_map"] == {"10": 4, "11": 6}
+    assert matched["pyramidkv_label_sink_frames_map"] == {"10": 3, "11": 3}
+    assert matched["pyramidkv_label_semantic_landmark_capacity_map"]["10"] == 2
+    assert matched["pyramidkv_label_recent_frames_map"] == {"10": 4, "11": 4}
+
+    with pytest.raises(ValueError, match="landmark/motion_pair1"):
+        history_polarity_policy_overrides(
+            "prototype",
+            "motion_pair1",
+            budget_profile="sink3_budget9",
+        )

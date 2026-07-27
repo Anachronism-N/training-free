@@ -56,6 +56,8 @@ class Cell:
     motion_top_k: int = 1
     variance_refresh: bool = False
     map_key: str = "legacy"
+    history_budget_profile: str = "default"
+    max_full_frame_equivalents: int = 9
 
     @property
     def native(self) -> bool:
@@ -84,6 +86,9 @@ class Cell:
                 "landmark_motion",
                 "retrieval",
                 "retrieval2",
+                "retrieval1",
+                "retrieval1_age24",
+                "retrieval1_motion1_age24",
                 "prototype",
                 "prototype2",
                 "snapshot",
@@ -430,144 +435,204 @@ def expected_policy(
     cell: Cell,
     label: int,
 ) -> tuple[tuple[str, ...], int, int, str]:
+    result: tuple[tuple[str, ...], int, int, str]
     if label == 10:
         if cell.support_policy == "recent8":
-            return ((), 1, 8, "stride")
-        if cell.support_policy == "landmark":
-            return (("SemanticLandmarkStrategy",), 1, 4, "semantic_landmark")
-        if cell.support_policy == "motion_pair":
-            return (("CoherentMotionStrategy",), 1, 4, "coherent_motion")
-        if cell.support_policy == "motion_pair1":
-            return (("CoherentMotionStrategy",), 1, 6, "coherent_motion")
-        if cell.support_policy == "landmark_motion":
-            return (
+            result = ((), 1, 8, "stride")
+        elif cell.support_policy == "landmark":
+            result = (
+                ("SemanticLandmarkStrategy",),
+                1,
+                4,
+                "semantic_landmark",
+            )
+        elif cell.support_policy == "motion_pair":
+            result = (("CoherentMotionStrategy",), 1, 4, "coherent_motion")
+        elif cell.support_policy == "motion_pair1":
+            result = (("CoherentMotionStrategy",), 1, 6, "coherent_motion")
+        elif cell.support_policy == "landmark_motion":
+            result = (
                 ("SemanticLandmarkStrategy", "CoherentMotionStrategy"),
                 1,
                 4,
                 "landmark_motion",
             )
-        if cell.support_policy in {"retrieval", "retrieval2"}:
-            return (
+        elif cell.support_policy in {"retrieval", "retrieval2"}:
+            result = (
                 ("SemanticRetrievalStrategy",),
                 1,
                 6 if cell.support_policy == "retrieval2" else 4,
                 "semantic_retrieval",
             )
-        if cell.support_policy in {"prototype", "prototype2"}:
-            return (
+        elif cell.support_policy in {"retrieval1", "retrieval1_age24"}:
+            result = (
+                ("SemanticRetrievalStrategy",),
+                1,
+                7,
+                "semantic_retrieval",
+            )
+        elif cell.support_policy == "retrieval1_motion1_age24":
+            result = (
+                ("CoherentMotionStrategy", "SemanticRetrievalStrategy"),
+                1,
+                5,
+                "retrieval_motion",
+            )
+        elif cell.support_policy in {"prototype", "prototype2"}:
+            result = (
                 ("TemporalPrototypeStrategy",),
                 1,
                 6 if cell.support_policy == "prototype2" else 4,
                 "temporal_prototype",
             )
-        if cell.support_policy in {"snapshot", "snapshot2"}:
-            return (
+        elif cell.support_policy in {"snapshot", "snapshot2"}:
+            result = (
                 ("UniqueSnapshotStrategy",),
                 1,
                 6 if cell.support_policy == "snapshot2" else 4,
                 "unique_snapshot",
             )
-        if cell.support_policy == "sparse75":
-            return (("SparseSnapshotStrategy",), 1, 5, "sparse_snapshot")
-        if cell.support_policy == "cyclic":
-            return (("CyclicStrategy",), 1, 4, "osc")
-        if cell.support_policy == "hybrid":
-            return (
+        elif cell.support_policy == "sparse75":
+            result = (("SparseSnapshotStrategy",), 1, 5, "sparse_snapshot")
+        elif cell.support_policy == "cyclic":
+            result = (("CyclicStrategy",), 1, 4, "osc")
+        elif cell.support_policy == "hybrid":
+            result = (
                 ("CyclicStrategy", "StrideStrategy"),
                 3,
                 4,
                 "stride",
             )
-        return (("StrideStrategy",), 3, 4, "stride")
-    if label != 11 or cell.suppress_policy is None:
-        raise ValueError(f"no binary policy for label={label} cell={cell.name}")
-    return {
-        "merge": (("MergeStrategy",), 3, 4, "merge"),
-        "cyclic": (("CyclicStrategy",), 1, 4, "osc"),
-        "cyclic_sink3": (("CyclicStrategy",), 3, 4, "osc"),
-        "motion": (("MotionEventStrategy",), 3, 4, "motion_event"),
-        "motion_cyclic": (
-            ("CyclicStrategy", "MotionEventStrategy"),
-            3,
-            4,
-            "motion_cyclic",
-        ),
-        "cyclic_motion1": (
-            ("CyclicStrategy", "MotionEventStrategy"),
-            1,
-            4,
-            "motion_cyclic",
-        ),
-        "recent5": ((), 3, 5, "stride"),
-        "recent8": ((), 3, 8, "stride"),
-        "recent8_sink1": ((), 1, 8, "stride"),
-        "landmark": (
-            ("SemanticLandmarkStrategy",),
-            1,
-            4,
-            "semantic_landmark",
-        ),
-        "motion_pair": (
-            ("CoherentMotionStrategy",),
-            1,
-            4,
-            "coherent_motion",
-        ),
-        "motion_pair1": (
-            ("CoherentMotionStrategy",),
-            1,
-            6,
-            "coherent_motion",
-        ),
-        "landmark_motion": (
-            ("SemanticLandmarkStrategy", "CoherentMotionStrategy"),
-            1,
-            4,
-            "landmark_motion",
-        ),
-        "retrieval": (
-            ("SemanticRetrievalStrategy",),
-            1,
-            4,
-            "semantic_retrieval",
-        ),
-        "retrieval2": (
-            ("SemanticRetrievalStrategy",),
-            1,
-            6,
-            "semantic_retrieval",
-        ),
-        "prototype": (
-            ("TemporalPrototypeStrategy",),
-            1,
-            4,
-            "temporal_prototype",
-        ),
-        "prototype2": (
-            ("TemporalPrototypeStrategy",),
-            1,
-            6,
-            "temporal_prototype",
-        ),
-        "snapshot": (
-            ("UniqueSnapshotStrategy",),
-            1,
-            4,
-            "unique_snapshot",
-        ),
-        "snapshot2": (
-            ("UniqueSnapshotStrategy",),
-            1,
-            6,
-            "unique_snapshot",
-        ),
-        "sparse75": (
-            ("SparseSnapshotStrategy",),
-            1,
-            5,
-            "sparse_snapshot",
-        ),
-    }[cell.suppress_policy]
+        else:
+            result = (("StrideStrategy",), 3, 4, "stride")
+    else:
+        if label != 11 or cell.suppress_policy is None:
+            raise ValueError(
+                f"no binary policy for label={label} cell={cell.name}"
+            )
+        result = {
+            "merge": (("MergeStrategy",), 3, 4, "merge"),
+            "cyclic": (("CyclicStrategy",), 1, 4, "osc"),
+            "cyclic_sink3": (("CyclicStrategy",), 3, 4, "osc"),
+            "motion": (("MotionEventStrategy",), 3, 4, "motion_event"),
+            "motion_cyclic": (
+                ("CyclicStrategy", "MotionEventStrategy"),
+                3,
+                4,
+                "motion_cyclic",
+            ),
+            "cyclic_motion1": (
+                ("CyclicStrategy", "MotionEventStrategy"),
+                1,
+                4,
+                "motion_cyclic",
+            ),
+            "recent": ((), 3, 4, "stride"),
+            "recent5": ((), 3, 5, "stride"),
+            "recent8": ((), 3, 8, "stride"),
+            "recent8_sink1": ((), 1, 8, "stride"),
+            "landmark": (
+                ("SemanticLandmarkStrategy",),
+                1,
+                4,
+                "semantic_landmark",
+            ),
+            "motion_pair": (
+                ("CoherentMotionStrategy",),
+                1,
+                4,
+                "coherent_motion",
+            ),
+            "motion_pair1": (
+                ("CoherentMotionStrategy",),
+                1,
+                6,
+                "coherent_motion",
+            ),
+            "landmark_motion": (
+                ("SemanticLandmarkStrategy", "CoherentMotionStrategy"),
+                1,
+                4,
+                "landmark_motion",
+            ),
+            "retrieval": (
+                ("SemanticRetrievalStrategy",),
+                1,
+                4,
+                "semantic_retrieval",
+            ),
+            "retrieval2": (
+                ("SemanticRetrievalStrategy",),
+                1,
+                6,
+                "semantic_retrieval",
+            ),
+            "retrieval1": (
+                ("SemanticRetrievalStrategy",),
+                1,
+                7,
+                "semantic_retrieval",
+            ),
+            "retrieval1_age24": (
+                ("SemanticRetrievalStrategy",),
+                1,
+                7,
+                "semantic_retrieval",
+            ),
+            "retrieval1_motion1_age24": (
+                ("CoherentMotionStrategy", "SemanticRetrievalStrategy"),
+                1,
+                5,
+                "retrieval_motion",
+            ),
+            "prototype": (
+                ("TemporalPrototypeStrategy",),
+                1,
+                4,
+                "temporal_prototype",
+            ),
+            "prototype2": (
+                ("TemporalPrototypeStrategy",),
+                1,
+                6,
+                "temporal_prototype",
+            ),
+            "snapshot": (
+                ("UniqueSnapshotStrategy",),
+                1,
+                4,
+                "unique_snapshot",
+            ),
+            "snapshot2": (
+                ("UniqueSnapshotStrategy",),
+                1,
+                6,
+                "unique_snapshot",
+            ),
+            "sparse75": (
+                ("SparseSnapshotStrategy",),
+                1,
+                5,
+                "sparse_snapshot",
+            ),
+        }[cell.suppress_policy]
+
+    if cell.history_budget_profile == "sink3_extra":
+        result = (result[0], 3, result[2], result[3])
+    elif cell.history_budget_profile == "sink3_budget9":
+        if (
+            cell.support_policy != "landmark"
+            or cell.suppress_policy != "motion_pair1"
+        ):
+            raise ValueError(
+                "sink3_budget9 requires landmark/motion_pair1"
+            )
+        result = (result[0], 3, 4, result[3])
+    elif cell.history_budget_profile != "default":
+        raise ValueError(
+            f"unknown history budget profile {cell.history_budget_profile!r}"
+        )
+    return result
 
 
 def audit_policy_trace(
@@ -656,12 +721,14 @@ def audit_policy_trace(
                         )
                         if (
                             frame_seqlen <= 0
-                            or actual_tokens > 9 * frame_seqlen
+                            or actual_tokens
+                            > cell.max_full_frame_equivalents * frame_seqlen
                         ):
                             failures.append(
                                 f"line {line_number}: role-event read has "
                                 f"{actual_tokens} tokens at frame_seqlen="
-                                f"{frame_seqlen}, expected at most nine "
+                                f"{frame_seqlen}, expected at most "
+                                f"{cell.max_full_frame_equivalents} "
                                 "full-frame equivalents"
                             )
                     else:
@@ -670,10 +737,11 @@ def audit_policy_trace(
                             + union_count
                             + int(event["recent_frame_count"])
                         )
-                        if actual_frames > 9:
+                        if actual_frames > cell.max_full_frame_equivalents:
                             failures.append(
                                 f"line {line_number}: role-event read has "
-                                f"{actual_frames} frames, expected at most 9"
+                                f"{actual_frames} frames, expected at most "
+                                f"{cell.max_full_frame_equivalents}"
                             )
                     for item in event["strategies"]:
                         name = str(item["name"])
@@ -791,6 +859,33 @@ def audit_policy_trace(
                                     f"line {line_number}: retrieval read "
                                     "exceeds top-k capacity"
                                 )
+                            retrieval = state.get("last_retrieval", {})
+                            max_age = state.get("max_age")
+                            if max_age is not None:
+                                required = {
+                                    "eligible_before_age",
+                                    "eligible",
+                                    "age_filtered",
+                                    "max_age",
+                                }
+                                missing = sorted(required - set(retrieval))
+                                if missing:
+                                    failures.append(
+                                        f"line {line_number}: retrieval "
+                                        f"age audit fields missing {missing}"
+                                    )
+                                for selected_item in selected:
+                                    if int(selected_item.get("age", -1)) < 0:
+                                        failures.append(
+                                            f"line {line_number}: retrieval "
+                                            "selection has invalid age"
+                                        )
+                                    elif int(selected_item["age"]) > int(max_age):
+                                        failures.append(
+                                            f"line {line_number}: retrieval "
+                                            f"age {selected_item['age']} "
+                                            f"exceeds max_age={max_age}"
+                                        )
                         elif name == "TemporalPrototypeStrategy":
                             spans = state.get("prototype_spans", [])
                             medoids = state.get("prototype_medoid_ids", [])
@@ -972,10 +1067,27 @@ def audit_role_event_trace(
         routes: dict[str, int] = {}
         if policy in {"landmark", "landmark_motion"}:
             routes["landmark"] = 4 if policy == "landmark" else 2
-        if policy in {"motion_pair", "motion_pair1", "landmark_motion"}:
+        if policy in {
+            "motion_pair",
+            "motion_pair1",
+            "landmark_motion",
+            "retrieval1_motion1_age24",
+        }:
             routes["motion"] = 2 if policy == "motion_pair" else 1
-        if policy in {"retrieval", "retrieval2"}:
-            routes["retrieval"] = 4 if policy == "retrieval" else 2
+        if policy in {
+            "retrieval",
+            "retrieval2",
+            "retrieval1",
+            "retrieval1_age24",
+            "retrieval1_motion1_age24",
+        }:
+            routes["retrieval"] = (
+                4
+                if policy == "retrieval"
+                else 2
+                if policy == "retrieval2"
+                else 1
+            )
         if policy in {"prototype", "prototype2"}:
             routes["prototype"] = 4 if policy == "prototype" else 2
         if policy in {"snapshot", "snapshot2"}:
@@ -1265,6 +1377,8 @@ def inference_command(
                 cell.support_policy,
                 "--pyramidkv_history_suppress_policy",
                 str(cell.suppress_policy),
+                "--pyramidkv_history_budget_profile",
+                cell.history_budget_profile,
                 "--pyramidkv_motion_event_top_k",
                 str(cell.motion_top_k),
                 "--pyramidkv_motion_event_sample_tokens",
