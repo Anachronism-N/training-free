@@ -41,6 +41,12 @@ from .role_event import (
     CoherentMotionStrategy,
     SemanticLandmarkStrategy,
 )
+from .role_memory import (
+    SemanticRetrievalStrategy,
+    SparseSnapshotStrategy,
+    TemporalPrototypeStrategy,
+    UniqueSnapshotStrategy,
+)
 
 
 def _as_long_tensor(tensor: torch.Tensor) -> torch.Tensor:
@@ -728,7 +734,14 @@ class AdaptiveKVCache(PyramidKVCache):
             for strategy in composition.middle_strategies:
                 if isinstance(
                     strategy,
-                    (SemanticLandmarkStrategy, CoherentMotionStrategy),
+                    (
+                        SemanticLandmarkStrategy,
+                        CoherentMotionStrategy,
+                        SemanticRetrievalStrategy,
+                        TemporalPrototypeStrategy,
+                        UniqueSnapshotStrategy,
+                        SparseSnapshotStrategy,
+                    ),
                 ):
                     self._role_event_head_groups.setdefault(
                         str(strategy.context_key),
@@ -2466,6 +2479,29 @@ class AdaptiveKVCache(PyramidKVCache):
                 dim=-1,
                 eps=1e-6,
             )
+            token_scores_cpu = None
+            if str(context_key).startswith("sparse:"):
+                token_values = v_frames.detach().float().mean(dim=3)
+                centered = token_values - token_values.mean(
+                    dim=2,
+                    keepdim=True,
+                )
+                spatial_scores = centered.square().mean(dim=-1)
+                temporal_scores = torch.zeros_like(spatial_scores)
+                if num_frames > 1:
+                    temporal_scores[:, 1:] = (
+                        token_values[:, 1:] - token_values[:, :-1]
+                    ).square().mean(dim=-1)
+
+                def normalize_token_scores(values: torch.Tensor) -> torch.Tensor:
+                    low = values.amin(dim=2, keepdim=True)
+                    high = values.amax(dim=2, keepdim=True)
+                    return (values - low) / (high - low).clamp_min_(1e-8)
+
+                token_scores_cpu = (
+                    0.60 * normalize_token_scores(spatial_scores)
+                    + 0.40 * normalize_token_scores(temporal_scores)
+                ).detach().cpu()
 
             previous_sample = self._role_event_prev_samples.get(context_key)
             if (
@@ -2502,6 +2538,8 @@ class AdaptiveKVCache(PyramidKVCache):
                 "descriptors": descriptor_cpu,
                 "motion_scores": motion_cpu,
             }
+            if token_scores_cpu is not None:
+                groups[context_key]["token_scores"] = token_scores_cpu
             adjacent_similarity = (
                 (descriptor_cpu[:, 1:] * descriptor_cpu[:, :-1])
                 .sum(dim=-1)
@@ -2527,6 +2565,13 @@ class AdaptiveKVCache(PyramidKVCache):
                     for value in adjacent_similarity
                 ],
             }
+            if token_scores_cpu is not None:
+                trace_payload["token_score_summary"] = {
+                    "min": round(float(token_scores_cpu.min().item()), 8),
+                    "max": round(float(token_scores_cpu.max().item()), 8),
+                    "mean": round(float(token_scores_cpu.mean().item()), 8),
+                    "tokens_per_frame": int(token_scores_cpu.shape[2]),
+                }
             self._trace_role_event_update(trace_payload)
             if (
                 os.environ.get("PYRAMIDKV_ROLE_EVENT_DEBUG", "0") == "1"

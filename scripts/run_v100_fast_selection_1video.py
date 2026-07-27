@@ -77,7 +77,19 @@ class Cell:
         }
         return bool(
             policies
-            & {"landmark", "motion_pair", "landmark_motion"}
+            & {
+                "landmark",
+                "motion_pair",
+                "motion_pair1",
+                "landmark_motion",
+                "retrieval",
+                "retrieval2",
+                "prototype",
+                "prototype2",
+                "snapshot",
+                "snapshot2",
+                "sparse75",
+            }
         )
 
 
@@ -425,6 +437,8 @@ def expected_policy(
             return (("SemanticLandmarkStrategy",), 1, 4, "semantic_landmark")
         if cell.support_policy == "motion_pair":
             return (("CoherentMotionStrategy",), 1, 4, "coherent_motion")
+        if cell.support_policy == "motion_pair1":
+            return (("CoherentMotionStrategy",), 1, 6, "coherent_motion")
         if cell.support_policy == "landmark_motion":
             return (
                 ("SemanticLandmarkStrategy", "CoherentMotionStrategy"),
@@ -432,6 +446,29 @@ def expected_policy(
                 4,
                 "landmark_motion",
             )
+        if cell.support_policy in {"retrieval", "retrieval2"}:
+            return (
+                ("SemanticRetrievalStrategy",),
+                1,
+                6 if cell.support_policy == "retrieval2" else 4,
+                "semantic_retrieval",
+            )
+        if cell.support_policy in {"prototype", "prototype2"}:
+            return (
+                ("TemporalPrototypeStrategy",),
+                1,
+                6 if cell.support_policy == "prototype2" else 4,
+                "temporal_prototype",
+            )
+        if cell.support_policy in {"snapshot", "snapshot2"}:
+            return (
+                ("UniqueSnapshotStrategy",),
+                1,
+                6 if cell.support_policy == "snapshot2" else 4,
+                "unique_snapshot",
+            )
+        if cell.support_policy == "sparse75":
+            return (("SparseSnapshotStrategy",), 1, 5, "sparse_snapshot")
         if cell.support_policy == "cyclic":
             return (("CyclicStrategy",), 1, 4, "osc")
         if cell.support_policy == "hybrid":
@@ -476,11 +513,59 @@ def expected_policy(
             4,
             "coherent_motion",
         ),
+        "motion_pair1": (
+            ("CoherentMotionStrategy",),
+            1,
+            6,
+            "coherent_motion",
+        ),
         "landmark_motion": (
             ("SemanticLandmarkStrategy", "CoherentMotionStrategy"),
             1,
             4,
             "landmark_motion",
+        ),
+        "retrieval": (
+            ("SemanticRetrievalStrategy",),
+            1,
+            4,
+            "semantic_retrieval",
+        ),
+        "retrieval2": (
+            ("SemanticRetrievalStrategy",),
+            1,
+            6,
+            "semantic_retrieval",
+        ),
+        "prototype": (
+            ("TemporalPrototypeStrategy",),
+            1,
+            4,
+            "temporal_prototype",
+        ),
+        "prototype2": (
+            ("TemporalPrototypeStrategy",),
+            1,
+            6,
+            "temporal_prototype",
+        ),
+        "snapshot": (
+            ("UniqueSnapshotStrategy",),
+            1,
+            4,
+            "unique_snapshot",
+        ),
+        "snapshot2": (
+            ("UniqueSnapshotStrategy",),
+            1,
+            6,
+            "unique_snapshot",
+        ),
+        "sparse75": (
+            ("SparseSnapshotStrategy",),
+            1,
+            5,
+            "sparse_snapshot",
         ),
     }[cell.suppress_policy]
 
@@ -551,22 +636,45 @@ def audit_policy_trace(
                     )
                 if cell.uses_role_event:
                     union_count = int(event["union_frame_count"])
-                    actual_total = (
-                        int(event["sink_frame_count"])
-                        + union_count
-                        + int(event["recent_frame_count"])
-                    )
                     if union_count > 4:
                         failures.append(
                             f"line {line_number}: role-event middle has "
                             f"{union_count} frames, expected at most 4"
                         )
-                    if actual_total > 9:
-                        failures.append(
-                            f"line {line_number}: role-event read has "
-                            f"{actual_total} frame equivalents, expected "
-                            "at most 9"
+                    token_fields = {
+                        "frame_seqlen",
+                        "sink_token_count",
+                        "union_token_count",
+                        "recent_token_count",
+                    }
+                    if token_fields.issubset(event):
+                        frame_seqlen = int(event["frame_seqlen"])
+                        actual_tokens = (
+                            int(event["sink_token_count"])
+                            + int(event["union_token_count"])
+                            + int(event["recent_token_count"])
                         )
+                        if (
+                            frame_seqlen <= 0
+                            or actual_tokens > 9 * frame_seqlen
+                        ):
+                            failures.append(
+                                f"line {line_number}: role-event read has "
+                                f"{actual_tokens} tokens at frame_seqlen="
+                                f"{frame_seqlen}, expected at most nine "
+                                "full-frame equivalents"
+                            )
+                    else:
+                        actual_frames = (
+                            int(event["sink_frame_count"])
+                            + union_count
+                            + int(event["recent_frame_count"])
+                        )
+                        if actual_frames > 9:
+                            failures.append(
+                                f"line {line_number}: role-event read has "
+                                f"{actual_frames} frames, expected at most 9"
+                            )
                     for item in event["strategies"]:
                         name = str(item["name"])
                         state = item.get("state")
@@ -660,6 +768,93 @@ def audit_policy_trace(
                                         f"line {line_number}: motion-pair "
                                         "decision is missing debug fields "
                                         f"{missing}"
+                                    )
+                        elif name == "SemanticRetrievalStrategy":
+                            archive = [
+                                int(value)
+                                for value in state.get(
+                                    "archive_frame_ids",
+                                    [],
+                                )
+                            ]
+                            if len(archive) > int(state["archive_capacity"]):
+                                failures.append(
+                                    f"line {line_number}: retrieval archive "
+                                    "exceeds capacity"
+                                )
+                            selected = state.get(
+                                "last_retrieval",
+                                {},
+                            ).get("selected", [])
+                            if len(selected) > int(state["capacity"]):
+                                failures.append(
+                                    f"line {line_number}: retrieval read "
+                                    "exceeds top-k capacity"
+                                )
+                        elif name == "TemporalPrototypeStrategy":
+                            spans = state.get("prototype_spans", [])
+                            medoids = state.get("prototype_medoid_ids", [])
+                            counts = state.get("prototype_counts", [])
+                            if (
+                                len(spans) > int(state["capacity"])
+                                or len(spans) != len(medoids)
+                                or len(spans) != len(counts)
+                            ):
+                                failures.append(
+                                    f"line {line_number}: prototype bank "
+                                    "shape/capacity mismatch"
+                                )
+                            for span, medoid, count in zip(
+                                spans,
+                                medoids,
+                                counts,
+                            ):
+                                if (
+                                    len(span) != 2
+                                    or int(span[0]) > int(medoid)
+                                    or int(medoid) > int(span[1])
+                                    or int(count) <= 0
+                                ):
+                                    failures.append(
+                                        f"line {line_number}: invalid "
+                                        f"prototype {span}/{medoid}/{count}"
+                                    )
+                        elif name in {
+                            "UniqueSnapshotStrategy",
+                            "SparseSnapshotStrategy",
+                        }:
+                            frames = state.get("snapshot_frame_ids", [])
+                            token_counts = state.get(
+                                "snapshot_token_counts",
+                                [],
+                            )
+                            if (
+                                len(frames) > int(state["capacity"])
+                                or len(frames) != len(token_counts)
+                                or any(int(value) <= 0 for value in token_counts)
+                            ):
+                                failures.append(
+                                    f"line {line_number}: snapshot bank "
+                                    "shape/capacity mismatch"
+                                )
+                            if name == "SparseSnapshotStrategy":
+                                ratio = float(state["keep_ratio"])
+                                if "frame_seqlen" not in event:
+                                    failures.append(
+                                        f"line {line_number}: sparse "
+                                        "snapshot trace lacks frame_seqlen"
+                                    )
+                                    continue
+                                expected_max = math.ceil(
+                                    int(event["frame_seqlen"]) * ratio
+                                )
+                                if any(
+                                    int(value) > expected_max
+                                    for value in token_counts
+                                ):
+                                    failures.append(
+                                        f"line {line_number}: sparse "
+                                        "snapshot exceeds keep ratio"
                                     )
             except (IndexError, KeyError, TypeError, ValueError) as error:
                 failures.append(f"line {line_number}: malformed event: {error}")
@@ -773,40 +968,40 @@ def audit_role_event_trace(
 ) -> dict[str, Any]:
     labels = read_matrix(head_map, {10, 11})
 
-    def landmark_capacity(policy: str | None) -> int:
-        return 4 if policy == "landmark" else 2 if policy == "landmark_motion" else 0
+    def policy_routes(policy: str | None) -> dict[str, int]:
+        routes: dict[str, int] = {}
+        if policy in {"landmark", "landmark_motion"}:
+            routes["landmark"] = 4 if policy == "landmark" else 2
+        if policy in {"motion_pair", "motion_pair1", "landmark_motion"}:
+            routes["motion"] = 2 if policy == "motion_pair" else 1
+        if policy in {"retrieval", "retrieval2"}:
+            routes["retrieval"] = 4 if policy == "retrieval" else 2
+        if policy in {"prototype", "prototype2"}:
+            routes["prototype"] = 4 if policy == "prototype" else 2
+        if policy in {"snapshot", "snapshot2"}:
+            routes["snapshot"] = 4 if policy == "snapshot" else 2
+        if policy == "sparse75":
+            routes["sparse"] = 4
+        return routes
 
-    def motion_capacity(policy: str | None) -> int:
-        return 2 if policy == "motion_pair" else 1 if policy == "landmark_motion" else 0
-
-    support_landmark = landmark_capacity(cell.support_policy)
-    suppress_landmark = landmark_capacity(cell.suppress_policy)
-    support_motion = motion_capacity(cell.support_policy)
-    suppress_motion = motion_capacity(cell.suppress_policy)
-    shared_landmark = (
-        support_landmark > 0
-        and support_landmark == suppress_landmark
-    )
-    shared_motion = (
-        support_motion > 0
-        and support_motion == suppress_motion
-    )
+    support_routes = policy_routes(cell.support_policy)
+    suppress_routes = policy_routes(cell.suppress_policy)
+    shared_routes = {
+        prefix
+        for prefix, capacity in support_routes.items()
+        if suppress_routes.get(prefix) == capacity
+    }
 
     def policy_groups(policy: str | None, label: int) -> set[str]:
-        groups: set[str] = set()
-        if landmark_capacity(policy):
-            groups.add(
-                "landmark:all"
-                if shared_landmark
-                else f"landmark:{label}"
+        routes = policy_routes(policy)
+        return {
+            (
+                f"{prefix}:all"
+                if prefix in shared_routes
+                else f"{prefix}:{label}"
             )
-        if motion_capacity(policy):
-            groups.add(
-                "motion:all"
-                if shared_motion
-                else f"motion:{label}"
-            )
-        return groups
+            for prefix in routes
+        }
 
     expected_heads_by_group: dict[tuple[int, str], list[int]] = {}
     support_groups = policy_groups(cell.support_policy, 10)
@@ -844,7 +1039,14 @@ def audit_role_event_trace(
                 layer = int(event["layer"])
                 context_key = str(event["context_key"])
                 role_text, label_text = context_key.split(":", maxsplit=1)
-                if role_text not in {"landmark", "motion"}:
+                if role_text not in {
+                    "landmark",
+                    "motion",
+                    "retrieval",
+                    "prototype",
+                    "snapshot",
+                    "sparse",
+                }:
                     raise ValueError("unknown role-event context prefix")
                 if label_text not in {"all", "10", "11"}:
                     raise ValueError(
@@ -892,6 +1094,19 @@ def audit_role_event_trace(
                     raise ValueError(
                         "role-event semantic scores must be finite cosines"
                     )
+                if role_text == "sparse":
+                    token_summary = event.get("token_score_summary")
+                    if (
+                        not isinstance(token_summary, dict)
+                        or int(token_summary.get("tokens_per_frame", 0)) <= 0
+                        or not all(
+                            math.isfinite(float(token_summary[key]))
+                            for key in ("min", "max", "mean")
+                        )
+                    ):
+                        raise ValueError(
+                            "sparse role-event group has invalid token scores"
+                        )
                 records += 1
                 observed.add((layer, context_key))
             except (

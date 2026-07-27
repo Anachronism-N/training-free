@@ -1209,6 +1209,11 @@ class CausalInferencePipeline(torch.nn.Module):
                     label_motion_event_capacity_map=hc.pyramidkv_label_motion_event_capacity_map,
                     label_semantic_landmark_capacity_map=hc.pyramidkv_label_semantic_landmark_capacity_map,
                     label_coherent_motion_pair_capacity_map=hc.pyramidkv_label_coherent_motion_pair_capacity_map,
+                    label_semantic_retrieval_capacity_map=hc.pyramidkv_label_semantic_retrieval_capacity_map,
+                    label_temporal_prototype_capacity_map=hc.pyramidkv_label_temporal_prototype_capacity_map,
+                    label_unique_snapshot_capacity_map=hc.pyramidkv_label_unique_snapshot_capacity_map,
+                    label_sparse_snapshot_capacity_map=hc.pyramidkv_label_sparse_snapshot_capacity_map,
+                    label_sparse_snapshot_keep_ratio_map=hc.pyramidkv_label_sparse_snapshot_keep_ratio_map,
                     hybrid_middle_enabled=hc.pyramidkv_hybrid_middle_enabled,
                 )
                 config.compositions = compositions

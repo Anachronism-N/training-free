@@ -20,6 +20,13 @@ from .lag import LagStrategy
 from .stride import StrideStrategy
 from .merge import MergeStrategy
 from .motion_event import MotionEventStrategy
+from .role_event import CoherentMotionStrategy, SemanticLandmarkStrategy
+from .role_memory import (
+    SemanticRetrievalStrategy,
+    SparseSnapshotStrategy,
+    TemporalPrototypeStrategy,
+    UniqueSnapshotStrategy,
+)
 from .recent import RecentStrategy
 from .factory import (
     HEAD_LABEL_MAP,
@@ -50,6 +57,12 @@ __all__ = [
     "StrideStrategy",
     "MergeStrategy",
     "MotionEventStrategy",
+    "SemanticLandmarkStrategy",
+    "CoherentMotionStrategy",
+    "SemanticRetrievalStrategy",
+    "TemporalPrototypeStrategy",
+    "UniqueSnapshotStrategy",
+    "SparseSnapshotStrategy",
     "RecentStrategy",
     "HEAD_LABEL_MAP",
     "build_compositions",

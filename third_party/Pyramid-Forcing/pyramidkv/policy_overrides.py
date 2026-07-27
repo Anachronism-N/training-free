@@ -137,7 +137,15 @@ def history_polarity_policy_overrides(
         "recent8",
         "landmark",
         "motion_pair",
+        "motion_pair1",
         "landmark_motion",
+        "retrieval",
+        "retrieval2",
+        "prototype",
+        "prototype2",
+        "snapshot",
+        "snapshot2",
+        "sparse75",
     }:
         raise ValueError(
             "unsupported history support policy"
@@ -155,7 +163,15 @@ def history_polarity_policy_overrides(
         "recent8_sink1",
         "landmark",
         "motion_pair",
+        "motion_pair1",
         "landmark_motion",
+        "retrieval",
+        "retrieval2",
+        "prototype",
+        "prototype2",
+        "snapshot",
+        "snapshot2",
+        "sparse75",
     }:
         raise ValueError(
             "unsupported history suppress policy"
@@ -212,6 +228,8 @@ def history_polarity_policy_overrides(
         2
         if support == "motion_pair"
         else 1
+        if support == "motion_pair1"
+        else 1
         if support == "landmark_motion"
         else 0
     )
@@ -219,9 +237,43 @@ def history_polarity_policy_overrides(
         2
         if suppress == "motion_pair"
         else 1
+        if suppress == "motion_pair1"
+        else 1
         if suppress == "landmark_motion"
         else 0
     )
+    support_retrieval_capacity = (
+        4 if support == "retrieval" else 2 if support == "retrieval2" else 0
+    )
+    suppress_retrieval_capacity = (
+        4
+        if suppress == "retrieval"
+        else 2
+        if suppress == "retrieval2"
+        else 0
+    )
+    support_prototype_capacity = (
+        4 if support == "prototype" else 2 if support == "prototype2" else 0
+    )
+    suppress_prototype_capacity = (
+        4
+        if suppress == "prototype"
+        else 2
+        if suppress == "prototype2"
+        else 0
+    )
+    support_snapshot_capacity = (
+        4 if support == "snapshot" else 2 if support == "snapshot2" else 0
+    )
+    suppress_snapshot_capacity = (
+        4
+        if suppress == "snapshot"
+        else 2
+        if suppress == "snapshot2"
+        else 0
+    )
+    support_sparse_capacity = 4 if support == "sparse75" else 0
+    suppress_sparse_capacity = 4 if suppress == "sparse75" else 0
     suppress_sink = (
         1
         if suppress
@@ -231,15 +283,31 @@ def history_polarity_policy_overrides(
             "recent8_sink1",
             "landmark",
             "motion_pair",
+            "motion_pair1",
             "landmark_motion",
+            "retrieval",
+            "retrieval2",
+            "prototype",
+            "prototype2",
+            "snapshot",
+            "snapshot2",
+            "sparse75",
         }
         else 3
     )
     suppress_recent = (
         5
-        if suppress == "recent5"
+        if suppress in {"recent5", "sparse75"}
         else 8
         if suppress in {"recent8", "recent8_sink1"}
+        else 6
+        if suppress
+        in {
+            "motion_pair1",
+            "retrieval2",
+            "prototype2",
+            "snapshot2",
+        }
         else 4
     )
     support_sink = (
@@ -250,11 +318,33 @@ def history_polarity_policy_overrides(
             "recent8",
             "landmark",
             "motion_pair",
+            "motion_pair1",
             "landmark_motion",
+            "retrieval",
+            "retrieval2",
+            "prototype",
+            "prototype2",
+            "snapshot",
+            "snapshot2",
+            "sparse75",
         }
         else 3
     )
-    support_recent = 8 if support == "recent8" else 4
+    support_recent = (
+        8
+        if support == "recent8"
+        else 5
+        if support == "sparse75"
+        else 6
+        if support
+        in {
+            "motion_pair1",
+            "retrieval2",
+            "prototype2",
+            "snapshot2",
+        }
+        else 4
+    )
     support_key = str(support_label)
     suppress_key = str(suppress_label)
     return {
@@ -291,6 +381,26 @@ def history_polarity_policy_overrides(
         "pyramidkv_label_coherent_motion_pair_capacity_map": {
             support_key: support_motion_pair_capacity,
             suppress_key: suppress_motion_pair_capacity,
+        },
+        "pyramidkv_label_semantic_retrieval_capacity_map": {
+            support_key: support_retrieval_capacity,
+            suppress_key: suppress_retrieval_capacity,
+        },
+        "pyramidkv_label_temporal_prototype_capacity_map": {
+            support_key: support_prototype_capacity,
+            suppress_key: suppress_prototype_capacity,
+        },
+        "pyramidkv_label_unique_snapshot_capacity_map": {
+            support_key: support_snapshot_capacity,
+            suppress_key: suppress_snapshot_capacity,
+        },
+        "pyramidkv_label_sparse_snapshot_capacity_map": {
+            support_key: support_sparse_capacity,
+            suppress_key: suppress_sparse_capacity,
+        },
+        "pyramidkv_label_sparse_snapshot_keep_ratio_map": {
+            support_key: 0.75,
+            suppress_key: 0.75,
         },
         # Cyclic and role-event routes use sink1. Legacy Merge and compact
         # recent-only routes keep sink3. recent8_sink1 and support recent8

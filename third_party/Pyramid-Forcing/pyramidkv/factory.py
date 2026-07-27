@@ -16,6 +16,12 @@ from .lag import LagStrategy
 from .merge import MergeStrategy
 from .motion_event import MotionEventStrategy
 from .role_event import CoherentMotionStrategy, SemanticLandmarkStrategy
+from .role_memory import (
+    SemanticRetrievalStrategy,
+    SparseSnapshotStrategy,
+    TemporalPrototypeStrategy,
+    UniqueSnapshotStrategy,
+)
 from .stride import StrideStrategy
 from .recent import RecentStrategy
 
@@ -82,6 +88,25 @@ def _build_bool_map(user_map: Mapping | None) -> dict[str, bool]:
         if not norm:
             continue
         out[norm] = bool(val)
+    return out
+
+
+def _build_float_map(
+    user_map: Mapping | None,
+    *,
+    min_value: float,
+    max_value: float,
+) -> dict[str, float]:
+    out: dict[str, float] = {}
+    for key, val in _map_items(user_map):
+        norm = _normalize_label_key(key)
+        if not norm:
+            continue
+        try:
+            parsed = float(val)
+        except (TypeError, ValueError):
+            continue
+        out[norm] = min(float(max_value), max(float(min_value), parsed))
     return out
 
 
@@ -284,6 +309,11 @@ def build_compositions(
     label_motion_event_capacity_map: dict | None = None,
     label_semantic_landmark_capacity_map: dict | None = None,
     label_coherent_motion_pair_capacity_map: dict | None = None,
+    label_semantic_retrieval_capacity_map: dict | None = None,
+    label_temporal_prototype_capacity_map: dict | None = None,
+    label_unique_snapshot_capacity_map: dict | None = None,
+    label_sparse_snapshot_capacity_map: dict | None = None,
+    label_sparse_snapshot_keep_ratio_map: dict | None = None,
     hybrid_middle_enabled: bool = False,
 ) -> list[list[HeadComposition]]:
     """Build per-layer, per-head HeadComposition instances.
@@ -319,6 +349,27 @@ def build_compositions(
         label_coherent_motion_pair_capacity_map,
         min_value=0,
     )
+    semantic_retrieval_capacity_map = _build_int_map(
+        label_semantic_retrieval_capacity_map,
+        min_value=0,
+    )
+    temporal_prototype_capacity_map = _build_int_map(
+        label_temporal_prototype_capacity_map,
+        min_value=0,
+    )
+    unique_snapshot_capacity_map = _build_int_map(
+        label_unique_snapshot_capacity_map,
+        min_value=0,
+    )
+    sparse_snapshot_capacity_map = _build_int_map(
+        label_sparse_snapshot_capacity_map,
+        min_value=0,
+    )
+    sparse_snapshot_keep_ratio_map = _build_float_map(
+        label_sparse_snapshot_keep_ratio_map,
+        min_value=0.05,
+        max_value=1.0,
+    )
     active_landmark_capacities = {
         key: value
         for key, value in landmark_capacity_map.items()
@@ -329,6 +380,26 @@ def build_compositions(
         for key, value in coherent_motion_pair_capacity_map.items()
         if value > 0
     }
+    active_retrieval_capacities = {
+        key: value
+        for key, value in semantic_retrieval_capacity_map.items()
+        if value > 0
+    }
+    active_prototype_capacities = {
+        key: value
+        for key, value in temporal_prototype_capacity_map.items()
+        if value > 0
+    }
+    active_snapshot_capacities = {
+        key: value
+        for key, value in unique_snapshot_capacity_map.items()
+        if value > 0
+    }
+    active_sparse_capacities = {
+        key: value
+        for key, value in sparse_snapshot_capacity_map.items()
+        if value > 0
+    }
     shared_landmark_context = (
         len(active_landmark_capacities) > 1
         and len(set(active_landmark_capacities.values())) == 1
@@ -336,6 +407,29 @@ def build_compositions(
     shared_motion_context = (
         len(active_motion_capacities) > 1
         and len(set(active_motion_capacities.values())) == 1
+    )
+    shared_retrieval_context = (
+        len(active_retrieval_capacities) > 1
+        and len(set(active_retrieval_capacities.values())) == 1
+    )
+    shared_prototype_context = (
+        len(active_prototype_capacities) > 1
+        and len(set(active_prototype_capacities.values())) == 1
+    )
+    shared_snapshot_context = (
+        len(active_snapshot_capacities) > 1
+        and len(set(active_snapshot_capacities.values())) == 1
+    )
+    shared_sparse_context = (
+        len(active_sparse_capacities) > 1
+        and len(set(active_sparse_capacities.values())) == 1
+        and len(
+            {
+                sparse_snapshot_keep_ratio_map.get(key, 0.75)
+                for key in active_sparse_capacities
+            }
+        )
+        == 1
     )
 
     compositions: list[list[HeadComposition]] = []
@@ -401,8 +495,24 @@ def build_compositions(
             coherent_motion_pair_capacity = (
                 coherent_motion_pair_capacity_map.get(label_key, 0)
             )
+            semantic_retrieval_capacity = (
+                semantic_retrieval_capacity_map.get(label_key, 0)
+            )
+            temporal_prototype_capacity = (
+                temporal_prototype_capacity_map.get(label_key, 0)
+            )
+            unique_snapshot_capacity = (
+                unique_snapshot_capacity_map.get(label_key, 0)
+            )
+            sparse_snapshot_capacity = (
+                sparse_snapshot_capacity_map.get(label_key, 0)
+            )
             use_landmark = landmark_capacity > 0
             use_coherent_motion = coherent_motion_pair_capacity > 0
+            use_semantic_retrieval = semantic_retrieval_capacity > 0
+            use_temporal_prototype = temporal_prototype_capacity > 0
+            use_unique_snapshot = unique_snapshot_capacity > 0
+            use_sparse_snapshot = sparse_snapshot_capacity > 0
 
             active_middle = []
             if use_cyclic:
@@ -417,6 +527,14 @@ def build_compositions(
                 active_middle.append("semantic_landmark")
             if use_coherent_motion:
                 active_middle.append("coherent_motion")
+            if use_semantic_retrieval:
+                active_middle.append("semantic_retrieval")
+            if use_temporal_prototype:
+                active_middle.append("temporal_prototype")
+            if use_unique_snapshot:
+                active_middle.append("unique_snapshot")
+            if use_sparse_snapshot:
+                active_middle.append("sparse_snapshot")
             hybrid_pair = set(active_middle) in (
                 {"cyclic", "stride"},
                 {"cyclic", "motion_event"},
@@ -525,6 +643,70 @@ def build_compositions(
                     if use_landmark
                     else "coherent_motion"
                 )
+
+            if use_semantic_retrieval:
+                strategies.append(
+                    SemanticRetrievalStrategy(
+                        capacity=semantic_retrieval_capacity,
+                        context_key=(
+                            "retrieval:all"
+                            if shared_retrieval_context
+                            else f"retrieval:{label_key}"
+                        ),
+                        min_frame_t=sink,
+                        dynamic_rope=True,
+                    )
+                )
+                policy_type = "semantic_retrieval"
+
+            if use_temporal_prototype:
+                strategies.append(
+                    TemporalPrototypeStrategy(
+                        capacity=temporal_prototype_capacity,
+                        context_key=(
+                            "prototype:all"
+                            if shared_prototype_context
+                            else f"prototype:{label_key}"
+                        ),
+                        min_frame_t=sink,
+                        dynamic_rope=True,
+                    )
+                )
+                policy_type = "temporal_prototype"
+
+            if use_unique_snapshot:
+                strategies.append(
+                    UniqueSnapshotStrategy(
+                        capacity=unique_snapshot_capacity,
+                        context_key=(
+                            "snapshot:all"
+                            if shared_snapshot_context
+                            else f"snapshot:{label_key}"
+                        ),
+                        min_frame_t=sink,
+                        dynamic_rope=True,
+                    )
+                )
+                policy_type = "unique_snapshot"
+
+            if use_sparse_snapshot:
+                strategies.append(
+                    SparseSnapshotStrategy(
+                        capacity=sparse_snapshot_capacity,
+                        context_key=(
+                            "sparse:all"
+                            if shared_sparse_context
+                            else f"sparse:{label_key}"
+                        ),
+                        min_frame_t=sink,
+                        keep_ratio=sparse_snapshot_keep_ratio_map.get(
+                            label_key,
+                            0.75,
+                        ),
+                        dynamic_rope=True,
+                    )
+                )
+                policy_type = "sparse_snapshot"
 
             name = f"L{layer_idx}_H{head_idx}_{policy_type}"
             row.append(HeadComposition(
