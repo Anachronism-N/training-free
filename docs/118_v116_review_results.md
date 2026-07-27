@@ -95,7 +95,95 @@ VBench 基于 RAFT 光流和 DINO 后台特征，对短期表观一致更敏感�
 语义一致更敏感。`landmark_snapshot2` 在 VBench 上领先但在 DINO 上倒数第二，
 说明它的短期表观一致是以长期语义漂移为代价换来的。
 
-## 5. 候选方法建议
+## 5. VBench-Long 专项分析
+
+### 5.1 各维度整体排名
+
+| 维度 | 最佳方法 | 分数 | 最差方法 | 分数 | spread |
+|---|---|---:|---|---:|---:|
+| subject_consistency | landmark_snapshot2 | 0.9602 | support_prototype_recent | 0.9548 | 0.0054 |
+| background_consistency | landmark_prototype2 | 0.9516 | landmark_sparse75 | 0.9476 | 0.0039 |
+| aesthetic_quality | landmark_motion1 | 0.6258 | support_prototype_recent | 0.6180 | 0.0078 |
+| imaging_quality | prototype_motion1 | 0.6892 | landmark_retrieval2 | 0.6818 | 0.0074 |
+
+VBench 4 个维度的 spread 都非常小 (0.004-0.008)，说明 9 个方法在 VBench
+意义上几乎不可区分。最佳方法在 4 个维度上分散在 4 个不同方法上，没有单一
+方法在 VBench 上占优。
+
+### 5.2 逐 prompt 胜负分布
+
+**subject_consistency 逐 prompt 胜者** (per-prompt clip 平均后取最高)：
+
+| Method | 胜场 / 16 |
+|---|---:|
+| landmark_recent8 | 3 |
+| landmark_snapshot2 | 3 |
+| support_prototype_recent | 2 |
+| landmark_prototype2 | 2 |
+| prototype_motion1 | 2 |
+| landmark_sparse75 | 2 |
+| landmark_motion2 | 1 |
+| landmark_motion1 | 1 |
+| landmark_retrieval2 | 0 |
+
+`landmark_retrieval2` 在 16 个 prompt 上一次都没拿到 VBench subject 第一，
+但它的 DINO consistency 和 drift 都领先——这是 VBench 与 DINO 信号分歧的
+直接证据。`landmark_sparse75` 虽然 VBench 总分最差，却在 2 个 prompt 上拿到
+第一，说明它在某些特定场景下 (如 p0/p3 的稳定身份 prompt) 仍有局部优势。
+
+**aesthetic_quality 逐 prompt 胜者**：
+
+| Method | 胜场 / 16 |
+|---|---:|
+| landmark_snapshot2 | 5 |
+| landmark_motion1 | 2 |
+| landmark_recent8 | 2 |
+| landmark_motion2 | 2 |
+| landmark_prototype2 | 2 |
+| landmark_sparse75 | 1 |
+| landmark_retrieval2 | 1 |
+| prototype_motion1 | 1 |
+| support_prototype_recent | 0 |
+
+`landmark_snapshot2` 在 aesthetic 上明显占优 (5/16)，这与它在 VBench subject
+上也最好一致——snapshot cache 倾向于保持视觉帧间稳定，因此表观质量和短期
+一致性都受益，但代价是长期 drift (见 4.4)。
+
+### 5.3 VBench 与 DINO 的相关性
+
+| 指标对 | Pearson r (n=9) | 解读 |
+|---|---:|---|
+| VB-Subj vs DINO | **-0.039** | 几乎零相关 — VBench subject 不能预测 DINO 一致性 |
+| VB-Subj vs Drift | **-0.343** | 弱负相关 — VBench subject 越高，drift 反而越差 |
+| VB-BG vs BG-DINO | +0.299 | 弱正相关 |
+| VB-Aes vs CLIP | +0.535 | 中等正相关 |
+| VB-Img vs DINO | **+0.549** | 中等正相关 — 最 aligned 的一对 |
+| VB-Aes vs VB-Img | +0.102 | 几乎零相关 — 两个 VBench 质量维度内部不一致 |
+| VB-Subj vs VB-BG | +0.524 | 中等正相关 |
+
+**关键发现：VBench subject_consistency 与 DINO consistency 几乎零相关 (r=-0.04)**，
+与 drift 弱负相关 (r=-0.34)。这意味着 VBench 的短期光流/表观一致性和 DINO
+的长期语义一致性衡量的是不同的东西——一个方法可以在 VBench subject 上领先
+同时在 DINO drift 上倒数 (典型例子：`landmark_snapshot2`)。
+
+唯一与 DINO 有中等正相关的是 VBench imaging_quality (r=+0.55)，提示成像质量
+本身对长期一致性有间接贡献，但这个相关性也不够强到可以替代 DINO。
+
+### 5.4 VBench 对候选选择的指导意义
+
+1. **VBench 不能单独用于选方法**。4 个维度 spread 都 < 0.008，且 subject 与
+   DINO 零相关，单纯看 VBench 排名会选到 `landmark_snapshot2` (VBench 第一)
+   而 DINO drift 最差的方法。
+2. **aesthetic_quality 可作为辅助参考**。`landmark_snapshot2` 在 aesthetic 上
+   5/16 胜，且 aesthetic 与 CLIP 有中等正相关 (r=+0.54)，说明它在视觉美感
+   上确实有优势——但这不等于身份一致性。
+3. **VBench background_consistency 区分度最低** (spread 0.0039)，9 个方法
+   几乎一样，这与所有方法都使用 Landmark4/Prototype4 支撑背景一致。
+4. **`landmark_retrieval2` 在 VBench subject 上 0 胜**，但 DINO/drift 领先，
+   说明它的优势完全在长期一致性而非短期表观——这种优势只能通过 DINO 或人眼
+   长期观察捕捉。
+
+## 6. 候选方法建议
 
 基于本轮指标证据，建议如下候选顺序（仍需人工 review 确认）：
 
@@ -113,7 +201,7 @@ P1/P2 直接对决 Suppressive cache 的 retrieval vs motion 路线；P3/P4 验�
 Prototype4 是否值得替换 Landmark4。本轮指标不足以单独定夺，需要人工 review
 在身份保持、运动幅度、背景稳定三方面的判断。
 
-## 6. 已知限制
+## 7. 已知限制
 
 1. **16 prompt 不足以支撑论文主表**。仅用于候选收缩。最终主方法确定后仍需在
    MovieGenVideoBench-128 上与 SF / PF / Echo-Forcing 做同 seed 对比。
@@ -126,7 +214,7 @@ Prototype4 是否值得替换 Landmark4。本轮指标不足以单独定夺，�
 5. **指标与人眼可能不一致**。4.4 / 4.5 已指出 loop、VBench subject 和 DINO
    之间存在矛盾，必须以人工 review 为最终判据。
 
-## 7. 下一步
+## 8. 下一步
 
 1. **人工 review**：在 9 个方法 × 16 prompt 上做盲评或公开评，重点比较
    P1-P4 候选的身份保持、运动幅度衰减、背景稳定性和场景演化。
@@ -139,11 +227,13 @@ Prototype4 是否值得替换 Landmark4。本轮指标不足以单独定夺，�
 5. **sink 实验 (P3)**：测试 sink size 0/4/8/16 对稳定性的影响。
 6. **长视频 ABA (P4)**：在 60s / 90s / 120s 视频上验证 cache 是否持续有效。
 
-## 8. 文件位置
+## 9. 文件位置
 
 - 视频目录：`runs/v116_role_memory_diverse16/m9_7a14c511d500/<method>_flat/`
 - VBench-Long 汇总：`runs/v116_role_memory_diverse16/m9_7a14c511d500/metrics/vbench_long_summary.{md,json,csv}`
+- VBench-Long 逐 prompt：`runs/v116_role_memory_diverse16/m9_7a14c511d500/metrics/vbench_per_prompt.json`
 - DINO comprehensive 汇总：`runs/v116_role_memory_diverse16/m9_7a14c511d500/metrics/comprehensive_summary.json`
 - 合并指标：`runs/v116_role_memory_diverse16/m9_7a14c511d500/metrics/combined_summary.json`
 - 各方法原始结果：`runs/v116_role_memory_diverse16/m9_7a14c511d500/metrics/comprehensive_parts/<method>.json`
 - DINO 日志：`runs/v116_role_memory_diverse16/m9_7a14c511d500/metrics/logs/comp.<method>.log`
+- Review 索引：`runs/v116_role_memory_diverse16/m9_7a14c511d500/review_index.md`
