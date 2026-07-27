@@ -19,7 +19,7 @@ from pathlib import Path
 
 
 PACKAGE_VERSION = 2
-INDEX_PATTERN = re.compile(r"^(\d+)-(\d+)_([^.]+)\.mp4$")
+INDEX_PATTERN = re.compile(r"^(\d+)-(\d+)(?:_([^.]+))?\.mp4$")
 COMPLETE_NAME = ".complete.json"
 FROZEN_NAME = "FROZEN.json"
 SCORE_FIELDS = [
