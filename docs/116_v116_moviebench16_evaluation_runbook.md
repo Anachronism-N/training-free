@@ -2,19 +2,21 @@
 
 日期：2026-07-27
 
-状态：代码已实现；必须先完成人工 v115 单视频筛选，才允许启动。
+状态：v115 人工筛选已完成；九方法候选矩阵可启动。
 
 ## 1. 目的与边界
 
 v115 用一个固定 prompt 快速排除多边形噪声、重复主体、运动冻结和无效
-cache。v116 不重新搜索全部配置，只把人工 review 后的少量候选放到冻结的
-MovieGenVideoBench-16 子集上做初步排序。
+cache。v116 根据人工反馈固定最稳定的 Supportive 路由，集中比较肉眼存在差异、
+但单视频难以可靠描述的 Suppressive cache；另保留两个 Prototype-Supportive
+候选。
 
 v116 回答三个问题：
 
 1. 单 prompt 上干净的缓存是否能跨身份、多人、快速运动、镜头运动和场景演化
    保持稳定；
-2. 二角色路由是否优于相同预算的 role-neutral/local control；
+2. Recent、Motion、Prototype、Snapshot、Retrieval 和 Sparse 等 Suppressive
+   路由在多样 prompt 上分别偏向身份、背景还是运动；
 3. 视觉差异较小时，DINO、drift、motion、background、loop 和 VBench-Long
    是否给出一致证据。
 
@@ -50,27 +52,38 @@ SHA256: 926fdba7b8c325960b1cdeca559cd7ed2bbc475875e74f7a04476c32637a77f9
 - policy trace 中 `exclusive_owner=true`，304/56 membership 正确；
 - sink/middle/recent 无重叠，实际读 token 不超过 9 frame-equivalents；
 - 新 memory 确实发生 admission/replacement/compression，而不是退化为 recent；
-- 相对 `support_landmark4_suppress_recent8` 或 `all_recent8` 至少有可解释优势。
+- 相对 `support_landmark4_suppress_recent8` 至少有可解释的身份、背景或运动
+  差异。
 
-默认四方法集合是：
+默认九方法集合是：
 
 ```text
+landmark_recent8
+landmark_motion2
+landmark_motion1
+landmark_prototype2
+landmark_snapshot2
+landmark_retrieval2
+landmark_sparse75
+support_prototype_recent
 prototype_motion1
-snapshot_motion1
-control_landmark_recent
-control_all_recent8
 ```
 
-它只是推荐的低风险起点，不代表预先选定结果。若 v115 选择不同配置，应显式
-设置 `V116_METHODS`。所有可用 key 可通过以下命令查看：
+前七项统一使用 `Supportive=Landmark4`，只改变 Suppressive cache，因此是本轮
+最重要的直接比较。最后两项判断 Prototype4 是否值得替代 Landmark4。
+
+本轮不要求同时证明优于 all-head memory。`all_recent8`、`all_landmark4`、
+`all_prototype4`、random/inverted map 和容量匹配对照保留到主方法确定后的
+消融。所有可用 key 可通过以下命令查看：
 
 ```bash
 python scripts/run_v116_role_memory_diverse16.py --list-methods
 ```
 
-推荐保持“两个候选 + 两个对照”。至少一个对照必须完全不依赖 304/56 路由；
-当前 `control_all_recent8` 满足该要求。方法顺序也是冻结 contract 的一部分，
-四个节点必须完全一致。
+方法顺序也是冻结 contract 的一部分，四个节点必须完全一致。不要把单视频中
+视觉略弱的 Suppressive-Snapshot/Retrieval/Sparse 提前删除：这些策略只作用于
+56 个 Suppressive heads，v115 已证明它们在 Landmark4 支撑下可生成干净视频，
+需要由 16-prompt 指标判断具体差异。
 
 ## 4. 四节点生成
 
@@ -83,7 +96,7 @@ git pull
 export REPO_ROOT="$PWD"
 export PF_CHECKPOINT="$PWD/third_party/Pyramid-Forcing/checkpoints/self_forcing_dmd.pt"
 export V115_PROMOTION_APPROVED=1
-export V116_METHODS="prototype_motion1,snapshot_motion1,control_landmark_recent,control_all_recent8"
+export V116_METHODS="landmark_recent8,landmark_motion2,landmark_motion1,landmark_prototype2,landmark_snapshot2,landmark_retrieval2,landmark_sparse75,support_prototype_recent,prototype_motion1"
 export NUM_NODES=4
 export GPU_LIST="0,1,2,3,4,5,6,7"
 ```
@@ -95,11 +108,11 @@ NODE_RANK=<0|1|2|3> \
 python scripts/run_v116_role_memory_diverse16.py generate
 ```
 
-四方法时共有 `4 x 16 = 64` 个 30 秒任务，每节点 16 个任务，每张 GPU 顺序运行
-2 个。输出目录由有序方法集合的 SHA 自动决定；默认集合为：
+九方法时共有 `9 x 16 = 144` 个 30 秒任务，每节点 36 个任务，每张 GPU 顺序运行
+4 或 5 个。输出目录由有序方法集合的 SHA 自动决定；默认集合为：
 
 ```text
-runs/v116_role_memory_diverse16/m4_7c75817c92a2
+runs/v116_role_memory_diverse16/m9_7a14c511d500
 ```
 
 不要在同一输出目录中改变方法顺序、prompt 文件、head map、checkpoint 或代码。
@@ -137,7 +150,7 @@ python scripts/run_v116_role_memory_diverse16.py audit
 生成完成后先汇总实际缓存行为：
 
 ```bash
-export RUN_ROOT="$PWD/runs/v116_role_memory_diverse16/m4_7c75817c92a2"
+export RUN_ROOT="$PWD/runs/v116_role_memory_diverse16/m9_7a14c511d500"
 python scripts/analyze_v115_role_memory_traces.py --run-root "$RUN_ROOT"
 ```
 
@@ -213,6 +226,18 @@ diagnostic。结果位于：
 指标不能替代人工 review。尤其是 DINO 较高但 motion/dynamic degree 明显下降，
 可能只是冻结；loop 较低但 identity/background 较差，也不能视为改进。
 
+VBench 与辅助指标都完成后运行逐 prompt 配对分析：
+
+```bash
+python scripts/analyze_v116_candidate_metrics.py \
+  --run-root "$RUN_ROOT" \
+  --reference landmark_recent8
+```
+
+输出 `analysis/v116_candidate_metrics.md`、方法汇总 CSV 和逐指标配对 CSV。
+正的 `mean_improvement` 统一表示更好；报告同时给出 median、16 条 prompt 的
+胜/平/负数和固定 seed bootstrap 95% 区间。
+
 ## 9. 人工 Review 表
 
 每条 prompt 盲评以下项目，使用 `-2/-1/0/+1/+2` 相对最强对照打分：
@@ -234,23 +259,26 @@ diagnostic。结果位于：
 优先选择满足以下条件、且故事最简洁的方法：
 
 1. artifact hard gate 全通过；
-2. 至少 10/16 prompts 不劣于两个对照，严重失败不超过 1 条；
+2. 相对 `landmark_recent8` 至少 10/16 prompts 不劣，严重失败不超过 1 条；
 3. identity/background 改善不能依靠明显降低 motion；
-4. role-conditioned 候选优于或至少稳定匹配相同 memory 的 all-head control；
+4. Suppressive cache 的优势能在相关指标与人工现象之间对应；
 5. trace 能证明两个角色实际读取了不同的、符合定义的历史。
 
-若 `prototype_motion1` 最稳，论文主方法可表述为：
+若 Landmark4 + Motion/Prototype 中某项最稳，论文主方法可表述为：
 
 ```text
 History-polarity head partition
-+ Supportive temporal prototype memory
-+ Suppressive coherent motion bridge with a larger recent window
++ Supportive long-term semantic landmark memory
++ Suppressive short-term state/motion memory selected by the v116 evidence
 ```
 
-若 `snapshot_motion1` 更好，应把 snapshot 明确写为受 Echo-Forcing 启发的缓存
-组件，创新重点放在二角色发现、角色条件化使用和统一预算/生命周期，而不是声称
-relevance/uniqueness snapshot 本身原创。
+若 Prototype-Supportive 候选更好，论文重点转为连续语义段的 exact-frame
+medoid compression；若 Suppressive Snapshot/Retrieval 更好，必须明确引用
+Echo-Forcing/LongLive-RAG，并把创新放在二角色发现、角色条件化使用和统一
+预算/生命周期，而不是声称 snapshot 或 retrieval 本身原创。
 
-Retrieval 或 sparse 只有在无 artifact 且跨 prompt 稳定时才能升级为主方法；
-否则记录为负结果或消融。最后进入 MovieGenVideoBench-128 时，复用已有且
-prompt/seed/checkpoint/frame contract 完全相同的 SF/PF/Echo 视频，不重复生成。
+Retrieval 或 sparse 只有在无 artifact、动态程度不下降且跨 prompt 稳定时才能
+升级为主方法；否则记录为负结果或消融。主方法选定后再运行 all-head、容量、
+分类 random/inverted 和更新机制消融。最后进入 MovieGenVideoBench-128 时，
+复用已有且 prompt/seed/checkpoint/frame contract 完全相同的 SF/PF/Echo 视频，
+不重复生成。

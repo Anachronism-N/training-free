@@ -200,3 +200,16 @@ Based on visual quality and mechanism simplicity:
 2. Pull latest code (repo may contain next-step experiment scripts).
 3. Consider 60s+ extrapolation test for top candidates.
 4. Run 16-prompt or 32-prompt screen with top 3 candidates + controls.
+
+## 8. Interpretation clarification
+
+`Good` in the tables means that one reviewed prompt completed without a severe
+artifact and is eligible for broader evaluation. It does **not** mean that the
+Suppressive cache choices are visually identical or equally effective.
+
+The reviewer observed differences among Suppressive Recent8, Motion-pair1/2,
+Prototype2, Snapshot2, Retrieval2, and Sparse75, but those differences were
+not stable enough to name or rank from one video. The post-v115 plan therefore
+keeps Landmark4 fixed and evaluates all seven Suppressive routes on the same
+MovieGenBench-16 prompts with paired metrics. See
+`docs/117_post_v115_targeted_candidate_plan.md`.

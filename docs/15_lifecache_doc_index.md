@@ -2,8 +2,17 @@
 
 ## Current method (read first)
 
+- `docs/117_post_v115_targeted_candidate_plan.md`: authoritative current
+  decision. It corrects the interpretation of one-prompt Suppressive
+  viability, defines the nine-method MovieBench-16 matrix, defers all-head
+  controls to ablation, adds paired metric analysis, and prioritizes the
+  remaining capacity/lifecycle/sink experiments.
+- `docs/116_v115_review_results.md`: completed human review of all 16 v115
+  cells. Landmark4 is the most stable Supportive cache, Prototype4 is the
+  strongest alternative, and Suppressive routes remain visually distinct but
+  unresolved by one prompt.
 - `docs/115_v115_role_memory_design_and_1video_screen.md`: authoritative
-  current one-video cache search. It keeps the old-v98 304/56 diagnostic map,
+  completed one-video cache search design. It keeps the old-v98 304/56 map,
   tests Supportive and Suppressive caches separately, adds temporal
   prototypes, coherent snapshots, bounded retrieval, sparse snapshots and a
   compact motion-pair route, and freezes a 16-cell budget-matched matrix with
@@ -13,10 +22,10 @@
   only when paired with Landmark support and has no demonstrated gain over
   Suppressive Recent8. This evidence motivates the broader v115 search.
 - `docs/116_v116_moviebench16_evaluation_runbook.md`: gated promotion after
-  v115 human review. It evaluates two selected candidates and two controls on
-  a frozen diverse MovieGenBench-16 subset, publishes separately audited
-  VBench and indexed-metric views, and runs VBench-Long plus eight auxiliary
-  diagnostics on four nodes.
+  v115 human review. It evaluates seven Suppressive routes under fixed
+  Landmark4 support plus two Prototype-Supportive candidates on a frozen
+  diverse MovieGenBench-16 subset, publishes separately audited VBench and
+  indexed-metric views, and runs paired diagnostics on four nodes.
 - `docs/113_v111_review_results_and_bug_record.md`: first v111 server review.
   It records four clean Landmark/Recent outputs, identifies the exact
   Motion-pair2 second-slot fill crash, documents the reviewed fix and targeted
@@ -148,31 +157,30 @@
 
 Recommended reading order:
 
-1. `docs/114_v111_motion_pair2_rerun_review.md`
-2. `docs/115_v115_role_memory_design_and_1video_screen.md`
+1. `docs/116_v115_review_results.md`
+2. `docs/117_post_v115_targeted_candidate_plan.md`
 3. `docs/116_v116_moviebench16_evaluation_runbook.md`
-4. `docs/113_v111_review_results_and_bug_record.md`
-5. `docs/111_nonperiodic_role_event_cache_screen.md`
-6. `docs/110_v109_review_results.md`
-7. `docs/109_legacy_v98_suppressive_cache_1video_screen.md`
-8. `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`
-9. `docs/106_v100_fast_screen_review_results.md`
-10. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
-11. `docs/101_v98_middle_relative_profiling_results.md`
-12. `docs/99_v98_experiment_results.md`
+4. `docs/115_v115_role_memory_design_and_1video_screen.md`
+5. `docs/114_v111_motion_pair2_rerun_review.md`
+6. `docs/113_v111_review_results_and_bug_record.md`
+7. `docs/111_nonperiodic_role_event_cache_screen.md`
+8. `docs/110_v109_review_results.md`
+9. `docs/109_legacy_v98_suppressive_cache_1video_screen.md`
+10. `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`
+11. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
+12. `docs/101_v98_middle_relative_profiling_results.md`
 13. `docs/98_history_polarity_dual_memory_method.md`
 14. `docs/97_v97_experiment_results.md`
 15. `docs/64_related_work_code_provenance_and_claims.md`
 
-The immediate step is the v115 16-cell one-video cache search; completed v111
-videos are references and must not be regenerated. Review the videos together
-with actual cache traces, then promote at most two clean candidates plus two
-controls to v116 MovieGenBench-16. Only after that screen should one method
-advance to MovieBench-128 and the final SF/PF/Echo comparison. Existing
-baseline videos are reused only when prompt, seed, checkpoint, frame, FPS and
-code contracts match. ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR
-remain negative-result or design history. LifeCache-v1 below is retained as
-the original design snapshot.
+The immediate step is the v116 nine-method MovieBench-16 paired screen.
+Recover missing v115 done markers from existing artifacts without inference,
+then compare the seven Suppressive caches under fixed Landmark4 support. Do
+not spend the current screen on all-head controls; those belong to the final
+ablation after the main cache is selected. Existing baseline videos are reused
+only when prompt, seed, checkpoint, frame, FPS and code contracts match.
+ProbeCache, Commit Forcing, LifeCache-v3, HREM and CEMR remain negative-result
+or design history. LifeCache-v1 below is retained as the original snapshot.
 
 ## Historical method checkpoints
 

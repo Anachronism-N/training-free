@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -53,7 +54,7 @@ def test_diverse16_manifest_is_frozen_to_moviebench_128():
     }.issubset(covered_tags)
 
 
-def test_v116_default_is_four_methods_times_sixteen_prompts():
+def test_v116_default_is_nine_methods_times_sixteen_prompts():
     manifest_path = ROOT / "prompts" / "moviegenbench_diverse16.json"
     source_path = (
         ROOT
@@ -66,12 +67,30 @@ def test_v116_default_is_four_methods_times_sixteen_prompts():
     methods = v116.methods_for(v116.DEFAULT_METHODS)
     tasks = v116.all_tasks(methods, prompts)
 
+    assert v116.DEFAULT_METHODS == (
+        "landmark_recent8",
+        "landmark_motion2",
+        "landmark_motion1",
+        "landmark_prototype2",
+        "landmark_snapshot2",
+        "landmark_retrieval2",
+        "landmark_sparse75",
+        "support_prototype_recent",
+        "prototype_motion1",
+    )
     assert [method.key for method in methods] == list(v116.DEFAULT_METHODS)
-    assert len(tasks) == 64
-    assert len({cell.name for _, _, cell in tasks}) == 64
+    assert len(tasks) == 144
+    assert len({cell.name for _, _, cell in tasks}) == 144
     assert {
         prompt.source_index for _, prompt, _ in tasks
     } == {item.source_index for item in prompts}
+    method_csv = ",".join(v116.DEFAULT_METHODS)
+    assert (
+        f"m9_{hashlib.sha256(method_csv.encode()).hexdigest()[:12]}"
+        == "m9_7a14c511d500"
+    )
+    for name in ("run_v116_vbench_long.sh", "run_v116_aux_metrics.sh"):
+        assert method_csv in (SCRIPTS / name).read_text(encoding="utf-8")
 
 
 def test_v116_four_node_partition_is_complete_and_nonoverlapping():
@@ -96,12 +115,39 @@ def test_v116_four_node_partition_is_complete_and_nonoverlapping():
     ]
     names = [cell.name for shard in shards for _, _, cell in shard]
 
-    assert [len(shard) for shard in shards] == [16, 16, 16, 16]
-    assert len(names) == len(set(names)) == 64
+    assert [len(shard) for shard in shards] == [36, 36, 36, 36]
+    assert len(names) == len(set(names)) == 144
+
+
+def test_v116_default_factorizes_suppressive_cache_under_landmark_support():
+    methods = v116.methods_for(v116.DEFAULT_METHODS)
+    landmark_methods = [
+        method for method in methods
+        if method.source_cell.support_policy == "landmark"
+    ]
+    assert {
+        method.source_cell.suppress_policy for method in landmark_methods
+    } == {
+        "recent8_sink1",
+        "motion_pair",
+        "motion_pair1",
+        "prototype2",
+        "snapshot2",
+        "retrieval2",
+        "sparse75",
+    }
+    assert all(
+        not method.role.endswith("control")
+        for method in methods
+    )
 
 
 def test_v116_method_parser_rejects_unknown_and_duplicate_keys():
-    for raw in ("unknown", "prototype_motion1,prototype_motion1"):
+    for raw in (
+        "unknown",
+        "prototype_motion1,prototype_motion1",
+        "control_landmark_recent,landmark_recent8",
+    ):
         try:
             v116.parse_method_keys(raw)
         except ValueError:

@@ -13,7 +13,7 @@ if [[ "${V115_PROMOTION_APPROVED:-0}" != "1" ]]; then
 fi
 
 ROOT="${REPO_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free}"
-METHODS_CSV="${V116_METHODS:-prototype_motion1,snapshot_motion1,control_landmark_recent,control_all_recent8}"
+METHODS_CSV="${V116_METHODS:-landmark_recent8,landmark_motion2,landmark_motion1,landmark_prototype2,landmark_snapshot2,landmark_retrieval2,landmark_sparse75,support_prototype_recent,prototype_motion1}"
 METHOD_SET_ID="$(
     python - "$METHODS_CSV" <<'PY'
 import hashlib

@@ -3,11 +3,11 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current task is the **v115 role-conditioned memory cache search**.
-Completed v111 experiments show that a four-frame semantic Landmark cache is
-the strongest observed Supportive route. A two-pair motion cache is clean only
-when Landmark support is present and has not shown an independent gain over a
-larger recent window.
+The current task is the **post-v115 MovieGenBench-16 candidate comparison**.
+All 16 v115 one-prompt cells completed. Landmark4 remains the most stable
+Supportive route, Prototype4 is the strongest alternative, and the different
+Suppressive caches are visually distinguishable but cannot be ranked reliably
+from one video.
 
 v115 keeps the frozen old-v98 `304/56` diagnostic partition and a strict
 nine-frame-equivalent read budget, while testing both roles rather than only
@@ -26,16 +26,18 @@ candidates, and include role-neutral controls. Runtime audits verify exact
 head membership, exclusive sink/middle/recent ownership, actual token budget,
 frame ids, update decisions and decoded video properties.
 
-After human review, at most two candidates plus two controls advance to the
-frozen diverse MovieGenBench-16 v116 screen. v116 publishes audited directories
-for VBench-Long and the repository's eight auxiliary diagnostics across four
-nodes/32 GPUs. Existing compatible v111/SF/PF results are references and are
-not regenerated.
+The v116 screen therefore fixes `Supportive=Landmark4` and compares seven
+Suppressive routes: Recent8, Motion-pair1/2, Prototype2, Snapshot2,
+Retrieval2, and Sparse75. Two Prototype-Supportive candidates are retained,
+for nine methods x 16 prompts = 144 videos. v116 publishes audited directories
+for VBench-Long and eight auxiliary diagnostics across four nodes/32 GPUs,
+then produces paired per-prompt deltas against Landmark4/Recent8. All-head and
+classification controls are deferred to the final ablation after selecting
+the main cache.
 
-The current design and one-video commands are in
-`docs/115_v115_role_memory_design_and_1video_screen.md`; completed v111
-evidence is in `docs/114_v111_motion_pair2_rerun_review.md`; the gated
-MovieBench-16 protocol is in
+The v115 result is in `docs/116_v115_review_results.md`; the targeted decision
+and cache-experiment priorities are in
+`docs/117_post_v115_targeted_candidate_plan.md`; complete v116 commands are in
 `docs/116_v116_moviebench16_evaluation_runbook.md`. The document index is
 `docs/15_lifecache_doc_index.md`.
 
@@ -76,17 +78,13 @@ prompt-switch/return-recall branch.
   Veil-like extremes while leaving Wave mixed. It is useful for cache search
   but comes from an absolute QK-sign statistic that is not shift invariant;
   it is not yet a paper-ready classifier.
-- **Supportive memory search:** Landmark4 is the current reference. Temporal
-  prototypes are the leading new candidate because they compress contiguous
-  redundant history into real-frame medoids; snapshots, bounded retrieval and
-  sparse snapshots remain experimental until v115 review.
-- **Suppressive local-motion search:** `sink1 + one coherent motion pair +
-  recent6` tests whether a small motion bridge is useful without cyclic
-  sampling. Recent8 and compact prototype/snapshot/retrieval routes provide
-  matched alternatives.
-- **Role-neutral controls:** all-Prototype, all-Snapshot, all-Landmark and
-  all-Recent controls determine whether a gain depends on the 304/56 route or
-  only on the memory mechanism.
+- **Supportive memory:** Landmark4 is the stable reference. Prototype4 remains
+  the only alternative Supportive cache promoted to multi-prompt evaluation.
+- **Suppressive cache selection:** seven budget-matched Recent, Motion,
+  Prototype, Snapshot, Retrieval and Sparse routes are evaluated under the
+  same Landmark4 support. One-prompt viability is not treated as equivalence.
+- **Deferred ablations:** all-head, random/inverted labels, role count and
+  capacity curves are run only after the main cache is selected.
 - **Exclusive ownership:** explicit composition is the only owner of sink,
   middle, and recent. The legacy PF dynamic-history path is disabled.
 - **Fail-closed evidence:** frozen hashes, exact map counts, runtime routes,
@@ -160,7 +158,9 @@ training-free/
 |   |-- 112_v112_moviebench32_promotion_and_vbench.md
 |   |-- 114_v111_motion_pair2_rerun_review.md
 |   |-- 115_v115_role_memory_design_and_1video_screen.md
-|   `-- 116_v116_moviebench16_evaluation_runbook.md
+|   |-- 116_v115_review_results.md
+|   |-- 116_v116_moviebench16_evaluation_runbook.md
+|   `-- 117_post_v115_targeted_candidate_plan.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt

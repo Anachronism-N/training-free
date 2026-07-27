@@ -69,6 +69,15 @@ _METHOD_SPECS = {
         "legacy_v98_support_landmark4_suppress_motion_pair2",
         "v111_candidate",
     ),
+    # Clear candidate aliases retained alongside the historical control names.
+    "landmark_recent8": (
+        "legacy_v98_support_landmark4_suppress_recent8",
+        "joint_candidate",
+    ),
+    "landmark_motion2": (
+        "legacy_v98_support_landmark4_suppress_motion_pair2",
+        "joint_candidate",
+    ),
     # Isolated Supportive routes.
     "support_prototype_recent": (
         "legacy_v98_support_prototype4_suppress_recent8",
@@ -138,10 +147,15 @@ _METHOD_SPECS = {
     ),
 }
 DEFAULT_METHODS = (
+    "landmark_recent8",
+    "landmark_motion2",
+    "landmark_motion1",
+    "landmark_prototype2",
+    "landmark_snapshot2",
+    "landmark_retrieval2",
+    "landmark_sparse75",
+    "support_prototype_recent",
     "prototype_motion1",
-    "snapshot_motion1",
-    "control_landmark_recent",
-    "control_all_recent8",
 )
 
 
@@ -154,6 +168,19 @@ def parse_method_keys(raw: str) -> tuple[str, ...]:
     unknown = sorted(set(keys) - set(_METHOD_SPECS))
     if unknown:
         raise ValueError(f"unknown methods: {unknown}")
+    source_cells = [_METHOD_SPECS[key][0] for key in keys]
+    duplicate_sources = sorted(
+        {
+            cell_name
+            for cell_name in source_cells
+            if source_cells.count(cell_name) > 1
+        }
+    )
+    if duplicate_sources:
+        raise ValueError(
+            "method aliases resolve to duplicate source cells: "
+            f"{duplicate_sources}"
+        )
     return keys
 
 
