@@ -10,7 +10,7 @@ if [[ "$ACTION" != "split" && "$ACTION" != "preflight" && \
 fi
 
 ROOT="${REPO_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free}"
-COMPARISON_ROOT="${COMPARISON_ROOT:-$ROOT/runs/v125_moviebench128_main/comparison}"
+COMPARISON_ROOT="${COMPARISON_ROOT:-$ROOT/runs/v125_moviebench128_main/comparison_quality8}"
 MANIFEST="$COMPARISON_ROOT/comparison_manifest.json"
 VBENCH_ROOT="${VBENCH_ROOT:-$ROOT/../research_sprint/bench_baselines/VBench}"
 VBENCH_CACHE_DIR="${VBENCH_CACHE_DIR:-$HOME/.cache/vbench}"
@@ -40,12 +40,12 @@ assert payload["experiment"] == "v125_moviebench128_comparison"
 assert payload["prompt_count"] == 128
 assert payload["num_output_frames"] == 120
 methods = [row["key"] for row in payload["methods"]]
-assert len(methods) == len(set(methods)) >= 4
+assert len(methods) == len(set(methods)) == 8
 print("\n".join(methods))
 PY
 )
-[[ "${#METHODS[@]}" -ge 4 ]] || {
-    echo "[error] comparison manifest contains too few methods"
+[[ "${#METHODS[@]}" -eq 8 ]] || {
+    echo "[error] comparison manifest must contain exactly eight methods"
     exit 2
 }
 

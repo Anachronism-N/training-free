@@ -16,6 +16,24 @@ from collect_vbench_long_results import collect, write_outputs
 
 
 VIDEO_INDEX = re.compile(r"^(\d+)-(\d+)(?:_|$)")
+EXPECTED_METHODS = (
+    "sf_native",
+    "pf_native",
+    "ours_landmark_motion1",
+    "ours_retrieval_age24",
+    "ours_retrieval_motion",
+    "ours_prototype_motion1",
+    "ours_prototype_retrieval_age24",
+    "ours_prototype_retrieval_motion",
+)
+EXPECTED_DIMENSIONS = (
+    "subject_consistency",
+    "background_consistency",
+    "aesthetic_quality",
+    "imaging_quality",
+    "motion_smoothness",
+    "dynamic_degree",
+)
 
 
 def sha256(path: Path) -> str:
@@ -112,8 +130,14 @@ def validate_manifest(path: Path) -> dict[str, Any]:
     if not isinstance(dimensions, list) or not dimensions:
         raise ValueError("comparison manifest has no dimensions")
     keys = [row.get("key") for row in methods if isinstance(row, dict)]
-    if len(keys) != len(methods) or len(keys) != len(set(keys)):
-        raise ValueError("comparison manifest method keys are invalid")
+    if keys != list(EXPECTED_METHODS):
+        raise ValueError(
+            f"comparison manifest methods differ: {keys!r}"
+        )
+    if dimensions != list(EXPECTED_DIMENSIONS):
+        raise ValueError(
+            f"comparison manifest dimensions differ: {dimensions!r}"
+        )
     return payload
 
 

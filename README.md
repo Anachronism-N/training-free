@@ -3,17 +3,19 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current task is the **v125 MovieBench-128 final-candidate comparison**.
-The 32-prompt v120 screen is complete. v125 directly promotes the bounded
-Retrieval1-age24 candidate and the bounded Retrieval1+MotionPair1 candidate to
-128 rewritten MovieBench prompts, seed 0, and 30-second generation.
+The current task is the **v125 MovieBench-128 quality-candidate comparison**.
+The 32-prompt v120 screen is complete. v125 expands its positive branches into
+a `2 x 3` matrix: Landmark or Prototype Supportive memory, each paired with
+MotionPair1, bounded Retrieval, or bounded Retrieval+Motion Suppressive
+memory.
 
 Because the supplied benchmark uses Qwen-rewritten wording, v125 regenerates
-all four paired methods under the same prompt file: native SF, native PF, and
-the two finalists. The table is evaluated on subject consistency, background
-consistency, aesthetic quality, imaging quality, motion smoothness, and dynamic
-degree. Evaluation is sharded by method and dimension across four eight-GPU
-nodes, with explicit RAFT/AMT model preflight and paired 128-prompt statistics.
+all eight paired methods under the same prompt file: native SF, native PF, and
+six effect-oriented Ours candidates. The table is evaluated on subject
+consistency, background consistency, aesthetic quality, imaging quality,
+motion smoothness, and dynamic degree. Evaluation is sharded by method and
+dimension across four eight-GPU nodes, with explicit RAFT/AMT model preflight
+and paired 128-prompt statistics.
 
 v119 kept the frozen old-v98 `304/56` diagnostic partition and tested five
 new 30-second videos:
@@ -64,6 +66,8 @@ boundaries are in `docs/124_v120_metric_human_alignment_audit.md`.
 The final 10-hour generation/evaluation matrix, exact four-node commands,
 model locations, frozen comparison assembly, and paper decision rule are in
 `docs/125_v125_moviebench128_final_candidate_runbook.md`.
+The evidence and compute rationale for the eight-method expansion are in
+`docs/126_v125_eight_method_quality_expansion.md`.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -197,7 +201,8 @@ training-free/
 |   |-- 122_v120_moviebench32_results.md
 |   |-- 123_v120_vbench_analysis_dino_and_pf_alignment.md
 |   |-- 124_v120_metric_human_alignment_audit.md
-|   `-- 125_v125_moviebench128_final_candidate_runbook.md
+|   |-- 125_v125_moviebench128_final_candidate_runbook.md
+|   `-- 126_v125_eight_method_quality_expansion.md
 |-- prompts/
 |   |-- lifecache_v3_calibration_complex_12.txt
 |   |-- lifecache_v3_single_long_complex_12.txt
@@ -301,13 +306,13 @@ training-free/
 
 The current v125 paper-scale path is implemented:
 
-- `run_v125_moviebench128_main.py`: four-method, 512-video generation with
+- `run_v125_moviebench128_main.py`: eight-method, 1,024-video generation with
   frozen Qwen-rewrite prompt, map, implementation, and decoded-video contracts.
-- `prepare_v125_moviebench128_comparison.py`: fail-closed four-method
+- `prepare_v125_moviebench128_comparison.py`: fail-closed eight-method
   comparison assembly with exact prompt and generation-contract checks.
 - `prepare_v125_vbench_splits.py`: one-time atomic two-second clip splitting,
   preventing concurrent VBench dimensions from mutating the same input tree.
-- `run_v125_vbench_long.sh`: 24 method-by-dimension jobs, one process per GPU,
+- `run_v125_vbench_long.sh`: 48 method-by-dimension jobs, one process per GPU,
   RAFT/AMT preflight, resumable markers, and complete dynamic-degree coverage.
 - `merge_v125_vbench_long_parts.py`: strict dimension merge, provenance table,
   and machine-readable/CSV/Markdown summaries.

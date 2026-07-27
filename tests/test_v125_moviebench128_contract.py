@@ -49,9 +49,14 @@ def test_v125_protocol_and_default_candidates_are_frozen():
     assert runner.PUBLISHED_TAG == "v125"
     assert runner.RUN_LABEL == "v125"
     assert runner.ALLOW_PARTIAL_SCOPE is False
+    assert runner.MAX_CANDIDATES == 6
     assert runner.DEFAULT_CANDIDATES == (
+        "landmark_motion1",
         "landmark_retrieval1_age24",
         "landmark_retrieval_motion",
+        "prototype_motion1",
+        "prototype_retrieval1_age24",
+        "prototype_retrieval_motion",
     )
 
     methods = runner.methods_for(
@@ -59,17 +64,59 @@ def test_v125_protocol_and_default_candidates_are_frozen():
         scope="ours",
     )
     assert [method.key for method in methods] == [
+        "ours_landmark_motion1",
         "ours_landmark_retrieval1_age24",
         "ours_landmark_retrieval_motion",
+        "ours_prototype_motion1",
+        "ours_prototype_retrieval1_age24",
+        "ours_prototype_retrieval_motion",
     ]
-    assert methods[0].source_cell.suppress_policy == "retrieval1_age24"
-    assert (
-        methods[1].source_cell.suppress_policy
-        == "retrieval1_motion1_age24"
-    )
+    assert [
+        method.source_cell.support_policy for method in methods
+    ] == ["landmark"] * 3 + ["prototype"] * 3
+    assert [
+        method.source_cell.suppress_policy for method in methods
+    ] == [
+        "motion_pair1",
+        "retrieval1_age24",
+        "retrieval1_motion1_age24",
+    ] * 2
+    assert all(method.source_cell.uses_role_event for method in methods)
+
+    import run_v100_fast_selection_1video as fast
+
+    for method in methods:
+        for label in (10, 11):
+            strategies, sink, recent, _ = fast.expected_policy(
+                method.source_cell,
+                label,
+            )
+            middle = sum(
+                2 if strategy == "CoherentMotionStrategy" else 1
+                for strategy in strategies
+            )
+            if any(
+                strategy
+                in {
+                    "SemanticLandmarkStrategy",
+                    "TemporalPrototypeStrategy",
+                }
+                for strategy in strategies
+            ):
+                middle = 4
+            assert sink == 1
+            assert sink + middle + recent == 9
 
 
-def test_v125_four_node_partition_has_sixteen_videos_per_gpu():
+def test_v125_accepts_six_candidates_but_rejects_seven():
+    runner = v125.runner
+    raw = ",".join(runner.DEFAULT_CANDIDATES)
+    assert runner.parse_candidate_keys(raw) == runner.DEFAULT_CANDIDATES
+    with pytest.raises(ValueError, match="at most six"):
+        runner.parse_candidate_keys(raw + ",landmark_retrieval1")
+
+
+def test_v125_four_node_partition_has_thirty_two_videos_per_gpu():
     runner = v125.runner
     methods = runner.methods_for(runner.DEFAULT_CANDIDATES)
     shards = [
@@ -81,9 +128,9 @@ def test_v125_four_node_partition_has_sixteen_videos_per_gpu():
         for shard in shards
         for method, prompt_index, _ in shard
     ]
-    assert [len(shard) for shard in shards] == [128, 128, 128, 128]
-    assert len(identities) == len(set(identities)) == 4 * 128
-    assert 128 // 8 == 16
+    assert [len(shard) for shard in shards] == [256, 256, 256, 256]
+    assert len(identities) == len(set(identities)) == 8 * 128
+    assert 256 // 8 == 32
     assert {
         prompt_index for _, prompt_index in identities
     } == set(range(128))
@@ -112,13 +159,22 @@ def test_v125_parser_uses_rewritten_128_prompt_file(monkeypatch):
 
 
 def test_v125_comparison_names_remain_pairwise_parseable():
+    assert prepare.COMPARISON_DIR_NAME == "comparison_quality8"
     assert prepare.comparison_name(0) == "000000-0.mp4"
     assert prepare.comparison_name(127) == "000127-0.mp4"
     assert prepare.SOURCE_METHODS == {
         "sf_native": "sf_native",
         "pf_native": "pf_native",
+        "ours_landmark_motion1": "ours_landmark_motion1",
         "ours_retrieval_age24": "ours_landmark_retrieval1_age24",
         "ours_retrieval_motion": "ours_landmark_retrieval_motion",
+        "ours_prototype_motion1": "ours_prototype_motion1",
+        "ours_prototype_retrieval_age24": (
+            "ours_prototype_retrieval1_age24"
+        ),
+        "ours_prototype_retrieval_motion": (
+            "ours_prototype_retrieval_motion"
+        ),
     }
 
 
@@ -138,7 +194,7 @@ def test_blind_review_accepts_official_prompt_sample_names(tmp_path):
 def test_v125_source_root_is_full_sf_pf_ours_table(tmp_path):
     source = prepare.expected_source_root(tmp_path)
     assert source.parent == tmp_path / "runs" / "v125_moviebench128_main"
-    assert source.name.startswith("ours2_")
+    assert source.name.startswith("ours6_")
 
 
 def test_v125_source_contract_requires_exact_rewritten_prompt_items(tmp_path):
@@ -243,7 +299,17 @@ def test_v125_vbench_shell_shards_dimensions_and_checks_raft():
     assert 'run_worker "$slot" "$gpu"' in text
     assert "done_marker_valid" in text
     assert "job_contract_sha256" in text
+    assert "exactly eight methods" in text
     assert "merge_v125_vbench_long_parts.py" in text
+
+
+def test_v125_generation_shell_freezes_six_quality_candidates():
+    text = (SCRIPTS / "run_v125_moviebench128_10h.sh").read_text(
+        encoding="utf-8"
+    )
+    for candidate in v125.runner.DEFAULT_CANDIDATES:
+        assert candidate in text
+    assert 'CANDIDATES+=",' in text
 
 
 def test_v125_split_validation_is_contract_and_clip_complete(
@@ -288,12 +354,16 @@ def test_v125_split_validation_is_contract_and_clip_complete(
     )
 
 
-def test_v125_comparison_manifest_has_four_default_methods():
+def test_v125_comparison_manifest_has_eight_default_methods():
     assert list(prepare.SOURCE_METHODS) == [
         "sf_native",
         "pf_native",
+        "ours_landmark_motion1",
         "ours_retrieval_age24",
         "ours_retrieval_motion",
+        "ours_prototype_motion1",
+        "ours_prototype_retrieval_age24",
+        "ours_prototype_retrieval_motion",
     ]
 
 
@@ -302,15 +372,8 @@ def test_v125_merger_requires_and_preserves_all_128_prompts(
     monkeypatch,
 ):
     comparison = tmp_path / "comparison"
-    methods = ["sf_native", "pf_native", "ours_a", "ours_b"]
-    dimensions = [
-        "subject_consistency",
-        "background_consistency",
-        "aesthetic_quality",
-        "imaging_quality",
-        "motion_smoothness",
-        "dynamic_degree",
-    ]
+    methods = list(merge.EXPECTED_METHODS)
+    dimensions = list(merge.EXPECTED_DIMENSIONS)
     manifest = {
         "experiment": "v125_moviebench128_comparison",
         "prompt_count": 128,
@@ -403,7 +466,12 @@ def test_v125_merger_requires_and_preserves_all_128_prompts(
         )
     )
     assert summary["prompt_count"] == 128
-    assert summary["methods"]["ours_a"]["dynamic_degree"] == 0.75
+    assert (
+        summary["methods"]["ours_prototype_retrieval_motion"][
+            "dynamic_degree"
+        ]
+        == 0.75
+    )
     coverage = json.loads(
         (comparison / "metrics" / "vbench_long_coverage.json").read_text(
             encoding="utf-8"

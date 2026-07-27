@@ -16,7 +16,9 @@ ROOT="${REPO_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/training-fre
 NODE_RANK="${NODE_RANK:-0}"
 NUM_NODES="${NUM_NODES:-4}"
 GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7}"
-CANDIDATES="landmark_retrieval1_age24,landmark_retrieval_motion"
+CANDIDATES="landmark_motion1,landmark_retrieval1_age24"
+CANDIDATES+=",landmark_retrieval_motion,prototype_motion1"
+CANDIDATES+=",prototype_retrieval1_age24,prototype_retrieval_motion"
 PROMPT_FILE="${V125_PROMPTS:-/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/Causal-Forcing/prompts/MovieGen_128_qwen.txt}"
 REWRITE_SCRIPT="${V125_REWRITE_SCRIPT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/RollingForcing/scripts/prompt_refine_qwen.py}"
 METHOD_SET_ID="$(
@@ -29,7 +31,7 @@ print(f"ours{len(keys)}_{hashlib.sha256(','.join(keys).encode()).hexdigest()[:12
 PY
 )" || exit 2
 RUN_ROOT="${V125_RUN_ROOT:-$ROOT/runs/v125_moviebench128_main/$METHOD_SET_ID}"
-COMPARISON_ROOT="${COMPARISON_ROOT:-$ROOT/runs/v125_moviebench128_main/comparison}"
+COMPARISON_ROOT="${COMPARISON_ROOT:-$ROOT/runs/v125_moviebench128_main/comparison_quality8}"
 
 export REPO_ROOT="$ROOT"
 export NODE_RANK

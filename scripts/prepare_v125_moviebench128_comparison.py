@@ -12,6 +12,7 @@ from typing import Any
 
 
 PROMPT_COUNT = 128
+COMPARISON_DIR_NAME = "comparison_quality8"
 QWEN_PROMPT_PATH = (
     "/apdcephfs_gy2/share_303214315/cedricnie/develop/"
     "research_sprint/Causal-Forcing/prompts/MovieGen_128_qwen.txt"
@@ -21,14 +22,26 @@ REWRITE_SCRIPT_PATH = (
     "research_sprint/RollingForcing/scripts/prompt_refine_qwen.py"
 )
 OURS_CANDIDATES = (
+    "landmark_motion1",
     "landmark_retrieval1_age24",
     "landmark_retrieval_motion",
+    "prototype_motion1",
+    "prototype_retrieval1_age24",
+    "prototype_retrieval_motion",
 )
 SOURCE_METHODS = {
     "sf_native": "sf_native",
     "pf_native": "pf_native",
+    "ours_landmark_motion1": "ours_landmark_motion1",
     "ours_retrieval_age24": "ours_landmark_retrieval1_age24",
     "ours_retrieval_motion": "ours_landmark_retrieval_motion",
+    "ours_prototype_motion1": "ours_prototype_motion1",
+    "ours_prototype_retrieval_age24": (
+        "ours_prototype_retrieval1_age24"
+    ),
+    "ours_prototype_retrieval_motion": (
+        "ours_prototype_retrieval_motion"
+    ),
 }
 
 
@@ -313,7 +326,10 @@ def parse_args() -> argparse.Namespace:
     ).resolve()
     args.comparison_root = (
         args.comparison_root
-        or args.repo_root / "runs" / "v125_moviebench128_main" / "comparison"
+        or args.repo_root
+        / "runs"
+        / "v125_moviebench128_main"
+        / COMPARISON_DIR_NAME
     ).resolve()
     args.prompts = args.prompts.resolve()
     args.rewrite_script = args.rewrite_script.resolve()
@@ -356,7 +372,7 @@ def main() -> None:
                 "role": (
                     "external_baseline"
                     if method in {"sf_native", "pf_native"}
-                    else "v125_candidate"
+                    else "v125_quality_candidate"
                 ),
                 "source_experiment": "v125_moviebench128_main",
                 "source_method": source_method,

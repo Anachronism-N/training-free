@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the paired four-method v125 table on rewritten MovieBench-128."""
+"""Run the paired eight-method v125 table on rewritten MovieBench-128."""
 
 from __future__ import annotations
 
@@ -21,9 +21,14 @@ runner.DEFAULT_PROMPT_PATH = os.environ.get(
     ),
 )
 runner.ALLOW_PARTIAL_SCOPE = False
+runner.MAX_CANDIDATES = 6
 runner.DEFAULT_CANDIDATES = (
+    "landmark_motion1",
     "landmark_retrieval1_age24",
     "landmark_retrieval_motion",
+    "prototype_motion1",
+    "prototype_retrieval1_age24",
+    "prototype_retrieval_motion",
 )
 
 

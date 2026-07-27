@@ -1,4 +1,4 @@
-# v125 Qwen-Rewrite MovieBench-128 Final Candidate Runbook
+# v125 Qwen-Rewrite MovieBench-128 Quality Candidate Matrix
 
 Date: 2026-07-28
 
@@ -50,27 +50,46 @@ export V125_REWRITE_SCRIPT=/mounted/path/prompt_refine_qwen.py
 
 Every node must resolve `V125_PROMPTS` to the same absolute path.
 
-## 2. Four-method experiment
+## 2. Eight-method effect-oriented experiment
 
-All four methods are newly generated on the Qwen Rewrite:
+All eight methods are newly generated on the Qwen Rewrite. The six Ours
+methods are complete, potentially publishable methods rather than component
+removal controls:
 
 | Table key | Supportive cache | Suppressive cache | Purpose |
 |---|---|---|---|
 | `sf_native` | Native SF | Native SF | Required base model |
 | `pf_native` | Native PF three-role policy | Native PF three-role policy | Strongest required cache baseline |
+| `ours_landmark_motion1` | sink1 + Landmark4 + recent4 | sink1 + MotionPair1 + recent6 | Strongest simple motion candidate from v120 |
 | `ours_retrieval_age24` | sink1 + Landmark4 + recent4 | sink1 + Retrieval1(age<=24) + recent7 | Simplest current candidate |
 | `ours_retrieval_motion` | sink1 + Landmark4 + recent4 | sink1 + Retrieval1(age<=24) + MotionPair1 + recent5 | Full retrieval-plus-motion candidate |
+| `ours_prototype_motion1` | sink1 + Prototype4 + recent4 | sink1 + MotionPair1 + recent6 | Strong v116 Prototype candidate |
+| `ours_prototype_retrieval_age24` | sink1 + Prototype4 + recent4 | sink1 + Retrieval1(age<=24) + recent7 | New compression-plus-retrieval candidate |
+| `ours_prototype_retrieval_motion` | sink1 + Prototype4 + recent4 | sink1 + Retrieval1(age<=24) + MotionPair1 + recent5 | New full compression/retrieval/motion candidate |
 
-This is 512 new 30-second videos. On four eight-GPU nodes, each node owns 128
-videos and every GPU runs 16 sequential videos.
+This is a `2 x 3` Ours matrix:
+
+```text
+Supportive:  Landmark4 | Prototype4
+Suppressive: MotionPair1 | Retrieval1-age24 | Retrieval1-age24+MotionPair1
+```
+
+Every Ours route has the same maximum 9 full-frame-equivalent cache budget.
+All policies use the corrected exclusive-owner implementation, clean K/V,
+original temporal positions, sink1, and explicit recent context.
+
+This is 1,024 new 30-second videos. On four eight-GPU nodes, each node owns
+256 videos and every GPU runs 32 sequential videos. This remains lighter per
+GPU than the historical v93 eight-method plan, which used only 16 GPUs.
 
 Echo and v78 are omitted from this ten-hour critical path because their old
 videos use different wording and rerunning them would add 256 generations.
 Echo can be added later as an external baseline; v78 is an internal historical
 control, not required to select the current method.
 
-Do not add new CEMR/v78 tricks, sink3, budgets, or classifier ablations before
-this main candidate decision.
+Known weak branches (`Snapshot`, `Sparse75`, unbounded Retrieval2, sink3, full
+v78, and direct archive injection) are deliberately excluded. Do not add
+CEMR or classifier ablations before this main candidate decision.
 
 ## 3. Required files
 
@@ -122,13 +141,13 @@ freeze the VBench commit and evaluator hash.
 
 1. **0:00-0:15:** pull on all nodes, activate the environment, validate the
    rewritten prompt file and models.
-2. **Generation:** four methods x 128 prompts. Each GPU receives 16 videos.
-3. **Audit:** after all 512 generation and publication markers exist, node 0
+2. **Generation:** eight methods x 128 prompts. Each GPU receives 32 videos.
+3. **Audit:** after all 1,024 generation and publication markers exist, node 0
    performs the global audit and freezes the comparison.
-4. **Clip preparation:** four nodes each own one method and atomically create
-   128 x 15 official two-second clips.
-5. **VBench-Long:** four methods x six dimensions = 24 independent jobs.
-   Each node receives six jobs, so no GPU runs two metric jobs concurrently.
+4. **Clip preparation:** each node owns two methods and atomically creates
+   2 x 128 x 15 official two-second clips.
+5. **VBench-Long:** eight methods x six dimensions = 48 independent jobs.
+   Each node receives 12 jobs; four GPUs run a second job after their first.
 6. **Collection:** merge raw parts, run paired 128-prompt statistics, and
    create the blind-review package.
 
@@ -179,8 +198,8 @@ find runs/v125_moviebench128_main -path '*/status/published/*.json' | wc -l
 Expected final counts:
 
 ```text
-generation markers: 512
-publication markers: 512
+generation markers: 1024
+publication markers: 1024
 ```
 
 Do not audit or evaluate a partial run.
@@ -200,8 +219,12 @@ The assembler accepts exactly these source methods:
 ```text
 sf_native
 pf_native
+ours_landmark_motion1
 ours_landmark_retrieval1_age24
 ours_landmark_retrieval_motion
+ours_prototype_motion1
+ours_prototype_retrieval1_age24
+ours_prototype_retrieval_motion
 ```
 
 It verifies the rewritten prompt path/hash, candidate order, seed, frame
@@ -209,13 +232,17 @@ contract, every publication marker, source/target identity, and video count.
 It then creates evaluator-safe hardlinks or symlinks:
 
 ```text
-runs/v125_moviebench128_main/comparison/
+runs/v125_moviebench128_main/comparison_quality8/
   comparison_manifest.json
   published/
     sf_native/
     pf_native/
+    ours_landmark_motion1/
     ours_retrieval_age24/
     ours_retrieval_motion/
+    ours_prototype_motion1/
+    ours_prototype_retrieval_age24/
+    ours_prototype_retrieval_motion/
 ```
 
 Comparison filenames are `000000-0.mp4` through `000127-0.mp4`. This format is
@@ -239,8 +266,8 @@ bash scripts/run_v125_moviebench128_10h.sh vbench-split \
   > "runs/v125_vbench_split_node${NODE_RANK}.log" 2>&1
 ```
 
-With four methods and four nodes, each node owns one method. Every method must
-contain:
+With eight methods and four nodes, each node owns two methods. Every method
+must contain:
 
 ```text
 128 split folders
@@ -292,11 +319,11 @@ bash scripts/run_v125_moviebench128_10h.sh vbench-eval \
 Monitor:
 
 ```bash
-find runs/v125_moviebench128_main/comparison/metrics/vbench_long_parts \
+find runs/v125_moviebench128_main/comparison_quality8/metrics/vbench_long_parts \
   -name done.json | wc -l
 ```
 
-The final count must be 24. A job receives a done marker only when:
+The final count must be 48. A job receives a done marker only when:
 
 - its comparison, evaluator, RAFT, and AMT hashes match;
 - the score is finite;
@@ -313,7 +340,7 @@ bash scripts/run_v125_moviebench128_10h.sh vbench-collect
 Outputs:
 
 ```text
-runs/v125_moviebench128_main/comparison/metrics/
+runs/v125_moviebench128_main/comparison_quality8/metrics/
   vbench_long_summary.json
   vbench_long_summary.csv
   vbench_long_summary.md
@@ -329,16 +356,26 @@ runs/v125_moviebench128_main/comparison/metrics/
 ## 9. Paired statistics
 
 ```bash
-ROOT=runs/v125_moviebench128_main/comparison
+ROOT=runs/v125_moviebench128_main/comparison_quality8
 V="$ROOT/metrics/vbench_long_combined"
 
 python scripts/analyze_v120_paired_metrics.py \
   --vbench "sf_native=$V/sf_native/results.json" \
   --vbench "pf_native=$V/pf_native/results.json" \
+  --vbench "ours_landmark_motion1=$V/ours_landmark_motion1/results.json" \
   --vbench "ours_retrieval_age24=$V/ours_retrieval_age24/results.json" \
   --vbench "ours_retrieval_motion=$V/ours_retrieval_motion/results.json" \
+  --vbench "ours_prototype_motion1=$V/ours_prototype_motion1/results.json" \
+  --vbench "ours_prototype_retrieval_age24=$V/ours_prototype_retrieval_age24/results.json" \
+  --vbench "ours_prototype_retrieval_motion=$V/ours_prototype_retrieval_motion/results.json" \
   --references sf_native pf_native \
-  --candidates ours_retrieval_age24 ours_retrieval_motion \
+  --candidates \
+    ours_landmark_motion1 \
+    ours_retrieval_age24 \
+    ours_retrieval_motion \
+    ours_prototype_motion1 \
+    ours_prototype_retrieval_age24 \
+    ours_prototype_retrieval_motion \
   --expected-prompts 128 \
   --output-json "$ROOT/metrics/v125_paired_analysis.json" \
   --output-md "$ROOT/metrics/v125_paired_analysis.md"
@@ -353,13 +390,18 @@ mapped `clip2clip` values. Do not rank methods with a custom composite.
 Create the blind package before reading metric tables:
 
 ```bash
-ROOT=runs/v125_moviebench128_main/comparison
+ROOT=runs/v125_moviebench128_main/comparison_quality8
 
 python scripts/prepare_blind_review.py \
   --run-root "$ROOT/published" \
   --methods \
     sf_native pf_native \
-    ours_retrieval_age24 ours_retrieval_motion \
+    ours_landmark_motion1 \
+    ours_retrieval_age24 \
+    ours_retrieval_motion \
+    ours_prototype_motion1 \
+    ours_prototype_retrieval_age24 \
+    ours_prototype_retrieval_motion \
   --prompts "$V125_PROMPTS" \
   --prompt-count 128 \
   --seed 20260728 \
@@ -372,24 +414,22 @@ opening the private key or metric tables.
 
 ## 11. Selection rule
 
-Choose `ours_retrieval_age24` when:
+Select the final method in two stages:
 
-- it ties or beats the hybrid on the primary VBench dimensions and paired
-  confidence intervals;
-- the hybrid has no clear dynamic-degree or human motion advantage;
-- its late enlargement failure rate is acceptable.
-
-Choose `ours_retrieval_motion` when:
-
-- dynamic degree or blind motion preference is clearly better;
-- identity/background and artifact rates remain comparable to age24;
-- MotionPair later survives a direct removal ablation.
+1. Compare Landmark and Prototype variants under each matched Suppressive
+   policy. Prototype is retained only if its paired quality/human gain does
+   not worsen identity drift or artifact rate.
+2. Within the winning Supportive family, select MotionPair, bounded Retrieval,
+   or their hybrid. Prefer the simpler route on a statistical and visual tie;
+   retain the hybrid only when it improves motion/dynamics without reintroducing
+   enlargement, duplication, or flashback.
 
 The immediate paper claim cannot be "all dimensions beat PF" unless the table
 shows it. A valid alternative is a consistency-dynamics Pareto claim:
 comparable persistence with better temporal evolution and human preference.
-If neither candidate improves human preference or dynamics, the shared binary
-readout needs a local-continuity correction before paper-scale ablations.
+If none of the six candidates improves human preference or dynamics, the
+shared binary readout needs a local-continuity correction before paper-scale
+ablations.
 
 ## 12. Deferred experiments
 

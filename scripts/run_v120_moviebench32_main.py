@@ -38,6 +38,7 @@ PUBLISHED_TAG = "v120"
 RUN_LABEL = "v120"
 DEFAULT_PROMPT_PATH: str | None = None
 DEFAULT_CANDIDATES = ("landmark_motion1",)
+MAX_CANDIDATES = 2
 ALLOW_PARTIAL_SCOPE = True
 
 
@@ -49,8 +50,25 @@ class Method:
     role: str
 
 
+FORWARD_CELLS = (
+    Cell(
+        "prototype4_retrieval1_age24",
+        "forward_candidate",
+        "single",
+        support_policy="prototype",
+        suppress_policy="retrieval1_age24",
+    ),
+    Cell(
+        "prototype4_retrieval1_motion1_age24",
+        "forward_candidate",
+        "single",
+        support_policy="prototype",
+        suppress_policy="retrieval1_motion1_age24",
+    ),
+)
 _CELLS_BY_NAME = {
-    cell.name: cell for cell in (*V115_CELLS, *V119_CELLS)
+    cell.name: cell
+    for cell in (*V115_CELLS, *V119_CELLS, *FORWARD_CELLS)
 }
 _CANDIDATE_SPECS = {
     "landmark_motion1": (
@@ -77,6 +95,14 @@ _CANDIDATE_SPECS = {
         "legacy_v98_landmark4_retrieval1_motion1_age24",
         "v119_bounded_retrieval_motion",
     ),
+    "prototype_retrieval1_age24": (
+        "prototype4_retrieval1_age24",
+        "v125_prototype_bounded_retrieval",
+    ),
+    "prototype_retrieval_motion": (
+        "prototype4_retrieval1_motion1_age24",
+        "v125_prototype_bounded_retrieval_motion",
+    ),
 }
 
 
@@ -84,8 +110,17 @@ def parse_candidate_keys(raw: str) -> tuple[str, ...]:
     keys = tuple(value.strip() for value in raw.split(",") if value.strip())
     if not keys:
         raise ValueError("at least one ours candidate is required")
-    if len(keys) > 2:
-        raise ValueError("MovieBench main allows at most two ours candidates")
+    if len(keys) > MAX_CANDIDATES:
+        limit = (
+            "two"
+            if MAX_CANDIDATES == 2
+            else "six"
+            if MAX_CANDIDATES == 6
+            else str(MAX_CANDIDATES)
+        )
+        raise ValueError(
+            f"MovieBench main allows at most {limit} ours candidates"
+        )
     if len(keys) != len(set(keys)):
         raise ValueError("candidate list contains duplicates")
     unknown = sorted(set(keys) - set(_CANDIDATE_SPECS))
