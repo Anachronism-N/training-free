@@ -170,32 +170,34 @@
 
 Recommended reading order:
 
-1. `docs/121_v119_sink3_bugfix_and_v120_safe_launch.md`
-2. `docs/120_v119_review_and_sink3_bug.md`
-3. `docs/119_candidate_refinement_and_moviebench32_runbook.md`
-4. `docs/120_post_selection_trick_ledger_and_paper_story.md`
-5. `docs/118_v116_review_results.md`
-6. `docs/117_post_v115_targeted_candidate_plan.md`
-7. `docs/116_v116_moviebench16_evaluation_runbook.md`
-8. `docs/116_v115_review_results.md`
-9. `docs/115_v115_role_memory_design_and_1video_screen.md`
-10. `docs/114_v111_motion_pair2_rerun_review.md`
-11. `docs/113_v111_review_results_and_bug_record.md`
-12. `docs/111_nonperiodic_role_event_cache_screen.md`
-13. `docs/110_v109_review_results.md`
-14. `docs/109_legacy_v98_suppressive_cache_1video_screen.md`
-15. `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`
-16. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
-17. `docs/101_v98_middle_relative_profiling_results.md`
-18. `docs/98_history_polarity_dual_memory_method.md`
-19. `docs/97_v97_experiment_results.md`
-20. `docs/64_related_work_code_provenance_and_claims.md`
+1. `docs/124_v120_metric_human_alignment_audit.md`
+2. `docs/122_v120_moviebench32_results.md`
+3. `docs/123_v120_vbench_analysis_dino_and_pf_alignment.md`
+4. `docs/121_v119_sink3_bugfix_and_v120_safe_launch.md`
+5. `docs/120_v119_review_and_sink3_bug.md`
+6. `docs/119_candidate_refinement_and_moviebench32_runbook.md`
+7. `docs/120_post_selection_trick_ledger_and_paper_story.md`
+8. `docs/118_v116_review_results.md`
+9. `docs/117_post_v115_targeted_candidate_plan.md`
+10. `docs/116_v116_moviebench16_evaluation_runbook.md`
+11. `docs/116_v115_review_results.md`
+12. `docs/115_v115_role_memory_design_and_1video_screen.md`
+13. `docs/114_v111_motion_pair2_rerun_review.md`
+14. `docs/113_v111_review_results_and_bug_record.md`
+15. `docs/111_nonperiodic_role_event_cache_screen.md`
+16. `docs/110_v109_review_results.md`
+17. `docs/109_legacy_v98_suppressive_cache_1video_screen.md`
+18. `docs/107_polygon_noise_rootcause_recovery_and_paper_gate.md`
+19. `docs/100_v99_binary_cache_recovery_and_paper_story.md`
+20. `docs/101_v98_middle_relative_profiling_results.md`
+21. `docs/98_history_polarity_dual_memory_method.md`
+22. `docs/97_v97_experiment_results.md`
+23. `docs/64_related_work_code_provenance_and_claims.md`
 
-The immediate step is split v120 execution: finish the isolated SF/PF
-baselines, then run `landmark_motion1` and `landmark_retrieval_motion` as an
-ours-only 32-prompt set. Evaluate both manifests with six-dimensional
-VBench-Long and merge their summaries. Historical tricks remain deferred
-until the base cache is selected.
+The immediate step is to preserve and push the small raw v120 metric JSON
+files, run paired per-prompt analysis, and complete blind review on the
+existing videos. No v120 video regeneration is required. Historical tricks
+remain deferred until the base cache is selected.
 The corrected evidence tiers and the exact one-prompt -> 16-prompt ->
 ablation order for those historical tricks are recorded in
 `docs/120_post_selection_trick_ledger_and_paper_story.md`.
