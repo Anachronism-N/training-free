@@ -383,7 +383,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--pyramidkv_history_support_policy",
-    choices=("stride", "hybrid"),
+    choices=("stride", "hybrid", "cyclic"),
     default="hybrid",
 )
 parser.add_argument(
@@ -396,7 +396,9 @@ parser.add_argument(
         "motion_cyclic",
         "cyclic_motion1",
         "recent",
+        "recent5",
         "recent8",
+        "recent8_sink1",
     ),
     default="merge",
 )
@@ -913,9 +915,11 @@ if args.pyramidkv_history_polarity:
         f"suppress={args.pyramidkv_history_suppress_policy} "
         f"counts=10:{sum(row.count(10) for row in history_rows)},"
         f"11:{sum(row.count(11) for row in history_rows)} "
-        "support_sink=3 "
+        f"support_sink={policy_overrides['pyramidkv_label_sink_frames_map'][str(HISTORY_SUPPORT_LABEL)]} "
         f"suppress_sink={policy_overrides['pyramidkv_label_sink_frames_map'][str(HISTORY_SUPPRESS_LABEL)]} "
-        "recent=4 legacy_pf_labels=false exclusive_owner=true",
+        f"support_recent={policy_overrides['pyramidkv_label_recent_frames_map'][str(HISTORY_SUPPORT_LABEL)]} "
+        f"suppress_recent={policy_overrides['pyramidkv_label_recent_frames_map'][str(HISTORY_SUPPRESS_LABEL)]} "
+        "legacy_pf_labels=false exclusive_owner=true",
         flush=True,
     )
 if args.pyramidkv_pf_extended_recent_ablation is not None:

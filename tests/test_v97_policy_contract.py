@@ -166,6 +166,40 @@ def test_history_polarity_cyclic_route_restores_wave_sink_contract(tmp_path):
     assert suppressive.recent_frames == 4
 
 
+def test_history_polarity_support_cyclic_builds_uniform_safe_carrier(tmp_path):
+    labels = tmp_path / "history_polarity_all_cyclic.csv"
+    _write_labels(
+        labels,
+        [[HISTORY_SUPPORT_LABEL, HISTORY_SUPPRESS_LABEL]],
+    )
+    overrides = history_polarity_policy_overrides("cyclic", "cyclic")
+    compositions = build_compositions(
+        1,
+        2,
+        torch.full((1, 2), 32760, dtype=torch.int32),
+        csv_path=str(labels),
+        cyclic_enabled=True,
+        cyclic_period=6,
+        cyclic_bucket_cap=4,
+        stride_enabled=True,
+        stride_interval=6,
+        merge_enabled=True,
+        **_factory_kwargs(overrides),
+    )[0]
+
+    for composition in compositions:
+        assert [
+            type(strategy) for strategy in composition.middle_strategies
+        ] == [CyclicStrategy]
+        assert composition.middle_strategies[0].bucket_cap == 4
+        assert composition.sink_frames == 1
+        assert composition.recent_frames == 4
+    assert overrides["pyramidkv_label_stride_enabled_map"] == {
+        "10": False,
+        "11": False,
+    }
+
+
 def test_history_polarity_motion_cyclic_has_sink3_and_two_plus_two_budget(
     tmp_path,
 ):
@@ -263,6 +297,19 @@ def test_history_polarity_recent8_matches_four_frame_middle_budget():
         is False
     )
     assert overrides["pyramidkv_label_recent_frames_map"]["11"] == 8
+
+
+def test_history_polarity_recent_controls_expose_sink_and_budget():
+    recent5 = history_polarity_policy_overrides("cyclic", "recent5")
+    matched = history_polarity_policy_overrides(
+        "cyclic", "recent8_sink1"
+    )
+
+    assert recent5["pyramidkv_label_sink_frames_map"]["11"] == 3
+    assert recent5["pyramidkv_label_recent_frames_map"]["11"] == 5
+    assert matched["pyramidkv_label_sink_frames_map"]["11"] == 1
+    assert matched["pyramidkv_label_recent_frames_map"]["11"] == 8
+    assert matched["pyramidkv_label_phase_bucket_map"]["11"] == 0
 
 
 def test_history_polarity_rejects_pf_reserved_labels():

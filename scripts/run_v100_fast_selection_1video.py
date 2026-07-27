@@ -392,6 +392,8 @@ def expected_policy(
     label: int,
 ) -> tuple[tuple[str, ...], int, int, str]:
     if label == 10:
+        if cell.support_policy == "cyclic":
+            return (("CyclicStrategy",), 1, 4, "osc")
         if cell.support_policy == "hybrid":
             return (
                 ("CyclicStrategy", "StrideStrategy"),
@@ -403,6 +405,7 @@ def expected_policy(
     if label != 11 or cell.suppress_policy is None:
         raise ValueError(f"no binary policy for label={label} cell={cell.name}")
     return {
+        "merge": (("MergeStrategy",), 3, 4, "merge"),
         "cyclic": (("CyclicStrategy",), 1, 4, "osc"),
         "cyclic_sink3": (("CyclicStrategy",), 3, 4, "osc"),
         "motion": (("MotionEventStrategy",), 3, 4, "motion_event"),
@@ -418,7 +421,9 @@ def expected_policy(
             4,
             "motion_cyclic",
         ),
+        "recent5": ((), 3, 5, "stride"),
         "recent8": ((), 3, 8, "stride"),
+        "recent8_sink1": ((), 1, 8, "stride"),
     }[cell.suppress_policy]
 
 

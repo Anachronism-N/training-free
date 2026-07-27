@@ -130,8 +130,10 @@ def history_polarity_policy_overrides(
 
     support = str(support_policy).strip().lower()
     suppress = str(suppress_policy).strip().lower()
-    if support not in {"stride", "hybrid"}:
-        raise ValueError("history support policy must be stride or hybrid")
+    if support not in {"stride", "hybrid", "cyclic"}:
+        raise ValueError(
+            "history support policy must be stride, hybrid, or cyclic"
+        )
     if suppress not in {
         "merge",
         "cyclic",
@@ -140,7 +142,9 @@ def history_polarity_policy_overrides(
         "motion_cyclic",
         "cyclic_motion1",
         "recent",
+        "recent5",
         "recent8",
+        "recent8_sink1",
     }:
         raise ValueError(
             "unsupported history suppress policy"
@@ -157,7 +161,9 @@ def history_polarity_policy_overrides(
         )
     capacity = max(1, int(capacity))
 
-    support_cyclic = 2 if support == "hybrid" else 0
+    support_cyclic = (
+        4 if support == "cyclic" else 2 if support == "hybrid" else 0
+    )
     suppress_cyclic = (
         4
         if suppress in {"cyclic", "cyclic_sink3", "cyclic_motion1"}
@@ -178,9 +184,18 @@ def history_polarity_policy_overrides(
         else 2
     )
     suppress_sink = (
-        1 if suppress in {"cyclic", "cyclic_motion1"} else 3
+        1
+        if suppress in {"cyclic", "cyclic_motion1", "recent8_sink1"}
+        else 3
     )
-    suppress_recent = 8 if suppress == "recent8" else 4
+    suppress_recent = (
+        5
+        if suppress == "recent5"
+        else 8
+        if suppress in {"recent8", "recent8_sink1"}
+        else 4
+    )
+    support_sink = 1 if support == "cyclic" else 3
     support_key = str(support_label)
     suppress_key = str(suppress_label)
     return {
@@ -193,7 +208,7 @@ def history_polarity_policy_overrides(
             suppress_key: suppress_cyclic,
         },
         "pyramidkv_label_stride_enabled_map": {
-            support_key: True,
+            support_key: support in {"stride", "hybrid"},
             suppress_key: False,
         },
         "pyramidkv_label_stride_interval_map": {support_key: 6},
@@ -210,12 +225,11 @@ def history_polarity_policy_overrides(
         "pyramidkv_label_motion_event_capacity_map": {
             suppress_key: suppress_motion_capacity,
         },
-        # A phase-cyclic route uses the quality-tested PF Wave layout:
-        # sink1 + cyclic4 + recent4. Merge/recent routes keep sink3. This
-        # prevents a nominal cache-only recovery from also changing the
-        # cyclic head's positional/sink contract.
+        # A phase-cyclic route uses sink1 + cyclic4 + recent4. Merge and
+        # compact recent-only routes keep sink3. recent8_sink1 is the
+        # frame-budget-matched local-window control for a cyclic route.
         "pyramidkv_label_sink_frames_map": {
-            support_key: 3,
+            support_key: support_sink,
             suppress_key: suppress_sink,
         },
         "pyramidkv_label_recent_frames_map": {
