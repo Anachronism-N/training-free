@@ -469,6 +469,26 @@ parser.add_argument(
     help="Maximum sampled spatial tokens per frame for V-change scoring.",
 )
 parser.add_argument(
+    "--pyramidkv_semantic_retrieval_min_similarity",
+    type=float,
+    default=None,
+    help="Absolute cosine floor for confidence-gated role retrieval.",
+)
+parser.add_argument(
+    "--pyramidkv_semantic_retrieval_min_margin",
+    type=float,
+    default=None,
+    help="Required top-1 minus top-2 cosine margin for role retrieval.",
+)
+parser.add_argument(
+    "--pyramidkv_semantic_retrieval_abstain",
+    action="store_true",
+    help=(
+        "Return no retrieved middle frame when its similarity or margin "
+        "gate fails; sink/recent and any paired motion memory remain active."
+    ),
+)
+parser.add_argument(
     "--pyramidkv_scene_cache",
     action="store_true",
     help=(
@@ -962,6 +982,25 @@ if args.pyramidkv_history_polarity:
     )
     for field_name, field_value in policy_overrides.items():
         setattr(config, field_name, field_value)
+    if args.pyramidkv_semantic_retrieval_min_similarity is not None:
+        value = float(args.pyramidkv_semantic_retrieval_min_similarity)
+        if not -1.0 <= value <= 1.0:
+            parser.error(
+                "--pyramidkv_semantic_retrieval_min_similarity must be "
+                "within [-1, 1]"
+            )
+        config.pyramidkv_semantic_retrieval_min_similarity = value
+    if args.pyramidkv_semantic_retrieval_min_margin is not None:
+        value = float(args.pyramidkv_semantic_retrieval_min_margin)
+        if not 0.0 <= value <= 2.0:
+            parser.error(
+                "--pyramidkv_semantic_retrieval_min_margin must be "
+                "within [0, 2]"
+            )
+        config.pyramidkv_semantic_retrieval_min_margin = value
+    config.pyramidkv_semantic_retrieval_abstain = bool(
+        args.pyramidkv_semantic_retrieval_abstain
+    )
     print(
         "[HistoryPolarityPolicy] "
         f"support_label={HISTORY_SUPPORT_LABEL} "
@@ -975,6 +1014,9 @@ if args.pyramidkv_history_polarity:
         f"suppress_sink={policy_overrides['pyramidkv_label_sink_frames_map'][str(HISTORY_SUPPRESS_LABEL)]} "
         f"support_recent={policy_overrides['pyramidkv_label_recent_frames_map'][str(HISTORY_SUPPORT_LABEL)]} "
         f"suppress_recent={policy_overrides['pyramidkv_label_recent_frames_map'][str(HISTORY_SUPPRESS_LABEL)]} "
+        f"retrieval_abstain={bool(config.pyramidkv_semantic_retrieval_abstain)} "
+        f"retrieval_min_similarity={float(getattr(config, 'pyramidkv_semantic_retrieval_min_similarity', -0.25)):.4f} "
+        f"retrieval_min_margin={float(getattr(config, 'pyramidkv_semantic_retrieval_min_margin', 0.0)):.4f} "
         "legacy_pf_labels=false exclusive_owner=true",
         flush=True,
     )

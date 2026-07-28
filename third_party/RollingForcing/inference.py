@@ -10,6 +10,7 @@ from einops import rearrange
 import torch.distributed as dist
 import imageio
 from torch.utils.data import DataLoader, SequentialSampler
+from torch.utils.data import Subset
 from torch.utils.data.distributed import DistributedSampler
 
 from pipeline import (
@@ -33,6 +34,10 @@ parser.add_argument("--seed", type=int, default=0, help="Random seed")
 parser.add_argument("--num_samples", type=int, default=1, help="Number of samples to generate per prompt")
 parser.add_argument("--save_with_index", action="store_true",
                     help="Whether to save the video using the index or prompt as the filename")
+parser.add_argument("--start_idx", type=int, default=0)
+parser.add_argument("--end_idx", type=int, default=None)
+parser.add_argument("--reseed_per_prompt", action="store_true")
+parser.add_argument("--skip_existing", action="store_true")
 args = parser.parse_args()
 
 # Initialize distributed inference
@@ -95,6 +100,13 @@ if args.i2v:
 else:
     dataset = TextDataset(prompt_path=args.data_path, extended_prompt_path=args.extended_prompt_path)
 num_prompts = len(dataset)
+end_idx = num_prompts if args.end_idx is None else int(args.end_idx)
+if not 0 <= int(args.start_idx) < end_idx <= num_prompts:
+    raise SystemExit(
+        f"invalid prompt interval [{args.start_idx}, {end_idx}) "
+        f"for {num_prompts} prompts"
+    )
+dataset = Subset(dataset, range(int(args.start_idx), end_idx))
 print(f"Number of prompts: {num_prompts}")
 
 if dist.is_initialized():
@@ -133,6 +145,17 @@ for i, batch_data in tqdm(enumerate(dataloader), disable=(local_rank != 0)):
         batch = batch_data
     elif isinstance(batch_data, list):
         batch = batch_data[0]  # First (and only) item in the batch
+
+    model = "regular" if not args.use_ema else "ema"
+    expected_paths = [
+        os.path.join(args.output_folder, f'{idx}-{seed_idx}_{model}.mp4')
+        for seed_idx in range(args.num_samples)
+    ]
+    if args.skip_existing and all(os.path.isfile(path) for path in expected_paths):
+        print(f"[skip-existing] prompt_index={idx}", flush=True)
+        continue
+    if args.reseed_per_prompt:
+        set_seed(args.seed + int(idx))
 
     all_video = []
     num_generated_frames = 0  # Number of generated (latent) frames
@@ -185,7 +208,6 @@ for i, batch_data in tqdm(enumerate(dataloader), disable=(local_rank != 0)):
 
     # Save the video if the current prompt is not a dummy prompt
     if idx < num_prompts:
-        model = "regular" if not args.use_ema else "ema"
         for seed_idx in range(args.num_samples):
             # All processes save their videos
             if args.save_with_index:
@@ -194,4 +216,3 @@ for i, batch_data in tqdm(enumerate(dataloader), disable=(local_rank != 0)):
                 output_path = os.path.join(args.output_folder, f'{prompt[:100]}-{seed_idx}.mp4')
             write_video(output_path, video[seed_idx], fps=16)
             # imageio.mimwrite(output_path, video[seed_idx], fps=16, quality=8, output_params=["-loglevel", "error"])
-    

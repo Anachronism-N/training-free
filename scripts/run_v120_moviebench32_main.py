@@ -40,6 +40,8 @@ DEFAULT_PROMPT_PATH: str | None = None
 DEFAULT_CANDIDATES = ("landmark_motion1",)
 MAX_CANDIDATES = 2
 ALLOW_PARTIAL_SCOPE = True
+INCLUDE_PF_BASELINE = True
+NUM_OUTPUT_FRAMES = 120
 
 
 @dataclass(frozen=True)
@@ -138,9 +140,9 @@ def methods_for(
         raise ValueError(f"unsupported method scope: {scope!r}")
     methods: list[Method] = []
     if scope in {"all", "baselines"}:
-        methods.extend(
-            [
-                Method("sf_native", "sf", None, "baseline"),
+        methods.append(Method("sf_native", "sf", None, "baseline"))
+        if INCLUDE_PF_BASELINE:
+            methods.append(
                 Method(
                     "pf_native",
                     "pf",
@@ -153,8 +155,7 @@ def methods_for(
                     ),
                     "baseline",
                 ),
-            ]
-        )
+            )
     if scope in {"all", "ours"}:
         methods.extend(
             Method(
@@ -240,7 +241,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "mode",
         nargs="?",
-        choices=("generate", "audit"),
+        choices=("preflight", "generate", "audit"),
         default="generate",
     )
     parser.add_argument(
@@ -406,6 +407,8 @@ def parse_args() -> argparse.Namespace:
         or args.repo_root / "runs" / EXPERIMENT / args.method_set_id
     ).resolve()
     args.experiment_name = EXPERIMENT
+    args.num_output_frames = int(NUM_OUTPUT_FRAMES)
+    args.expected_video_frames = 4 * int(NUM_OUTPUT_FRAMES) - 3
     return args
 
 
@@ -488,11 +491,13 @@ def experiment_contract(
         "candidate_keys": list(args.candidate_keys),
         "seed": 0,
         "prompt_count": PROMPT_COUNT,
-        "num_output_frames": 120,
+        "num_output_frames": int(args.num_output_frames),
         "decoded_video_contract": {
-            "frames": 477,
+            "frames": int(args.expected_video_frames),
             "fps": 16,
-            "duration_seconds": 29.8125,
+            "duration_seconds": (
+                float(args.expected_video_frames) / 16.0
+            ),
         },
         "methods": [
             {
@@ -554,6 +559,17 @@ def experiment_contract(
 
 def native_sf_environment(args: argparse.Namespace, gpu: str) -> dict[str, str]:
     env = os.environ.copy()
+    for key in (
+        "LOCAL_RANK",
+        "RANK",
+        "WORLD_SIZE",
+        "GROUP_RANK",
+        "ROLE_RANK",
+        "LOCAL_WORLD_SIZE",
+        "MASTER_ADDR",
+        "MASTER_PORT",
+    ):
+        env.pop(key, None)
     prefixes = (
         "LIFECACHE_",
         "HEAD_ROLE_",
@@ -606,7 +622,7 @@ def run_sf_task(
         "config_sha256": sha256(args.sf_config),
         "checkpoint_path": str(args.sf_checkpoint),
         "checkpoint_size": args.sf_checkpoint.stat().st_size,
-        "num_output_frames": 120,
+        "num_output_frames": int(args.num_output_frames),
         "seed": 0,
         "reseed_per_prompt": True,
         "native_environment_scrubbed": True,
@@ -655,7 +671,7 @@ def run_sf_task(
         "--output_folder",
         str(output),
         "--num_output_frames",
-        "120",
+        str(int(args.num_output_frames)),
         "--seed",
         "0",
         "--num_samples",
@@ -1016,6 +1032,36 @@ def main() -> None:
         .strip(),
         flush=True,
     )
+
+    if args.mode == "preflight":
+        tasks = selected_tasks(
+            methods,
+            node_rank=args.node_rank,
+            num_nodes=args.num_nodes,
+        )
+        gpus = [
+            value.strip()
+            for value in args.gpu_list.split(",")
+            if value.strip()
+        ]
+        if not gpus or len(gpus) != len(set(gpus)):
+            raise SystemExit("--gpu-list must contain unique GPU ids")
+        print(
+            canonical_json(
+                {
+                    "mode": "preflight",
+                    "node_rank": args.node_rank,
+                    "num_nodes": args.num_nodes,
+                    "gpu_count": len(gpus),
+                    "task_count": len(tasks),
+                    "methods": [method.key for method in methods],
+                }
+            )
+            .decode("utf-8")
+            .strip(),
+            flush=True,
+        )
+        return
 
     if args.mode == "audit":
         payload = audit_published(

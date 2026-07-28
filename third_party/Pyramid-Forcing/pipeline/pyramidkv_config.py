@@ -61,6 +61,9 @@ class PyramidKVPipelineConfig:
     pyramidkv_label_coherent_motion_pair_capacity_map: Optional[dict] = None
     pyramidkv_label_semantic_retrieval_capacity_map: Optional[dict] = None
     pyramidkv_label_semantic_retrieval_max_age_map: Optional[dict] = None
+    pyramidkv_semantic_retrieval_min_similarity: float = -0.25
+    pyramidkv_semantic_retrieval_min_margin: float = 0.0
+    pyramidkv_semantic_retrieval_abstain: bool = False
     pyramidkv_label_temporal_prototype_capacity_map: Optional[dict] = None
     pyramidkv_label_unique_snapshot_capacity_map: Optional[dict] = None
     pyramidkv_label_sparse_snapshot_capacity_map: Optional[dict] = None
@@ -320,6 +323,27 @@ class PyramidKVPipelineConfig:
                 args,
                 "pyramidkv_label_semantic_retrieval_max_age_map",
                 None,
+            ),
+            pyramidkv_semantic_retrieval_min_similarity=float(
+                getattr(
+                    args,
+                    "pyramidkv_semantic_retrieval_min_similarity",
+                    -0.25,
+                )
+            ),
+            pyramidkv_semantic_retrieval_min_margin=float(
+                getattr(
+                    args,
+                    "pyramidkv_semantic_retrieval_min_margin",
+                    0.0,
+                )
+            ),
+            pyramidkv_semantic_retrieval_abstain=bool(
+                getattr(
+                    args,
+                    "pyramidkv_semantic_retrieval_abstain",
+                    False,
+                )
             ),
             pyramidkv_label_temporal_prototype_capacity_map=getattr(
                 args,

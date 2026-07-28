@@ -84,6 +84,8 @@ class SemanticRetrievalStrategy:
         min_frame_t: int = 1,
         min_spacing: int = 1,
         min_similarity: float = -0.25,
+        min_margin: float = 0.0,
+        abstain_on_low_confidence: bool = False,
         diversity_weight: float = 0.20,
         max_age: int | None = None,
         dynamic_rope: bool = True,
@@ -97,6 +99,12 @@ class SemanticRetrievalStrategy:
         self.min_frame_t = max(0, int(min_frame_t))
         self.min_spacing = max(1, int(min_spacing))
         self.min_similarity = float(min_similarity)
+        self.min_margin = float(min_margin)
+        if not -1.0 <= self.min_similarity <= 1.0:
+            raise ValueError("min_similarity must be within [-1, 1]")
+        if not 0.0 <= self.min_margin <= 2.0:
+            raise ValueError("min_margin must be within [0, 2]")
+        self.abstain_on_low_confidence = bool(abstain_on_low_confidence)
         self.diversity_weight = min(1.0, max(0.0, float(diversity_weight)))
         normalized_max_age = 0 if max_age is None else int(max_age)
         self.max_age = (
@@ -111,6 +119,10 @@ class SemanticRetrievalStrategy:
         self._accepted_counts: list[int] = []
         self._evicted_counts: list[int] = []
         self._scene_reset_counts: list[int] = []
+        self._retrieval_accept_counts: list[int] = []
+        self._retrieval_abstain_counts: list[int] = []
+        self._retrieval_reason_counts: list[dict[str, int]] = []
+        self._last_retrieval_keys: list[tuple[int, int, int] | None] = []
 
     def reset(self, num_seq: int) -> None:
         self._archives = [OrderedDict() for _ in range(num_seq)]
@@ -121,6 +133,33 @@ class SemanticRetrievalStrategy:
         self._accepted_counts = [0 for _ in range(num_seq)]
         self._evicted_counts = [0 for _ in range(num_seq)]
         self._scene_reset_counts = [0 for _ in range(num_seq)]
+        self._retrieval_accept_counts = [0 for _ in range(num_seq)]
+        self._retrieval_abstain_counts = [0 for _ in range(num_seq)]
+        self._retrieval_reason_counts = [{} for _ in range(num_seq)]
+        self._last_retrieval_keys = [None for _ in range(num_seq)]
+
+    def _record_retrieval_outcome(
+        self,
+        idx: int,
+        *,
+        current_t: int,
+        recent_min_t: int,
+        sink_max_t: int,
+        reason: str,
+        selected: bool,
+    ) -> None:
+        # Policy tracing calls collect() a second time. Count one outcome for
+        # each logical read location rather than counting the debug replay.
+        key = (int(current_t), int(recent_min_t), int(sink_max_t))
+        if self._last_retrieval_keys[idx] == key:
+            return
+        self._last_retrieval_keys[idx] = key
+        if selected:
+            self._retrieval_accept_counts[idx] += 1
+        elif reason in {"similarity_gate", "margin_gate"}:
+            self._retrieval_abstain_counts[idx] += 1
+        counts = self._retrieval_reason_counts[idx]
+        counts[str(reason)] = int(counts.get(str(reason), 0)) + 1
 
     def set_update_context(self, context: dict[str, Any] | None) -> None:
         self._last_context = context
@@ -292,27 +331,107 @@ class SemanticRetrievalStrategy:
         ]
         age_filtered = len(eligible_before_age) - len(eligible)
         if query is None or not eligible:
+            reason = (
+                "age_gate"
+                if query is not None
+                and eligible_before_age
+                and not eligible
+                else "empty"
+            )
             self._last_retrievals[idx] = {
                 "query_t": int(current_t),
                 "eligible_before_age": len(eligible_before_age),
                 "eligible": len(eligible),
                 "age_filtered": age_filtered,
                 "max_age": self.max_age,
-                "selected": [],
-                "reason": (
-                    "age_gate"
-                    if query is not None
-                    and eligible_before_age
-                    and not eligible
-                    else "empty"
+                "abstain_on_low_confidence": (
+                    self.abstain_on_low_confidence
                 ),
+                "min_similarity": self.min_similarity,
+                "min_margin": self.min_margin,
+                "top1_similarity": None,
+                "top2_similarity": None,
+                "margin": None,
+                "selected": [],
+                "reason": reason,
             }
+            self._record_retrieval_outcome(
+                idx,
+                current_t=current_t,
+                recent_min_t=recent_min_t,
+                sink_max_t=sink_max_t,
+                reason=reason,
+                selected=False,
+            )
             return []
 
         relevance = {
             t_val: _cosine(query, record.descriptor)
             for t_val, record in eligible
         }
+        ranked_relevance = sorted(
+            (
+                (float(relevance[t_val]), int(t_val))
+                for t_val, _ in eligible
+            ),
+            reverse=True,
+        )
+        top1_similarity = float(ranked_relevance[0][0])
+        top2_similarity = (
+            float(ranked_relevance[1][0])
+            if len(ranked_relevance) > 1
+            else None
+        )
+        margin = (
+            top1_similarity - top2_similarity
+            if top2_similarity is not None
+            else None
+        )
+        similarity_pass = top1_similarity >= self.min_similarity
+        # A single eligible frame has no competing interpretation.
+        margin_pass = margin is None or margin >= self.min_margin
+        gate_reason = (
+            "selected"
+            if similarity_pass and margin_pass
+            else "similarity_gate"
+            if not similarity_pass
+            else "margin_gate"
+        )
+        if self.abstain_on_low_confidence and gate_reason != "selected":
+            self._last_retrievals[idx] = {
+                "query_t": int(current_t),
+                "eligible_before_age": len(eligible_before_age),
+                "eligible": len(eligible),
+                "age_filtered": age_filtered,
+                "max_age": self.max_age,
+                "abstain_on_low_confidence": True,
+                "min_similarity": self.min_similarity,
+                "min_margin": self.min_margin,
+                "top1_similarity": round(top1_similarity, 6),
+                "top2_similarity": (
+                    None
+                    if top2_similarity is None
+                    else round(top2_similarity, 6)
+                ),
+                "margin": (
+                    None if margin is None else round(float(margin), 6)
+                ),
+                "similarity_pass": bool(similarity_pass),
+                "margin_pass": bool(margin_pass),
+                "gated": 0,
+                "selected": [],
+                "reason": gate_reason,
+            }
+            self._record_retrieval_outcome(
+                idx,
+                current_t=current_t,
+                recent_min_t=recent_min_t,
+                sink_max_t=sink_max_t,
+                reason=gate_reason,
+                selected=False,
+            )
+            return []
+
         gated = [
             (t_val, record)
             for t_val, record in eligible
@@ -354,7 +473,20 @@ class SemanticRetrievalStrategy:
             "eligible": len(eligible),
             "age_filtered": age_filtered,
             "max_age": self.max_age,
+            "abstain_on_low_confidence": self.abstain_on_low_confidence,
+            "min_similarity": self.min_similarity,
+            "min_margin": self.min_margin,
+            "top1_similarity": round(top1_similarity, 6),
+            "top2_similarity": (
+                None
+                if top2_similarity is None
+                else round(top2_similarity, 6)
+            ),
+            "margin": None if margin is None else round(float(margin), 6),
+            "similarity_pass": bool(similarity_pass),
+            "margin_pass": bool(margin_pass),
             "gated": len(gated),
+            "reason": "selected",
             "selected": [
                 {
                     "t": int(t_val),
@@ -365,6 +497,14 @@ class SemanticRetrievalStrategy:
                 for t_val, _, rel, mmr in selected
             ],
         }
+        self._record_retrieval_outcome(
+            idx,
+            current_t=current_t,
+            recent_min_t=recent_min_t,
+            sink_max_t=sink_max_t,
+            reason="selected",
+            selected=bool(selected),
+        )
         return [
             _collected(
                 record.anchor,
@@ -392,6 +532,7 @@ class SemanticRetrievalStrategy:
         self._queries[idx] = None
         self._last_decisions[idx] = {}
         self._last_retrievals[idx] = {}
+        self._last_retrieval_keys[idx] = None
         self._scene_reset_counts[idx] += 1
         return {
             "strategy": type(self).__name__,
@@ -406,6 +547,10 @@ class SemanticRetrievalStrategy:
             "capacity": int(self.capacity),
             "archive_capacity": int(self.archive_capacity),
             "min_similarity": float(self.min_similarity),
+            "min_margin": float(self.min_margin),
+            "abstain_on_low_confidence": bool(
+                self.abstain_on_low_confidence
+            ),
             "diversity_weight": float(self.diversity_weight),
             "max_age": self.max_age,
             "archive_frame_ids": [
@@ -414,6 +559,15 @@ class SemanticRetrievalStrategy:
             "accepted_count": int(self._accepted_counts[idx]),
             "evicted_count": int(self._evicted_counts[idx]),
             "scene_reset_count": int(self._scene_reset_counts[idx]),
+            "retrieval_accept_count": int(
+                self._retrieval_accept_counts[idx]
+            ),
+            "retrieval_abstain_count": int(
+                self._retrieval_abstain_counts[idx]
+            ),
+            "retrieval_reason_counts": dict(
+                self._retrieval_reason_counts[idx]
+            ),
             "last_decision": dict(self._last_decisions[idx]),
             "last_retrieval": dict(self._last_retrievals[idx]),
         }

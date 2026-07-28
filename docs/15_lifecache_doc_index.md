@@ -2,6 +2,14 @@
 
 ## Current method (read first)
 
+- `docs/129_no_pf_paper_comparison_and_10h_runbook.md`: authoritative v129
+  execution and paper-decision protocol. It reuses completed v125 SF/Ours
+  videos, omits PF regeneration and A-B-A, adds confidence-gated retrieval
+  plus Deep/Rolling/LongLive baselines, fixes exact-prompt VBench mapping, and
+  prioritizes the eight core dimensions across four eight-GPU nodes.
+- `docs/128_v125_vbench_long_results.md`: completed 128-prompt,
+  six-dimension evidence used to select Prototype4 plus age-bounded
+  Retrieval1 as the v129 base candidate.
 - `docs/126_v125_eight_method_quality_expansion.md`: rationale and evidence
   for expanding v125 to six complete Ours candidates under the 32-GPU,
   ten-hour budget.
@@ -208,10 +216,12 @@ Recommended reading order:
 24. `docs/97_v97_experiment_results.md`
 25. `docs/64_related_work_code_provenance_and_claims.md`
 
-The immediate step is to generate SF, PF, and the six frozen v125 quality
-candidates on all 128 Qwen-rewritten prompts, then run the complete
-six-dimension VBench-Long table plus paired statistics. Historical tricks and
-paper ablations remain deferred until the base cache is selected.
+The immediate step is the v129 no-PF comparison in docs/129: generate two
+confidence-gated Ours candidates and three external baselines, reuse the
+validated v125 SF/Ours videos, then run the prompt-correct eight-dimension
+VBench-Long core profile. Semantic extension has priority over A-B-A if
+compute remains. Historical tricks and paper ablations remain deferred until
+the final base cache is selected.
 The corrected evidence tiers and the exact one-prompt -> 16-prompt ->
 ablation order for those historical tricks are recorded in
 `docs/120_post_selection_trick_ledger_and_paper_story.md`.

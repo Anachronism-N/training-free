@@ -3,19 +3,21 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current task is the **v125 MovieBench-128 quality-candidate comparison**.
-The 32-prompt v120 screen is complete. v125 expands its positive branches into
-a `2 x 3` matrix: Landmark or Prototype Supportive memory, each paired with
-MotionPair1, bounded Retrieval, or bounded Retrieval+Motion Suppressive
-memory.
+The current task is the **v129 no-PF MovieBench-128 paper comparison**. v125 is
+complete and selected Prototype4 plus age-bounded Retrieval1 as the strongest
+effect-oriented base candidate, with the highest observed Dynamic Degree.
+v129 reuses validated v125 SF and Ours videos, adds confidence/margin-gated
+retrieval, and generates Deep Forcing, Rolling Forcing, and LongLive
+comparators. It does not regenerate PF and defers A-B-A prompt switching.
 
-Because the supplied benchmark uses Qwen-rewritten wording, v125 regenerates
-all eight paired methods under the same prompt file: native SF, native PF, and
-six effect-oriented Ours candidates. The table is evaluated on subject
-consistency, background consistency, aesthetic quality, imaging quality,
-motion smoothness, and dynamic degree. Evaluation is sharded by method and
-dimension across four eight-GPU nodes, with explicit RAFT/AMT model preflight
-and paired 128-prompt statistics.
+The frozen table contains eight methods and 128 Qwen-rewritten prompts at
+30 seconds. The primary VBench-Long pass uses all seven official quality
+dimensions plus Overall Consistency. A prompt-aware evaluator maps numeric
+split directories back to the exact frozen prompt text; official composite
+scores are emitted only when every required component is present. The exact
+four-node commands, model paths, reuse contracts, debug outputs, and claim
+boundaries are in
+`docs/129_no_pf_paper_comparison_and_10h_runbook.md`.
 
 v119 kept the frozen old-v98 `304/56` diagnostic partition and tested five
 new 30-second videos:
@@ -68,6 +70,8 @@ model locations, frozen comparison assembly, and paper decision rule are in
 `docs/125_v125_moviebench128_final_candidate_runbook.md`.
 The evidence and compute rationale for the eight-method expansion are in
 `docs/126_v125_eight_method_quality_expansion.md`.
+The completed v125 six-dimension results are in
+`docs/128_v125_vbench_long_results.md`.
 
 ProbeCache direct archive recall is now a negative branch. It retained identity
 and often reduced temporal jump, but consistently introduced non-ID
@@ -106,15 +110,21 @@ prompt-switch/return-recall branch.
   Veil-like extremes while leaving Wave mixed. It is useful for cache search
   but comes from an absolute QK-sign statistic that is not shift invariant;
   it is not yet a paper-ready classifier.
-- **Supportive memory:** Landmark4 with sink1 is the stable reference. The
-  all-head sink3 warm start is retired after the v119 polygon-noise failure.
-- **Suppressive memory:** MotionPair1 is the balanced reference. Retrieval is
-  weakened to top-1, optionally age-bounded, and optionally combined with one
-  adjacent motion pair to diagnose late enlargement without losing dynamics.
-- **v120 evidence:** all three promoted Ours candidates improve several
-  long-range/quality means over SF. `retrieval1_age24` is the simpler
-  quantitative candidate; `retrieval_motion` is the richer candidate if blind
-  review confirms its visual and motion advantage.
+- **Supportive memory:** sink1 + TemporalPrototype4 + recent4 is the current
+  reference. It compresses older context into four online temporal
+  prototypes; the unsafe all-head sink3 warm start remains retired.
+- **Suppressive memory:** sink1 + bounded Retrieval1 + recent7 is the selected
+  base. v129 tests whether absolute similarity and top-1/top-2 margin can
+  abstain from uncertain old-state reads; a second candidate keeps an
+  always-available MotionPair1 while gating only Retrieval1.
+- **v125 evidence:** Prototype4 + Retrieval1(age<=24) achieved the highest
+  Dynamic Degree in the completed 128-prompt screen while remaining close on
+  the other measured quality dimensions. v129 tests the gate as a conditional
+  improvement, not as an assumed promotion.
+- **Current comparison:** reuse validated v125 SF and no-gate Ours videos,
+  generate the two gated candidates plus Deep/Rolling/LongLive, and rerun
+  prompt-correct VBench-Long. PF regeneration and A-B-A are outside the
+  critical path.
 - **Deferred ablations:** all-head, random/inverted labels, role count and
   capacity curves are run only after the main cache is selected.
 - **Exclusive ownership:** explicit composition is the only owner of sink,

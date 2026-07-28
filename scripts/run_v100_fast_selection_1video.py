@@ -58,6 +58,9 @@ class Cell:
     map_key: str = "legacy"
     history_budget_profile: str = "default"
     max_full_frame_equivalents: int = 9
+    retrieval_abstain: bool = False
+    retrieval_min_similarity: float = -0.25
+    retrieval_min_margin: float = 0.0
 
     @property
     def native(self) -> bool:
@@ -411,7 +414,15 @@ def audit_video(
         "--end-idx",
         str(prompt_index + 1),
         "--expected-frames",
-        str(EXPECTED_VIDEO_FRAMES),
+        str(
+            int(
+                getattr(
+                    args,
+                    "expected_video_frames",
+                    EXPECTED_VIDEO_FRAMES,
+                )
+            )
+        ),
         "--expected-fps",
         str(EXPECTED_VIDEO_FPS),
         "--expected-width",
@@ -886,6 +897,67 @@ def audit_policy_trace(
                                             f"age {selected_item['age']} "
                                             f"exceeds max_age={max_age}"
                                         )
+                            if cell.retrieval_abstain:
+                                reason = retrieval.get("reason")
+                                valid_reasons = {
+                                    "empty",
+                                    "age_gate",
+                                    "similarity_gate",
+                                    "margin_gate",
+                                    "selected",
+                                }
+                                if (
+                                    not state.get(
+                                        "abstain_on_low_confidence",
+                                        False,
+                                    )
+                                    or reason not in valid_reasons
+                                    or not math.isclose(
+                                        float(
+                                            state.get(
+                                                "min_similarity",
+                                                float("nan"),
+                                            )
+                                        ),
+                                        float(
+                                            cell.retrieval_min_similarity
+                                        ),
+                                        abs_tol=1e-9,
+                                    )
+                                    or not math.isclose(
+                                        float(
+                                            state.get(
+                                                "min_margin",
+                                                float("nan"),
+                                            )
+                                        ),
+                                        float(cell.retrieval_min_margin),
+                                        abs_tol=1e-9,
+                                    )
+                                ):
+                                    failures.append(
+                                        f"line {line_number}: retrieval "
+                                        "confidence-gate contract mismatch"
+                                    )
+                                if reason in {
+                                    "similarity_gate",
+                                    "margin_gate",
+                                } and selected:
+                                    failures.append(
+                                        f"line {line_number}: gated retrieval "
+                                        "must abstain"
+                                    )
+                                if reason in {
+                                    "similarity_gate",
+                                    "margin_gate",
+                                    "selected",
+                                } and retrieval.get(
+                                    "top1_similarity"
+                                ) is None:
+                                    failures.append(
+                                        f"line {line_number}: retrieval gate "
+                                        "is missing top-1 similarity"
+                                    )
                         elif name == "TemporalPrototypeStrategy":
                             spans = state.get("prototype_spans", [])
                             medoids = state.get("prototype_medoid_ids", [])
@@ -1354,7 +1426,7 @@ def inference_command(
         "--output_folder",
         str(output),
         "--num_output_frames",
-        "120",
+        str(int(getattr(args, "num_output_frames", 120))),
         "--seed",
         str(args.seed),
         "--num_samples",
@@ -1385,6 +1457,16 @@ def inference_command(
                 "64",
             ]
         )
+        if cell.retrieval_abstain:
+            command.extend(
+                [
+                    "--pyramidkv_semantic_retrieval_abstain",
+                    "--pyramidkv_semantic_retrieval_min_similarity",
+                    str(float(cell.retrieval_min_similarity)),
+                    "--pyramidkv_semantic_retrieval_min_margin",
+                    str(float(cell.retrieval_min_margin)),
+                ]
+            )
     if cell.transition:
         command.extend(
             [
@@ -1579,6 +1661,17 @@ def run_cell(
             stale.unlink()
 
     env = os.environ.copy()
+    for key in (
+        "LOCAL_RANK",
+        "RANK",
+        "WORLD_SIZE",
+        "GROUP_RANK",
+        "ROLE_RANK",
+        "LOCAL_WORLD_SIZE",
+        "MASTER_ADDR",
+        "MASTER_PORT",
+    ):
+        env.pop(key, None)
     root_python = str(args.repo_root / "src")
     env["PYTHONPATH"] = (
         root_python

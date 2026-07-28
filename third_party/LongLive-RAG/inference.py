@@ -195,6 +195,9 @@ for i, batch_data in tqdm(enumerate(dataloader), disable=(local_rank != 0)):
     # For text-to-video, batch is just the text prompt
     prompt = batch['prompts'][0]
 
+    if getattr(config, "reseed_per_prompt", False):
+        set_seed(int(config.seed) + int(idx))
+
     # Check if we should skip existing files
     if getattr(config, 'skip_existing', False):
         # Determine model type for filename consistency

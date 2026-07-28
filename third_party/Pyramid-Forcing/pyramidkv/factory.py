@@ -311,6 +311,9 @@ def build_compositions(
     label_coherent_motion_pair_capacity_map: dict | None = None,
     label_semantic_retrieval_capacity_map: dict | None = None,
     label_semantic_retrieval_max_age_map: dict | None = None,
+    semantic_retrieval_min_similarity: float = -0.25,
+    semantic_retrieval_min_margin: float = 0.0,
+    semantic_retrieval_abstain: bool = False,
     label_temporal_prototype_capacity_map: dict | None = None,
     label_unique_snapshot_capacity_map: dict | None = None,
     label_sparse_snapshot_capacity_map: dict | None = None,
@@ -668,6 +671,11 @@ def build_compositions(
                             semantic_retrieval_max_age
                             if semantic_retrieval_max_age > 0
                             else None
+                        ),
+                        min_similarity=semantic_retrieval_min_similarity,
+                        min_margin=semantic_retrieval_min_margin,
+                        abstain_on_low_confidence=(
+                            semantic_retrieval_abstain
                         ),
                         dynamic_rope=True,
                     )
