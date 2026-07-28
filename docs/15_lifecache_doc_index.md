@@ -2,6 +2,11 @@
 
 ## Current method (read first)
 
+- `docs/130_v129_noncache_addon_experiments.md`: isolated add-on protocol for
+  compatibility-gated variance-only historical Value alignment on the frozen
+  v129 Prototype/Retrieval base. It changes no cache policy, provides a
+  five-video screen, sampled finite-value diagnostics, and gated 16/128-prompt
+  promotion commands without modifying the running v129 contract.
 - `docs/129_no_pf_paper_comparison_and_10h_runbook.md`: authoritative v129
   execution and paper-decision protocol. It reuses completed v125 SF/Ours
   videos, omits PF regeneration and A-B-A, adds confidence-gated retrieval
