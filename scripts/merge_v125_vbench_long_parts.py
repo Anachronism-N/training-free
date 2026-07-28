@@ -20,10 +20,10 @@ EXPECTED_METHODS = (
     "sf_native",
     "pf_native",
     "ours_landmark_motion1",
-    "ours_retrieval_age24",
-    "ours_retrieval_motion",
+    "ours_landmark_retrieval1_age24",
+    "ours_landmark_retrieval_motion",
     "ours_prototype_motion1",
-    "ours_prototype_retrieval_age24",
+    "ours_prototype_retrieval1_age24",
     "ours_prototype_retrieval_motion",
 )
 EXPECTED_DIMENSIONS = (

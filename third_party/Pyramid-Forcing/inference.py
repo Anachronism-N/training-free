@@ -113,6 +113,18 @@ parser.add_argument(
     help="Reset RNG to seed + prompt index before sampling each prompt for fair A/B runs.",
 )
 parser.add_argument(
+    "--prompt_stride", type=int, default=1,
+    help="Process every Nth prompt (1=all). Combined with --prompt_offset for rank-based sharding.",
+)
+parser.add_argument(
+    "--prompt_offset", type=int, default=0,
+    help="Starting offset for --prompt_stride. rank R uses offset=R.",
+)
+parser.add_argument(
+    "--skip_existing", action="store_true",
+    help="Skip prompts whose output video already exists.",
+)
+parser.add_argument(
     "--pyramidkv_history_value_labels", type=str, default=None,
     help="Comma-separated PF labels to refresh (for example: -1,1). Default: all labels.",
 )
@@ -1243,6 +1255,14 @@ try:
                 continue
             if args.end_idx is not None and idx >= args.end_idx:
                 break
+            if args.prompt_stride > 1 and (idx - args.prompt_offset) % args.prompt_stride != 0:
+                continue
+            if args.skip_existing:
+                _skip_dir = args.output_folder
+                import glob as _glob
+                if _glob.glob(os.path.join(_skip_dir, f"{idx}-*.mp4")) or _glob.glob(os.path.join(_skip_dir, f"video_{idx:05d}*.mp4")):
+                    print(f"[skip] prompt {idx} already has output, skipping", flush=True)
+                    continue
             if args.reseed_per_prompt:
                 set_seed(args.seed + int(idx))
 

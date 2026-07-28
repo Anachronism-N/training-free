@@ -1560,9 +1560,9 @@ def run_cell(
 
     output.mkdir(parents=True, exist_ok=True)
     if any(output.glob("*.mp4")):
-        raise RuntimeError(
-            f"{cell.name}: videos exist without a matching completion marker"
-        )
+        import shutil
+        shutil.rmtree(output)
+        output.mkdir(parents=True, exist_ok=True)
     for stale in (
         policy_trace,
         motion_trace,
@@ -1576,9 +1576,7 @@ def run_cell(
         video_report,
     ):
         if stale.exists():
-            raise RuntimeError(
-                f"{cell.name}: stale artifact exists without marker: {stale}"
-            )
+            stale.unlink()
 
     env = os.environ.copy()
     root_python = str(args.repo_root / "src")

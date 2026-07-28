@@ -1,0 +1,223 @@
+# Pyramid Forcing — recommended inference config (public release).
+#
+# Per-head adaptive KV-cache strategy:
+#   osc   (label -1): sink1 + cyclic(period=6, bucket_cap=4) + recent4
+#   sta+  (label  1): sink3 + stride(interval=6,  cap=4)     + recent4
+#   sta-  (label  2): sink3 + merge(patch_size=2, cap=4)     + recent4
+#
+# This config is for INFERENCE only. Training-side fields (FSDP, wandb,
+# optimizers, EMA, distillation) live in configs/self-forcing.yaml
+# and friends — kept separate so a casual user reading this file isn't
+# distracted by knobs that don't affect generation.
+#
+# Override at the CLI rather than editing the YAML when possible:
+#   --checkpoint_path  -- overrides nothing here (loaded directly)
+#   --data_path        -- overrides ``data_path`` below
+#   --output_folder    -- where mp4s go
+#   --num_output_frames -- changes the latent frame count
+#   --use_ema          -- pick the EMA branch of the checkpoint
+
+# ---------------------------------------------------------------------------
+# Sampling
+# ---------------------------------------------------------------------------
+denoising_step_list: [1000, 750, 500, 250]   # 4 denoise steps + 1 clean pass
+warp_denoising_step: true
+ts_schedule: false
+num_train_timestep: 1000
+timestep_shift: 5.0
+guidance_scale: 3.0
+mixed_precision: true
+seed: 0
+
+# Wan2.1 1.3B default negative prompt (Chinese, taken from upstream Wan2.1).
+negative_prompt: '色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走'
+
+# Latent shape (B, frames, channels, H, W). frames=21 → ~84 video frames after
+# VAE decode at 480×832. Override the frame count via --num_output_frames.
+image_or_video_shape: [1, 21, 16, 60, 104]
+
+# ---------------------------------------------------------------------------
+# Generation pipeline
+# ---------------------------------------------------------------------------
+num_frame_per_block: 3                       # autoregressive block size
+compile_ffn: true                            # Triton/torch.compile the FFN
+data_path: prompts/MovieGenVideoBench_num128.txt   # default prompts; CLI overrides
+
+model_kwargs:
+  local_attn_size: -1                        # -1 = full attention; Pyramid Forcing handles compression
+  timestep_shift: 5.0
+
+# ---------------------------------------------------------------------------
+# PyramidKV — adaptive per-head KV caching
+# ---------------------------------------------------------------------------
+use_pyramidkv: false
+use_adaptive_pyramidkv: false
+pyramidkv_config_path: configs/head_configs/best_labels.csv
+pyramidkv_policy_csv_path: configs/head_configs/best_labels.csv
+pyramidkv_default_capacity: 32760
+pyramidkv_frame_seq_length: 1560
+pyramidkv_code_map:
+  '-1': 32760
+  '1':  32760
+  '2':  32760
+
+pyramidkv_capture_frame_id_mode: mapped
+pyramidkv_readout_cache_enabled: true
+pyramidkv_prompt_v_cache_enabled: false
+pyramidkv_dynamic_capacity: 31200
+pyramidkv_sink_tokens: 4680
+decoupled_sink_tokens: 0
+sink_grid_decoupling: true
+
+# Dynamic RoPE: remap stale positions back into the 21-frame training range.
+pyramidkv_dynamic_rope_mode: window_clamp
+sink_time_clamp_min: 18
+sink_time_clamp_max: 21
+decoupled_sink_time_lag: 0
+history_time_mapping_mode: none
+history_relative_t_max: 21
+history_time_soft_factor: 1.0
+
+# ---------------------------------------------------------------------------
+# Middle strategies — three sub-policies, dispatched per head via labels.
+# ---------------------------------------------------------------------------
+cyclic_enabled: true
+cyclic_period: 6
+cyclic_bucket_cap: 4
+cyclic_osc_only: true
+cyclic_dynamic_rope: true
+
+stride_enabled: true
+stride_interval: 6
+stride_capacity: 4
+stride_dynamic_rope: true
+
+merge_enabled: true
+merge_patch_size: 2
+merge_capacity: 4
+merge_dynamic_rope: true
+
+# Project extension: clean-pass motion-event anchors. Disabled for the exact
+# PF baseline and enabled only by explicit per-label experiment overrides.
+motion_event_enabled: false
+motion_event_capacity: 2
+motion_event_dynamic_rope: true
+motion_event_top_k: 1
+motion_event_sample_tokens: 64
+
+lag_enabled: false
+pyramidkv_lag_offsets: []
+pyramidkv_lag_history: 21
+lag_dynamic_rope: false
+
+# ---------------------------------------------------------------------------
+# Per-head capacities (sink + middle + recent are summed at runtime).
+# ---------------------------------------------------------------------------
+pyramidkv_osc_sink_frames: 1
+pyramidkv_stable_sink_frames: 3
+pyramidkv_recent_frames: 4
+pyramidkv_stable_recent_frames: 4
+pyramidkv_stable_policy_enabled: true
+
+# Label → middle-strategy routing. Keys are CSV labels (-1/1/2).
+pyramidkv_label_phase_bucket_map:
+  '-1': 4     # osc heads get cyclic with 4 buckets
+  '1':  0     # sta+ heads disable cyclic
+  '2':  0     # sta- heads disable cyclic
+pyramidkv_label_stride_enabled_map:
+  '1': true   # sta+ heads use stride
+  '2': false
+pyramidkv_label_stride_interval_map:
+  '1': 6
+pyramidkv_label_merge_enabled_map:
+  '-1': false
+  '1':  false
+  '2':  true  # sta- heads use merge
+pyramidkv_label_merge_patch_size_map:
+  '2': 2
+pyramidkv_label_merge_capacity_map:
+  '2': 4
+pyramidkv_label_motion_event_enabled_map:
+  '-1': false
+  '1':  false
+  '2':  false
+pyramidkv_label_motion_event_capacity_map:
+  '-1': 2
+  '1':  2
+  '2':  2
+pyramidkv_label_sink_frames_map:
+  '-1': 1
+  '1':  3
+  '2':  3
+pyramidkv_label_recent_frames_map:
+  '-1': 4
+  '1':  4
+  '2':  4
+
+# Neutral-label binary routes override this to true. Keeping the native
+# default false preserves existing PF baseline behavior for parity.
+pyramidkv_composition_owns_dynamic: false
+# Keep the optional v95 prompt-history shield explicitly disabled. This key
+# must exist in a clean checkout because the causal pipeline reads it directly.
+pyramidkv_prompt_warmup_enabled: false
+
+# Role-aware A-B-A scene cache. The default is inert so PF parity runs are
+# unchanged. Experiments enable this only for prompts containing `||`.
+pyramidkv_scene_cache_enabled: false
+pyramidkv_scene_cache_match_mode: idf
+pyramidkv_scene_cache_similarity_threshold: 0.20
+pyramidkv_scene_cache_manual_ids: null
+pyramidkv_scene_cache_max_scenes: 8
+pyramidkv_scene_cache_bridge_recent_frames: 1
+pyramidkv_scene_cache_trace_path: null
+pyramidkv_scene_cache_debug: false
+update_interval: 1
+pyramidkv_disable_osc_sink: false
+
+# ---------------------------------------------------------------------------
+# Trust-conditioned cache transition (project extension; disabled for the
+# exact PF baseline). Enable through inference.py CLI for ablations.
+# ---------------------------------------------------------------------------
+pyramidkv_cache_transition_enabled: false
+pyramidkv_cache_transition_mode: full
+pyramidkv_cache_transition_min_reliability: 0.55
+pyramidkv_cache_transition_min_novelty: 0.01
+pyramidkv_cache_transition_shock_weight: 1.0
+pyramidkv_cache_transition_denoise_weight: 2.0
+pyramidkv_cache_transition_min_interval_blocks: 1
+pyramidkv_cache_transition_max_age_blocks: 6
+pyramidkv_cache_transition_warmup_blocks: 2
+pyramidkv_cache_transition_max_commit_fraction: 0.5
+pyramidkv_cache_transition_stagger_period: 2
+pyramidkv_cache_transition_branches: both
+pyramidkv_cache_transition_trace_path: null
+pyramidkv_cache_transition_debug: false
+
+# ProbeCache extension. Disabled keeps the public PF baseline bitwise on the
+# original middle-policy path. The profile-generated CSV is supplied through
+# pyramidkv_config_path/pyramidkv_policy_csv_path in experiment commands.
+pyramidkv_probecache_enabled: false
+pyramidkv_probecache_mode: full
+pyramidkv_probecache_archive_max_frames: 24
+pyramidkv_probecache_persistent_top_k: 4
+pyramidkv_probecache_reactive_top_k: 4
+pyramidkv_probecache_recent_exclude_frames: 4
+pyramidkv_probecache_reactive_horizon_frames: 12
+pyramidkv_probecache_min_reliability: 0.55
+pyramidkv_probecache_min_similarity: 0.10
+pyramidkv_probecache_min_margin: 0.02
+pyramidkv_probecache_max_entropy: 0.95
+pyramidkv_probecache_retrieval_temperature: 0.10
+pyramidkv_probecache_min_frame_spacing: 2
+pyramidkv_probecache_prompt_weight: 0.15
+pyramidkv_probecache_prompt_min_similarity: -1.0
+pyramidkv_probecache_prompt_switch_threshold: 0.55
+pyramidkv_probecache_persistent_label: 1
+pyramidkv_probecache_reactive_labels: [-1]
+pyramidkv_probecache_layer_start: 0
+pyramidkv_probecache_layer_end: -1
+pyramidkv_probecache_trace_path: null
+pyramidkv_probecache_trace_selection_stride: 1
+pyramidkv_probecache_debug: false
+pyramidkv_probecache_profile_recent_only: false
+pyramidkv_cache_transition_role_conditioning: false

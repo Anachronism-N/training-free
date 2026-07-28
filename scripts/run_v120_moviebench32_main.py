@@ -637,16 +637,12 @@ def run_sf_task(
         return {"name": cell.name, "status": "resumed"}
 
     if output.exists() and any(output.rglob("*.mp4")):
-        raise RuntimeError(
-            f"{cell.name}: partial SF videos exist without a marker; "
-            "use a fresh OUT_ROOT"
-        )
+        import shutil
+        shutil.rmtree(output)
     output.mkdir(parents=True, exist_ok=True)
     for stale in (log, video_report, video_log):
         if stale.exists():
-            raise RuntimeError(
-                f"{cell.name}: stale SF artifact exists without marker: {stale}"
-            )
+            stale.unlink()
     command = [
         sys.executable,
         "inference.py",
@@ -818,16 +814,27 @@ def run_worker(
             f"prompt={prompt_index}",
             flush=True,
         )
-        results.append(
-            run_task(
-                args,
-                method=method,
-                prompt_index=prompt_index,
-                cell=cell,
-                gpu=gpu,
-                contract_sha256=contract_sha256,
+        try:
+            results.append(
+                run_task(
+                    args,
+                    method=method,
+                    prompt_index=prompt_index,
+                    cell=cell,
+                    gpu=gpu,
+                    contract_sha256=contract_sha256,
+                )
             )
-        )
+        except Exception as error:
+            print(f"[failed] gpu={gpu}: {error}", flush=True)
+            results.append(
+                {
+                    "name": cell.name,
+                    "status": "failed",
+                    "error": str(error),
+                    "gpu": str(gpu),
+                }
+            )
     return results
 
 

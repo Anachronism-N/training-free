@@ -64,6 +64,12 @@ parser.add_argument("--end_idx", type=int, default=None,
                     help="Last dataset prompt index to process (exclusive)")
 parser.add_argument("--reseed_per_prompt", action="store_true",
                     help="Reset RNG to seed + global prompt index before generation")
+parser.add_argument("--prompt_stride", type=int, default=1,
+                    help="Process every Nth prompt (1=all). Combined with --prompt_offset for rank-based sharding.")
+parser.add_argument("--prompt_offset", type=int, default=0,
+                    help="Starting offset for --prompt_stride. rank R uses offset=R.")
+parser.add_argument("--skip_existing", action="store_true",
+                    help="Skip prompts whose output video already exists.")
 
 # --- Structured memory (EpisodicArchive) CLI ---------------------
 # The archive sidecar was ported from this repository's earlier prototype
@@ -340,6 +346,13 @@ for i, batch_data in tqdm(enumerate(dataloader), disable=(local_rank != 0)):
         continue
     if args.end_idx is not None and idx >= args.end_idx:
         break
+    if args.prompt_stride > 1 and (idx - args.prompt_offset) % args.prompt_stride != 0:
+        continue
+    if args.skip_existing:
+        import glob as _glob
+        if _glob.glob(os.path.join(args.output_folder, f"{idx}-*.mp4")) or _glob.glob(os.path.join(args.output_folder, f"video_{idx:05d}*.mp4")):
+            print(f"[skip] prompt {idx} already has output, skipping", flush=True)
+            continue
     if args.reseed_per_prompt:
         set_seed(args.seed + int(idx))
 
