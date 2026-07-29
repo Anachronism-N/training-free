@@ -35,6 +35,8 @@ class HeadProfileConfig:
     recent_frames: int
     spatial_samples: int
     strict: bool
+    history_interventions: bool = False
+    projection_dim: int = 16
 
     @classmethod
     def from_env(cls) -> "HeadProfileConfig":
@@ -66,6 +68,16 @@ class HeadProfileConfig:
                 1, int(os.environ.get("HEAD_PROFILE_SPATIAL_SAMPLES", "16"))
             ),
             strict=os.environ.get("HEAD_PROFILE_STRICT", "1") == "1",
+            history_interventions=(
+                os.environ.get(
+                    "HEAD_PROFILE_HISTORY_INTERVENTIONS", "0"
+                )
+                == "1"
+            ),
+            projection_dim=max(
+                4,
+                int(os.environ.get("HEAD_PROFILE_PROJECTION_DIM", "16")),
+            ),
         )
 
 
@@ -73,6 +85,7 @@ class HeadProfileSession:
     """Process-local recorder for read-only counterfactual head profiling."""
 
     VERSION = 2
+    PROJECTION_SEED = 20260729
 
     def __init__(self, config: HeadProfileConfig) -> None:
         self.config = config
@@ -84,6 +97,9 @@ class HeadProfileSession:
         self._call_index = 0
         self._recorded_layers: dict[int, set[int]] = {}
         self._video_metadata: dict = {}
+        self._projection_cache: dict[
+            tuple[int, int, str, int | None], torch.Tensor
+        ] = {}
 
     @staticmethod
     def _load_jobs(path: Path | None) -> dict[int, dict]:
@@ -155,6 +171,11 @@ class HeadProfileSession:
             "clean_frames": list(self.config.clean_frames),
             "recent_frames": int(self.config.recent_frames),
             "spatial_samples": int(self.config.spatial_samples),
+            "history_interventions": bool(
+                self.config.history_interventions
+            ),
+            "projection_dim": int(self.config.projection_dim),
+            "projection_seed": int(self.PROJECTION_SEED),
         }
         print(
             "[HeadProfile] begin "
@@ -236,6 +257,14 @@ class HeadProfileSession:
     def disable_call_context(self) -> None:
         self.context = None
 
+    def wants_history_interventions(self) -> bool:
+        return bool(
+            self.config.history_interventions
+            and self.context
+            and self.context.get("capture")
+            and self.context.get("branch") == "base"
+        )
+
     @staticmethod
     def _signature(tensor: torch.Tensor) -> torch.Tensor:
         value = tensor.detach().float()
@@ -305,6 +334,78 @@ class HeadProfileSession:
             frame_ids,
         )
 
+    def _projection(
+        self,
+        feature_dim: int,
+        projection_dim: int,
+        *,
+        device: torch.device,
+    ) -> torch.Tensor:
+        key = (
+            int(feature_dim),
+            int(projection_dim),
+            device.type,
+            device.index,
+        )
+        projection = self._projection_cache.get(key)
+        if projection is None:
+            generator = torch.Generator()
+            generator.manual_seed(self.PROJECTION_SEED)
+            projection = torch.randn(
+                feature_dim,
+                projection_dim,
+                generator=generator,
+                dtype=torch.float32,
+            ) / math.sqrt(projection_dim)
+            projection = projection.to(device=device)
+            self._projection_cache[key] = projection
+        return projection
+
+    def _projected_qk_descriptors(
+        self,
+        query: torch.Tensor,
+        history_key: torch.Tensor,
+        *,
+        frame_seq_length: int,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        query_frames = query.shape[1] // frame_seq_length
+        history_frames = history_key.shape[1] // frame_seq_length
+        if query_frames <= 0 or history_frames <= 0:
+            raise ValueError("Q/K descriptors require complete frames")
+        sample_count = min(self.config.spatial_samples, frame_seq_length)
+        spatial_index = torch.linspace(
+            0,
+            frame_seq_length - 1,
+            steps=sample_count,
+            device=query.device,
+        ).round().long().unique()
+        q = query.reshape(
+            query.shape[0],
+            query_frames,
+            frame_seq_length,
+            query.shape[2],
+            query.shape[3],
+        ).index_select(2, spatial_index)
+        k = history_key.reshape(
+            history_key.shape[0],
+            history_frames,
+            frame_seq_length,
+            history_key.shape[2],
+            history_key.shape[3],
+        ).index_select(2, spatial_index)
+        q = q.float().mean(dim=(0, 1)).permute(1, 0, 2)
+        k = k.float().mean(dim=0).permute(2, 0, 1, 3)
+        projection = self._projection(
+            query.shape[-1],
+            self.config.projection_dim,
+            device=query.device,
+        )
+        q = torch.einsum("hsd,dp->hsp", q, projection)
+        k = torch.einsum("hfsd,dp->hfsp", k, projection)
+        q = torch.nn.functional.normalize(q, dim=-1)
+        k = torch.nn.functional.normalize(k, dim=-1)
+        return q.to(torch.float16), k.to(torch.float16)
+
     def record_attention(
         self,
         *,
@@ -316,6 +417,8 @@ class HeadProfileSession:
         native_output: torch.Tensor,
         frame_seq_length: int,
         attention_fn: Callable[[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor],
+        history_intervention_outputs: dict[str, torch.Tensor] | None = None,
+        history_intervention_metadata: dict[str, float] | None = None,
     ) -> None:
         context = self.context
         if not context or not context["capture"]:
@@ -370,6 +473,44 @@ class HeadProfileSession:
             "temporal_probs": temporal_probs,
             "history_frame_ids": history_frame_ids,
         }
+        if self.config.history_interventions:
+            if context["branch"] != "base":
+                raise RuntimeError(
+                    "history interventions are defined for base profiles only"
+                )
+            expected = {
+                "reverse",
+                "phase_shift",
+                "freeze_latest",
+                "value_mismatch",
+            }
+            provided = set(history_intervention_outputs or {})
+            if provided != expected:
+                raise RuntimeError(
+                    "history intervention outputs mismatch: "
+                    f"expected={sorted(expected)} provided={sorted(provided)}"
+                )
+            q_descriptor, k_descriptor = self._projected_qk_descriptors(
+                query,
+                history_key,
+                frame_seq_length=frame_seq_length,
+            )
+            record.update(
+                {
+                    "full_history_signature": self._signature(full_output),
+                    "recent_history_signature": self._signature(
+                        recent_output
+                    ),
+                    "query_projection": q_descriptor,
+                    "history_key_projection": k_descriptor,
+                }
+            )
+            for name, output in history_intervention_outputs.items():
+                record[f"history_{name}_signature"] = self._signature(output)
+            for name, value in (
+                history_intervention_metadata or {}
+            ).items():
+                record[f"history_intervention_{name}"] = float(value)
         self.records.append(record)
         self._recorded_layers[call_index].add(int(layer))
 
@@ -402,7 +543,9 @@ class HeadProfileSession:
                 if isinstance(value, torch.Tensor):
                     record[key] = value.detach().cpu()
         payload = {
-            "version": self.VERSION,
+            "version": (
+                3 if self.config.history_interventions else self.VERSION
+            ),
             "job": job,
             "metadata": {
                 **self._video_metadata,

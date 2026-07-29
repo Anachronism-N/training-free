@@ -1049,6 +1049,14 @@ class CausalInferencePipeline(torch.nn.Module):
         alternate_conditionings: dict[str, dict] = {}
         if profile_session is not None:
             alternate_prompts = profile_session.alternate_prompts()
+            if (
+                profile_session.config.history_interventions
+                and alternate_prompts
+            ):
+                raise ValueError(
+                    "history intervention profiling uses base trajectories "
+                    "only; semantic/null prompt shadows must be disabled"
+                )
             if alternate_prompts:
                 encoded_alternates = self.text_encoder(
                     text_prompts=[prompt for _, prompt in alternate_prompts]

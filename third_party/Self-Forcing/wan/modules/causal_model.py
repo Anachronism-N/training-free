@@ -21,11 +21,15 @@ try:
     from lifecycle_kv.attention_fusion import fuse_parallel_attention
     from lifecycle_kv.cache_types import HeadRole
     from lifecycle_kv.head_profile import get_head_profile_session
+    from lifecycle_kv.history_interventions import (
+        build_history_interventions,
+    )
     from lifecycle_kv.tokenset import CacheRegion
 except ImportError:
     fuse_parallel_attention = None  # type: ignore
     HeadRole = None  # type: ignore
     get_head_profile_session = lambda: None  # type: ignore
+    build_history_interventions = None  # type: ignore
     CacheRegion = None  # type: ignore
 
 # wan 1.3B model has a weird channel / head configurations and require max-autotune to work with flexattention
@@ -851,19 +855,57 @@ class CausalWanSelfAttention(nn.Module):
                 and block_index is not None
                 and local_start_index - attn_start >= frame_seqlen
             ):
+                profile_history_key = kv_cache["k"][
+                    :, attn_start:local_start_index
+                ]
+                profile_history_value = kv_cache["v"][
+                    :, attn_start:local_start_index
+                ]
+                intervention_outputs = None
+                intervention_metadata = None
+                if profile_session.wants_history_interventions():
+                    if build_history_interventions is None:
+                        raise RuntimeError(
+                            "history intervention module is unavailable"
+                        )
+                    if (
+                        sink_tokens != 0
+                        or lifecache_manager is not None
+                        or structured_memory_archive is not None
+                        or bool(getattr(self, "full_window_aar", False))
+                        or bool(getattr(self, "head_cache_policy_on", False))
+                    ):
+                        raise RuntimeError(
+                            "history intervention profiling requires native "
+                            "SF sliding-window attention"
+                        )
+                    (
+                        intervention_outputs,
+                        intervention_metadata,
+                    ) = build_history_interventions(
+                        query=roped_query,
+                        history_key=profile_history_key,
+                        history_value=profile_history_value,
+                        frame_seq_length=int(frame_seqlen),
+                        current_frame=int(current_start_frame),
+                        recent_frames=int(
+                            profile_session.config.recent_frames
+                        ),
+                        grid_sizes=grid_sizes,
+                        freqs=freqs,
+                        attention_fn=attention,
+                    )
                 profile_session.record_attention(
                     layer=int(block_index),
                     query=roped_query,
                     current_key=roped_key,
-                    history_key=kv_cache["k"][
-                        :, attn_start:local_start_index
-                    ],
-                    history_value=kv_cache["v"][
-                        :, attn_start:local_start_index
-                    ],
+                    history_key=profile_history_key,
+                    history_value=profile_history_value,
                     native_output=x,
                     frame_seq_length=int(frame_seqlen),
                     attention_fn=attention,
+                    history_intervention_outputs=intervention_outputs,
+                    history_intervention_metadata=intervention_metadata,
                 )
             if structured_memory_active:
                 x = self._fuse_episodic_memory(
