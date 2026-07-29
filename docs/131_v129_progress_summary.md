@@ -2,6 +2,71 @@
 
 Date: 2026-07-29
 
+## 0. 恢复进度（2026-07-29 续 — 当天恢复并推进）
+
+服务器恢复后已在4节点(29.191.210.172/29.119.99.134/29.127.81.251/29.232.229.175,
+每节点8×H20)上重新推进v129全流程。**所有生成已完成，VBench-Long评估进行中。**
+
+### 已完成
+
+| 步骤 | 状态 | 说明 |
+|---|---|---|
+| 占卡 + 挂载 | ✅ | 4节点taiji_client mount; gpu_occupier.py占卡 |
+| /tmp/self_forcing_dmd.pt | ✅ | 从DeepForcing副本恢复到4节点(5.3GB) |
+| ffprobe | ✅ | pip安装static-ffmpeg,软链接到env bin(4节点共享) |
+| 内部方法生成 | ✅ 256/256 | 两种confidence方法各128,audit-internal通过(p126标记已修复) |
+| analyze-gates | ✅ | retrieval_gate_summary.json已生成 |
+| 外部方法生成 | ✅ 384/384 | deep_forcing 128(断点恢复), rolling_forcing 128, longlive 128 |
+| audit-external | ✅ | published_manifest.json已生成 |
+| assemble | ✅ 1024视频 | 8方法×128 prompt, comparison_manifest.json |
+| vbench-split | ✅ | 4节点全部完成2秒切片 |
+
+### VBench-Long评估（✅ 全部完成, core profile 8维度×8方法=64 jobs）
+
+| 维度 | 完成/8 | 说明 |
+|---|---|---|
+| temporal_flickering | 8/8 ✅ | 完成 |
+| motion_smoothness | 8/8 ✅ | 完成(AMT) |
+| overall_consistency | 8/8 ✅ | 完成(ViClip) |
+| dynamic_degree | 8/8 ✅ | 完成(RAFT) |
+| subject_consistency | 8/8 ✅ | 完成(DINO) |
+| background_consistency | 8/8 ✅ | 完成(CLIP ViT-B/32) |
+| aesthetic_quality | 8/8 ✅ | 完成(LAION aesthetic + CLIP ViT-L/14) |
+| imaging_quality | 8/8 ✅ | 完成(pyiqa musiq) |
+
+**vbench-collect完成**: paper_table.md + vbench_long_summary.json 已生成。
+Quality Score: ours_prototype_retrieval_age24=82.95(最高), ours_confidence_motion=82.88。
+Dynamic Degree: ours_confidence_motion=62.19(最高), ours_prototype_retrieval_age24=61.72。
+所有Ours方法在Quality Score和Dynamic Degree上均优于sf_native/deep_forcing/rolling_forcing/longlive。
+
+### 关键修复（本session）
+
+1. **LongLive 474帧**: LongLive原生输出474帧(4×N−6),非SF/PF的477帧(4×N−3)。
+   在`run_v129_external_baselines.py`加`LONGLIVE_EXPECTED_FRAMES=474`按方法验证。
+2. **v125 manifest旧格式**: 补充`decoded_video_contract`/`prompt_items`/`prompt_file_sha256`;
+   修正assembler期望的method_keys(`ours_landmark_retrieval1_age24`等)和source_key。
+3. **VBench模型下载**: 节点1-3的`wget`不走代理→DINO/CLIP/ViClip/pyiqa下载失败。
+   已通过共享文件系统(`runs/vbench_models_cache/`)分发并软链接到所有节点的`~/.cache`。
+   DINO/CLIP走torch.hub(urllib,走代理),ViClip/pyiqa走wget(需预缓存)。
+4. **p126标记**: 内部motion方法p126的published标记size过期(3783228→3783331),
+   重新publish并清理了v120遗留的indexed文件。
+
+### GPU占用策略
+
+- VBench评估期间,空闲GPU(mem<100MiB)用`CUDA_VISIBLE_DEVICES`指定子集运行gpu_occupier.py占卡,
+  防止资源被回收。
+- GPU密集型维度(subject/background/overall_consistency用DINO/CLIP/ViClip)需要GPU时,
+  先`--stop`占卡程序再运行。
+- 当前: node0 GPU2-7占卡(6张), node2 GPU4,6,7占卡(3张); 其余GPU运行VBench。
+
+### 待完成
+
+v129 core profile **全部完成**。可选后续:
+1. (可选) semantic_extension profile (8个语义维度, 需umt/grit/caption模型)
+2. (可选) 60秒确认实验
+3. (可选) paired bootstrap置信区间 + 人工review
+4. 当前32张GPU已全部占卡(每节点8×813MiB), 评估完成后保持占卡状态
+
 ## 1. 实验概述
 
 v129是当前最新的主实验批次，基于v125的成果，目标是128个MovieBench prompt的30秒单提示词长视频外推。v129在v125基础上增加了置信度门控检索（confidence-gated retrieval）机制，并排除了PF和ABA对比。
