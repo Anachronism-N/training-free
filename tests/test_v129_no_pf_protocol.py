@@ -75,11 +75,11 @@ def test_v129_frozen_comparison_has_eight_methods_and_no_pf():
         source.final_key: source.source_key
         for source in comparison.SOURCES
     }
-    # v125 intentionally renamed the raw "...retrieval1..." source while
-    # assembling comparison_quality8; v129 consumes that published alias.
+    # v129 consumes the actual v125 published source key. The final comparison
+    # keeps the shorter paper-facing alias without "retrieval1".
     assert (
         sources["ours_prototype_retrieval_age24"]
-        == "ours_prototype_retrieval_age24"
+        == "ours_prototype_retrieval1_age24"
     )
     assert comparison.CORE_DIMENSIONS == (
         "subject_consistency",
@@ -174,6 +174,12 @@ def test_external_worker_intervals_cover_128_in_four_prompt_batches():
     assert external.parse_method_keys(
         "longlive,deep_forcing,rolling_forcing"
     ) == ("deep_forcing", "rolling_forcing", "longlive")
+
+
+def test_longlive_native_frame_contract_tracks_duration():
+    assert external.expected_frames_for("deep_forcing", 477) == 477
+    assert external.expected_frames_for("longlive", 477) == 474
+    assert external.expected_frames_for("longlive", 957) == 954
 
 
 def test_external_resume_removes_owned_publication_for_corrupt_raw(

@@ -434,15 +434,10 @@ def source_candidates(
     return sorted(raw_dir.glob(f"{prompt_index}-0_*.mp4"))
 
 
-# LongLive's native causal VAE/AR structure decodes 120 latent frames to 474
-# pixel frames (4*N - 6), not the SF/PF 4*N - 3 = 477. The 3-frame difference
-# is structural, not a generation defect, so LongLive is validated against its
-# native 474-frame output rather than the SF/PF contract frame count.
-LONGLIVE_EXPECTED_FRAMES = 4 * 120 - 6
-
-
 def expected_frames_for(method_key: str, default: int) -> int:
-    return LONGLIVE_EXPECTED_FRAMES if method_key == "longlive" else default
+    # LongLive decodes N latent frames to 4*N-6 pixel frames, while the
+    # SF-family contract is 4*N-3. Keep the exception duration-agnostic.
+    return default - 3 if method_key == "longlive" else default
 
 
 def validate_video(
