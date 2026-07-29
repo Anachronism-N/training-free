@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package bounded v138 analysis artifacts for Git review."""
+"""Package bounded v141 analysis artifacts for Git review."""
 
 from __future__ import annotations
 
@@ -14,13 +14,9 @@ ANALYSIS_FILES = (
     "analysis_summary.md",
     "analysis_report.json",
     "head_axes.csv",
-    "head_timestep_axes.csv",
-    "head_ar_axes.csv",
-    "head_timestep_specialization.csv",
-    "axis_diagnostics.csv",
-    "axis_correlations.csv",
+    "head_switch_type_axes.csv",
+    "head_episode_axes.csv",
     "profile_contract_audit.csv",
-    "donor_audit.csv",
 )
 
 
@@ -37,26 +33,10 @@ def package_results(analysis_dir: Path, output_dir: Path) -> dict:
     if not report_path.is_file():
         raise FileNotFoundError(report_path)
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    if int(report.get("head_count", 0)) != 360:
-        raise ValueError("v138 report does not contain all 360 heads")
     if not bool(report.get("profile_contract_passed", False)):
-        raise ValueError("v138 profile contract did not pass")
-    if float(report.get("maximum_rope_reconstruction_error", 1.0)) > 5e-3:
-        raise ValueError("v138 RoPE reconstruction gate failed")
-    if (
-        float(
-            report.get("maximum_rope_reconstruction_rms_error", 1.0)
-        )
-        > 1e-3
-    ):
-        raise ValueError("v138 RoPE RMS reconstruction gate failed")
-    if (
-        float(
-            report.get("maximum_recent_value_preservation_error", 1.0)
-        )
-        > 1e-6
-    ):
-        raise ValueError("v138 recent-value preservation gate failed")
+        raise ValueError("v141 profile contract did not pass")
+    if int(report.get("profile_count", 0)) <= 0:
+        raise ValueError("v141 report has no profiles")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     files = []
@@ -77,40 +57,17 @@ def package_results(analysis_dir: Path, output_dir: Path) -> dict:
         "method": report["method"],
         "recommendation": report["recommendation"],
         "profile_count": report["profile_count"],
-        "head_count": report["head_count"],
         "gates": report["gates"],
         "files": files,
         "excluded": [
-            "raw projected Q/K descriptors",
             "raw .pt profiles",
             "videos",
             "worker logs",
-            "per-job head tables",
+            "state_observations.csv",
         ],
     }
     (output_dir / "bundle_inventory.json").write_text(
         json.dumps(inventory, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    (output_dir / "review_bundle.md").write_text(
-        "\n".join(
-            [
-                "# v138 Review Bundle",
-                "",
-                f"- Recommendation: `{report['recommendation']}`",
-                (
-                    "- History-specificity gate: "
-                    f"`{report['gates']['history_specificity']}`"
-                ),
-                f"- Order-axis gate: `{report['gates']['order_axis']}`",
-                "",
-                "Review `analysis_summary.md`, then `head_axes.csv`, "
-                "`axis_correlations.csv`, and `donor_audit.csv`.",
-                "",
-                "Raw descriptors, profiles, and videos are excluded.",
-                "",
-            ]
-        ),
         encoding="utf-8",
     )
     return inventory
@@ -123,7 +80,7 @@ def main() -> None:
     args = parser.parse_args()
     inventory = package_results(args.analysis_dir, args.output_dir)
     print(
-        "[v138-package] "
+        "[v141-package] "
         f"files={len(inventory['files'])} output={args.output_dir}"
     )
 

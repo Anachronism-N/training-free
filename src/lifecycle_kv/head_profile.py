@@ -37,6 +37,7 @@ class HeadProfileConfig:
     strict: bool
     history_interventions: bool = False
     projection_dim: int = 16
+    allow_prompt_schedule: bool = False
 
     @classmethod
     def from_env(cls) -> "HeadProfileConfig":
@@ -78,6 +79,10 @@ class HeadProfileConfig:
                 4,
                 int(os.environ.get("HEAD_PROFILE_PROJECTION_DIM", "16")),
             ),
+            allow_prompt_schedule=(
+                os.environ.get("HEAD_PROFILE_ALLOW_PROMPT_SCHEDULE", "0")
+                == "1"
+            ),
         )
 
 
@@ -86,6 +91,7 @@ class HeadProfileSession:
 
     VERSION = 2
     HISTORY_INTERVENTION_VERSION = 4
+    SCHEDULE_PROFILE_VERSION = 5
     PROJECTION_SEED = 20260729
 
     def __init__(self, config: HeadProfileConfig) -> None:
@@ -177,6 +183,9 @@ class HeadProfileSession:
             ),
             "projection_dim": int(self.config.projection_dim),
             "projection_seed": int(self.PROJECTION_SEED),
+            "allow_prompt_schedule": bool(
+                self.config.allow_prompt_schedule
+            ),
         }
         print(
             "[HeadProfile] begin "
@@ -192,9 +201,67 @@ class HeadProfileSession:
             return int(default)
         return int(job.get("seed", default))
 
+    def register_prompt_schedule(
+        self, *, prompts: list[str], switch_frames: list[int]
+    ) -> None:
+        if self.active_job is None:
+            raise RuntimeError("cannot register a schedule without an active job")
+        declared_prompts = self.active_job.get("schedule_prompts")
+        declared_switches = self.active_job.get("switch_frames")
+        if (
+            self.config.strict
+            and declared_prompts is not None
+            and [str(value).strip() for value in declared_prompts]
+            != [str(value).strip() for value in prompts]
+        ):
+            raise ValueError("runtime prompt schedule differs from manifest")
+        if (
+            self.config.strict
+            and declared_switches is not None
+            and [int(value) for value in declared_switches]
+            != [int(value) for value in switch_frames]
+        ):
+            raise ValueError(
+                "runtime prompt-switch frames differ from manifest: "
+                f"runtime={switch_frames} manifest={declared_switches}"
+            )
+        self._video_metadata["schedule_prompts"] = list(prompts)
+        self._video_metadata["switch_frames"] = [
+            int(value) for value in switch_frames
+        ]
+        print(
+            "[HeadProfile] schedule "
+            f"segments={len(prompts)} switches={switch_frames}",
+            flush=True,
+        )
+
     def alternate_prompts(self) -> list[tuple[str, str]]:
         if self.active_job is None:
             return []
+        declared = self.active_job.get("shadow_prompts")
+        if declared is not None:
+            if not isinstance(declared, dict):
+                raise ValueError("shadow_prompts must be a JSON object")
+            prompts = []
+            for branch, value in declared.items():
+                branch = str(branch).strip()
+                prompt = str(value or "").strip()
+                if not branch or branch == "base":
+                    raise ValueError(
+                        "shadow prompt branch must be non-empty and not 'base'"
+                    )
+                if not re.fullmatch(r"[A-Za-z0-9_.-]+", branch):
+                    raise ValueError(
+                        f"invalid shadow prompt branch name: {branch!r}"
+                    )
+                if not prompt:
+                    raise ValueError(
+                        f"shadow prompt {branch!r} is empty"
+                    )
+                prompts.append((branch, prompt))
+            if len(prompts) != len({branch for branch, _ in prompts}):
+                raise ValueError("shadow prompt branch names are not unique")
+            return prompts
         prompts = []
         for branch, key in (
             ("semantic", "semantic_prompt"),
@@ -233,6 +300,21 @@ class HeadProfileSession:
             current_frame=current_frame,
             nominal_timestep=nominal_timestep,
         )
+        switch_frames = tuple(
+            int(value)
+            for value in (self.active_job.get("switch_frames") or ())
+        )
+        if tuple(sorted(switch_frames)) != switch_frames:
+            raise ValueError("switch_frames must be sorted")
+        episode_index = sum(
+            int(current_frame) >= boundary for boundary in switch_frames
+        )
+        segment_labels = self.active_job.get("segment_labels") or ()
+        episode_label = (
+            str(segment_labels[episode_index])
+            if episode_index < len(segment_labels)
+            else str(episode_index)
+        )
         self.context = {
             "branch": str(branch),
             "mode": str(mode),
@@ -241,6 +323,8 @@ class HeadProfileSession:
             "actual_timestep": float(actual_timestep),
             "capture": bool(capture),
             "call_index": None,
+            "episode_index": int(episode_index),
+            "episode_label": episode_label,
         }
         if capture:
             call_index = self._call_index
@@ -462,6 +546,8 @@ class HeadProfileSession:
             "current_frame": int(context["current_frame"]),
             "nominal_timestep": int(context["nominal_timestep"]),
             "actual_timestep": float(context["actual_timestep"]),
+            "episode_index": int(context.get("episode_index", 0)),
+            "episode_label": str(context.get("episode_label", "0")),
             "call_index": call_index,
             "layer": int(layer),
             "history_frames": int(history_frames),
@@ -547,7 +633,12 @@ class HeadProfileSession:
             "version": (
                 self.HISTORY_INTERVENTION_VERSION
                 if self.config.history_interventions
-                else self.VERSION
+                else (
+                    self.SCHEDULE_PROFILE_VERSION
+                    if job.get("shadow_prompts") is not None
+                    or "||" in str(job.get("base_prompt", ""))
+                    else self.VERSION
+                )
             ),
             "job": job,
             "metadata": {

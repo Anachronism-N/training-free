@@ -891,8 +891,7 @@ class CausalInferencePipeline(torch.nn.Module):
         )
         self._mark_head_profile_read_only(self.kv_cache1, True)
         try:
-            for branch in ("semantic", "null"):
-                conditioning = alternate_conditionings.get(branch)
+            for branch, conditioning in alternate_conditionings.items():
                 crossattn_cache = alternate_crossattn_caches.get(branch)
                 if conditioning is None or crossattn_cache is None:
                     continue
@@ -1009,10 +1008,13 @@ class CausalInferencePipeline(torch.nn.Module):
                 num_frame_per_block=self.num_frame_per_block,
                 local_attn_size=self.local_attn_size,
             )
-            if any("||" in prompt for prompt in text_prompts):
+            if (
+                any("||" in prompt for prompt in text_prompts)
+                and not profile_session.config.allow_prompt_schedule
+            ):
                 raise ValueError(
-                    "head discovery profiles single prompts only; scene "
-                    "schedules must be evaluated after classification"
+                    "head profiling rejects prompt schedules unless "
+                    "HEAD_PROFILE_ALLOW_PROMPT_SCHEDULE=1"
                 )
         # Controlled scene schedule: a single prompt may contain block-aligned
         # segments separated by `||`, e.g. A1 || B || A2.  The archive persists
@@ -1184,6 +1186,29 @@ class CausalInferencePipeline(torch.nn.Module):
         if self.independent_first_frame and initial_latent is None:
             all_num_frames = [1] + all_num_frames
         total_denoise_blocks = len(all_num_frames)
+        if conditional_dicts is not None and profile_session is not None:
+            profile_switch_frames = []
+            profile_cursor = 0
+            profile_scene_index = 0
+            for profile_block_index, profile_block_frames in enumerate(
+                all_num_frames, start=1
+            ):
+                candidate_scene_index = min(
+                    (
+                        profile_block_index
+                        * len(conditional_dicts)
+                    )
+                    // total_denoise_blocks,
+                    len(conditional_dicts) - 1,
+                )
+                if candidate_scene_index != profile_scene_index:
+                    profile_switch_frames.append(profile_cursor)
+                    profile_scene_index = candidate_scene_index
+                profile_cursor += int(profile_block_frames)
+            profile_session.register_prompt_schedule(
+                prompts=scene_prompts,
+                switch_frames=profile_switch_frames,
+            )
         active_scene_index = 0
         for block_index, current_num_frames in enumerate(all_num_frames, start=1):
             # Controlled scene schedule: switch conditional_dict and
@@ -1237,6 +1262,23 @@ class CausalInferencePipeline(torch.nn.Module):
                         else:
                             # v1: simple per-head clearing (no pool)
                             _hrm_clear_texture_heads(self.kv_cache1, self._head_role_labels)
+                    schedule_cache_mode = (
+                        "reset"
+                        if working_cache_reset
+                        else (
+                            "legacy_head_role"
+                            if getattr(self, "_head_role_enable", False)
+                            else "native_persist"
+                        )
+                    )
+                    print(
+                        "[PromptSchedule] "
+                        f"segment={prev_scene}->{scene_index} "
+                        f"frame={current_start_frame} "
+                        f"self_cache={schedule_cache_mode} "
+                        "crossattn=reset",
+                        flush=True,
+                    )
                 conditional_dict = conditional_dicts[scene_index]
                 if self.structured_memory_archives is not None and scene_changed:
                     self._set_memory_episode(
