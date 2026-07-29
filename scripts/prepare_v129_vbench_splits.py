@@ -24,15 +24,20 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def load_manifest(path: Path) -> dict[str, Any]:
+def load_manifest(
+    path: Path,
+    *,
+    expected_experiment: str = "v129_no_pf_paper_comparison_30s",
+    expected_num_output_frames: int = 120,
+) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if (
         not isinstance(payload, dict)
-        or payload.get("experiment") != "v129_no_pf_paper_comparison_30s"
+        or payload.get("experiment") != expected_experiment
         or payload.get("prompt_count") != 128
-        or payload.get("num_output_frames") != 120
+        or payload.get("num_output_frames") != expected_num_output_frames
     ):
-        raise ValueError(f"invalid v129 comparison manifest: {path}")
+        raise ValueError(f"invalid VBench comparison manifest: {path}")
     return payload
 
 
@@ -234,6 +239,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--node-rank", type=int, default=0)
     parser.add_argument("--num-nodes", type=int, default=1)
+    parser.add_argument(
+        "--expected-experiment",
+        default="v129_no_pf_paper_comparison_30s",
+    )
+    parser.add_argument("--expected-num-output-frames", type=int, default=120)
     return parser.parse_args()
 
 
@@ -246,7 +256,11 @@ def main() -> None:
     comparison_root = args.comparison_root.resolve()
     vbench_root = args.vbench_root.resolve()
     manifest_path = comparison_root / "comparison_manifest.json"
-    manifest = load_manifest(manifest_path)
+    manifest = load_manifest(
+        manifest_path,
+        expected_experiment=args.expected_experiment,
+        expected_num_output_frames=args.expected_num_output_frames,
+    )
     manifest_sha = sha256(manifest_path)
     completed = subprocess.run(
         ["git", "-C", str(vbench_root), "rev-parse", "HEAD"],
@@ -263,7 +277,12 @@ def main() -> None:
     from vbench2_beta_long.utils import split_video_into_clips
 
     prompt_count = int(manifest["prompt_count"])
-    clips_per_video = 15
+    num_output_frames = int(manifest["num_output_frames"])
+    if num_output_frames <= 0 or num_output_frames % 8:
+        raise ValueError(
+            "num_output_frames must map to an integer number of 2-second clips"
+        )
+    clips_per_video = num_output_frames // 8
     all_jobs = [
         (str(row["key"]), Path(str(row["video_dir"])).resolve())
         for row in manifest["methods"]

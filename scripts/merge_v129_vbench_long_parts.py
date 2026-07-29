@@ -107,25 +107,38 @@ def collect_prompt_indices(value: Any) -> set[int]:
     return indices
 
 
-def validate_manifest(path: Path) -> dict[str, Any]:
+def validate_manifest(
+    path: Path,
+    *,
+    expected_experiment: str = "v129_no_pf_paper_comparison_30s",
+    expected_num_output_frames: int = 120,
+    expected_method_count: int = 8,
+) -> dict[str, Any]:
     payload = load_json(path)
     if not isinstance(payload, dict):
         raise ValueError(f"comparison manifest is not an object: {path}")
     if (
-        payload.get("experiment") != "v129_no_pf_paper_comparison_30s"
+        payload.get("experiment") != expected_experiment
         or payload.get("prompt_count") != 128
-        or payload.get("num_output_frames") != 120
+        or payload.get("num_output_frames") != expected_num_output_frames
         or payload.get("seed") != 0
         or payload.get("pf_required") is not False
     ):
-        raise ValueError(f"invalid v129 comparison contract: {path}")
+        raise ValueError(f"invalid VBench comparison contract: {path}")
     methods = payload.get("methods")
     if not isinstance(methods, list):
         raise ValueError("comparison manifest has no methods")
     keys = [row.get("key") for row in methods if isinstance(row, dict)]
-    expected = [source.final_key for source in SOURCES]
-    if keys != expected or any("pf" in str(key).lower() for key in keys):
+    if (
+        len(keys) != expected_method_count
+        or len(keys) != len(set(keys))
+        or any("pf" in str(key).lower() for key in keys)
+    ):
         raise ValueError(f"invalid no-PF method order: {keys!r}")
+    if expected_experiment == "v129_no_pf_paper_comparison_30s":
+        expected = [source.final_key for source in SOURCES]
+        if keys != expected:
+            raise ValueError(f"invalid v129 method order: {keys!r}")
     expected_profiles = {
         name: list(dimensions)
         for name, dimensions in PROFILE_DIMENSIONS.items()
@@ -215,6 +228,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--combined-root", type=Path)
     parser.add_argument("--summary-root", type=Path)
     parser.add_argument("--vbench-root", required=True, type=Path)
+    parser.add_argument(
+        "--expected-experiment",
+        default="v129_no_pf_paper_comparison_30s",
+    )
+    parser.add_argument("--expected-num-output-frames", type=int, default=120)
+    parser.add_argument("--expected-method-count", type=int, default=8)
     return parser.parse_args()
 
 
@@ -222,7 +241,12 @@ def main() -> None:
     args = parse_args()
     comparison_root = args.comparison_root.resolve()
     manifest_path = comparison_root / "comparison_manifest.json"
-    manifest = validate_manifest(manifest_path)
+    manifest = validate_manifest(
+        manifest_path,
+        expected_experiment=args.expected_experiment,
+        expected_num_output_frames=args.expected_num_output_frames,
+        expected_method_count=args.expected_method_count,
+    )
     manifest_sha = sha256(manifest_path)
     parts_root = (
         args.parts_root

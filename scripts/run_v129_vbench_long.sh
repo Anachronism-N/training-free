@@ -21,6 +21,10 @@ NODE_RANK="${NODE_RANK:-0}"
 NUM_NODES="${NUM_NODES:-4}"
 GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7}"
 PROFILE="${V129_METRIC_PROFILE:-core}"
+EXPECTED_EXPERIMENT="${VBENCH_EXPECTED_EXPERIMENT:-v129_no_pf_paper_comparison_30s}"
+EXPECTED_METHOD_COUNT="${VBENCH_EXPECTED_METHOD_COUNT:-8}"
+EXPECTED_NUM_OUTPUT_FRAMES="${VBENCH_EXPECTED_NUM_OUTPUT_FRAMES:-120}"
+EXPECTED_CLIPS_PER_VIDEO="$((EXPECTED_NUM_OUTPUT_FRAMES / 8))"
 
 if [[ "$PROFILE" != "core" && "$PROFILE" != "semantic_extension" && \
       "$PROFILE" != "full" ]]; then
@@ -37,23 +41,24 @@ fi
 }
 
 mapfile -t METHODS < <(
-    python - "$MANIFEST" <<'PY'
+    python - "$MANIFEST" "$EXPECTED_EXPERIMENT" "$EXPECTED_METHOD_COUNT" \
+        "$EXPECTED_NUM_OUTPUT_FRAMES" <<'PY'
 import json
 import sys
 
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
-assert payload["experiment"] == "v129_no_pf_paper_comparison_30s"
+assert payload["experiment"] == sys.argv[2]
 assert payload["prompt_count"] == 128
-assert payload["num_output_frames"] == 120
+assert payload["num_output_frames"] == int(sys.argv[4])
 assert payload["pf_required"] is False
 methods = [row["key"] for row in payload["methods"]]
-assert len(methods) == len(set(methods)) == 8
+assert len(methods) == len(set(methods)) == int(sys.argv[3])
 assert not any("pf" in key.lower() for key in methods)
 print("\n".join(methods))
 PY
 )
-[[ "${#METHODS[@]}" -eq 8 ]] || {
-    echo "[error] comparison manifest must contain eight unique no-PF methods"
+[[ "${#METHODS[@]}" -eq "$EXPECTED_METHOD_COUNT" ]] || {
+    echo "[error] comparison manifest method count differs from expected $EXPECTED_METHOD_COUNT"
     exit 2
 }
 
@@ -128,12 +133,15 @@ if [[ "$ACTION" == "split" ]]; then
         --vbench-root "$VBENCH_ROOT" \
         --workers "${V129_SPLIT_WORKERS:-2}" \
         --node-rank "$NODE_RANK" \
-        --num-nodes "$NUM_NODES"
+        --num-nodes "$NUM_NODES" \
+        --expected-experiment "$EXPECTED_EXPERIMENT" \
+        --expected-num-output-frames "$EXPECTED_NUM_OUTPUT_FRAMES"
     exit $?
 fi
 
 python - \
-    "$ROOT/scripts" "$MANIFEST" "$MANIFEST_SHA256" "$VBENCH_COMMIT" <<'PY' || exit 2
+    "$ROOT/scripts" "$MANIFEST" "$MANIFEST_SHA256" "$VBENCH_COMMIT" \
+    "$EXPECTED_CLIPS_PER_VIDEO" <<'PY' || exit 2
 import json
 import sys
 from pathlib import Path
@@ -148,7 +156,7 @@ for row in manifest["methods"]:
         comparison_manifest_sha256=sys.argv[3],
         vbench_commit=sys.argv[4],
         prompt_count=128,
-        clips_per_video=15,
+        clips_per_video=int(sys.argv[5]),
     )
     if result is None:
         raise SystemExit(
@@ -191,7 +199,10 @@ if [[ "$ACTION" == "collect" ]]; then
     python "$ROOT/scripts/merge_v129_vbench_long_parts.py" \
         --comparison-root "$COMPARISON_ROOT" \
         --profile "$PROFILE" \
-        --vbench-root "$VBENCH_ROOT"
+        --vbench-root "$VBENCH_ROOT" \
+        --expected-experiment "$EXPECTED_EXPERIMENT" \
+        --expected-method-count "$EXPECTED_METHOD_COUNT" \
+        --expected-num-output-frames "$EXPECTED_NUM_OUTPUT_FRAMES"
     exit $?
 fi
 
