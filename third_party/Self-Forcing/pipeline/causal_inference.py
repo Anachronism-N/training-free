@@ -15,6 +15,11 @@ HEAD_ROLE_DYNAMIC = 3
 # --- Episodic Memory Pool ---
 from lifecycle_kv.episodic_pool import EpisodicMemoryPool, EpisodicMemoryEntry
 
+try:
+    from lifecycle_kv.head_profile import get_head_profile_session
+except ImportError:
+    get_head_profile_session = lambda: None  # type: ignore
+
 
 def _build_fixed_head_split(num_layers: int = 30, num_heads: int = 12) -> dict:
     """Fixed head split: [0:4]=layout, [4:8]=texture, [8:12]=motion."""
@@ -162,6 +167,8 @@ class CausalInferencePipeline(torch.nn.Module):
 
         self.latent_trace = None
         self._latent_trace_video_index = 0
+        self._head_profile_job_index = None
+        self.head_profile_session = get_head_profile_session()
         latent_trace_path = os.environ.get("AR_LATENT_TRACE_PATH")
         if latent_trace_path:
             from lifecycle_kv.latent_trace import LatentTraceWriter
@@ -827,6 +834,112 @@ class CausalInferencePipeline(torch.nn.Module):
         for archive in self.structured_memory_archives:
             archive.set_episode(episode_id, descriptor, start_frame=start_frame)
 
+    def set_head_profile_job_index(self, dataset_index: int) -> None:
+        """Associate the next inference call with its unsharded dataset row."""
+        self._head_profile_job_index = int(dataset_index)
+
+    @staticmethod
+    def _slice_conditioning_batch(
+        conditioning: dict, index: int, batch_size: int
+    ) -> dict:
+        return {
+            key: (
+                value[index:index + 1]
+                if isinstance(value, torch.Tensor)
+                and value.ndim > 0
+                and value.shape[0] == batch_size
+                else value
+            )
+            for key, value in conditioning.items()
+        }
+
+    @staticmethod
+    def _mark_head_profile_read_only(kv_cache, enabled: bool) -> None:
+        for cache in kv_cache:
+            if enabled:
+                cache["_head_profile_read_only"] = True
+            else:
+                cache.pop("_head_profile_read_only", None)
+
+    def _run_head_profile_shadows(
+        self,
+        *,
+        noisy_input: torch.Tensor,
+        timestep: torch.Tensor,
+        current_start_frame: int,
+        mode: str,
+        nominal_timestep: int,
+        actual_timestep: float,
+        alternate_conditionings: dict[str, dict],
+        alternate_crossattn_caches: dict[str, list],
+    ) -> None:
+        session = self.head_profile_session
+        if session is None or not alternate_conditionings:
+            return
+        cache_indices_before = [
+            (
+                int(cache["global_end_index"].item()),
+                int(cache["local_end_index"].item()),
+            )
+            for cache in self.kv_cache1
+        ]
+        cpu_rng_state = torch.random.get_rng_state()
+        cuda_rng_state = (
+            torch.cuda.get_rng_state(noisy_input.device)
+            if noisy_input.is_cuda
+            else None
+        )
+        self._mark_head_profile_read_only(self.kv_cache1, True)
+        try:
+            for branch in ("semantic", "null"):
+                conditioning = alternate_conditionings.get(branch)
+                crossattn_cache = alternate_crossattn_caches.get(branch)
+                if conditioning is None or crossattn_cache is None:
+                    continue
+                torch.random.set_rng_state(cpu_rng_state)
+                if cuda_rng_state is not None:
+                    torch.cuda.set_rng_state(
+                        cuda_rng_state, noisy_input.device
+                    )
+                session.set_call_context(
+                    branch=branch,
+                    mode=mode,
+                    current_frame=current_start_frame,
+                    nominal_timestep=nominal_timestep,
+                    actual_timestep=actual_timestep,
+                )
+                self.generator(
+                    noisy_image_or_video=noisy_input,
+                    conditional_dict=conditioning,
+                    timestep=timestep,
+                    kv_cache=self.kv_cache1,
+                    crossattn_cache=crossattn_cache,
+                    current_start=current_start_frame
+                    * self.frame_seq_length,
+                    structured_memory_archives=None,
+                    structured_memory_config=None,
+                    structured_memory_mode=mode,
+                )
+                cache_indices_after = [
+                    (
+                        int(cache["global_end_index"].item()),
+                        int(cache["local_end_index"].item()),
+                    )
+                    for cache in self.kv_cache1
+                ]
+                if cache_indices_after != cache_indices_before:
+                    raise RuntimeError(
+                        "head-profile shadow mutated native K/V indices"
+                    )
+        finally:
+            self._mark_head_profile_read_only(self.kv_cache1, False)
+            torch.random.set_rng_state(cpu_rng_state)
+            if cuda_rng_state is not None:
+                torch.cuda.set_rng_state(
+                    cuda_rng_state, noisy_input.device
+                )
+            session.disable_call_context()
+
     def inference(
         self,
         noise: torch.Tensor,
@@ -881,6 +994,26 @@ class CausalInferencePipeline(torch.nn.Module):
             num_blocks = (num_frames - 1) // self.num_frame_per_block
         num_input_frames = initial_latent.shape[1] if initial_latent is not None else 0
         num_output_frames = num_frames + num_input_frames  # add the initial latent frames
+        profile_session = self.head_profile_session
+        if profile_session is not None:
+            profile_dataset_index = (
+                trace_video_index
+                if self._head_profile_job_index is None
+                else int(self._head_profile_job_index)
+            )
+            profile_session.begin_video(
+                dataset_index=profile_dataset_index,
+                text_prompts=text_prompts,
+                num_frames=num_frames,
+                frame_seq_length=self.frame_seq_length,
+                num_frame_per_block=self.num_frame_per_block,
+                local_attn_size=self.local_attn_size,
+            )
+            if any("||" in prompt for prompt in text_prompts):
+                raise ValueError(
+                    "head discovery profiles single prompts only; scene "
+                    "schedules must be evaluated after classification"
+                )
         # Controlled scene schedule: a single prompt may contain block-aligned
         # segments separated by `||`, e.g. A1 || B || A2.  The archive persists
         # across segments while cross-attention is invalidated at boundaries.
@@ -913,6 +1046,21 @@ class CausalInferencePipeline(torch.nn.Module):
             conditional_dict = self.text_encoder(
                 text_prompts=text_prompts
             )
+        alternate_conditionings: dict[str, dict] = {}
+        if profile_session is not None:
+            alternate_prompts = profile_session.alternate_prompts()
+            if alternate_prompts:
+                encoded_alternates = self.text_encoder(
+                    text_prompts=[prompt for _, prompt in alternate_prompts]
+                )
+                alternate_conditionings = {
+                    branch: self._slice_conditioning_batch(
+                        encoded_alternates,
+                        index,
+                        len(alternate_prompts),
+                    )
+                    for index, (branch, _) in enumerate(alternate_prompts)
+                }
 
         # Reset the episodic archive for a fresh prompt so a reused pipeline
         # does not leak memory from the previous video.
@@ -972,6 +1120,14 @@ class CausalInferencePipeline(torch.nn.Module):
                     [0], dtype=torch.long, device=noise.device)
                 self.kv_cache1[block_index]["local_end_index"] = torch.tensor(
                     [0], dtype=torch.long, device=noise.device)
+        alternate_crossattn_caches = {
+            branch: self._new_crossattn_cache(
+                batch_size=batch_size,
+                dtype=noise.dtype,
+                device=noise.device,
+            )
+            for branch in alternate_conditionings
+        }
 
         # Step 2: Cache context feature
         current_start_frame = 0
@@ -1224,18 +1380,43 @@ class CausalInferencePipeline(torch.nn.Module):
                     noisy_input = corrected_noisy_input
                     reference_prediction_for_diagnostic = reference_prediction
 
-                if index < len(self.denoising_step_list) - 1:
-                    _, denoised_pred = self.generator(
-                        noisy_image_or_video=noisy_input,
-                        conditional_dict=conditional_dict,
-                        timestep=timestep,
-                        kv_cache=self.kv_cache1,
-                        crossattn_cache=self.crossattn_cache,
-                        current_start=current_start_frame * self.frame_seq_length,
-                        structured_memory_archives=self.structured_memory_archives,
-                        structured_memory_config=self.structured_memory_config,
-                        structured_memory_mode="noisy",
+                profile_capture = False
+                if profile_session is not None:
+                    profile_capture = profile_session.set_call_context(
+                        branch="base",
+                        mode="noisy",
+                        current_frame=current_start_frame,
+                        nominal_timestep=nominal_timestep_value,
+                        actual_timestep=actual_timestep_value,
                     )
+                _, denoised_pred = self.generator(
+                    noisy_image_or_video=noisy_input,
+                    conditional_dict=conditional_dict,
+                    timestep=timestep,
+                    kv_cache=self.kv_cache1,
+                    crossattn_cache=self.crossattn_cache,
+                    current_start=current_start_frame * self.frame_seq_length,
+                    structured_memory_archives=self.structured_memory_archives,
+                    structured_memory_config=self.structured_memory_config,
+                    structured_memory_mode="noisy",
+                )
+                if profile_capture:
+                    self._run_head_profile_shadows(
+                        noisy_input=noisy_input,
+                        timestep=timestep,
+                        current_start_frame=current_start_frame,
+                        mode="noisy",
+                        nominal_timestep=nominal_timestep_value,
+                        actual_timestep=actual_timestep_value,
+                        alternate_conditionings=alternate_conditionings,
+                        alternate_crossattn_caches=(
+                            alternate_crossattn_caches
+                        ),
+                    )
+                if profile_session is not None:
+                    profile_session.disable_call_context()
+
+                if index < len(self.denoising_step_list) - 1:
                     next_timestep = self.denoising_step_list[index + 1]
                     next_noise = torch.randn_like(
                         denoised_pred.flatten(0, 1)
@@ -1250,19 +1431,6 @@ class CausalInferencePipeline(torch.nn.Module):
                         trajectory_noise = next_noise.unflatten(
                             0, denoised_pred.shape[:2]
                         )
-                else:
-                    # for getting real output
-                    _, denoised_pred = self.generator(
-                        noisy_image_or_video=noisy_input,
-                        conditional_dict=conditional_dict,
-                        timestep=timestep,
-                        kv_cache=self.kv_cache1,
-                        crossattn_cache=self.crossattn_cache,
-                        current_start=current_start_frame * self.frame_seq_length,
-                        structured_memory_archives=self.structured_memory_archives,
-                        structured_memory_config=self.structured_memory_config,
-                        structured_memory_mode="noisy",
-                    )
 
                 if self.commit_forcing is not None:
                     if reference_prediction_for_diagnostic is not None:
@@ -1298,6 +1466,15 @@ class CausalInferencePipeline(torch.nn.Module):
             # LifeCache v2: begin clean-context capture before context refresh
             if self.lifecache_manager is not None:
                 self.lifecache_manager.runtime.begin_capture("clean_context")
+            clean_profile_capture = False
+            if profile_session is not None:
+                clean_profile_capture = profile_session.set_call_context(
+                    branch="base",
+                    mode="clean",
+                    current_frame=current_start_frame,
+                    nominal_timestep=0,
+                    actual_timestep=float(self.args.context_noise),
+                )
             self.generator(
                 noisy_image_or_video=denoised_pred,
                 conditional_dict=conditional_dict,
@@ -1309,6 +1486,19 @@ class CausalInferencePipeline(torch.nn.Module):
                 structured_memory_config=self.structured_memory_config,
                 structured_memory_mode="clean",
             )
+            if clean_profile_capture:
+                self._run_head_profile_shadows(
+                    noisy_input=denoised_pred,
+                    timestep=context_timestep,
+                    current_start_frame=current_start_frame,
+                    mode="clean",
+                    nominal_timestep=0,
+                    actual_timestep=float(self.args.context_noise),
+                    alternate_conditionings=alternate_conditionings,
+                    alternate_crossattn_caches=alternate_crossattn_caches,
+                )
+            if profile_session is not None:
+                profile_session.disable_call_context()
             # LifeCache v2: end capture after context refresh
             if self.lifecache_manager is not None:
                 self.lifecache_manager.runtime.end_capture()
@@ -1536,6 +1726,10 @@ class CausalInferencePipeline(torch.nn.Module):
                 **tensor_statistics(video, channel_dim=2),
                 **frame_statistics(video, frame_dim=1),
             })
+        if profile_session is not None:
+            profile_session.end_video(
+                expected_layers=self.num_transformer_blocks
+            )
 
         if profile:
             # End VAE timing and synchronize CUDA
@@ -1589,12 +1783,18 @@ class CausalInferencePipeline(torch.nn.Module):
         """
         Initialize a Per-GPU cross-attention cache for the Wan model.
         """
-        crossattn_cache = []
+        self.crossattn_cache = self._new_crossattn_cache(
+            batch_size=batch_size,
+            dtype=dtype,
+            device=device,
+        )
 
+    def _new_crossattn_cache(self, batch_size, dtype, device):
+        crossattn_cache = []
         for _ in range(self.num_transformer_blocks):
             crossattn_cache.append({
                 "k": torch.zeros([batch_size, 512, 12, 128], dtype=dtype, device=device),
                 "v": torch.zeros([batch_size, 512, 12, 128], dtype=dtype, device=device),
                 "is_init": False
             })
-        self.crossattn_cache = crossattn_cache
+        return crossattn_cache

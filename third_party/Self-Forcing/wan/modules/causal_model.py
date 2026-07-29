@@ -20,10 +20,12 @@ import torch.distributed as dist
 try:
     from lifecycle_kv.attention_fusion import fuse_parallel_attention
     from lifecycle_kv.cache_types import HeadRole
+    from lifecycle_kv.head_profile import get_head_profile_session
     from lifecycle_kv.tokenset import CacheRegion
 except ImportError:
     fuse_parallel_attention = None  # type: ignore
     HeadRole = None  # type: ignore
+    get_head_profile_session = lambda: None  # type: ignore
     CacheRegion = None  # type: ignore
 
 # wan 1.3B model has a weird channel / head configurations and require max-autotune to work with flexattention
@@ -314,6 +316,70 @@ class CausalWanSelfAttention(nn.Module):
             current_end = current_start + roped_query.shape[1]
             sink_tokens = self.sink_size * frame_seqlen
             block_index = getattr(self, "_block_index", None)
+            num_new_tokens = roped_query.shape[1]
+            profile_session = get_head_profile_session()
+            profile_read_only = bool(
+                kv_cache.get("_head_profile_read_only", False)
+            )
+            if profile_read_only:
+                if (
+                    sink_tokens != 0
+                    or lifecache_manager is not None
+                    or structured_memory_archive is not None
+                    or bool(getattr(self, "full_window_aar", False))
+                    or bool(getattr(self, "head_cache_policy_on", False))
+                ):
+                    raise RuntimeError(
+                        "head-profile shadow forward requires native SF "
+                        "sliding-window attention"
+                    )
+                cached_global_end = int(
+                    kv_cache["global_end_index"].item()
+                )
+                cached_local_end = int(
+                    kv_cache["local_end_index"].item()
+                )
+                if (
+                    cached_global_end != current_end
+                    or cached_local_end < num_new_tokens
+                ):
+                    raise RuntimeError(
+                        "head-profile shadow must run immediately after the "
+                        "matching base forward"
+                    )
+                history_end = cached_local_end - num_new_tokens
+                history_capacity = max(
+                    0, self.max_attention_size - num_new_tokens
+                )
+                history_start = max(
+                    0, history_end - history_capacity
+                )
+                history_key = kv_cache["k"][
+                    :, history_start:history_end
+                ]
+                history_value = kv_cache["v"][
+                    :, history_start:history_end
+                ]
+                key_window = torch.cat((history_key, roped_key), dim=1)
+                value_window = torch.cat((history_value, v), dim=1)
+                x = attention(roped_query, key_window, value_window)
+                if (
+                    profile_session is not None
+                    and block_index is not None
+                    and history_key.shape[1] >= frame_seqlen
+                ):
+                    profile_session.record_attention(
+                        layer=int(block_index),
+                        query=roped_query,
+                        current_key=roped_key,
+                        history_key=history_key,
+                        history_value=history_value,
+                        native_output=x,
+                        frame_seq_length=int(frame_seqlen),
+                        attention_fn=attention,
+                    )
+                x = self.o(x.flatten(2))
+                return x
             lifecache_layer_enabled = (
                 lifecache_manager is not None
                 and block_index is not None
@@ -362,7 +428,6 @@ class CausalWanSelfAttention(nn.Module):
             # ----------------------------------------------------------------
             # If we are using local attention and the current KV cache size is larger than the local attention size, we need to truncate the KV cache
             kv_cache_size = kv_cache["k"].shape[1]
-            num_new_tokens = roped_query.shape[1]
             if self.local_attn_size != -1 and (current_end > kv_cache["global_end_index"].item()) and (
                     num_new_tokens + kv_cache["local_end_index"].item() > kv_cache_size):
                 # Calculate the number of new tokens added in this step
@@ -781,6 +846,25 @@ class CausalWanSelfAttention(nn.Module):
                         kv_cache["k"][:, attn_start:local_end_index],
                         kv_cache["v"][:, attn_start:local_end_index]
                     )
+            if (
+                profile_session is not None
+                and block_index is not None
+                and local_start_index - attn_start >= frame_seqlen
+            ):
+                profile_session.record_attention(
+                    layer=int(block_index),
+                    query=roped_query,
+                    current_key=roped_key,
+                    history_key=kv_cache["k"][
+                        :, attn_start:local_start_index
+                    ],
+                    history_value=kv_cache["v"][
+                        :, attn_start:local_start_index
+                    ],
+                    native_output=x,
+                    frame_seq_length=int(frame_seqlen),
+                    attention_fn=attention,
+                )
             if structured_memory_active:
                 x = self._fuse_episodic_memory(
                     x,

@@ -355,6 +355,19 @@ for i, batch_data in tqdm(enumerate(dataloader), disable=(local_rank != 0)):
             continue
     if args.reseed_per_prompt:
         set_seed(args.seed + int(idx))
+    head_profile_session = getattr(
+        pipeline, "head_profile_session", None
+    )
+    if head_profile_session is not None:
+        pipeline.set_head_profile_job_index(int(idx))
+        profile_seed = head_profile_session.seed_for_job(
+            int(idx), args.seed + int(idx)
+        )
+        set_seed(profile_seed)
+        print(
+            f"[HeadProfile] dataset_index={idx} seed={profile_seed}",
+            flush=True,
+        )
 
     # For DataLoader batch_size=1, the batch_data is already a single item, but in a batch container
     # Unpack the batch data for convenience
