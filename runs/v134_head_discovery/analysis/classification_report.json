@@ -1,0 +1,86 @@
+{
+  "acceptance_gates": {
+    "accepted": false,
+    "checks": {
+      "bootstrap_reliable_fraction": {
+        "observed": 0.9972222222222222,
+        "passed": true,
+        "required": 0.7
+      },
+      "complete_counterfactual_pairs": {
+        "missing": 0,
+        "passed": true,
+        "required": 0
+      },
+      "counterfactual_profile_count": {
+        "observed": 128,
+        "passed": true,
+        "required": 128
+      },
+      "nondegenerate_binary_partition": {
+        "observed": 0.0,
+        "passed": false,
+        "required": 0.1
+      },
+      "observational_profile_count": {
+        "observed": 128,
+        "passed": true,
+        "required": 128
+      },
+      "semantic_exceeds_paraphrase": {
+        "paraphrase_median": 0.002935835742391646,
+        "passed": false,
+        "semantic_median": 0.0018032504012808204
+      },
+      "split_half_rank_reproducibility": {
+        "observed": 0.8104695796134556,
+        "passed": true,
+        "required": 0.3
+      }
+    }
+  },
+  "global_interaction": {
+    "median_log_ratio": -0.19068831772521522,
+    "paraphrase_median": 0.002935835742391646,
+    "semantic_median": 0.0018032504012808204
+  },
+  "label_counts": {
+    "prompt_conditional": 0,
+    "prompt_invariant": 360
+  },
+  "method": "counterfactual_prompt_history_interaction",
+  "observation_counts": {
+    "counterfactual_head_records": 1244160,
+    "temporal_head_records": 2488320
+  },
+  "posthoc_legacy_cross_tabs": {},
+  "profile_counts": {
+    "counterfactual": 128,
+    "observational": 128
+  },
+  "prompt_representation_spearman": {
+    "current_key_log_ratio": 0.7628747138391349,
+    "native_log_ratio": 0.7371563222463079,
+    "query_log_ratio": 0.8089686669168127
+  },
+  "prompt_temporal_spearman": {
+    "expected_age": 0.09218801164726255,
+    "old12_mass": 0.11859359716792736,
+    "positive_logit_fraction": -0.008937842375872846,
+    "recent4_mass": -0.0758769542312338,
+    "temporal_entropy": 0.10512736598618848
+  },
+  "reproducibility": {
+    "bootstrap_reliable_fraction": 0.9972222222222222,
+    "matched_base_native_drift_median": 0.0,
+    "matched_base_residual_drift_median": 0.0,
+    "split_half_label_agreement": 1.0,
+    "split_half_spearman": 0.8104695796134556
+  },
+  "threshold": {
+    "learned_or_count_matched": false,
+    "meaning": "semantic intervention exceeds paraphrase variation",
+    "value": 0.0
+  },
+  "version": 1
+}
