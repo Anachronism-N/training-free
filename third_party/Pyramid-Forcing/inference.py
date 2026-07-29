@@ -963,10 +963,10 @@ if args.pyramidkv_history_polarity:
     history_labels = {
         value for row in history_rows for value in row
     }
-    if history_labels != {10, 11}:
+    if not history_labels.issubset({10, 11}):
         parser.error(
-            "history-polarity head map must contain only and both "
-            "neutral labels 10/11"
+            "history-polarity head map must contain only "
+            "neutral labels 10/11 (both not required for ablation controls)"
         )
     from pyramidkv.policy_overrides import (
         HISTORY_SUPPORT_LABEL,
