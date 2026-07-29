@@ -5,6 +5,7 @@ import torch
 
 from lifecycle_kv.head_profile import HeadProfileConfig, HeadProfileSession
 from lifecycle_kv.history_interventions import (
+    apply_history_rope,
     build_history_interventions,
     reposition_history_key,
 )
@@ -75,10 +76,9 @@ def test_rope_reposition_has_identity_parity_and_reverses_content():
     grid = torch.tensor([[3, height, width]])
     normal = torch.arange(frames)
     identity = reposition_history_key(
-        roped,
+        raw,
         grid_sizes=grid,
         freqs=freqs,
-        source_t_pos=positions,
         target_t_pos=positions,
         frame_order=normal,
     )
@@ -86,10 +86,9 @@ def test_rope_reposition_has_identity_parity_and_reverses_content():
 
     reverse = torch.arange(frames - 1, -1, -1)
     reversed_key = reposition_history_key(
-        roped,
+        raw,
         grid_sizes=grid,
         freqs=freqs,
-        source_t_pos=positions,
         target_t_pos=positions,
         frame_order=reverse,
     )
@@ -102,6 +101,45 @@ def test_rope_reposition_has_identity_parity_and_reverses_content():
     torch.testing.assert_close(
         reversed_key, expected, atol=1e-9, rtol=1e-9
     )
+
+    repeated = torch.tensor([3, 3, 3, 3, 4])
+    frozen_key = reposition_history_key(
+        raw,
+        grid_sizes=grid,
+        freqs=freqs,
+        target_t_pos=positions,
+        frame_order=repeated,
+    )
+    raw_frozen = raw.reshape(
+        1, frames, frame_tokens, heads, feature
+    ).index_select(1, repeated).reshape_as(raw)
+    expected_frozen = _apply_history_rope(
+        raw_frozen, positions, height, width, freqs
+    )
+    torch.testing.assert_close(
+        frozen_key, expected_frozen, atol=1e-9, rtol=1e-9
+    )
+
+
+def test_pre_rope_reconstruction_detects_wrong_source_positions():
+    generator = torch.Generator().manual_seed(17)
+    frames, height, width = 5, 2, 2
+    heads, feature = 2, 12
+    raw = torch.randn(
+        (1, frames * height * width, heads, feature),
+        generator=generator,
+        dtype=torch.float64,
+    )
+    positions = torch.arange(7, 7 + frames)
+    freqs = _frequency_table(32, feature // 2)
+    expected = _apply_history_rope(raw, positions, height, width, freqs)
+    wrong = apply_history_rope(
+        raw,
+        grid_sizes=torch.tensor([[frames, height, width]]),
+        freqs=freqs,
+        temporal_positions=positions + 1,
+    )
+    assert float((wrong - expected).abs().max()) > 1e-3
 
 
 def test_history_interventions_return_all_declared_outputs():
@@ -129,6 +167,7 @@ def test_history_interventions_return_all_declared_outputs():
     )
     outputs, metadata = build_history_interventions(
         query=query,
+        raw_history_key=raw_key,
         history_key=history_key,
         history_value=history_value,
         frame_seq_length=frame_tokens,
@@ -145,10 +184,13 @@ def test_history_interventions_return_all_declared_outputs():
         "value_mismatch",
     }
     assert all(output.shape == query.shape for output in outputs.values())
+    assert metadata["pre_rope_sidecar"] == 1.0
     assert metadata["rope_reconstruction_relative_max"] < 1e-8
+    assert metadata["rope_reconstruction_relative_rms"] < 1e-8
+    assert metadata["recent_value_preservation_max"] == 0.0
 
 
-def test_v3_profile_records_projected_descriptors(tmp_path):
+def test_v4_profile_records_projected_descriptors(tmp_path):
     manifest = tmp_path / "jobs.jsonl"
     manifest.write_text(
         json.dumps(
@@ -216,12 +258,15 @@ def test_v3_profile_records_projected_descriptors(tmp_path):
         attention_fn=_attention,
         history_intervention_outputs=intervention_outputs,
         history_intervention_metadata={
-            "rope_reconstruction_relative_max": 0.0
+            "pre_rope_sidecar": 1.0,
+            "rope_reconstruction_relative_max": 0.0,
+            "rope_reconstruction_relative_rms": 0.0,
+            "recent_value_preservation_max": 0.0,
         },
     )
     output = session.end_video(expected_layers=1)
     payload = torch.load(output, map_location="cpu", weights_only=False)
-    assert payload["version"] == 3
+    assert payload["version"] == 4
     record = payload["records"][0]
     assert record["query_projection"].shape == (2, 2, 8)
     assert record["history_key_projection"].shape == (2, 6, 2, 8)
@@ -240,5 +285,8 @@ def test_model_routes_interventions_only_through_explicit_profile_gate():
         / "causal_model.py"
     ).read_text(encoding="utf-8")
     assert "profile_session.wants_history_interventions()" in model
+    assert "profile_session.config.history_interventions" in model
+    assert 'kv_cache.get("k_pre_rope")' in model
+    assert "raw_history_key=profile_raw_history_key" in model
     assert "build_history_interventions(" in model
     assert "history intervention profiling requires native SF" in model

@@ -63,7 +63,10 @@ def _record(job_index, layer, current_frame):
         "history_frame_ids": torch.arange(
             current_frame - 6, current_frame
         ),
+        "history_intervention_pre_rope_sidecar": 1.0,
         "history_intervention_rope_reconstruction_relative_max": 0.0,
+        "history_intervention_rope_reconstruction_relative_rms": 0.0,
+        "history_intervention_recent_value_preservation_max": 0.0,
     }
 
 
@@ -73,7 +76,7 @@ def _profile(job_index):
         for layer in range(30):
             records.append(_record(job_index, layer, current_frame))
     return {
-        "version": 3,
+        "version": 4,
         "_path": f"profile_{job_index}.pt",
         "job": {
             "dataset_index": job_index,

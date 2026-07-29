@@ -68,7 +68,7 @@ Expected per video:
 ```text
 9 calls
 270 layer records
-profile format version 3
+profile format version 4
 ```
 
 ## 4. Correct temporal feature intervention
@@ -80,25 +80,34 @@ K/V rows would not implement a temporal intervention:
 - the old temporal position remains encoded in K;
 - a plain permutation can therefore be mathematically equivalent.
 
-v138 instead:
+The original v138 implementation attempted to invert RoPE from cached K and
+then reapply it. That check was invalid: using the same assumed source
+position for inversion and reconstruction can cancel algebraically even when
+the assumed position is wrong. Do not use version-3 artifacts.
 
-1. removes the original temporal and spatial RoPE from cached K;
-2. moves raw frame content according to the declared counterfactual;
-3. reapplies RoPE at the destination frame positions;
-4. applies the same content permutation to V;
-5. computes a read-only attention output.
+The corrected v138 implementation instead:
+
+1. maintains a pre-RoPE K sidecar from the first native cache write;
+2. rolls that sidecar with exactly the same native sliding-window indices;
+3. reconstructs cached post-RoPE K from the sidecar at the asserted absolute
+   positions;
+4. moves pre-RoPE frame content according to the counterfactual;
+5. applies RoPE once at destination positions and permutes V consistently;
+6. restores recent4 K/V exactly and computes a read-only attention output.
 
 All content interventions modify only history older than recent4. The latest
 four historical frames remain unchanged, so the score measures organization
 of middle history rather than destruction of local continuity.
 
-Identity reconstruction is checked on every recorded layer:
+Independent reconstruction is checked on every recorded layer:
 
 ```text
-unrope(K) -> same order -> rerope(K)
+pre-RoPE sidecar -> asserted absolute positions -> cached post-RoPE K
 ```
 
-The maximum relative reconstruction error must not exceed `5e-3`.
+The maximum relative error must not exceed `5e-3`, RMS relative error must
+not exceed `1e-3`, and recent-value preservation error must not exceed
+`1e-6`.
 
 Implementation:
 
@@ -260,10 +269,12 @@ experiment if broad wrong-history specificity passes.
 
 Correctness:
 
-- exactly 128 version-3 profiles;
+- exactly 128 version-4 profiles;
 - exactly 9 states and 30 layers per state;
 - all declared intervention signatures and descriptors present;
-- RoPE reconstruction error at most `5e-3`;
+- pre-RoPE sidecar flag present on every record;
+- RoPE maximum/RMS reconstruction error at most `5e-3` / `1e-3`;
+- recent-value preservation error at most `1e-6`;
 - no non-base branch and no non-native cache path.
 
 History specificity:

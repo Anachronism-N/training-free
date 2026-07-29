@@ -5,18 +5,33 @@ from collections.abc import Callable
 import torch
 
 
-def reposition_history_key(
-    roped_key: torch.Tensor,
+def apply_history_rope(
+    raw_key: torch.Tensor,
     *,
     grid_sizes: torch.Tensor,
     freqs: torch.Tensor,
-    source_t_pos: torch.Tensor,
-    target_t_pos: torch.Tensor,
-    frame_order: torch.Tensor,
+    temporal_positions: torch.Tensor,
 ) -> torch.Tensor:
-    """Move cached frame content to new temporal positions."""
-    num_heads = roped_key.size(2)
-    complex_dim = roped_key.size(3) // 2
+    """Apply the native 3D RoPE layout to complete pre-RoPE history frames."""
+    if raw_key.ndim != 4 or raw_key.shape[-1] % 2:
+        raise ValueError("pre-RoPE history key must have shape [B,T,H,D] with even D")
+    if grid_sizes.ndim != 2 or grid_sizes.shape[0] != raw_key.shape[0]:
+        raise ValueError("grid_sizes batch does not match pre-RoPE history key")
+
+    temporal_positions = temporal_positions.to(
+        device=raw_key.device, dtype=torch.long
+    )
+    frames = int(temporal_positions.numel())
+    if frames <= 0:
+        raise ValueError("history RoPE requires at least one temporal position")
+    if (
+        int(temporal_positions.min().item()) < 0
+        or int(temporal_positions.max().item()) >= freqs.shape[0]
+    ):
+        raise ValueError("history temporal position exceeds RoPE table")
+
+    num_heads = raw_key.size(2)
+    complex_dim = raw_key.size(3) // 2
     split_freqs = freqs.split(
         [
             complex_dim - 2 * (complex_dim // 3),
@@ -25,66 +40,97 @@ def reposition_history_key(
         ],
         dim=1,
     )
-    source_t_pos = source_t_pos.to(
-        device=roped_key.device, dtype=torch.long
-    )
-    target_t_pos = target_t_pos.to(
-        device=roped_key.device, dtype=torch.long
-    )
-    frame_order = frame_order.to(
-        device=roped_key.device, dtype=torch.long
-    )
     outputs = []
     for batch_index, (_, height, width) in enumerate(grid_sizes.tolist()):
-        frames = int(source_t_pos.numel())
-        frame_tokens = int(height * width)
+        height = int(height)
+        width = int(width)
+        frame_tokens = height * width
         sequence_length = frames * frame_tokens
-        if roped_key.shape[1] != sequence_length:
+        if raw_key.shape[1] != sequence_length:
             raise ValueError(
-                "history intervention requires complete contiguous frames: "
-                f"tokens={roped_key.shape[1]} expected={sequence_length}"
+                "history RoPE requires complete contiguous frames: "
+                f"tokens={raw_key.shape[1]} expected={sequence_length}"
             )
+        if height > split_freqs[1].shape[0] or width > split_freqs[2].shape[0]:
+            raise ValueError("history spatial position exceeds RoPE table")
 
-        def multipliers(positions: torch.Tensor) -> torch.Tensor:
-            temporal = (
-                split_freqs[0][positions]
-                .view(frames, 1, 1, -1)
-                .expand(frames, height, width, -1)
-            )
-            height_freq = (
-                split_freqs[1][:height]
-                .view(1, height, 1, -1)
-                .expand(frames, height, width, -1)
-            )
-            width_freq = (
-                split_freqs[2][:width]
-                .view(1, 1, width, -1)
-                .expand(frames, height, width, -1)
-            )
-            return torch.cat(
-                (temporal, height_freq, width_freq), dim=-1
-            ).reshape(sequence_length, 1, -1)
-
-        source_freq = multipliers(source_t_pos)
-        target_freq = multipliers(target_t_pos)
+        temporal = (
+            split_freqs[0][temporal_positions]
+            .view(frames, 1, 1, -1)
+            .expand(frames, height, width, -1)
+        )
+        height_freq = (
+            split_freqs[1][:height]
+            .view(1, height, 1, -1)
+            .expand(frames, height, width, -1)
+        )
+        width_freq = (
+            split_freqs[2][:width]
+            .view(1, 1, width, -1)
+            .expand(frames, height, width, -1)
+        )
+        multiplier = torch.cat(
+            (temporal, height_freq, width_freq), dim=-1
+        ).reshape(sequence_length, 1, -1)
+        real_dtype = (
+            torch.float64 if raw_key.dtype == torch.float64 else torch.float32
+        )
         value = torch.view_as_complex(
-            roped_key[batch_index, :sequence_length]
-            .to(torch.float64)
+            raw_key[batch_index]
+            .to(real_dtype)
             .reshape(sequence_length, num_heads, -1, 2)
         )
-        raw = (
-            value
-            * source_freq.conj()
-            / source_freq.abs().square().clamp_min(1e-12)
+        multiplier = multiplier.to(device=value.device, dtype=value.dtype)
+        outputs.append(torch.view_as_real(value * multiplier).flatten(2))
+    return torch.stack(outputs).type_as(raw_key)
+
+
+def reposition_history_key(
+    raw_key: torch.Tensor,
+    *,
+    grid_sizes: torch.Tensor,
+    freqs: torch.Tensor,
+    target_t_pos: torch.Tensor,
+    frame_order: torch.Tensor,
+) -> torch.Tensor:
+    """Move pre-RoPE frame content and apply RoPE at destination positions."""
+    target_t_pos = target_t_pos.to(
+        device=raw_key.device, dtype=torch.long
+    )
+    frame_order = frame_order.to(
+        device=raw_key.device, dtype=torch.long
+    )
+    frames = int(target_t_pos.numel())
+    if frame_order.numel() != frames:
+        raise ValueError("history frame order and target positions differ in length")
+    if (
+        frame_order.numel()
+        and (
+            int(frame_order.min().item()) < 0
+            or int(frame_order.max().item()) >= frames
         )
-        raw = (
-            raw.reshape(frames, frame_tokens, num_heads, -1)
-            .index_select(0, frame_order)
-            .reshape(sequence_length, num_heads, -1)
+    ):
+        raise ValueError("history frame order contains an invalid frame index")
+    if raw_key.shape[1] % frames != 0:
+        raise ValueError("pre-RoPE history key is not frame aligned")
+    frame_seq_length = raw_key.shape[1] // frames
+    ordered = (
+        raw_key.reshape(
+            raw_key.shape[0],
+            frames,
+            frame_seq_length,
+            raw_key.shape[2],
+            raw_key.shape[3],
         )
-        repositioned = torch.view_as_real(raw * target_freq).flatten(2)
-        outputs.append(repositioned)
-    return torch.stack(outputs).type_as(roped_key)
+        .index_select(1, frame_order)
+        .reshape_as(raw_key)
+    )
+    return apply_history_rope(
+        ordered,
+        grid_sizes=grid_sizes,
+        freqs=freqs,
+        temporal_positions=target_t_pos,
+    )
 
 
 def permute_history_value(
@@ -110,6 +156,7 @@ def permute_history_value(
 def build_history_interventions(
     *,
     query: torch.Tensor,
+    raw_history_key: torch.Tensor,
     history_key: torch.Tensor,
     history_value: torch.Tensor,
     frame_seq_length: int,
@@ -127,6 +174,8 @@ def build_history_interventions(
         raise ValueError("history interventions require complete frames")
     if history_key.shape != history_value.shape:
         raise ValueError("history intervention K/V shapes differ")
+    if raw_history_key.shape != history_key.shape:
+        raise ValueError("pre/post-RoPE history K shapes differ")
     source_positions = torch.arange(
         current_frame - frames,
         current_frame,
@@ -158,33 +207,42 @@ def build_history_interventions(
         )
     )
 
-    reconstructed = reposition_history_key(
-        history_key,
+    reconstructed = apply_history_rope(
+        raw_history_key,
         grid_sizes=grid_sizes,
         freqs=freqs,
-        source_t_pos=source_positions,
-        target_t_pos=source_positions,
-        frame_order=normal,
+        temporal_positions=source_positions,
     )
-    reconstruction_error = (
-        (reconstructed.float() - history_key.float()).abs().max()
+    reconstruction_delta = reconstructed.float() - history_key.float()
+    reconstruction_relative_max = (
+        reconstruction_delta.abs().max()
         / history_key.float().abs().max().clamp_min(1e-6)
     )
-    if float(reconstruction_error) > 5e-3:
+    reconstruction_relative_rms = (
+        reconstruction_delta.square().mean().sqrt()
+        / history_key.float().square().mean().sqrt().clamp_min(1e-6)
+    )
+    if (
+        float(reconstruction_relative_max) > 5e-3
+        or float(reconstruction_relative_rms) > 1e-3
+    ):
         raise RuntimeError(
-            "history RoPE reconstruction failed: "
-            f"relative_max={float(reconstruction_error):.6g}"
+            "pre-RoPE sidecar does not reconstruct cached history: "
+            f"relative_max={float(reconstruction_relative_max):.6g} "
+            f"relative_rms={float(reconstruction_relative_rms):.6g}"
         )
 
     def transformed_output(order: torch.Tensor) -> torch.Tensor:
         key = reposition_history_key(
-            history_key,
+            raw_history_key,
             grid_sizes=grid_sizes,
             freqs=freqs,
-            source_t_pos=source_positions,
             target_t_pos=source_positions,
             frame_order=order,
         )
+        recent_tokens = recent_frames * frame_seq_length
+        if recent_tokens:
+            key[:, -recent_tokens:] = history_key[:, -recent_tokens:]
         value = permute_history_value(
             history_value,
             frame_seq_length=frame_seq_length,
@@ -202,11 +260,31 @@ def build_history_interventions(
         "phase_shift": transformed_output(phase_shift),
         "freeze_latest": transformed_output(freeze_latest),
         "value_mismatch": attention_fn(
-            query, reconstructed, mismatch_value
+            query, history_key, mismatch_value
         ),
     }
+    recent_tokens = recent_frames * frame_seq_length
+    recent_value_error = (
+        float(
+            (
+                mismatch_value[:, -recent_tokens:].float()
+                - history_value[:, -recent_tokens:].float()
+            )
+            .abs()
+            .max()
+        )
+        if recent_tokens
+        else 0.0
+    )
     metadata = {
-        "rope_reconstruction_relative_max": float(reconstruction_error),
+        "pre_rope_sidecar": 1.0,
+        "rope_reconstruction_relative_max": float(
+            reconstruction_relative_max
+        ),
+        "rope_reconstruction_relative_rms": float(
+            reconstruction_relative_rms
+        ),
+        "recent_value_preservation_max": recent_value_error,
         "phase_shift_frames": 1.0,
         "history_frames": float(frames),
         "intervened_old_frames": float(old_frames),

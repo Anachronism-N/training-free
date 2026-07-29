@@ -40,8 +40,11 @@ def _load_profiles(directory: Path) -> list[dict]:
     profiles = []
     for path in sorted(directory.glob("*.pt")):
         payload = torch.load(path, map_location="cpu", weights_only=False)
-        if int(payload.get("version", 0)) != 3:
-            raise ValueError(f"v138 requires profile version 3: {path}")
+        if int(payload.get("version", 0)) != 4:
+            raise ValueError(
+                f"fixed v138 requires profile version 4; remove or relocate "
+                f"stale v3 artifacts: {path}"
+            )
         if "job" not in payload or "records" not in payload:
             raise ValueError(f"malformed profile: {path}")
         payload["_path"] = str(path)
@@ -87,6 +90,8 @@ def _audit_profiles(
         groups = defaultdict(set)
         tensor_failures = []
         max_rope_error = 0.0
+        max_rope_rms_error = 0.0
+        max_recent_value_error = 0.0
         for record in profile["records"]:
             if str(record["branch"]) != "base":
                 tensor_failures.append("non_base_branch")
@@ -149,6 +154,34 @@ def _audit_profiles(
                 tensor_failures.append("non_finite_rope_error")
             else:
                 max_rope_error = max(max_rope_error, error)
+            rms_error = float(
+                record.get(
+                    "history_intervention_rope_reconstruction_relative_rms",
+                    float("inf"),
+                )
+            )
+            recent_value_error = float(
+                record.get(
+                    "history_intervention_recent_value_preservation_max",
+                    float("inf"),
+                )
+            )
+            if float(
+                record.get("history_intervention_pre_rope_sidecar", 0.0)
+            ) != 1.0:
+                tensor_failures.append("missing_pre_rope_sidecar")
+            if not math.isfinite(rms_error):
+                tensor_failures.append("non_finite_rope_rms_error")
+            else:
+                max_rope_rms_error = max(
+                    max_rope_rms_error, rms_error
+                )
+            if not math.isfinite(recent_value_error):
+                tensor_failures.append("non_finite_recent_value_error")
+            else:
+                max_recent_value_error = max(
+                    max_recent_value_error, recent_value_error
+                )
         bad_layer_groups = [
             state for state, layers in groups.items() if layers != expected_layers
         ]
@@ -163,6 +196,8 @@ def _audit_profiles(
             and not bad_layer_groups
             and not tensor_failures
             and max_rope_error <= 5e-3
+            and max_rope_rms_error <= 1e-3
+            and max_recent_value_error <= 1e-6
         )
         row = {
             "dataset_index": index,
@@ -173,6 +208,8 @@ def _audit_profiles(
             "bad_layer_groups": len(bad_layer_groups),
             "tensor_failures": len(tensor_failures),
             "max_rope_reconstruction_error": max_rope_error,
+            "max_rope_reconstruction_rms_error": max_rope_rms_error,
+            "max_recent_value_preservation_error": max_recent_value_error,
             "run_commit": run_commit,
             "passed": int(passed),
         }
@@ -741,6 +778,12 @@ def analyze(
         "maximum_rope_reconstruction_error": max(
             row["max_rope_reconstruction_error"] for row in contract
         ),
+        "maximum_rope_reconstruction_rms_error": max(
+            row["max_rope_reconstruction_rms_error"] for row in contract
+        ),
+        "maximum_recent_value_preservation_error": max(
+            row["max_recent_value_preservation_error"] for row in contract
+        ),
         "observation_counts": {
             "local": len(local_rows),
             "cross_video": len(cross_rows),
@@ -789,6 +832,14 @@ def analyze(
         (
             "- Maximum RoPE reconstruction error: "
             f"`{report['maximum_rope_reconstruction_error']:.6g}`"
+        ),
+        (
+            "- Maximum RoPE reconstruction RMS error: "
+            f"`{report['maximum_rope_reconstruction_rms_error']:.6g}`"
+        ),
+        (
+            "- Maximum recent-value preservation error: "
+            f"`{report['maximum_recent_value_preservation_error']:.6g}`"
         ),
         f"- History-specificity gate: `{specificity_gate}`",
         f"- Order-axis gate: `{order_gate}`",

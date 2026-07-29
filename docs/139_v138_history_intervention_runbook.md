@@ -14,9 +14,13 @@ analyze
 package
 ```
 
-Do not skip the one-video smoke. v138 adds RoPE inversion/reapplication and
-four attention-level interventions, so a profile-format or memory issue must
-be caught before launching 128 videos.
+Do not skip the one-video smoke. Corrected v138 maintains a pre-RoPE key
+sidecar and adds four attention-level interventions, so cache alignment,
+profile format, and memory must be checked before launching 128 videos.
+
+Version-3 v138 profiles are invalid because their invert-and-reapply check
+could not validate the assumed source positions. The fixed runner writes to a
+new `v138_history_interventions_v2` root and accepts version 4 only.
 
 ## 2. Prepare on node 0
 
@@ -30,12 +34,13 @@ bash scripts/run_v138_history_interventions_32gpu.sh preflight
 ```
 
 Node 0 preflight also runs the v138 unit tests, including exact synthetic
-RoPE reconstruction/reversal and the version-3 artifact contract.
+RoPE reconstruction/reversal, repeated-frame freezing, wrong-position
+detection, and the version-4 artifact contract.
 
 Inputs:
 
 ```text
-runs/v138_history_interventions/inputs/
+runs/v138_history_interventions_v2/inputs/
   moviebench128_history_intervention.txt
   moviebench128_history_intervention.jsonl
   suite_metadata.json
@@ -56,24 +61,26 @@ bash scripts/run_v138_history_interventions_32gpu.sh smoke
 The command generates prompt 0 and then checks:
 
 - one video and one profile;
-- profile format version 3;
+- profile format version 4;
 - 9 captured calls;
 - 270 layer records;
 - complete 30-layer coverage;
 - all four intervention signatures;
 - projected query/history-key descriptors;
-- RoPE reconstruction error at most `5e-3`.
+- pre-RoPE sidecar present;
+- RoPE maximum/RMS reconstruction errors at most `5e-3` / `1e-3`;
+- recent-value preservation error at most `1e-6`.
 
 Expected final line:
 
 ```text
-[v138-smoke] profile format, layer coverage, descriptors, and RoPE: PASS
+[v138-smoke] v4 sidecar, layer coverage, descriptors, RoPE, and recent preservation: PASS
 ```
 
 Inspect on failure:
 
 ```text
-runs/v138_history_interventions/smoke/smoke.log
+runs/v138_history_interventions_v2/smoke/smoke.log
 ```
 
 Also inspect the smoke video for polygon noise. The interventions are
@@ -135,7 +142,7 @@ omitted.
 Directory:
 
 ```text
-runs/v138_history_interventions/analysis/
+runs/v138_history_interventions_v2/analysis/
 ```
 
 Primary:
@@ -220,8 +227,8 @@ locating peak memory.
 
 ### RoPE reconstruction fails
 
-The cached temporal position assumption is wrong or a non-native cache path
-is active. Check:
+The sidecar/cache rolling indices are misaligned, the asserted absolute
+positions are wrong, or a non-native cache path is active. Check:
 
 ```text
 LIFECACHE_ENABLE=0

@@ -85,6 +85,7 @@ class HeadProfileSession:
     """Process-local recorder for read-only counterfactual head profiling."""
 
     VERSION = 2
+    HISTORY_INTERVENTION_VERSION = 4
     PROJECTION_SEED = 20260729
 
     def __init__(self, config: HeadProfileConfig) -> None:
@@ -544,7 +545,9 @@ class HeadProfileSession:
                     record[key] = value.detach().cpu()
         payload = {
             "version": (
-                3 if self.config.history_interventions else self.VERSION
+                self.HISTORY_INTERVENTION_VERSION
+                if self.config.history_interventions
+                else self.VERSION
             ),
             "job": job,
             "metadata": {

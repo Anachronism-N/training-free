@@ -396,10 +396,15 @@ class CausalWanSelfAttention(nn.Module):
             commit_forcing_capture = bool(
                 getattr(self, "_commit_forcing_capture_pre_rope", False)
             ) and not bool(kv_cache.get("disable_commit_capture", False))
+            profile_history_interventions = bool(
+                profile_session is not None
+                and profile_session.config.history_interventions
+            )
             capture_pre_rope = (
                 lifecache_layer_enabled
                 or structured_memory_active
                 or commit_forcing_capture
+                or profile_history_interventions
             )
             # --- Anchor-Adjacent RoPE (AAR) ---------------------------------
             # BUG (doc 102/103): sink frames are stored pre-roped at absolute
@@ -879,11 +884,21 @@ class CausalWanSelfAttention(nn.Module):
                             "history intervention profiling requires native "
                             "SF sliding-window attention"
                         )
+                    profile_raw_history_key = kv_cache.get("k_pre_rope")
+                    if profile_raw_history_key is None:
+                        raise RuntimeError(
+                            "history intervention profiling requires the "
+                            "pre-RoPE key sidecar"
+                        )
+                    profile_raw_history_key = profile_raw_history_key[
+                        :, attn_start:local_start_index
+                    ]
                     (
                         intervention_outputs,
                         intervention_metadata,
                     ) = build_history_interventions(
                         query=roped_query,
+                        raw_history_key=profile_raw_history_key,
                         history_key=profile_history_key,
                         history_value=profile_history_value,
                         frame_seq_length=int(frame_seqlen),

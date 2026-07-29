@@ -18,7 +18,7 @@ SF="${SF_REPO:-$ROOT/third_party/Self-Forcing}"
 CONFIG="${SF_CONFIG:-$SF/configs/self_forcing_dmd.yaml}"
 CHECKPOINT="${SF_CHECKPOINT:-$SF/checkpoints/self_forcing_dmd.pt}"
 MOVIEBENCH_QWEN="${MOVIEBENCH_QWEN:-/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/Causal-Forcing/prompts/MovieGen_128_qwen.txt}"
-OUT_ROOT="${V138_OUT_ROOT:-$ROOT/runs/v138_history_interventions}"
+OUT_ROOT="${V138_OUT_ROOT:-$ROOT/runs/v138_history_interventions_v2}"
 INPUT_ROOT="$OUT_ROOT/inputs"
 PROFILE_ROOT="$OUT_ROOT/profiles"
 VIDEO_ROOT="$OUT_ROOT/videos"
@@ -197,7 +197,7 @@ video_paths = sorted(Path(sys.argv[2]).glob("*.mp4"))
 assert len(profile_paths) == 1, len(profile_paths)
 assert len(video_paths) == 1, len(video_paths)
 payload = torch.load(profile_paths[0], map_location="cpu", weights_only=False)
-assert payload["version"] == 3
+assert payload["version"] == 4
 assert payload["metadata"]["captured_calls"] == 9
 assert payload["metadata"]["record_count"] == 270
 assert payload["metadata"]["history_interventions"] is True
@@ -220,7 +220,19 @@ for record in payload["records"]:
         record["history_intervention_rope_reconstruction_relative_max"]
         <= 5e-3
     )
-print("[v138-smoke] profile format, layer coverage, descriptors, and RoPE: PASS")
+    assert (
+        record["history_intervention_rope_reconstruction_relative_rms"]
+        <= 1e-3
+    )
+    assert record["history_intervention_pre_rope_sidecar"] == 1.0
+    assert (
+        record["history_intervention_recent_value_preservation_max"]
+        <= 1e-6
+    )
+print(
+    "[v138-smoke] v4 sidecar, layer coverage, descriptors, RoPE, "
+    "and recent preservation: PASS"
+)
 PY
 }
 
