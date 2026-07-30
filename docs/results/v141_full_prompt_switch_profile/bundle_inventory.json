@@ -1,0 +1,50 @@
+{
+  "excluded": [
+    "raw .pt profiles",
+    "videos",
+    "worker logs",
+    "state_observations.csv"
+  ],
+  "files": [
+    {
+      "bytes": 922,
+      "name": "analysis_summary.md",
+      "sha256": "90b603659a63ee2b5a89c8b9bc7032346ae5e8f7356a6adc9670afb940ac4b37"
+    },
+    {
+      "bytes": 1642,
+      "name": "analysis_report.json",
+      "sha256": "55f538e7ee54947df8e6b0be196b60b21b7ab2499f1b50f689ea847942e48b4e"
+    },
+    {
+      "bytes": 129372,
+      "name": "head_axes.csv",
+      "sha256": "6a9c066b4cded5a6e840b786a987fc0f01d0271b6d68552635bf6bf4f61c23a1"
+    },
+    {
+      "bytes": 265187,
+      "name": "head_switch_type_axes.csv",
+      "sha256": "55d3c21a984263591c94fc3810626b6606dc9ef2ca34b19afae03635d843cfe1"
+    },
+    {
+      "bytes": 864074,
+      "name": "head_episode_axes.csv",
+      "sha256": "f8613f850cc246a81d9fdcd2ca60c7abe7a22eab7a81615b26f84add869eb3c3"
+    },
+    {
+      "bytes": 3235,
+      "name": "profile_contract_audit.csv",
+      "sha256": "1723d3a70150d558083f79e9e2c05dd2a3949bfce3f86a7f7c6f511a1eb1c136"
+    }
+  ],
+  "gates": {
+    "exact_prompt_shadow_parity": true,
+    "full_prompt_switch_axis": false,
+    "full_switch_exceeds_local_paraphrase": true,
+    "held_out_rank_and_label_stability": false,
+    "nondegenerate_zero_split": true
+  },
+  "method": "v141_full_prompt_aba_counterfactual_profiling",
+  "profile_count": 32,
+  "recommendation": "retain_continuous_diagnostic_or_redesign_prompt_axis"
+}

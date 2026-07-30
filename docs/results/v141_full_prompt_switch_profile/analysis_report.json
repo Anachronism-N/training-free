@@ -1,0 +1,55 @@
+{
+  "class_counts_including_forced_layer0": {
+    "switch_responsive": 209,
+    "switch_stable": 151
+  },
+  "gates": {
+    "exact_prompt_shadow_parity": true,
+    "full_prompt_switch_axis": false,
+    "full_switch_exceeds_local_paraphrase": true,
+    "held_out_rank_and_label_stability": false,
+    "nondegenerate_zero_split": true
+  },
+  "global_effects": {
+    "exact_parity_median": 0.0,
+    "exact_parity_p99": 0.0,
+    "paraphrase_residual_median": 0.003697575652040541,
+    "switch_residual_median": 0.006326420232653618
+  },
+  "held_out": {
+    "active_heads": 348,
+    "discovery_iqr": 0.18126026894866082,
+    "split_spearman": 0.5557885037729354,
+    "validation_minority_fraction": 0.45689655172413796,
+    "validation_positive": 189,
+    "zero_boundary_fraction_0p1_iqr": 0.08333333333333333,
+    "zero_label_agreement": 0.6695402298850575,
+    "zero_positive_jaccard": 0.5708955223880597
+  },
+  "method": "v141_full_prompt_aba_counterfactual_profiling",
+  "observation_count": 241920,
+  "primary_observation_count": 133632,
+  "profile_contract_passed": true,
+  "profile_count": 32,
+  "recommendation": "retain_continuous_diagnostic_or_redesign_prompt_axis",
+  "thresholds": {
+    "gmm2": {
+      "means": [
+        -0.10876237437953061,
+        0.06448093570764472
+      ],
+      "variances": [
+        0.1149167829941287,
+        0.019098610830565785
+      ],
+      "weights": [
+        0.07394000882616646,
+        0.9260599911738339
+      ]
+    },
+    "gmm2_discovery": -0.10867575272448703,
+    "note": "Otsu and GMM are discovery-only diagnostics.",
+    "otsu_discovery": 0.055981196232717106,
+    "primary_zero": 0.0
+  }
+}
