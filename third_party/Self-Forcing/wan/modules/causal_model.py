@@ -385,6 +385,10 @@ class CausalWanSelfAttention(nn.Module):
                         raw_current_key=k,
                         current_value=v,
                         output_projection_weight=self.o.weight,
+                        spatial_grid_shape=(
+                            int(grid_sizes[0][1].item()),
+                            int(grid_sizes[0][2].item()),
+                        ),
                     )
                 x = self.o(x.flatten(2))
                 return x
@@ -936,6 +940,10 @@ class CausalWanSelfAttention(nn.Module):
                     raw_current_key=k,
                     current_value=v,
                     output_projection_weight=self.o.weight,
+                    spatial_grid_shape=(
+                        int(grid_sizes[0][1].item()),
+                        int(grid_sizes[0][2].item()),
+                    ),
                 )
             if structured_memory_active:
                 x = self._fuse_episodic_memory(

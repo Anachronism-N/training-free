@@ -553,75 +553,99 @@ def _ab_context_analysis(
     entries = []
     context_rows = []
     for switch_type in sorted({str(job["switch_type"]) for job in jobs}):
-        indices = [
+        all_indices = [
             index
             for index, job in enumerate(jobs)
             if str(job["switch_type"]) == switch_type
         ]
-        if len(indices) != 16:
+        if len(all_indices) != 16:
             raise RuntimeError(
-                f"switch_type={switch_type} has {len(indices)} profiles"
+                f"switch_type={switch_type} has {len(all_indices)} profiles"
             )
-        state_keys = set(contexts[indices[0]])
-        for index in indices[1:]:
+        state_keys = set(contexts[all_indices[0]])
+        for index in all_indices[1:]:
             if set(contexts[index]) != state_keys:
                 raise RuntimeError(
                     f"AB context states disagree for switch_type={switch_type}"
                 )
-        for mode, frame, timestep in sorted(
-            state_keys, key=lambda item: (item[1], item[0], item[2])
+        split_indices = {
+            "all": all_indices,
+            "discovery": [
+                index
+                for index in all_indices
+                if int(jobs[index]["family_index"]) % 2 == 0
+            ],
+            "validation": [
+                index
+                for index in all_indices
+                if int(jobs[index]["family_index"]) % 2 == 1
+            ],
+        }
+        if any(
+            len(indices) != expected
+            for split, indices in split_indices.items()
+            for expected in (16 if split == "all" else 8,)
         ):
-            axes = {
-                axis: np.median(
-                    np.stack(
-                        [
-                            contexts[index][(mode, frame, timestep)]["axes"][
-                                axis
-                            ]
-                            for index in indices
-                        ],
+            raise RuntimeError(
+                f"switch_type={switch_type} has invalid prompt splits"
+            )
+        for prompt_split, indices in split_indices.items():
+            for mode, frame, timestep in sorted(
+                state_keys, key=lambda item: (item[1], item[0], item[2])
+            ):
+                axes = {
+                    axis: np.median(
+                        np.stack(
+                            [
+                                contexts[index][
+                                    (mode, frame, timestep)
+                                ]["axes"][axis]
+                                for index in indices
+                            ],
+                            axis=0,
+                        ),
                         axis=0,
-                    ),
-                    axis=0,
-                )
-                for axis in AB_CONTEXT_AXES
-            }
-            visibility = {
-                bool(
-                    contexts[index][(mode, frame, timestep)][
-                        "stale_a_visible"
-                    ]
-                )
-                for index in indices
-            }
-            if len(visibility) != 1:
-                raise RuntimeError(
-                    "history visibility disagrees across prompt families: "
-                    f"{switch_type}/{mode}/{frame}/{timestep}"
-                )
-            entry = {
-                "switch_type": switch_type,
-                "mode": str(mode),
-                "current_frame": int(frame),
-                "nominal_timestep": int(timestep),
-                "episode": "A" if int(frame) < AB_SWITCH else "B",
-                "stale_a_visible": bool(next(iter(visibility))),
-                "axes": axes,
-            }
-            entries.append(entry)
-            for flat_head in range(TOTAL_HEADS):
-                row = {
-                    key: value
-                    for key, value in entry.items()
-                    if key != "axes"
+                    )
+                    for axis in AB_CONTEXT_AXES
                 }
-                row["boundary_offset"] = int(frame) - AB_SWITCH
-                row["layer"] = flat_head // HEADS
-                row["head"] = flat_head % HEADS
-                row["stale_a_visible"] = int(row["stale_a_visible"])
-                for axis, values in axes.items():
-                    row[axis] = float(values[flat_head])
-                context_rows.append(row)
+                visibility = {
+                    bool(
+                        contexts[index][(mode, frame, timestep)][
+                            "stale_a_visible"
+                        ]
+                    )
+                    for index in indices
+                }
+                if len(visibility) != 1:
+                    raise RuntimeError(
+                        "history visibility disagrees across prompt families: "
+                        f"{switch_type}/{mode}/{frame}/{timestep}"
+                    )
+                entry = {
+                    "prompt_split": prompt_split,
+                    "switch_type": switch_type,
+                    "mode": str(mode),
+                    "current_frame": int(frame),
+                    "nominal_timestep": int(timestep),
+                    "episode": "A" if int(frame) < AB_SWITCH else "B",
+                    "stale_a_visible": bool(next(iter(visibility))),
+                    "axes": axes,
+                }
+                if prompt_split == "all":
+                    entries.append(entry)
+                for flat_head in range(TOTAL_HEADS):
+                    row = {
+                        key: value
+                        for key, value in entry.items()
+                        if key != "axes"
+                    }
+                    row["boundary_offset"] = int(frame) - AB_SWITCH
+                    row["layer"] = flat_head // HEADS
+                    row["head"] = flat_head % HEADS
+                    row["stale_a_visible"] = int(row["stale_a_visible"])
+                    for axis, values in axes.items():
+                        row[axis] = float(values[flat_head])
+                    context_rows.append(row)
 
     groupers = {
         "switch_type": lambda row: row["switch_type"],

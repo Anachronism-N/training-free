@@ -45,6 +45,8 @@ class HeadProfileConfig:
     persistent_capture_frames: tuple[int, ...] = (0, 18, 36)
     persistent_probe_frames: tuple[int, ...] = (39, 42, 75, 78, 81, 117)
     persistent_spatial_samples: int = 16
+    descriptor_export: bool = False
+    spatial_topology_metrics: bool = False
 
     @classmethod
     def from_env(cls) -> "HeadProfileConfig":
@@ -124,6 +126,12 @@ class HeadProfileConfig:
                     )
                 ),
             ),
+            descriptor_export=(
+                os.environ.get("HEAD_PROFILE_DESCRIPTOR_EXPORT", "0") == "1"
+            ),
+            spatial_topology_metrics=(
+                os.environ.get("HEAD_PROFILE_SPATIAL_TOPOLOGY", "0") == "1"
+            ),
         )
 
 
@@ -134,6 +142,7 @@ class HeadProfileSession:
     HISTORY_INTERVENTION_VERSION = 4
     SCHEDULE_PROFILE_VERSION = 5
     CAUSAL_POLICY_PROFILE_VERSION = 6
+    MECHANISM_PROFILE_VERSION = 7
     PROJECTION_SEED = 20260729
 
     def __init__(self, config: HeadProfileConfig) -> None:
@@ -156,6 +165,7 @@ class HeadProfileSession:
         self._persistent_capture_seen: set[tuple[int, int]] = set()
         self._persistent_probe_logged: set[int] = set()
         self._causal_policy_logged: set[int] = set()
+        self._spatial_topology_logged: set[tuple[str, int, int]] = set()
 
     @staticmethod
     def _load_jobs(path: Path | None) -> dict[int, dict]:
@@ -215,6 +225,7 @@ class HeadProfileSession:
         self._persistent_capture_seen = set()
         self._persistent_probe_logged = set()
         self._causal_policy_logged = set()
+        self._spatial_topology_logged = set()
         self._video_metadata = {
             "run_commit": os.environ.get("HEAD_PROFILE_RUN_COMMIT"),
             "seed": int(
@@ -266,11 +277,18 @@ class HeadProfileSession:
             "persistent_spatial_samples": int(
                 self.config.persistent_spatial_samples
             ),
+            "descriptor_export": bool(self.config.descriptor_export),
+            "spatial_topology_metrics": bool(
+                self.config.spatial_topology_metrics
+            ),
         }
         print(
             "[HeadProfile] begin "
             f"index={dataset_index} job={job['job_id']} kind={job['kind']} "
-            f"frames={num_frames}",
+            f"frames={num_frames} seed={self._video_metadata['seed']} "
+            f"descriptors={int(self.config.descriptor_export)} "
+            f"topology={int(self.config.spatial_topology_metrics)} "
+            f"policy={int(self.config.causal_policy_metrics)}",
             flush=True,
         )
         return job
@@ -1247,6 +1265,163 @@ class HeadProfileSession:
         k = torch.nn.functional.normalize(k, dim=-1)
         return q.to(torch.float16), k.to(torch.float16)
 
+    def _projected_history_value_descriptor(
+        self,
+        history_value: torch.Tensor,
+        *,
+        frame_seq_length: int,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        history_frames = history_value.shape[1] // frame_seq_length
+        if history_frames <= 0 or (
+            history_value.shape[1] % frame_seq_length
+        ):
+            raise ValueError("V descriptors require complete history frames")
+        sample_count = min(self.config.spatial_samples, frame_seq_length)
+        spatial_index = torch.linspace(
+            0,
+            frame_seq_length - 1,
+            steps=sample_count,
+            device=history_value.device,
+        ).round().long().unique()
+        value = history_value.reshape(
+            history_value.shape[0],
+            history_frames,
+            frame_seq_length,
+            history_value.shape[2],
+            history_value.shape[3],
+        ).index_select(2, spatial_index)
+        value = value.float().mean(dim=0).permute(2, 0, 1, 3)
+        value_rms = value.square().mean(dim=-1).sqrt()
+        projection = self._projection(
+            history_value.shape[-1],
+            self.config.projection_dim,
+            device=history_value.device,
+        )
+        value = torch.einsum("hfsd,dp->hfsp", value, projection)
+        value = torch.nn.functional.normalize(value, dim=-1)
+        return value.to(torch.float16), value_rms.to(torch.float16)
+
+    def _spatial_topology_profile(
+        self,
+        query: torch.Tensor,
+        history_key: torch.Tensor,
+        *,
+        frame_seq_length: int,
+        spatial_grid_shape: tuple[int, int],
+    ) -> dict[str, torch.Tensor | int | list[int]]:
+        """Measure recent cross-frame correspondence without a motion label.
+
+        The first frame of the current AR block is compared with the latest
+        completed history frame. Metrics describe attention topology only;
+        they must not be called optical flow or motion fidelity.
+        """
+        height, width = (int(value) for value in spatial_grid_shape)
+        if height <= 0 or width <= 0 or height * width != frame_seq_length:
+            raise ValueError(
+                "spatial topology grid does not match frame token count: "
+                f"grid={height}x{width} tokens={frame_seq_length}"
+            )
+        query_frames = query.shape[1] // frame_seq_length
+        history_frames = history_key.shape[1] // frame_seq_length
+        if (
+            query_frames <= 0
+            or history_frames <= 0
+            or query.shape[1] % frame_seq_length
+            or history_key.shape[1] % frame_seq_length
+        ):
+            raise ValueError(
+                "spatial topology requires complete query/history frames"
+            )
+        sample_count = min(self.config.spatial_samples, frame_seq_length)
+        spatial_index = torch.linspace(
+            0,
+            frame_seq_length - 1,
+            steps=sample_count,
+            device=query.device,
+        ).round().long().unique()
+        query_frame = query.reshape(
+            query.shape[0],
+            query_frames,
+            frame_seq_length,
+            query.shape[2],
+            query.shape[3],
+        )[:, 0].index_select(1, spatial_index)
+        key_frame = history_key.reshape(
+            history_key.shape[0],
+            history_frames,
+            frame_seq_length,
+            history_key.shape[2],
+            history_key.shape[3],
+        )[:, -1].index_select(1, spatial_index)
+        logits = torch.einsum(
+            "bshd,bthd->bhst",
+            query_frame.float(),
+            key_frame.float(),
+        ) / math.sqrt(query.shape[-1])
+        probabilities = torch.softmax(logits, dim=-1)
+        rows = torch.div(
+            spatial_index, width, rounding_mode="floor"
+        ).float()
+        columns = (spatial_index % width).float()
+        coordinates = torch.stack(
+            (
+                rows / max(1, height - 1),
+                columns / max(1, width - 1),
+            ),
+            dim=-1,
+        )
+        displacement = (
+            coordinates[None, :, :] - coordinates[:, None, :]
+        )
+        expected = torch.einsum(
+            "bhst,std->bhsd", probabilities, displacement
+        )
+        expected_norm = expected.square().sum(dim=-1).sqrt()
+        mean_vector = expected.mean(dim=(0, 2))
+        mean_norm = expected_norm.mean(dim=(0, 2))
+        entropy = -(
+            probabilities
+            * probabilities.clamp_min(1e-12).log()
+        ).sum(dim=-1)
+        entropy = entropy / math.log(max(2, spatial_index.numel()))
+        diagonal_mass = probabilities.diagonal(dim1=-2, dim2=-1).mean(
+            dim=(0, 2)
+        )
+        top_index = probabilities.argmax(dim=-1)
+        displacement_by_batch = displacement.unsqueeze(0).expand(
+            query.shape[0], -1, -1, -1
+        )
+        gather_index = top_index.permute(0, 2, 1).unsqueeze(-1).expand(
+            -1, -1, -1, 2
+        )
+        top_displacement = torch.gather(
+            displacement_by_batch.unsqueeze(2).expand(
+                -1, -1, query.shape[2], -1, -1
+            ),
+            dim=3,
+            index=gather_index.unsqueeze(3),
+        ).squeeze(3)
+        top_norm = top_displacement.square().sum(dim=-1).sqrt().mean(
+            dim=(0, 1)
+        )
+        return {
+            "normalized_entropy": entropy.mean(dim=(0, 2)).to(
+                torch.float16
+            ),
+            "diagonal_mass": diagonal_mass.to(torch.float16),
+            "expected_displacement": mean_norm.to(torch.float16),
+            "directional_coherence": (
+                mean_vector.square().sum(dim=-1).sqrt()
+                / mean_norm.clamp_min(1e-8)
+            ).clamp(0, 1).to(torch.float16),
+            "top1_displacement": top_norm.to(torch.float16),
+            "sample_count": int(spatial_index.numel()),
+            "spatial_indices": spatial_index.to(torch.int32),
+            "grid_shape": [height, width],
+            "query_block_frame_offset": 0,
+            "history_frame_offset": -1,
+        }
+
     def record_attention(
         self,
         *,
@@ -1264,6 +1439,7 @@ class HeadProfileSession:
         raw_current_key: torch.Tensor | None = None,
         current_value: torch.Tensor | None = None,
         output_projection_weight: torch.Tensor | None = None,
+        spatial_grid_shape: tuple[int, int] | None = None,
     ) -> None:
         context = self.context
         if not context or not context["capture"]:
@@ -1330,6 +1506,42 @@ class HeadProfileSession:
                     current_frame=int(context["current_frame"]),
                 )
             )
+        if self.config.spatial_topology_metrics:
+            if spatial_grid_shape is None:
+                raise RuntimeError(
+                    "spatial topology profiling requires the latent grid shape"
+                )
+            topology = self._spatial_topology_profile(
+                query,
+                history_key,
+                frame_seq_length=frame_seq_length,
+                spatial_grid_shape=spatial_grid_shape,
+            )
+            record["spatial_topology_metrics"] = topology
+            topology_log_key = (
+                str(context["mode"]),
+                int(context["current_frame"]),
+                int(context["nominal_timestep"]),
+            )
+            if (
+                int(layer) == 0
+                and topology_log_key not in self._spatial_topology_logged
+            ):
+                self._spatial_topology_logged.add(topology_log_key)
+                print(
+                    "[HeadProfile] spatial-topology "
+                    f"mode={topology_log_key[0]} "
+                    f"frame={topology_log_key[1]} "
+                    f"timestep={topology_log_key[2]} "
+                    f"samples={topology['sample_count']} "
+                    "entropy_mean="
+                    f"{float(topology['normalized_entropy'].float().mean()):.4f} "
+                    "diagonal_mean="
+                    f"{float(topology['diagonal_mass'].float().mean()):.4f} "
+                    "displacement_mean="
+                    f"{float(topology['expected_displacement'].float().mean()):.4f}",
+                    flush=True,
+                )
         projection_gram = None
         if self.config.causal_policy_metrics or self.config.persistent_probe:
             if output_projection_weight is None:
@@ -1416,6 +1628,24 @@ class HeadProfileSession:
                         f"{persistent_metadata['capture_frames']}",
                         flush=True,
                     )
+        if self.config.history_interventions or self.config.descriptor_export:
+            q_descriptor, k_descriptor = self._projected_qk_descriptors(
+                query,
+                history_key,
+                frame_seq_length=frame_seq_length,
+            )
+            v_descriptor, v_rms = self._projected_history_value_descriptor(
+                history_value,
+                frame_seq_length=frame_seq_length,
+            )
+            record.update(
+                {
+                    "query_projection": q_descriptor,
+                    "history_key_projection": k_descriptor,
+                    "history_value_projection": v_descriptor,
+                    "history_value_rms": v_rms,
+                }
+            )
         if self.config.history_interventions:
             if context["branch"] != "base":
                 raise RuntimeError(
@@ -1433,19 +1663,12 @@ class HeadProfileSession:
                     "history intervention outputs mismatch: "
                     f"expected={sorted(expected)} provided={sorted(provided)}"
                 )
-            q_descriptor, k_descriptor = self._projected_qk_descriptors(
-                query,
-                history_key,
-                frame_seq_length=frame_seq_length,
-            )
             record.update(
                 {
                     "full_history_signature": self._signature(full_output),
                     "recent_history_signature": self._signature(
                         recent_output
                     ),
-                    "query_projection": q_descriptor,
-                    "history_key_projection": k_descriptor,
                 }
             )
             for name, output in history_intervention_outputs.items():
@@ -1512,24 +1735,27 @@ class HeadProfileSession:
         self.records = [
             self._detach_to_cpu(record) for record in self.records
         ]
+        if (
+            self.config.descriptor_export
+            or self.config.spatial_topology_metrics
+        ):
+            profile_version = self.MECHANISM_PROFILE_VERSION
+        elif (
+            self.config.causal_policy_metrics
+            or self.config.persistent_probe
+        ):
+            profile_version = self.CAUSAL_POLICY_PROFILE_VERSION
+        elif self.config.history_interventions:
+            profile_version = self.HISTORY_INTERVENTION_VERSION
+        elif (
+            job.get("shadow_prompts") is not None
+            or "||" in str(job.get("base_prompt", ""))
+        ):
+            profile_version = self.SCHEDULE_PROFILE_VERSION
+        else:
+            profile_version = self.VERSION
         payload = {
-            "version": (
-                self.CAUSAL_POLICY_PROFILE_VERSION
-                if (
-                    self.config.causal_policy_metrics
-                    or self.config.persistent_probe
-                )
-                else (
-                    self.HISTORY_INTERVENTION_VERSION
-                    if self.config.history_interventions
-                    else (
-                        self.SCHEDULE_PROFILE_VERSION
-                        if job.get("shadow_prompts") is not None
-                        or "||" in str(job.get("base_prompt", ""))
-                        else self.VERSION
-                    )
-                )
-            ),
+            "version": profile_version,
             "job": job,
             "metadata": {
                 **self._video_metadata,
@@ -1568,6 +1794,7 @@ class HeadProfileSession:
         self._persistent_capture_seen = set()
         self._persistent_probe_logged = set()
         self._causal_policy_logged = set()
+        self._spatial_topology_logged = set()
         return output
 
 

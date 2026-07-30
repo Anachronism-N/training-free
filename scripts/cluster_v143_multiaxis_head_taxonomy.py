@@ -164,6 +164,34 @@ def _spearman(left: np.ndarray, right: np.ndarray) -> float:
     return float(np.corrcoef(left_rank, right_rank)[0, 1])
 
 
+def _within_layer_residual(values: np.ndarray) -> np.ndarray:
+    """Remove the per-layer median while preserving within-layer head order."""
+    array = np.asarray(values, dtype=np.float64)
+    if array.shape != (TOTAL_HEADS,):
+        raise ValueError(
+            f"layer residualization requires {TOTAL_HEADS} heads, got {array.shape}"
+        )
+    matrix = array.reshape(LAYERS, HEADS)
+    if not np.isfinite(matrix).all():
+        return np.full_like(array, np.nan)
+    return (matrix - np.median(matrix, axis=1, keepdims=True)).reshape(-1)
+
+
+def _layer_eta_squared(values: np.ndarray) -> float:
+    """Fraction of scalar feature variance explained by the layer index."""
+    array = np.asarray(values, dtype=np.float64)
+    if array.shape != (TOTAL_HEADS,) or not np.isfinite(array).all():
+        return float("nan")
+    grand_mean = float(array.mean())
+    total = float(np.square(array - grand_mean).sum())
+    if total <= EPSILON:
+        return 0.0
+    matrix = array.reshape(LAYERS, HEADS)
+    layer_means = matrix.mean(axis=1)
+    between = float(HEADS * np.square(layer_means - grand_mean).sum())
+    return between / total
+
+
 def _feature_group(name: str) -> str:
     if name.startswith("v136_prompt."):
         return "prompt_modulation"
@@ -379,12 +407,50 @@ def analyze(args: argparse.Namespace) -> dict:
         )
     feature_audit = []
     accepted = []
+    coordinate_features: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     for name, (discovery, validation) in sorted(features.items()):
-        finite = np.isfinite(discovery) & np.isfinite(validation)
-        rho = _spearman(discovery, validation)
-        spread = float(np.quantile(discovery[finite], 0.75) - np.quantile(
-            discovery[finite], 0.25
-        )) if finite.any() else 0.0
+        raw_finite = np.isfinite(discovery) & np.isfinite(validation)
+        residual_discovery = _within_layer_residual(discovery)
+        residual_validation = _within_layer_residual(validation)
+        residual_finite = (
+            np.isfinite(residual_discovery) & np.isfinite(residual_validation)
+        )
+        raw_rho = _spearman(discovery, validation)
+        residual_rho = _spearman(
+            residual_discovery, residual_validation
+        )
+        raw_spread = (
+            float(
+                np.quantile(discovery[raw_finite], 0.75)
+                - np.quantile(discovery[raw_finite], 0.25)
+            )
+            if raw_finite.any()
+            else 0.0
+        )
+        residual_spread = (
+            float(
+                np.quantile(residual_discovery[residual_finite], 0.75)
+                - np.quantile(residual_discovery[residual_finite], 0.25)
+            )
+            if residual_finite.any()
+            else 0.0
+        )
+        if args.coordinate_system == "layer_residual":
+            coordinate_discovery = residual_discovery
+            coordinate_validation = residual_validation
+            finite = residual_finite
+            rho = residual_rho
+            spread = residual_spread
+        else:
+            coordinate_discovery = discovery
+            coordinate_validation = validation
+            finite = raw_finite
+            rho = raw_rho
+            spread = raw_spread
+        coordinate_features[name] = (
+            coordinate_discovery,
+            coordinate_validation,
+        )
         conceptual_group = _feature_group(name)
         excluded = conceptual_group in excluded_groups
         passed = bool(
@@ -407,9 +473,16 @@ def analyze(args: argparse.Namespace) -> dict:
             {
                 "feature": name,
                 "conceptual_group": conceptual_group,
+                "coordinate_system": args.coordinate_system,
                 "finite_heads": int(finite.sum()),
                 "discovery_iqr": spread,
                 "split_spearman": rho,
+                "raw_discovery_iqr": raw_spread,
+                "raw_split_spearman": raw_rho,
+                "layer_residual_discovery_iqr": residual_spread,
+                "layer_residual_split_spearman": residual_rho,
+                "discovery_layer_eta_squared": _layer_eta_squared(discovery),
+                "validation_layer_eta_squared": _layer_eta_squared(validation),
                 "minimum_split_spearman": args.min_feature_split_rho,
                 "excluded_by_group_ablation": int(excluded),
                 "accepted": int(passed),
@@ -424,10 +497,20 @@ def analyze(args: argparse.Namespace) -> dict:
             "profiles and preserve v136/v138 job-level CSV files"
         )
 
-    discovery_raw = np.stack([features[name][0] for name in accepted], axis=1)
-    validation_raw = np.stack([features[name][1] for name in accepted], axis=1)
+    discovery_source = np.stack(
+        [features[name][0] for name in accepted], axis=1
+    )
+    validation_source = np.stack(
+        [features[name][1] for name in accepted], axis=1
+    )
+    discovery_coordinate = np.stack(
+        [coordinate_features[name][0] for name in accepted], axis=1
+    )
+    validation_coordinate = np.stack(
+        [coordinate_features[name][1] for name in accepted], axis=1
+    )
     discovery, validation, center, scale = robust_fit_transform(
-        discovery_raw, validation_raw
+        discovery_coordinate, validation_coordinate
     )
     assert validation is not None
     feature_groups = [_feature_group(name) for name in accepted]
@@ -447,10 +530,16 @@ def analyze(args: argparse.Namespace) -> dict:
         for index, name in enumerate(accepted):
             column = name.replace(".", "__")
             row[f"discovery_raw__{column}"] = float(
-                discovery_raw[flat_head, index]
+                discovery_source[flat_head, index]
             )
             row[f"validation_raw__{column}"] = float(
-                validation_raw[flat_head, index]
+                validation_source[flat_head, index]
+            )
+            row[f"discovery_coordinate__{column}"] = float(
+                discovery_coordinate[flat_head, index]
+            )
+            row[f"validation_coordinate__{column}"] = float(
+                validation_coordinate[flat_head, index]
             )
             row[f"discovery_weighted__{column}"] = float(
                 discovery[flat_head, index]
@@ -466,13 +555,21 @@ def analyze(args: argparse.Namespace) -> dict:
                 {
                     "left_feature": accepted[left],
                     "right_feature": accepted[right],
-                    "discovery_spearman": _spearman(
-                        discovery_raw[:, left],
-                        discovery_raw[:, right],
+                    "discovery_source_spearman": _spearman(
+                        discovery_source[:, left],
+                        discovery_source[:, right],
                     ),
-                    "validation_spearman": _spearman(
-                        validation_raw[:, left],
-                        validation_raw[:, right],
+                    "validation_source_spearman": _spearman(
+                        validation_source[:, left],
+                        validation_source[:, right],
+                    ),
+                    "discovery_coordinate_spearman": _spearman(
+                        discovery_coordinate[:, left],
+                        discovery_coordinate[:, right],
+                    ),
+                    "validation_coordinate_spearman": _spearman(
+                        validation_coordinate[:, left],
+                        validation_coordinate[:, right],
                     ),
                 }
             )
@@ -503,6 +600,8 @@ def analyze(args: argparse.Namespace) -> dict:
             rounds=args.bootstrap_rounds,
             seed=args.seed + clusters * 7919,
         )
+        layer_ids = np.repeat(np.arange(LAYERS), HEADS)
+        layer_bands = layer_ids // 6
         passed = bool(
             agreement >= 0.8
             and ari >= 0.6
@@ -522,6 +621,12 @@ def analyze(args: argparse.Namespace) -> dict:
             "bootstrap_ari_p10": bootstrap_p10,
             "minimum_cluster_fraction": min_fraction,
             "boundary_fraction": float(np.mean(margin < 0.05)),
+            "cluster_exact_layer_nmi": normalized_mutual_information(
+                fitted.labels, layer_ids
+            ),
+            "cluster_layer_band_nmi": normalized_mutual_information(
+                fitted.labels, layer_bands
+            ),
             "passed": int(passed),
         }
         diagnostics.append(row)
@@ -579,11 +684,22 @@ def analyze(args: argparse.Namespace) -> dict:
                 "head_count": int(members.sum()),
             }
             for index, name in enumerate(accepted):
-                row[name] = float(np.median(discovery_raw[members, index]))
+                row[f"source__{name}"] = float(
+                    np.median(discovery_source[members, index])
+                )
+                row[f"coordinate__{name}"] = float(
+                    np.median(discovery_coordinate[members, index])
+                )
             center_rows.append(row)
 
     report = {
         "version": 1,
+        "coordinate_system": args.coordinate_system,
+        "layer_residual_definition": (
+            "split-local per-layer median subtraction"
+            if args.coordinate_system == "layer_residual"
+            else None
+        ),
         "minimum_feature_split_spearman": args.min_feature_split_rho,
         "excluded_feature_groups": sorted(excluded_groups),
         "accepted_features": accepted,
@@ -641,6 +757,7 @@ def analyze(args: argparse.Namespace) -> dict:
         "# v143 Multi-axis Head Taxonomy",
         "",
         f"- Accepted split-stable features: `{len(accepted)}`",
+        f"- Coordinate system: `{args.coordinate_system}`",
         f"- Selected k: `{selected}`",
         f"- Status: `{report['selection_status']}`",
         "- PF and other published labels are post-hoc references only.",
@@ -649,15 +766,16 @@ def analyze(args: argparse.Namespace) -> dict:
         "## k diagnostics",
         "",
         "| k | split agreement | split ARI | silhouette | bootstrap ARI | "
-        "min class | passed |",
-        "|---:|---:|---:|---:|---:|---:|---:|",
+        "min class | layer-band NMI | passed |",
+        "|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in diagnostics:
         summary.append(
             f"| {row['clusters']} | {row['split_label_agreement']:.4f} | "
             f"{row['split_ari']:.4f} | {row['discovery_silhouette']:.4f} | "
             f"{row['bootstrap_ari_median']:.4f} | "
-            f"{row['minimum_cluster_fraction']:.4f} | {row['passed']} |"
+            f"{row['minimum_cluster_fraction']:.4f} | "
+            f"{row['cluster_layer_band_nmi']:.4f} | {row['passed']} |"
         )
     (args.output_dir / "clustering_summary.md").write_text(
         "\n".join(summary) + "\n", encoding="utf-8"
@@ -695,6 +813,15 @@ def main() -> None:
         default=Path("configs/head_maps/legacy_v98_absolute_sign_304_56.csv"),
     )
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--coordinate-system",
+        choices=("raw", "layer_residual"),
+        default="raw",
+        help=(
+            "cluster global raw axes or split-local within-layer residuals; "
+            "the latter tests head identity beyond layer-wide effects"
+        ),
+    )
     parser.add_argument("--min-feature-split-rho", type=float, default=0.30)
     parser.add_argument(
         "--exclude-feature-group",

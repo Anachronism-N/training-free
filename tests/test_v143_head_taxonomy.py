@@ -113,3 +113,14 @@ def test_cluster_splits_controlled_jobs_by_family_not_factor():
         CLUSTER._feature_group("v143_ab.persistent_output")
         == "episodic_compatibility"
     )
+
+
+def test_layer_residualization_removes_layer_offset_not_head_order():
+    layer_offsets = np.repeat(np.arange(30, dtype=float), 12)
+    head_pattern = np.tile(np.arange(12, dtype=float), 30)
+    values = 100.0 * layer_offsets + head_pattern
+    residual = CLUSTER._within_layer_residual(values)
+    expected = np.tile(np.arange(12, dtype=float) - 5.5, 30)
+    assert np.allclose(residual, expected)
+    assert CLUSTER._layer_eta_squared(values) > 0.99
+    assert CLUSTER._layer_eta_squared(residual) < 1e-12
