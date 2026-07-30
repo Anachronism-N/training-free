@@ -1,0 +1,180 @@
+{
+  "accepted_features": [
+    "v136_prompt.age_js_score",
+    "v136_prompt.cphi_score",
+    "v138_cross.history_specificity",
+    "v138_local.freeze_latest_relative_log",
+    "v138_local.phase_shift_relative_log",
+    "v138_local.reverse_relative_log",
+    "v138_local.value_mismatch_relative_log",
+    "v143_ab.policy_prompt_score",
+    "v143_ab.prompt_history_excess",
+    "v143_ab.stale_a_mass_B_visible",
+    "v143_natural.policy_need"
+  ],
+  "conceptual_group_counts": {
+    "history_intervention": 4,
+    "history_specificity": 1,
+    "output_policy": 1,
+    "prompt_modulation": 2,
+    "switch_plasticity": 3
+  },
+  "coordinate_system": "raw",
+  "diagnostics": [
+    {
+      "bootstrap_ari_median": 0.26685484553768796,
+      "bootstrap_ari_p10": -0.042734820174739514,
+      "boundary_fraction": 0.002777777777777778,
+      "cluster_exact_layer_nmi": 0.05203153440714772,
+      "cluster_layer_band_nmi": 0.03265846388343956,
+      "clusters": 2,
+      "discovery_silhouette": 0.4375091913852202,
+      "feature_count": 11,
+      "minimum_cluster_fraction": 0.06111111111111111,
+      "passed": 0,
+      "split_ari": 0.8721506864898596,
+      "split_label_agreement": 0.9861111111111112,
+      "validation_silhouette": 0.41590261240304766
+    },
+    {
+      "bootstrap_ari_median": 0.2913412852780968,
+      "bootstrap_ari_p10": 0.07206978177781777,
+      "boundary_fraction": 0.002777777777777778,
+      "cluster_exact_layer_nmi": 0.1028944535428224,
+      "cluster_layer_band_nmi": 0.047344031310693716,
+      "clusters": 3,
+      "discovery_silhouette": 0.45706669378408676,
+      "feature_count": 11,
+      "minimum_cluster_fraction": 0.03611111111111111,
+      "passed": 0,
+      "split_ari": 0.6904272969524523,
+      "split_label_agreement": 0.9444444444444444,
+      "validation_silhouette": 0.404682489319506
+    },
+    {
+      "bootstrap_ari_median": 0.7346038612118659,
+      "bootstrap_ari_p10": 0.2649133682621171,
+      "boundary_fraction": 0.058333333333333334,
+      "cluster_exact_layer_nmi": 0.17316786310490218,
+      "cluster_layer_band_nmi": 0.11178945452485091,
+      "clusters": 4,
+      "discovery_silhouette": 0.19653814987421991,
+      "feature_count": 11,
+      "minimum_cluster_fraction": 0.03611111111111111,
+      "passed": 0,
+      "split_ari": 0.7793509748292873,
+      "split_label_agreement": 0.9138888888888889,
+      "validation_silhouette": 0.1906152587005669
+    },
+    {
+      "bootstrap_ari_median": 0.6334922368961352,
+      "bootstrap_ari_p10": 0.3835836639372512,
+      "boundary_fraction": 0.06388888888888888,
+      "cluster_exact_layer_nmi": 0.16551217028682513,
+      "cluster_layer_band_nmi": 0.10388041292888557,
+      "clusters": 5,
+      "discovery_silhouette": 0.19809253747207092,
+      "feature_count": 11,
+      "minimum_cluster_fraction": 0.002777777777777778,
+      "passed": 0,
+      "split_ari": 0.7760949741237422,
+      "split_label_agreement": 0.9111111111111111,
+      "validation_silhouette": 0.19675603519999665
+    },
+    {
+      "bootstrap_ari_median": 0.5471694478948207,
+      "bootstrap_ari_p10": 0.40275290507938033,
+      "boundary_fraction": 0.041666666666666664,
+      "cluster_exact_layer_nmi": 0.2528407931983981,
+      "cluster_layer_band_nmi": 0.21443751159879193,
+      "clusters": 6,
+      "discovery_silhouette": 0.1987197555611903,
+      "feature_count": 11,
+      "minimum_cluster_fraction": 0.002777777777777778,
+      "passed": 0,
+      "split_ari": 0.6156056437405532,
+      "split_label_agreement": 0.8361111111111111,
+      "validation_silhouette": 0.16484672239978918
+    }
+  ],
+  "excluded_feature_groups": [
+    "temporal_allocation"
+  ],
+  "feature_count": 11,
+  "functional_claim_admissible": false,
+  "functional_claim_reason": "cluster stability is descriptive; cache interventions must show cluster-specific causal policy demand before role names are assigned",
+  "layer_residual_definition": null,
+  "minimum_feature_split_spearman": 0.3,
+  "reference_comparisons": [],
+  "scaling": {
+    "v136_prompt.age_js_score": {
+      "conceptual_group": "prompt_modulation",
+      "discovery_median": -0.056301330995719844,
+      "discovery_scale": 0.05414060816333669,
+      "group_balance_weight": 0.7071067811865475
+    },
+    "v136_prompt.cphi_score": {
+      "conceptual_group": "prompt_modulation",
+      "discovery_median": -0.3299854061184198,
+      "discovery_scale": 0.362640589976959,
+      "group_balance_weight": 0.7071067811865475
+    },
+    "v138_cross.history_specificity": {
+      "conceptual_group": "history_specificity",
+      "discovery_median": 0.0056158751249313354,
+      "discovery_scale": 0.06731262430548668,
+      "group_balance_weight": 1.0
+    },
+    "v138_local.freeze_latest_relative_log": {
+      "conceptual_group": "history_intervention",
+      "discovery_median": -0.10090799810977935,
+      "discovery_scale": 0.1615665449147698,
+      "group_balance_weight": 0.5
+    },
+    "v138_local.phase_shift_relative_log": {
+      "conceptual_group": "history_intervention",
+      "discovery_median": -2.564645588285205,
+      "discovery_scale": 1.4874991603387955,
+      "group_balance_weight": 0.5
+    },
+    "v138_local.reverse_relative_log": {
+      "conceptual_group": "history_intervention",
+      "discovery_median": -1.8853690218441677,
+      "discovery_scale": 1.217348359485217,
+      "group_balance_weight": 0.5
+    },
+    "v138_local.value_mismatch_relative_log": {
+      "conceptual_group": "history_intervention",
+      "discovery_median": -0.8234389896150526,
+      "discovery_scale": 0.9971451285674596,
+      "group_balance_weight": 0.5
+    },
+    "v143_ab.policy_prompt_score": {
+      "conceptual_group": "switch_plasticity",
+      "discovery_median": 0.49347059518725606,
+      "discovery_scale": 0.32971498528733756,
+      "group_balance_weight": 0.5773502691896258
+    },
+    "v143_ab.prompt_history_excess": {
+      "conceptual_group": "switch_plasticity",
+      "discovery_median": 0.04477868787944317,
+      "discovery_scale": 0.17045848030829802,
+      "group_balance_weight": 0.5773502691896258
+    },
+    "v143_ab.stale_a_mass_B_visible": {
+      "conceptual_group": "switch_plasticity",
+      "discovery_median": 0.8273220919072628,
+      "discovery_scale": 0.16826460883021355,
+      "group_balance_weight": 0.5773502691896258
+    },
+    "v143_natural.policy_need": {
+      "conceptual_group": "output_policy",
+      "discovery_median": 0.023331841570325196,
+      "discovery_scale": 0.033044358948245645,
+      "group_balance_weight": 1.0
+    }
+  },
+  "selected_clusters": null,
+  "selection_status": "no_stable_k",
+  "version": 1
+}

@@ -1,0 +1,256 @@
+{
+  "accepted_features": [
+    "v136_prompt.age_js_score",
+    "v136_prompt.cphi_score",
+    "v136_temporal.middle_recent_margin",
+    "v136_temporal.old_mass_excess",
+    "v136_temporal.spectral_peak_ratio",
+    "v136_temporal.temporal_reach_ratio",
+    "v138_cross.history_specificity",
+    "v138_local.freeze_latest_relative_log",
+    "v138_local.phase_shift_relative_log",
+    "v138_local.reverse_relative_log",
+    "v138_local.value_mismatch_relative_log",
+    "v143_ab.policy_prompt_score",
+    "v143_ab.stale_a_mass_B_visible",
+    "v143_natural.current_mass",
+    "v143_natural.history_mean_logit",
+    "v143_natural.history_positive_rate",
+    "v143_natural.last4_mass",
+    "v143_natural.middle_mass",
+    "v143_natural.oldest1_mass",
+    "v143_natural.policy_need",
+    "v143_natural.recent4_mass",
+    "v143_natural.recent4_non_oldest_ratio"
+  ],
+  "conceptual_group_counts": {
+    "history_intervention": 4,
+    "history_specificity": 1,
+    "output_policy": 1,
+    "prompt_modulation": 2,
+    "switch_plasticity": 2,
+    "temporal_allocation": 12
+  },
+  "coordinate_system": "raw",
+  "diagnostics": [
+    {
+      "bootstrap_ari_median": 0.11000487368788195,
+      "bootstrap_ari_p10": -0.03354585700779142,
+      "boundary_fraction": 0.0,
+      "cluster_exact_layer_nmi": 0.05203153440714772,
+      "cluster_layer_band_nmi": 0.03265846388343956,
+      "clusters": 2,
+      "discovery_silhouette": 0.41056731148033804,
+      "feature_count": 22,
+      "minimum_cluster_fraction": 0.06111111111111111,
+      "passed": 0,
+      "split_ari": 0.8495901626696969,
+      "split_label_agreement": 0.9833333333333333,
+      "validation_silhouette": 0.3865546858770445
+    },
+    {
+      "bootstrap_ari_median": 0.2495242298444299,
+      "bootstrap_ari_p10": 0.11587869853481372,
+      "boundary_fraction": 0.03611111111111111,
+      "cluster_exact_layer_nmi": 0.11593180781229438,
+      "cluster_layer_band_nmi": 0.07500228814454286,
+      "clusters": 3,
+      "discovery_silhouette": 0.21984356085825804,
+      "feature_count": 22,
+      "minimum_cluster_fraction": 0.06111111111111111,
+      "passed": 0,
+      "split_ari": 0.9040935876987672,
+      "split_label_agreement": 0.9694444444444444,
+      "validation_silhouette": 0.20035498290750625
+    },
+    {
+      "bootstrap_ari_median": 0.7395931558205904,
+      "bootstrap_ari_p10": 0.28233703293228085,
+      "boundary_fraction": 0.03333333333333333,
+      "cluster_exact_layer_nmi": 0.16312020342002576,
+      "cluster_layer_band_nmi": 0.11150124546155102,
+      "clusters": 4,
+      "discovery_silhouette": 0.18271514874483613,
+      "feature_count": 22,
+      "minimum_cluster_fraction": 0.025,
+      "passed": 0,
+      "split_ari": 0.8302538562139636,
+      "split_label_agreement": 0.9333333333333333,
+      "validation_silhouette": 0.17451536867078954
+    },
+    {
+      "bootstrap_ari_median": 0.42745794231115086,
+      "bootstrap_ari_p10": 0.29398893554804184,
+      "boundary_fraction": 0.04722222222222222,
+      "cluster_exact_layer_nmi": 0.16560436939414802,
+      "cluster_layer_band_nmi": 0.10650275277730309,
+      "clusters": 5,
+      "discovery_silhouette": 0.18264514280919808,
+      "feature_count": 22,
+      "minimum_cluster_fraction": 0.002777777777777778,
+      "passed": 0,
+      "split_ari": 0.849076391306695,
+      "split_label_agreement": 0.9388888888888889,
+      "validation_silhouette": 0.17828446221850922
+    },
+    {
+      "bootstrap_ari_median": 0.6291099402899387,
+      "bootstrap_ari_p10": 0.3917520960634685,
+      "boundary_fraction": 0.06944444444444445,
+      "cluster_exact_layer_nmi": 0.2245669753147137,
+      "cluster_layer_band_nmi": 0.19741456696656873,
+      "clusters": 6,
+      "discovery_silhouette": 0.18291447088911889,
+      "feature_count": 22,
+      "minimum_cluster_fraction": 0.002777777777777778,
+      "passed": 0,
+      "split_ari": 0.6962977706420171,
+      "split_label_agreement": 0.8777777777777778,
+      "validation_silhouette": 0.16007459071897173
+    }
+  ],
+  "excluded_feature_groups": [],
+  "feature_count": 22,
+  "functional_claim_admissible": false,
+  "functional_claim_reason": "cluster stability is descriptive; cache interventions must show cluster-specific causal policy demand before role names are assigned",
+  "layer_residual_definition": null,
+  "minimum_feature_split_spearman": 0.5,
+  "reference_comparisons": [],
+  "scaling": {
+    "v136_prompt.age_js_score": {
+      "conceptual_group": "prompt_modulation",
+      "discovery_median": -0.056301330995719844,
+      "discovery_scale": 0.05414060816333669,
+      "group_balance_weight": 0.7071067811865475
+    },
+    "v136_prompt.cphi_score": {
+      "conceptual_group": "prompt_modulation",
+      "discovery_median": -0.3299854061184198,
+      "discovery_scale": 0.362640589976959,
+      "group_balance_weight": 0.7071067811865475
+    },
+    "v136_temporal.middle_recent_margin": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": -1.368930995464325,
+      "discovery_scale": 1.0912010073661804,
+      "group_balance_weight": 0.2886751345948129
+    },
+    "v136_temporal.old_mass_excess": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": -0.19601605832576752,
+      "discovery_scale": 0.2895287089049816,
+      "group_balance_weight": 0.2886751345948129
+    },
+    "v136_temporal.spectral_peak_ratio": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": 0.5285276621580124,
+      "discovery_scale": 0.1605774089694023,
+      "group_balance_weight": 0.2886751345948129
+    },
+    "v136_temporal.temporal_reach_ratio": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": 0.31055159866809845,
+      "discovery_scale": 0.14460090547800064,
+      "group_balance_weight": 0.2886751345948129
+    },
+    "v138_cross.history_specificity": {
+      "conceptual_group": "history_specificity",
+      "discovery_median": 0.0056158751249313354,
+      "discovery_scale": 0.06731262430548668,
+      "group_balance_weight": 1.0
+    },
+    "v138_local.freeze_latest_relative_log": {
+      "conceptual_group": "history_intervention",
+      "discovery_median": -0.10090799810977935,
+      "discovery_scale": 0.1615665449147698,
+      "group_balance_weight": 0.5
+    },
+    "v138_local.phase_shift_relative_log": {
+      "conceptual_group": "history_intervention",
+      "discovery_median": -2.564645588285205,
+      "discovery_scale": 1.4874991603387955,
+      "group_balance_weight": 0.5
+    },
+    "v138_local.reverse_relative_log": {
+      "conceptual_group": "history_intervention",
+      "discovery_median": -1.8853690218441677,
+      "discovery_scale": 1.217348359485217,
+      "group_balance_weight": 0.5
+    },
+    "v138_local.value_mismatch_relative_log": {
+      "conceptual_group": "history_intervention",
+      "discovery_median": -0.8234389896150526,
+      "discovery_scale": 0.9971451285674596,
+      "group_balance_weight": 0.5
+    },
+    "v143_ab.policy_prompt_score": {
+      "conceptual_group": "switch_plasticity",
+      "discovery_median": 0.49347059518725606,
+      "discovery_scale": 0.32971498528733756,
+      "group_balance_weight": 0.7071067811865475
+    },
+    "v143_ab.stale_a_mass_B_visible": {
+      "conceptual_group": "switch_plasticity",
+      "discovery_median": 0.8273220919072628,
+      "discovery_scale": 0.16826460883021355,
+      "group_balance_weight": 0.7071067811865475
+    },
+    "v143_natural.current_mass": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": 0.577880859375,
+      "discovery_scale": 0.40643310546875,
+      "group_balance_weight": 0.2886751345948129
+    },
+    "v143_natural.history_mean_logit": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": 0.9832725922266643,
+      "discovery_scale": 1.8284904807806015,
+      "group_balance_weight": 0.2886751345948129
+    },
+    "v143_natural.history_positive_rate": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": 0.9444444444444444,
+      "discovery_scale": 0.4722222222222222,
+      "group_balance_weight": 0.2886751345948129
+    },
+    "v143_natural.last4_mass": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": 0.70196533203125,
+      "discovery_scale": 0.33270263671875,
+      "group_balance_weight": 0.2886751345948129
+    },
+    "v143_natural.middle_mass": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": 0.12456512451171875,
+      "discovery_scale": 0.16591358184814453,
+      "group_balance_weight": 0.2886751345948129
+    },
+    "v143_natural.oldest1_mass": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": 0.015397071838378906,
+      "discovery_scale": 0.017400503158569336,
+      "group_balance_weight": 0.2886751345948129
+    },
+    "v143_natural.policy_need": {
+      "conceptual_group": "output_policy",
+      "discovery_median": 0.023331841570325196,
+      "discovery_scale": 0.033044358948245645,
+      "group_balance_weight": 1.0
+    },
+    "v143_natural.recent4_mass": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": 0.2070770263671875,
+      "discovery_scale": 0.17029190063476562,
+      "group_balance_weight": 0.2886751345948129
+    },
+    "v143_natural.recent4_non_oldest_ratio": {
+      "conceptual_group": "temporal_allocation",
+      "discovery_median": 0.212860107421875,
+      "discovery_scale": 0.17596054077148438,
+      "group_balance_weight": 0.2886751345948129
+    }
+  },
+  "selected_clusters": null,
+  "selection_status": "no_stable_k",
+  "version": 1
+}
