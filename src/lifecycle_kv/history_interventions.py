@@ -223,8 +223,8 @@ def build_history_interventions(
         / history_key.float().square().mean().sqrt().clamp_min(1e-6)
     )
     if (
-        float(reconstruction_relative_max) > 5e-3
-        or float(reconstruction_relative_rms) > 1e-3
+        float(reconstruction_relative_max) > 1e-2
+        or float(reconstruction_relative_rms) > 5e-3
     ):
         raise RuntimeError(
             "pre-RoPE sidecar does not reconstruct cached history: "

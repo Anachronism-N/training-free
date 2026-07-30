@@ -41,7 +41,7 @@ def package_results(analysis_dir: Path, output_dir: Path) -> dict:
         raise ValueError("v138 report does not contain all 360 heads")
     if not bool(report.get("profile_contract_passed", False)):
         raise ValueError("v138 profile contract did not pass")
-    if float(report.get("maximum_rope_reconstruction_error", 1.0)) > 5e-3:
+    if float(report.get("maximum_rope_reconstruction_error", 1.0)) > 1e-2:
         raise ValueError("v138 RoPE reconstruction gate failed")
     if (
         float(

@@ -881,8 +881,7 @@ class CausalWanSelfAttention(nn.Module):
                         or bool(getattr(self, "head_cache_policy_on", False))
                     ):
                         raise RuntimeError(
-                            "history intervention profiling requires native "
-                            "SF sliding-window attention"
+                            "history intervention profiling requires native SF sliding-window attention"
                         )
                     profile_raw_history_key = kv_cache.get("k_pre_rope")
                     if profile_raw_history_key is None:

@@ -1,0 +1,478 @@
+{
+  "donor_policy": {
+    "hard": "maximum lexical Jaccard excluding self",
+    "random_offsets": [
+      1,
+      37,
+      73
+    ],
+    "same_seed_required": true
+  },
+  "gates": {
+    "history_specificity": true,
+    "order_axis": false,
+    "order_gmm_structure": false,
+    "order_reproducibility": true
+  },
+  "gmm_thresholds_are_diagnostic_until_gates_pass": true,
+  "head_count": 360,
+  "maximum_recent_value_preservation_error": 0.0,
+  "maximum_rope_reconstruction_error": 0.006802720949053764,
+  "maximum_rope_reconstruction_rms_error": 3.0188693926902488e-05,
+  "method": "v138_history_intervention_and_cross_video_specificity",
+  "mixture_models": {
+    "correct_margin": {
+      "gmm": [
+        {
+          "bic": -2328.5280712952863,
+          "components": 1,
+          "log_likelihood": 1170.1501396790934,
+          "means": [
+            0.023776847967464064
+          ],
+          "variances": [
+            0.0001
+          ],
+          "weights": [
+            1.0
+          ]
+        },
+        {
+          "bic": -2310.869759150246,
+          "components": 2,
+          "log_likelihood": 1170.1501396537483,
+          "means": [
+            0.023776525579913395,
+            0.023777188219526728
+          ],
+          "variances": [
+            0.0001,
+            0.0001
+          ],
+          "weights": [
+            0.5134798098643272,
+            0.48652019013567277
+          ]
+        },
+        {
+          "bic": -2323.3167224016556,
+          "components": 3,
+          "log_likelihood": 1185.2027773266284,
+          "means": [
+            0.02324215826569052,
+            0.023242158265695628,
+            0.06244900333916797
+          ],
+          "variances": [
+            0.0001,
+            0.0001,
+            0.0001
+          ],
+          "weights": [
+            0.4625097016310179,
+            0.523852636354382,
+            0.01363766201460005
+          ]
+        }
+      ],
+      "gmm2_threshold": 0.023777188219526728,
+      "otsu_threshold": 0.026853926479816437
+    },
+    "freeze_latest_relative_log": {
+      "gmm": [
+        {
+          "bic": -404.4453679818137,
+          "components": 1,
+          "log_likelihood": 208.108788022357,
+          "means": [
+            -0.12288209032089613
+          ],
+          "variances": [
+            0.018425181322051478
+          ],
+          "weights": [
+            1.0
+          ]
+        },
+        {
+          "bic": -425.9171971495552,
+          "components": 2,
+          "log_likelihood": 227.673858653403,
+          "means": [
+            -0.5770723354381986,
+            -0.11845595188112755
+          ],
+          "variances": [
+            0.1308969556332659,
+            0.015299230780834215
+          ],
+          "weights": [
+            0.009651069169049648,
+            0.9903489308309505
+          ]
+        },
+        {
+          "bic": -425.991206349358,
+          "components": 3,
+          "log_likelihood": 236.54001930047963,
+          "means": [
+            -1.081232469835896,
+            -0.14160613952072806,
+            -0.05928363407668165
+          ],
+          "variances": [
+            0.0001,
+            0.01843389992259867,
+            0.0037101826830941804
+          ],
+          "weights": [
+            0.002777777775613266,
+            0.7380692454960122,
+            0.25915297672837456
+          ]
+        }
+      ],
+      "gmm2_threshold": -0.5364283541805773,
+      "otsu_threshold": -0.14414684768439218
+    },
+    "hard_history_specificity": {
+      "gmm": [
+        {
+          "bic": -1022.9529685492612,
+          "components": 1,
+          "log_likelihood": 517.3625883060807,
+          "means": [
+            0.07339093533292827
+          ],
+          "variances": [
+            0.0033056780492088447
+          ],
+          "weights": [
+            1.0
+          ]
+        },
+        {
+          "bic": -1110.5344135860535,
+          "components": 2,
+          "log_likelihood": 569.9824668716522,
+          "means": [
+            0.019385702061263558,
+            0.10503646216565742
+          ],
+          "variances": [
+            0.0002394717405764161,
+            0.0023919240914474405
+          ],
+          "weights": [
+            0.36947164034689906,
+            0.630528359653101
+          ]
+        },
+        {
+          "bic": -1119.707407143175,
+          "components": 3,
+          "log_likelihood": 583.3981196973881,
+          "means": [
+            0.01020737538881303,
+            0.044037184664294224,
+            0.12084820087683619
+          ],
+          "variances": [
+            0.0001,
+            0.00037554587771280096,
+            0.001846952826186256
+          ],
+          "weights": [
+            0.23802354495952688,
+            0.274988472819494,
+            0.4869879822209794
+          ]
+        }
+      ],
+      "gmm2_threshold": 0.04500146893818799,
+      "otsu_threshold": 0.08467328548431396
+    },
+    "history_specificity": {
+      "gmm": [
+        {
+          "bic": -1145.981440077151,
+          "components": 1,
+          "log_likelihood": 578.8768240700257,
+          "means": [
+            0.02085802116845217
+          ],
+          "variances": [
+            0.002348779558929158
+          ],
+          "weights": [
+            1.0
+          ]
+        },
+        {
+          "bic": -1219.1720416182156,
+          "components": 2,
+          "log_likelihood": 624.3012808877332,
+          "means": [
+            -0.013692992266327642,
+            0.03643305084757708
+          ],
+          "variances": [
+            0.0001,
+            0.002582154922359854
+          ],
+          "weights": [
+            0.31071731801636016,
+            0.68928268198364
+          ]
+        },
+        {
+          "bic": -1215.5837077575482,
+          "components": 3,
+          "log_likelihood": 631.3362700045747,
+          "means": [
+            -0.13633467107900457,
+            -0.013960335241160018,
+            0.04183555036559464
+          ],
+          "variances": [
+            0.0007923248308654327,
+            0.000115934362180555,
+            0.0020884397206315506
+          ],
+          "weights": [
+            0.01012972138774066,
+            0.3436223708221875,
+            0.6462479077900715
+          ]
+        }
+      ],
+      "gmm2_threshold": 0.0009556585167153145,
+      "otsu_threshold": 0.032745227217674255
+    },
+    "phase_shift_relative_log": {
+      "gmm": [
+        {
+          "bic": 966.1384598942448,
+          "components": 1,
+          "log_likelihood": -477.18312591567224,
+          "means": [
+            -2.5343005152989755
+          ],
+          "variances": [
+            0.8295601153302479
+          ],
+          "weights": [
+            1.0
+          ]
+        },
+        {
+          "bic": 956.3916628850474,
+          "components": 2,
+          "log_likelihood": -463.4805713638983,
+          "means": [
+            -3.0712450775036895,
+            -1.5954567916153963
+          ],
+          "variances": [
+            0.38076510636091493,
+            0.22874040644494922
+          ],
+          "weights": [
+            0.6361642334885983,
+            0.3638357665114021
+          ]
+        },
+        {
+          "bic": 967.1826977458804,
+          "components": 3,
+          "log_likelihood": -460.0469327471396,
+          "means": [
+            -3.444397805391018,
+            -2.5506762753214027,
+            -1.403122301687441
+          ],
+          "variances": [
+            0.11142296714593534,
+            0.6667239517374257,
+            0.10440234067509202
+          ],
+          "weights": [
+            0.18329708252133203,
+            0.6596799684838831,
+            0.1570229489947847
+          ]
+        }
+      ],
+      "gmm2_threshold": -2.178421988531231,
+      "otsu_threshold": -2.4704306816822674
+    },
+    "reverse_relative_log": {
+      "gmm": [
+        {
+          "bic": 888.789861609583,
+          "components": 1,
+          "log_likelihood": -438.50882677334135,
+          "means": [
+            -1.8405987887443869
+          ],
+          "variances": [
+            0.6691701491266442
+          ],
+          "weights": [
+            1.0
+          ]
+        },
+        {
+          "bic": 891.0057291039132,
+          "components": 2,
+          "log_likelihood": -430.7876044733312,
+          "means": [
+            -2.0737767875817994,
+            -0.7823649380047792
+          ],
+          "variances": [
+            0.4895654371118176,
+            0.11765612645780793
+          ],
+          "weights": [
+            0.8194394771011377,
+            0.18056052289886165
+          ]
+        },
+        {
+          "bic": 903.0916572860955,
+          "components": 3,
+          "log_likelihood": -428.0014125172471,
+          "means": [
+            -2.7482016951784023,
+            -2.215122569637713,
+            -0.9546122387322281
+          ],
+          "variances": [
+            1.1740702515050687,
+            0.3071975955126818,
+            0.1749542434780518
+          ],
+          "weights": [
+            0.03929766438008277,
+            0.6469623084574524,
+            0.3137400271624644
+          ]
+        }
+      ],
+      "gmm2_threshold": -1.0421606811814064,
+      "otsu_threshold": -1.781318475340033
+    },
+    "value_mismatch_relative_log": {
+      "gmm": [
+        {
+          "bic": 712.3299946038271,
+          "components": 1,
+          "log_likelihood": -350.2788932704634,
+          "means": [
+            -0.8328882777037424
+          ],
+          "variances": [
+            0.4098831274552918
+          ],
+          "weights": [
+            1.0
+          ]
+        },
+        {
+          "bic": 724.0364801717932,
+          "components": 2,
+          "log_likelihood": -347.30298000727123,
+          "means": [
+            -1.2048051294055824,
+            -0.2912048538855656
+          ],
+          "variances": [
+            0.21382035154557205,
+            0.20055933400443016
+          ],
+          "weights": [
+            0.5929107491893579,
+            0.40708925081064246
+          ]
+        },
+        {
+          "bic": 725.1600069098188,
+          "components": 3,
+          "log_likelihood": -339.03558732910875,
+          "means": [
+            -1.181729812734022,
+            -0.6771404091099205,
+            -0.17889155536157136
+          ],
+          "variances": [
+            0.19195842646954753,
+            0.4688397857841164,
+            0.011876067358586803
+          ],
+          "weights": [
+            0.42775702120775927,
+            0.451632984044969,
+            0.12060999474727124
+          ]
+        }
+      ],
+      "gmm2_threshold": -0.662578012757838,
+      "otsu_threshold": -0.775996129530903
+    }
+  },
+  "observation_counts": {
+    "cross_video": 414720,
+    "local": 414720
+  },
+  "profile_contract_passed": true,
+  "profile_count": 128,
+  "recommendation": "history_specificity_only",
+  "specificity_counts": {
+    "no_self_history_preference": 159,
+    "self_history_specific": 201
+  },
+  "specificity_reliable_fraction": 0.9472222222222222,
+  "split_half": {
+    "local": {
+      "freeze_latest_relative_log": {
+        "left_cluster_count": 64,
+        "right_cluster_count": 64,
+        "spearman": 0.9729591534914108,
+        "zero_label_agreement": 0.9333333333333333
+      },
+      "phase_shift_relative_log": {
+        "left_cluster_count": 64,
+        "right_cluster_count": 64,
+        "spearman": 0.9981504486917339,
+        "zero_label_agreement": 1.0
+      },
+      "reverse_relative_log": {
+        "left_cluster_count": 64,
+        "right_cluster_count": 64,
+        "spearman": 0.9979547167287814,
+        "zero_label_agreement": 1.0
+      },
+      "value_mismatch_relative_log": {
+        "left_cluster_count": 64,
+        "right_cluster_count": 64,
+        "spearman": 0.9934765443148996,
+        "zero_label_agreement": 0.9611111111111111
+      }
+    },
+    "specificity": {
+      "hard_history_specificity": {
+        "left_cluster_count": 64,
+        "right_cluster_count": 64,
+        "spearman": 0.9835616015555677,
+        "zero_label_agreement": 0.9694444444444444
+      },
+      "history_specificity": {
+        "left_cluster_count": 64,
+        "right_cluster_count": 64,
+        "spearman": 0.9710705072312802,
+        "zero_label_agreement": 0.9305555555555556
+      }
+    }
+  }
+}

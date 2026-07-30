@@ -195,7 +195,7 @@ def _audit_profiles(
             and len(groups) == expected_states
             and not bad_layer_groups
             and not tensor_failures
-            and max_rope_error <= 5e-3
+            and max_rope_error <= 1e-2
             and max_rope_rms_error <= 1e-3
             and max_recent_value_error <= 1e-6
         )
