@@ -38,6 +38,12 @@ class HeadProfileConfig:
     history_interventions: bool = False
     projection_dim: int = 16
     allow_prompt_schedule: bool = False
+    causal_policy_metrics: bool = False
+    policy_budget_frames: int = 8
+    persistent_probe: bool = False
+    persistent_capture_frames: tuple[int, ...] = (0, 18, 36)
+    persistent_probe_frames: tuple[int, ...] = (39, 42, 75, 78, 81, 117)
+    persistent_spatial_samples: int = 16
 
     @classmethod
     def from_env(cls) -> "HeadProfileConfig":
@@ -83,6 +89,37 @@ class HeadProfileConfig:
                 os.environ.get("HEAD_PROFILE_ALLOW_PROMPT_SCHEDULE", "0")
                 == "1"
             ),
+            causal_policy_metrics=(
+                os.environ.get("HEAD_PROFILE_CAUSAL_POLICY_METRICS", "0")
+                == "1"
+            ),
+            policy_budget_frames=max(
+                2,
+                int(os.environ.get("HEAD_PROFILE_POLICY_BUDGET_FRAMES", "8")),
+            ),
+            persistent_probe=(
+                os.environ.get("HEAD_PROFILE_PERSISTENT_PROBE", "0") == "1"
+            ),
+            persistent_capture_frames=_parse_ints(
+                os.environ.get(
+                    "HEAD_PROFILE_PERSISTENT_CAPTURE_FRAMES", ""
+                ),
+                (0, 18, 36),
+            ),
+            persistent_probe_frames=_parse_ints(
+                os.environ.get(
+                    "HEAD_PROFILE_PERSISTENT_PROBE_FRAMES", ""
+                ),
+                (39, 42, 75, 78, 81, 117),
+            ),
+            persistent_spatial_samples=max(
+                1,
+                int(
+                    os.environ.get(
+                        "HEAD_PROFILE_PERSISTENT_SPATIAL_SAMPLES", "16"
+                    )
+                ),
+            ),
         )
 
 
@@ -92,6 +129,7 @@ class HeadProfileSession:
     VERSION = 2
     HISTORY_INTERVENTION_VERSION = 4
     SCHEDULE_PROFILE_VERSION = 5
+    CAUSAL_POLICY_PROFILE_VERSION = 6
     PROJECTION_SEED = 20260729
 
     def __init__(self, config: HeadProfileConfig) -> None:
@@ -107,6 +145,13 @@ class HeadProfileSession:
         self._projection_cache: dict[
             tuple[int, int, str, int | None], torch.Tensor
         ] = {}
+        self._output_gram_cache: dict[
+            tuple[int, int, int, str, int | None], torch.Tensor
+        ] = {}
+        self._persistent_archive: dict[int, list[dict]] = {}
+        self._persistent_capture_seen: set[tuple[int, int]] = set()
+        self._persistent_probe_logged: set[int] = set()
+        self._causal_policy_logged: set[int] = set()
 
     @staticmethod
     def _load_jobs(path: Path | None) -> dict[int, dict]:
@@ -162,6 +207,10 @@ class HeadProfileSession:
         self.call_summaries = []
         self._call_index = 0
         self._recorded_layers = {}
+        self._persistent_archive = {}
+        self._persistent_capture_seen = set()
+        self._persistent_probe_logged = set()
+        self._causal_policy_logged = set()
         self._video_metadata = {
             "run_commit": os.environ.get("HEAD_PROFILE_RUN_COMMIT"),
             "seed": int(
@@ -185,6 +234,22 @@ class HeadProfileSession:
             "projection_seed": int(self.PROJECTION_SEED),
             "allow_prompt_schedule": bool(
                 self.config.allow_prompt_schedule
+            ),
+            "causal_policy_metrics": bool(
+                self.config.causal_policy_metrics
+            ),
+            "policy_budget_frames": int(
+                self.config.policy_budget_frames
+            ),
+            "persistent_probe": bool(self.config.persistent_probe),
+            "persistent_capture_frames": list(
+                self.config.persistent_capture_frames
+            ),
+            "persistent_probe_frames": list(
+                self.config.persistent_probe_frames
+            ),
+            "persistent_spatial_samples": int(
+                self.config.persistent_spatial_samples
             ),
         }
         print(
@@ -350,6 +415,569 @@ class HeadProfileSession:
             and self.context.get("branch") == "base"
         )
 
+    def wants_persistent_capture(self) -> bool:
+        context = self.context
+        return bool(
+            self.config.persistent_probe
+            and context
+            and context.get("branch") == "base"
+            and context.get("mode") == "clean"
+            and int(context.get("current_frame", -1))
+            in self.config.persistent_capture_frames
+        )
+
+    @staticmethod
+    def _sample_complete_frames(
+        tensor: torch.Tensor,
+        *,
+        frame_seq_length: int,
+        sample_count: int,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if tensor.ndim != 4:
+            raise ValueError("sampled head-profile tensor must be [B,T,H,D]")
+        if tensor.shape[1] % frame_seq_length != 0:
+            raise ValueError("sampled head-profile tensor is not frame aligned")
+        frames = tensor.shape[1] // frame_seq_length
+        spatial_index = torch.linspace(
+            0,
+            frame_seq_length - 1,
+            steps=min(sample_count, frame_seq_length),
+            device=tensor.device,
+        ).round().long().unique()
+        sampled = (
+            tensor.reshape(
+                tensor.shape[0],
+                frames,
+                frame_seq_length,
+                tensor.shape[2],
+                tensor.shape[3],
+            )
+            .index_select(2, spatial_index)
+            .reshape(
+                tensor.shape[0],
+                frames * spatial_index.numel(),
+                tensor.shape[2],
+                tensor.shape[3],
+            )
+        )
+        return sampled, spatial_index
+
+    def capture_persistent_tokens(
+        self,
+        *,
+        layer: int,
+        raw_current_key: torch.Tensor,
+        current_key: torch.Tensor,
+        current_value: torch.Tensor,
+        frame_seq_length: int,
+    ) -> None:
+        """Keep a bounded, read-only sample of A-episode K/V for later probes."""
+        if not self.wants_persistent_capture():
+            return
+        context = self.context or {}
+        current_frame = int(context["current_frame"])
+        capture_key = (int(layer), current_frame)
+        if capture_key in self._persistent_capture_seen:
+            raise RuntimeError(
+                "duplicate persistent head-profile capture: "
+                f"layer={layer} frame={current_frame}"
+            )
+        if (
+            raw_current_key.shape != current_key.shape
+            or current_key.shape != current_value.shape
+        ):
+            raise ValueError("persistent current K/V shapes differ")
+        raw_sample, spatial_index = self._sample_complete_frames(
+            raw_current_key,
+            frame_seq_length=frame_seq_length,
+            sample_count=self.config.persistent_spatial_samples,
+        )
+        post_sample, post_spatial_index = self._sample_complete_frames(
+            current_key,
+            frame_seq_length=frame_seq_length,
+            sample_count=self.config.persistent_spatial_samples,
+        )
+        value_sample, value_spatial_index = self._sample_complete_frames(
+            current_value,
+            frame_seq_length=frame_seq_length,
+            sample_count=self.config.persistent_spatial_samples,
+        )
+        if not (
+            torch.equal(spatial_index, post_spatial_index)
+            and torch.equal(spatial_index, value_spatial_index)
+        ):
+            raise RuntimeError("persistent K/V spatial samples differ")
+        frame_count = current_key.shape[1] // frame_seq_length
+        self._persistent_archive.setdefault(int(layer), []).append(
+            {
+                "capture_frame": current_frame,
+                "frame_count": int(frame_count),
+                "spatial_index": spatial_index.detach().clone(),
+                "raw_key": raw_sample.detach().clone(),
+                "post_key": post_sample.detach().clone(),
+                "value": value_sample.detach().clone(),
+            }
+        )
+        self._persistent_capture_seen.add(capture_key)
+        if int(layer) == 0:
+            print(
+                "[HeadProfile] persistent-capture "
+                f"frame={current_frame} frames={frame_count} "
+                f"spatial={spatial_index.numel()} "
+                f"tokens={post_sample.shape[1]}",
+                flush=True,
+            )
+
+    @staticmethod
+    def _per_head_rms(value: torch.Tensor) -> torch.Tensor:
+        return value.float().square().mean(dim=(0, 1, 3)).clamp_min(0).sqrt()
+
+    @staticmethod
+    def _per_head_cosine(
+        left: torch.Tensor, right: torch.Tensor
+    ) -> torch.Tensor:
+        left = left.float()
+        right = right.float()
+        numerator = (left * right).mean(dim=(0, 1, 3))
+        denominator = (
+            HeadProfileSession._per_head_rms(left)
+            * HeadProfileSession._per_head_rms(right)
+        ).clamp_min(1e-8)
+        return (numerator / denominator).clamp(-1, 1)
+
+    @staticmethod
+    def _output_projection_gram(
+        output_projection_weight: torch.Tensor,
+        *,
+        heads: int,
+        head_dim: int,
+    ) -> torch.Tensor:
+        weight = output_projection_weight.detach()
+        if weight.ndim != 2 or weight.shape[1] != heads * head_dim:
+            raise ValueError(
+                "output projection does not match attention head geometry"
+            )
+        weight_f = weight.float().reshape(weight.shape[0], heads, head_dim)
+        return torch.einsum("ohd,ohe->hde", weight_f, weight_f)
+
+    def _cached_output_projection_gram(
+        self,
+        *,
+        layer: int,
+        output_projection_weight: torch.Tensor,
+        heads: int,
+        head_dim: int,
+    ) -> torch.Tensor:
+        key = (
+            int(layer),
+            int(heads),
+            int(head_dim),
+            output_projection_weight.device.type,
+            output_projection_weight.device.index,
+        )
+        gram = self._output_gram_cache.get(key)
+        if gram is None:
+            gram = self._output_projection_gram(
+                output_projection_weight,
+                heads=heads,
+                head_dim=head_dim,
+            )
+            self._output_gram_cache[key] = gram
+        return gram
+
+    @staticmethod
+    def _projected_head_geometry(
+        value: torch.Tensor,
+        output_projection_weight: torch.Tensor,
+        projection_gram: torch.Tensor,
+    ) -> torch.Tensor:
+        if value.ndim != 4:
+            raise ValueError("attention output must have shape [B,T,H,D]")
+        heads = value.shape[2]
+        head_dim = value.shape[3]
+        if projection_gram.shape != (heads, head_dim, head_dim):
+            raise ValueError("cached output-projection Gram shape differs")
+        value = value.float()
+        energy = torch.einsum(
+            "bthd,hde,bthe->h", value, projection_gram, value
+        ).clamp_min(0)
+        normalizer = max(
+            1,
+            value.shape[0]
+            * value.shape[1]
+            * output_projection_weight.shape[0],
+        )
+        return (energy / normalizer).sqrt()
+
+    @staticmethod
+    def _output_error_metrics(
+        reference: torch.Tensor,
+        candidate: torch.Tensor,
+        output_projection_weight: torch.Tensor,
+        projection_gram: torch.Tensor,
+        projection_reference: torch.Tensor | None = None,
+        projection_candidate: torch.Tensor | None = None,
+    ) -> dict[str, torch.Tensor]:
+        if reference.shape != candidate.shape:
+            raise ValueError("causal policy outputs have different shapes")
+        delta = reference.float() - candidate.float()
+        direct_reference = HeadProfileSession._per_head_rms(reference)
+        direct_delta = HeadProfileSession._per_head_rms(delta)
+        projected_reference_value = (
+            reference
+            if projection_reference is None
+            else projection_reference
+        )
+        projected_candidate_value = (
+            candidate
+            if projection_candidate is None
+            else projection_candidate
+        )
+        if projected_reference_value.shape != projected_candidate_value.shape:
+            raise ValueError("projected policy samples have different shapes")
+        projected_delta_value = (
+            projected_reference_value.float()
+            - projected_candidate_value.float()
+        )
+        projected_reference = HeadProfileSession._projected_head_geometry(
+            projected_reference_value,
+            output_projection_weight,
+            projection_gram,
+        )
+        projected_candidate = HeadProfileSession._projected_head_geometry(
+            projected_candidate_value,
+            output_projection_weight,
+            projection_gram,
+        )
+        projected_delta = HeadProfileSession._projected_head_geometry(
+            projected_delta_value,
+            output_projection_weight,
+            projection_gram,
+        )
+        reference_f = projected_reference_value.float()
+        candidate_f = projected_candidate_value.float()
+        projected_inner = torch.einsum(
+            "bthd,hde,bthe->h",
+            reference_f,
+            projection_gram,
+            candidate_f,
+        )
+        weight_rows = output_projection_weight.shape[0]
+        normalizer = max(
+            1, reference_f.shape[0] * reference_f.shape[1] * weight_rows
+        )
+        projected_inner = projected_inner / normalizer
+        projected_cosine = projected_inner / (
+            projected_reference * projected_candidate
+        ).clamp_min(1e-8)
+        return {
+            "direct_delta_rms": direct_delta,
+            "direct_relative_error": direct_delta
+            / direct_reference.clamp_min(1e-8),
+            "direct_cosine": HeadProfileSession._per_head_cosine(
+                reference, candidate
+            ),
+            "projected_delta_rms": projected_delta,
+            "projected_relative_error": projected_delta
+            / projected_reference.clamp_min(1e-8),
+            "projected_cosine": projected_cosine.clamp(-1, 1),
+        }
+
+    @staticmethod
+    def _select_frame_tokens(
+        key: torch.Tensor,
+        value: torch.Tensor,
+        *,
+        frame_seq_length: int,
+        frame_indices: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        frames = key.shape[1] // frame_seq_length
+        if key.shape != value.shape or key.shape[1] % frame_seq_length:
+            raise ValueError("policy candidate history is not frame aligned")
+        frame_indices = frame_indices.to(device=key.device, dtype=torch.long)
+        if frame_indices.numel() == 0:
+            return key[:, :0], value[:, :0]
+        if (
+            int(frame_indices.min().item()) < 0
+            or int(frame_indices.max().item()) >= frames
+        ):
+            raise ValueError("policy candidate contains an invalid frame")
+        key_frames = key.reshape(
+            key.shape[0],
+            frames,
+            frame_seq_length,
+            key.shape[2],
+            key.shape[3],
+        )
+        value_frames = value.reshape_as(key_frames)
+        selected_key = key_frames.index_select(1, frame_indices).flatten(1, 2)
+        selected_value = value_frames.index_select(
+            1, frame_indices
+        ).flatten(1, 2)
+        return selected_key, selected_value
+
+    def _policy_frame_sets(self, history_frames: int) -> dict[str, torch.Tensor]:
+        device = torch.device("cpu")
+        budget = min(self.config.policy_budget_frames, history_frames)
+        recent_reference = min(self.config.recent_frames, budget)
+        recent8 = torch.arange(
+            history_frames - budget, history_frames, device=device
+        )
+        boundary_old = min(3, budget - 1)
+        boundary_recent = budget - boundary_old
+        boundary = torch.cat(
+            (
+                torch.arange(boundary_old, device=device),
+                torch.arange(
+                    history_frames - boundary_recent,
+                    history_frames,
+                    device=device,
+                ),
+            )
+        ).unique(sorted=True)
+        uniform_old_count = budget - recent_reference
+        old_end = history_frames - recent_reference
+        if uniform_old_count > 0:
+            uniform_old = torch.linspace(
+                0,
+                max(0, old_end - 1),
+                steps=uniform_old_count,
+                device=device,
+            ).round().long().unique(sorted=True)
+        else:
+            uniform_old = torch.empty(0, dtype=torch.long, device=device)
+        uniform_recent = torch.arange(
+            history_frames - recent_reference,
+            history_frames,
+            device=device,
+        )
+        uniform = torch.cat((uniform_old, uniform_recent)).unique(sorted=True)
+        if uniform.numel() < budget:
+            used = set(int(value) for value in uniform.tolist())
+            fill = [
+                index
+                for index in range(history_frames - 1, -1, -1)
+                if index not in used
+            ][: budget - uniform.numel()]
+            uniform = torch.tensor(
+                sorted([*used, *fill]), dtype=torch.long, device=device
+            )
+        recent_small = torch.arange(
+            history_frames - min(self.config.recent_frames, history_frames),
+            history_frames,
+            device=device,
+        )
+        return {
+            "current_only": torch.empty(0, dtype=torch.long, device=device),
+            "recent4": recent_small,
+            "recent_budget": recent8,
+            "boundary_recent": boundary,
+            "uniform_recent": uniform,
+        }
+
+    def _causal_policy_probe(
+        self,
+        *,
+        query: torch.Tensor,
+        current_key: torch.Tensor,
+        current_value: torch.Tensor,
+        history_key: torch.Tensor,
+        history_value: torch.Tensor,
+        native_output: torch.Tensor,
+        frame_seq_length: int,
+        attention_fn: Callable[
+            [torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor
+        ],
+        output_projection_weight: torch.Tensor,
+        projection_gram: torch.Tensor,
+    ) -> tuple[dict[str, dict[str, torch.Tensor]], dict]:
+        history_frames = history_key.shape[1] // frame_seq_length
+        full_key = torch.cat((history_key, current_key), dim=1)
+        full_value = torch.cat((history_value, current_value), dim=1)
+        reconstructed = attention_fn(query, full_key, full_value)
+        reconstruction_delta = reconstructed.float() - native_output.float()
+        relative_max = (
+            reconstruction_delta.abs().max()
+            / native_output.float().abs().max().clamp_min(1e-8)
+        )
+        relative_rms = (
+            reconstruction_delta.square().mean().sqrt()
+            / native_output.float().square().mean().sqrt().clamp_min(1e-8)
+        )
+        frame_sets = self._policy_frame_sets(history_frames)
+        projected_native, _ = self._sample_complete_frames(
+            native_output,
+            frame_seq_length=frame_seq_length,
+            sample_count=self.config.spatial_samples,
+        )
+        metrics: dict[str, dict[str, torch.Tensor]] = {}
+        frame_indices: dict[str, torch.Tensor] = {}
+        for name, indices in frame_sets.items():
+            selected_key, selected_value = self._select_frame_tokens(
+                history_key,
+                history_value,
+                frame_seq_length=frame_seq_length,
+                frame_indices=indices,
+            )
+            candidate = attention_fn(
+                query,
+                torch.cat((selected_key, current_key), dim=1),
+                torch.cat((selected_value, current_value), dim=1),
+            )
+            metrics[name] = self._output_error_metrics(
+                native_output,
+                candidate,
+                output_projection_weight,
+                projection_gram,
+                projection_reference=projected_native,
+                projection_candidate=self._sample_complete_frames(
+                    candidate,
+                    frame_seq_length=frame_seq_length,
+                    sample_count=self.config.spatial_samples,
+                )[0],
+            )
+            frame_indices[name] = indices.to(torch.int16)
+        metadata = {
+            "history_frames": int(history_frames),
+            "budget_frames": int(
+                min(self.config.policy_budget_frames, history_frames)
+            ),
+            "eligible_budget_comparison": bool(
+                history_frames > self.config.policy_budget_frames
+            ),
+            "native_reconstruction_relative_max": float(relative_max),
+            "native_reconstruction_relative_rms": float(relative_rms),
+            "frame_indices": frame_indices,
+        }
+        return metrics, metadata
+
+    @staticmethod
+    def _qk_probe_metrics(
+        query: torch.Tensor, key: torch.Tensor
+    ) -> dict[str, torch.Tensor]:
+        query_f = torch.nn.functional.normalize(query.float(), dim=-1)
+        key_f = torch.nn.functional.normalize(key.float(), dim=-1)
+        cosine = torch.einsum("bqhd,bkhd->bhqk", query_f, key_f)
+        top_count = min(2, cosine.shape[-1])
+        top = cosine.topk(top_count, dim=-1).values
+        top1 = top[..., 0].mean(dim=(0, 2))
+        margin = (
+            (top[..., 0] - top[..., 1]).mean(dim=(0, 2))
+            if top_count > 1
+            else torch.zeros_like(top1)
+        )
+        logits = torch.einsum(
+            "bqhd,bkhd->bhqk", query.float(), key.float()
+        ) / math.sqrt(query.shape[-1])
+        probabilities = logits.softmax(dim=-1)
+        entropy = -(
+            probabilities
+            * probabilities.clamp_min(1e-8).log()
+        ).sum(dim=-1)
+        entropy = entropy / max(1.0, math.log(max(2, key.shape[1])))
+        return {
+            "top1_cosine": top1,
+            "top1_margin": margin,
+            "normalized_entropy": entropy.mean(dim=(0, 2)),
+            "mean_logsumexp": logits.logsumexp(dim=-1).mean(dim=(0, 2)),
+        }
+
+    def _persistent_probe_metrics(
+        self,
+        *,
+        layer: int,
+        raw_query: torch.Tensor,
+        query: torch.Tensor,
+        native_output: torch.Tensor,
+        frame_seq_length: int,
+        attention_fn: Callable[
+            [torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor
+        ],
+        output_projection_weight: torch.Tensor,
+        projection_gram: torch.Tensor,
+    ) -> tuple[dict[str, torch.Tensor], dict] | None:
+        context = self.context or {}
+        current_frame = int(context.get("current_frame", -1))
+        if (
+            not self.config.persistent_probe
+            or current_frame not in self.config.persistent_probe_frames
+        ):
+            return None
+        entries = sorted(
+            self._persistent_archive.get(int(layer), []),
+            key=lambda row: int(row["capture_frame"]),
+        )
+        if not entries:
+            if self.config.strict:
+                raise RuntimeError(
+                    f"persistent probe has no archive for layer={layer}"
+                )
+            return None
+        expected = set(self.config.persistent_capture_frames)
+        captured = {int(row["capture_frame"]) for row in entries}
+        if self.config.strict and captured != expected:
+            raise RuntimeError(
+                "persistent probe archive is incomplete: "
+                f"layer={layer} expected={sorted(expected)} "
+                f"captured={sorted(captured)}"
+            )
+        raw_key = torch.cat(
+            [row["raw_key"].to(raw_query.device) for row in entries], dim=1
+        ).type_as(raw_query)
+        post_key = torch.cat(
+            [row["post_key"].to(query.device) for row in entries], dim=1
+        ).type_as(query)
+        value = torch.cat(
+            [row["value"].to(query.device) for row in entries], dim=1
+        ).type_as(query)
+        raw_query_sample, _ = self._sample_complete_frames(
+            raw_query,
+            frame_seq_length=frame_seq_length,
+            sample_count=self.config.persistent_spatial_samples,
+        )
+        query_sample, _ = self._sample_complete_frames(
+            query,
+            frame_seq_length=frame_seq_length,
+            sample_count=self.config.persistent_spatial_samples,
+        )
+        persistent_output = attention_fn(query, post_key, value)
+        content = self._qk_probe_metrics(raw_query_sample, raw_key)
+        positioned = self._qk_probe_metrics(query_sample, post_key)
+        output = self._output_error_metrics(
+            native_output,
+            persistent_output,
+            output_projection_weight,
+            projection_gram,
+            projection_reference=self._sample_complete_frames(
+                native_output,
+                frame_seq_length=frame_seq_length,
+                sample_count=self.config.spatial_samples,
+            )[0],
+            projection_candidate=self._sample_complete_frames(
+                persistent_output,
+                frame_seq_length=frame_seq_length,
+                sample_count=self.config.spatial_samples,
+            )[0],
+        )
+        metrics = {
+            **{f"content_{key}": value for key, value in content.items()},
+            **{
+                f"positioned_{key}": value
+                for key, value in positioned.items()
+            },
+            **{f"output_{key}": value for key, value in output.items()},
+            "output_rms": self._per_head_rms(persistent_output),
+            "output_native_cosine": self._per_head_cosine(
+                native_output, persistent_output
+            ),
+        }
+        metadata = {
+            "archive_tokens": int(post_key.shape[1]),
+            "capture_frames": sorted(captured),
+            "capture_blocks": int(len(entries)),
+        }
+        return metrics, metadata
+
     @staticmethod
     def _signature(tensor: torch.Tensor) -> torch.Tensor:
         value = tensor.detach().float()
@@ -504,6 +1132,10 @@ class HeadProfileSession:
         attention_fn: Callable[[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor],
         history_intervention_outputs: dict[str, torch.Tensor] | None = None,
         history_intervention_metadata: dict[str, float] | None = None,
+        raw_query: torch.Tensor | None = None,
+        raw_current_key: torch.Tensor | None = None,
+        current_value: torch.Tensor | None = None,
+        output_projection_weight: torch.Tensor | None = None,
     ) -> None:
         context = self.context
         if not context or not context["capture"]:
@@ -560,6 +1192,92 @@ class HeadProfileSession:
             "temporal_probs": temporal_probs,
             "history_frame_ids": history_frame_ids,
         }
+        projection_gram = None
+        if self.config.causal_policy_metrics or self.config.persistent_probe:
+            if output_projection_weight is None:
+                raise RuntimeError(
+                    "output-causal profiling requires output projection weight"
+                )
+            projection_gram = self._cached_output_projection_gram(
+                layer=int(layer),
+                output_projection_weight=output_projection_weight,
+                heads=native_output.shape[2],
+                head_dim=native_output.shape[3],
+            )
+        if self.config.causal_policy_metrics:
+            if current_value is None or output_projection_weight is None:
+                raise RuntimeError(
+                    "causal policy profiling requires current V and output "
+                    "projection weight"
+                )
+            policy_metrics, policy_metadata = self._causal_policy_probe(
+                query=query,
+                current_key=current_key,
+                current_value=current_value,
+                history_key=history_key,
+                history_value=history_value,
+                native_output=native_output,
+                frame_seq_length=frame_seq_length,
+                attention_fn=attention_fn,
+                output_projection_weight=output_projection_weight,
+                projection_gram=projection_gram,
+            )
+            record["causal_policy_metrics"] = policy_metrics
+            record["causal_policy_metadata"] = policy_metadata
+            current_frame = int(context["current_frame"])
+            if int(layer) == 0 and current_frame not in self._causal_policy_logged:
+                self._causal_policy_logged.add(current_frame)
+                print(
+                    "[HeadProfile] causal-policy "
+                    f"frame={current_frame} branch={context['branch']} "
+                    f"history={history_frames} "
+                    f"budget={policy_metadata['budget_frames']} "
+                    "candidates="
+                    f"{sorted(policy_metrics)} "
+                    "parity_rms="
+                    f"{policy_metadata['native_reconstruction_relative_rms']:.3g}",
+                    flush=True,
+                )
+        if self.config.persistent_probe:
+            if (
+                raw_query is None
+                or raw_current_key is None
+                or current_value is None
+                or output_projection_weight is None
+            ):
+                raise RuntimeError(
+                    "persistent profiling requires raw Q/K, current V, and "
+                    "output projection weight"
+                )
+            persistent = self._persistent_probe_metrics(
+                layer=int(layer),
+                raw_query=raw_query,
+                query=query,
+                native_output=native_output,
+                frame_seq_length=frame_seq_length,
+                attention_fn=attention_fn,
+                output_projection_weight=output_projection_weight,
+                projection_gram=projection_gram,
+            )
+            if persistent is not None:
+                persistent_metrics, persistent_metadata = persistent
+                record["persistent_probe_metrics"] = persistent_metrics
+                record["persistent_probe_metadata"] = persistent_metadata
+                current_frame = int(context["current_frame"])
+                if (
+                    int(layer) == 0
+                    and current_frame not in self._persistent_probe_logged
+                ):
+                    self._persistent_probe_logged.add(current_frame)
+                    print(
+                        "[HeadProfile] persistent-probe "
+                        f"frame={current_frame} branch={context['branch']} "
+                        f"archive_tokens="
+                        f"{persistent_metadata['archive_tokens']} "
+                        f"captures="
+                        f"{persistent_metadata['capture_frames']}",
+                        flush=True,
+                    )
         if self.config.history_interventions:
             if context["branch"] != "base":
                 raise RuntimeError(
@@ -601,6 +1319,20 @@ class HeadProfileSession:
         self.records.append(record)
         self._recorded_layers[call_index].add(int(layer))
 
+    @classmethod
+    def _detach_to_cpu(cls, value):
+        if isinstance(value, torch.Tensor):
+            return value.detach().cpu()
+        if isinstance(value, dict):
+            return {
+                key: cls._detach_to_cpu(item) for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [cls._detach_to_cpu(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(cls._detach_to_cpu(item) for item in value)
+        return value
+
     def end_video(self, *, expected_layers: int) -> Path:
         if self.active_job is None:
             raise RuntimeError("no active head-profile video")
@@ -618,6 +1350,20 @@ class HeadProfileSession:
                 "incomplete head-profile layer coverage: "
                 f"{sample} ({len(incomplete)} calls)"
             )
+        persistent_missing: list[tuple[int, int]] = []
+        if self.config.persistent_probe:
+            persistent_missing = [
+                (layer, frame)
+                for layer in range(expected_layers)
+                for frame in self.config.persistent_capture_frames
+                if (layer, frame) not in self._persistent_capture_seen
+            ]
+            if persistent_missing and self.config.strict:
+                raise RuntimeError(
+                    "incomplete persistent head-profile archive: "
+                    f"{persistent_missing[:8]} "
+                    f"({len(persistent_missing)} missing)"
+                )
         job = dict(self.active_job)
         output_dir = self.config.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -625,19 +1371,25 @@ class HeadProfileSession:
         output = output_dir / (
             f"{dataset_index:05d}_{_safe_stem(str(job['job_id']))}.pt"
         )
-        for record in self.records:
-            for key, value in list(record.items()):
-                if isinstance(value, torch.Tensor):
-                    record[key] = value.detach().cpu()
+        self.records = [
+            self._detach_to_cpu(record) for record in self.records
+        ]
         payload = {
             "version": (
-                self.HISTORY_INTERVENTION_VERSION
-                if self.config.history_interventions
+                self.CAUSAL_POLICY_PROFILE_VERSION
+                if (
+                    self.config.causal_policy_metrics
+                    or self.config.persistent_probe
+                )
                 else (
-                    self.SCHEDULE_PROFILE_VERSION
-                    if job.get("shadow_prompts") is not None
-                    or "||" in str(job.get("base_prompt", ""))
-                    else self.VERSION
+                    self.HISTORY_INTERVENTION_VERSION
+                    if self.config.history_interventions
+                    else (
+                        self.SCHEDULE_PROFILE_VERSION
+                        if job.get("shadow_prompts") is not None
+                        or "||" in str(job.get("base_prompt", ""))
+                        else self.VERSION
+                    )
                 )
             ),
             "job": job,
@@ -647,6 +1399,10 @@ class HeadProfileSession:
                 "record_count": len(self.records),
                 "captured_calls": len(self.call_summaries),
                 "incomplete_calls": incomplete,
+                "persistent_capture_count": len(
+                    self._persistent_capture_seen
+                ),
+                "persistent_capture_missing": persistent_missing,
                 "manifest_path": (
                     str(self.config.manifest_path)
                     if self.config.manifest_path is not None
@@ -670,6 +1426,10 @@ class HeadProfileSession:
         self.context = None
         self.call_summaries = []
         self._recorded_layers = {}
+        self._persistent_archive = {}
+        self._persistent_capture_seen = set()
+        self._persistent_probe_logged = set()
+        self._causal_policy_logged = set()
         return output
 
 

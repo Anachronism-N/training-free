@@ -381,6 +381,10 @@ class CausalWanSelfAttention(nn.Module):
                         native_output=x,
                         frame_seq_length=int(frame_seqlen),
                         attention_fn=attention,
+                        raw_query=q,
+                        raw_current_key=k,
+                        current_value=v,
+                        output_projection_weight=self.o.weight,
                     )
                 x = self.o(x.flatten(2))
                 return x
@@ -855,6 +859,14 @@ class CausalWanSelfAttention(nn.Module):
                         kv_cache["k"][:, attn_start:local_end_index],
                         kv_cache["v"][:, attn_start:local_end_index]
                     )
+            if profile_session is not None and block_index is not None:
+                profile_session.capture_persistent_tokens(
+                    layer=int(block_index),
+                    raw_current_key=k,
+                    current_key=roped_key,
+                    current_value=v,
+                    frame_seq_length=int(frame_seqlen),
+                )
             if (
                 profile_session is not None
                 and block_index is not None
@@ -920,6 +932,10 @@ class CausalWanSelfAttention(nn.Module):
                     attention_fn=attention,
                     history_intervention_outputs=intervention_outputs,
                     history_intervention_metadata=intervention_metadata,
+                    raw_query=q,
+                    raw_current_key=k,
+                    current_value=v,
+                    output_projection_weight=self.o.weight,
                 )
             if structured_memory_active:
                 x = self._fuse_episodic_memory(
