@@ -73,6 +73,9 @@ def test_dominant_factor_diagnostic_allows_unresolved_heads():
     for factor in MODULE.SEMANTIC_FACTORS:
         assert dominant["discovery_counts"][factor] > 0
     assert dominant["split_agreement"] == 1.0
+    assert dominant["both_splits_resolved_count"] > 0
+    assert dominant["both_splits_resolved_agreement"] == 1.0
+    assert dominant["both_splits_unresolved_count"] > 0
 
 
 def test_context_seed_excess_is_paired_before_family_aggregation():

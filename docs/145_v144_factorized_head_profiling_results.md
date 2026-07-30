@@ -62,6 +62,26 @@ H = 12 heads per layer, R = 4 recent frames, D = 16 projection dimensions.
 
 ## 4. Results summary
 
+### Post-hoc evidence correction
+
+The original total of 85 split-stable features mixes two different kinds of
+evidence. Seventy-seven are raw perturbation features and only eight are
+`semantic - seed_control` features. The raw Q/K/V/policy/topology responses
+are highly correlated with the same-prompt different-seed control and should
+be interpreted as generic trajectory susceptibility, not semantic
+selectivity.
+
+Likewise, 68 context-stable features consist of 65 raw features and only three
+seed-corrected features (`identity`, `camera`, and `paraphrase` query shift)
+under the median-context gate. None of those three passes every captured
+state at rho >= 0.30. The dominant-factor total agreement of 0.4556 includes
+145 heads that are unresolved in both splits; among the 64 heads resolved in
+both splits, only 19 agree (0.2969). The compatibility-loss features used for
+those labels do not pass split stability, so the factor labels are not a
+usable taxonomy.
+
+These corrected counts are emitted explicitly by the updated v144 analyzer.
+
 | Metric | Value |
 |---|---|
 | Profiles | 128 |

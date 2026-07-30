@@ -936,22 +936,37 @@ class HeadProfileSession:
             or current_frame not in self.config.persistent_probe_frames
         ):
             return None
-        entries = sorted(
+        archive_entries = sorted(
             self._persistent_archive.get(int(layer), []),
             key=lambda row: int(row["capture_frame"]),
         )
+        # A clean-context capture can occur immediately before a probe at the
+        # same AR start. It is current-block content, not persistent history.
+        # Using only older entries also gives noisy and clean probes at this
+        # frame the same archive contract.
+        entries = [
+            row
+            for row in archive_entries
+            if int(row["capture_frame"]) < current_frame
+        ]
         if not entries:
             if self.config.strict:
                 raise RuntimeError(
-                    f"persistent probe has no archive for layer={layer}"
+                    "persistent probe has no strictly older archive: "
+                    f"layer={layer} frame={current_frame}"
                 )
             return None
-        expected = set(self.config.persistent_capture_frames)
+        expected = {
+            int(frame)
+            for frame in self.config.persistent_capture_frames
+            if int(frame) < current_frame
+        }
         captured = {int(row["capture_frame"]) for row in entries}
         if self.config.strict and captured != expected:
             raise RuntimeError(
                 "persistent probe archive is incomplete: "
-                f"layer={layer} expected={sorted(expected)} "
+                f"layer={layer} frame={current_frame} "
+                f"expected_older={sorted(expected)} "
                 f"captured={sorted(captured)}"
             )
         raw_key = torch.cat(
@@ -1007,6 +1022,10 @@ class HeadProfileSession:
         metadata = {
             "archive_tokens": int(post_key.shape[1]),
             "capture_frames": sorted(captured),
+            "configured_capture_frames": list(
+                self.config.persistent_capture_frames
+            ),
+            "strictly_older_than_frame": current_frame,
             "capture_blocks": int(len(entries)),
         }
         return metrics, metadata

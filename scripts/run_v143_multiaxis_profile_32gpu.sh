@@ -25,6 +25,9 @@ AB_ROOT="$OUT_ROOT/ab32"
 ANALYSIS_ROOT="$OUT_ROOT/analysis"
 CLUSTER_ROOT="$OUT_ROOT/clustering"
 CLUSTER_SENSITIVITY_ROOT="$CLUSTER_ROOT/sensitivity"
+CLUSTER_RESIDUAL_ROOT="$OUT_ROOT/clustering_layer_residual"
+CLUSTER_RESIDUAL_SENSITIVITY_ROOT="$CLUSTER_RESIDUAL_ROOT/sensitivity"
+CONTEXT_ROLE_ROOT="$OUT_ROOT/context_conditioned_roles"
 PACKAGE_ROOT="${V143_PACKAGE_ROOT:-$ROOT/docs/results/v143_multiaxis_profile}"
 
 NATURAL_PROMPTS="$INPUT_ROOT/v143_natural_128.txt"
@@ -270,6 +273,14 @@ assert payload["metadata"]["switch_frames"] == [57]
 assert payload["metadata"]["region_attention_method"] == "sampled_token_softmax_cartesian"
 assert log.count("[PromptSchedule]") == 1
 assert all("region_attention_metrics" in row for row in payload["records"])
+for row in payload["records"]:
+    metadata = row.get("persistent_probe_metadata")
+    if metadata is None:
+        continue
+    frame = int(row["current_frame"])
+    expected = [value for value in (0, 18, 36, 54) if value < frame]
+    assert metadata["capture_frames"] == expected
+    assert metadata["strictly_older_than_frame"] == frame
 print("[v143-smoke-ab] contract: PASS")
 PY
 }
@@ -347,6 +358,16 @@ for root_text, expected, calls, records, captures in (
         assert metadata["region_attention_method"] == "sampled_token_softmax_cartesian"
         assert not metadata["incomplete_calls"]
         assert all("region_attention_metrics" in row for row in payload["records"])
+        for row in payload["records"]:
+            probe = row.get("persistent_probe_metadata")
+            if probe is None:
+                continue
+            frame = int(row["current_frame"])
+            expected_frames = [
+                value for value in (0, 18, 36, 54) if value < frame
+            ]
+            assert probe["capture_frames"] == expected_frames
+            assert probe["strictly_older_than_frame"] == frame
 print("[v143-audit] profile and video counts: PASS")
 PY
     if grep -R -n -E 'Traceback|CUDA out of memory|AssertionError' \
@@ -371,13 +392,15 @@ analyze() {
 cluster_one() {
     local output_dir="$1"
     local minimum_rho="$2"
-    shift 2
+    local coordinate_system="$3"
+    shift 3
     python "$ROOT/scripts/cluster_v143_multiaxis_head_taxonomy.py" \
         --v136-analysis-dir "$V136_ANALYSIS" \
         --v138-analysis-dir "$V138_ANALYSIS" \
         --v143-analysis-dir "$ANALYSIS_ROOT" \
         --pf-labels "$PF_LABELS" \
         --v98-labels "$V98_LABELS" \
+        --coordinate-system "$coordinate_system" \
         --min-feature-split-rho "$minimum_rho" \
         --output-dir "$output_dir" \
         "$@"
@@ -389,24 +412,38 @@ cluster() {
         exit 2
     }
     activate_env
-    cluster_one "$CLUSTER_ROOT" 0.30
-    mkdir -p "$CLUSTER_SENSITIVITY_ROOT"
-    cluster_one "$CLUSTER_SENSITIVITY_ROOT/rho_050" 0.50
-    cluster_one "$CLUSTER_SENSITIVITY_ROOT/rho_070" 0.70
-    local group
-    for group in \
-        prompt_modulation temporal_allocation history_intervention \
-        history_specificity output_policy episodic_compatibility \
-        switch_plasticity; do
-        cluster_one \
-            "$CLUSTER_SENSITIVITY_ROOT/drop_${group}" \
-            0.30 \
-            --exclude-feature-group "$group"
+    local coordinate baseline sensitivity
+    for coordinate in raw layer_residual; do
+        if [[ "$coordinate" == "raw" ]]; then
+            baseline="$CLUSTER_ROOT"
+            sensitivity="$CLUSTER_SENSITIVITY_ROOT"
+        else
+            baseline="$CLUSTER_RESIDUAL_ROOT"
+            sensitivity="$CLUSTER_RESIDUAL_SENSITIVITY_ROOT"
+        fi
+        cluster_one "$baseline" 0.30 "$coordinate"
+        mkdir -p "$sensitivity"
+        cluster_one "$sensitivity/rho_050" 0.50 "$coordinate"
+        cluster_one "$sensitivity/rho_070" 0.70 "$coordinate"
+        local group
+        for group in \
+            prompt_modulation temporal_allocation history_intervention \
+            history_specificity output_policy episodic_compatibility \
+            switch_plasticity; do
+            cluster_one \
+                "$sensitivity/drop_${group}" \
+                0.30 \
+                "$coordinate" \
+                --exclude-feature-group "$group"
+        done
+        python "$ROOT/scripts/summarize_v143_cluster_sensitivity.py" \
+            --baseline-dir "$baseline" \
+            --variant-root "$sensitivity" \
+            --output-dir "$baseline"
     done
-    python "$ROOT/scripts/summarize_v143_cluster_sensitivity.py" \
-        --baseline-dir "$CLUSTER_ROOT" \
-        --variant-root "$CLUSTER_SENSITIVITY_ROOT" \
-        --output-dir "$CLUSTER_ROOT"
+    python "$ROOT/scripts/analyze_v144_context_conditioned_head_roles.py" \
+        --context-csv "$ANALYSIS_ROOT/ab_context_axes.csv" \
+        --output-dir "$CONTEXT_ROLE_ROOT"
 }
 
 package() {
@@ -422,13 +459,25 @@ package() {
         echo "[error] run cluster first"
         exit 2
     }
-    mkdir -p "$PACKAGE_ROOT"
-    cp "$ANALYSIS_ROOT/"*.csv "$PACKAGE_ROOT/"
-    cp "$ANALYSIS_ROOT/"*.json "$PACKAGE_ROOT/"
-    cp "$ANALYSIS_ROOT/"*.md "$PACKAGE_ROOT/"
-    cp "$CLUSTER_ROOT/"*.csv "$PACKAGE_ROOT/" 2>/dev/null || true
-    cp "$CLUSTER_ROOT/"*.json "$PACKAGE_ROOT/"
-    cp "$CLUSTER_ROOT/"*.md "$PACKAGE_ROOT/"
+    [[ -f "$CLUSTER_RESIDUAL_ROOT/clustering_report.json" ]] || {
+        echo "[error] layer-residual cluster result is missing"
+        exit 2
+    }
+    mkdir -p \
+        "$PACKAGE_ROOT/analysis" \
+        "$PACKAGE_ROOT/clustering_raw" \
+        "$PACKAGE_ROOT/clustering_layer_residual" \
+        "$PACKAGE_ROOT/context_conditioned_roles"
+    cp "$ANALYSIS_ROOT/"*.csv "$PACKAGE_ROOT/analysis/"
+    cp "$ANALYSIS_ROOT/"*.json "$PACKAGE_ROOT/analysis/"
+    cp "$ANALYSIS_ROOT/"*.md "$PACKAGE_ROOT/analysis/"
+    cp -R "$CLUSTER_ROOT/." "$PACKAGE_ROOT/clustering_raw/"
+    cp -R \
+        "$CLUSTER_RESIDUAL_ROOT/." \
+        "$PACKAGE_ROOT/clustering_layer_residual/"
+    cp -R \
+        "$CONTEXT_ROLE_ROOT/." \
+        "$PACKAGE_ROOT/context_conditioned_roles/"
     echo "[v143-package] wrote $PACKAGE_ROOT"
 }
 

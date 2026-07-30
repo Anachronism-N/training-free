@@ -1,5 +1,6 @@
 import json
 import math
+from dataclasses import replace
 from pathlib import Path
 
 import torch
@@ -144,6 +145,74 @@ def test_v142_records_policy_errors_and_persistent_a_probe(tmp_path):
     assert persistent["positioned_normalized_entropy"].shape == (2,)
     assert persistent["output_projected_relative_error"].shape == (2,)
     assert record["persistent_probe_metadata"]["archive_tokens"] == 6
+
+
+def test_persistent_probe_excludes_same_frame_clean_capture(tmp_path):
+    session = _session(tmp_path)
+    session.config = replace(
+        session.config,
+        persistent_capture_frames=(0, 39),
+        persistent_probe_frames=(39,),
+    )
+    session.begin_video(
+        dataset_index=0,
+        text_prompts=["A || B || A"],
+        num_frames=120,
+        frame_seq_length=4,
+        num_frame_per_block=3,
+        local_attn_size=21,
+    )
+
+    torch.manual_seed(39)
+    for frame in (0, 39):
+        session.set_call_context(
+            branch="base",
+            mode="clean",
+            current_frame=frame,
+            nominal_timestep=0,
+            actual_timestep=0.0,
+        )
+        raw_key = torch.randn(1, 12, 2, 4)
+        key = raw_key + 0.01
+        value = torch.randn_like(key)
+        session.capture_persistent_tokens(
+            layer=0,
+            raw_current_key=raw_key,
+            current_key=key,
+            current_value=value,
+            frame_seq_length=4,
+        )
+
+    raw_query = torch.randn(1, 12, 2, 4)
+    query = raw_query + 0.02
+    current_key = torch.randn_like(query)
+    current_value = torch.randn_like(query)
+    history_key = torch.randn(1, 32, 2, 4)
+    history_value = torch.randn_like(history_key)
+    native_output = _attention(
+        query,
+        torch.cat((history_key, current_key), dim=1),
+        torch.cat((history_value, current_value), dim=1),
+    )
+    session.record_attention(
+        layer=0,
+        query=query,
+        current_key=current_key,
+        history_key=history_key,
+        history_value=history_value,
+        native_output=native_output,
+        frame_seq_length=4,
+        attention_fn=_attention,
+        raw_query=raw_query,
+        raw_current_key=current_key,
+        current_value=current_value,
+        output_projection_weight=torch.eye(8),
+    )
+
+    metadata = session.records[0]["persistent_probe_metadata"]
+    assert metadata["capture_frames"] == [0]
+    assert metadata["configured_capture_frames"] == [0, 39]
+    assert metadata["strictly_older_than_frame"] == 39
 
 
 def test_v142_model_passes_raw_and_projection_inputs_to_profiler():

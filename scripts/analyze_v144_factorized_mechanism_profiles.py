@@ -46,6 +46,7 @@ TOPOLOGY_FIELDS = (
 EPSILON = 1e-8
 DOMINANT_MIN_Z = 0.50
 DOMINANT_MIN_MARGIN = 0.25
+ALL_CONTEXT_MIN_SPLIT_RHO = 0.30
 
 
 def _write_csv(path: Path, rows: list[dict]) -> None:
@@ -603,6 +604,13 @@ def _context_head_axes(
                     "minimum_layer_residual_cross_context_spearman": float(
                         min(correlations)
                     ),
+                    "all_context_split_stable": int(
+                        min(
+                            row["layer_residual_split_spearman"]
+                            for row in relevant_audits
+                        )
+                        >= ALL_CONTEXT_MIN_SPLIT_RHO
+                    ),
                     "state_interpretation": (
                         "context_stable_candidate"
                         if (
@@ -765,6 +773,29 @@ def _head_axes(
             discovery == validation
         )
     counts = Counter(discovery_labels)
+    both_resolved = [
+        index
+        for index, (discovery, validation) in enumerate(
+            zip(discovery_labels, validation_labels)
+        )
+        if discovery != "unresolved" and validation != "unresolved"
+    ]
+    both_resolved_agreement = sum(
+        discovery_labels[index] == validation_labels[index]
+        for index in both_resolved
+    )
+    both_unresolved = sum(
+        discovery == validation == "unresolved"
+        for discovery, validation in zip(
+            discovery_labels, validation_labels
+        )
+    )
+    one_split_unresolved = sum(
+        (discovery == "unresolved") != (validation == "unresolved")
+        for discovery, validation in zip(
+            discovery_labels, validation_labels
+        )
+    )
     label_space = (*SEMANTIC_FACTORS, "unresolved")
     dominant_report = {
         "split_agreement": float(
@@ -778,6 +809,15 @@ def _head_axes(
         )
         / TOTAL_HEADS,
         "unresolved_fraction": counts.get("unresolved", 0) / TOTAL_HEADS,
+        "both_splits_resolved_count": len(both_resolved),
+        "both_splits_resolved_agreement_count": both_resolved_agreement,
+        "both_splits_resolved_agreement": (
+            both_resolved_agreement / len(both_resolved)
+            if both_resolved
+            else float("nan")
+        ),
+        "both_splits_unresolved_count": both_unresolved,
+        "one_split_unresolved_count": one_split_unresolved,
         "minimum_standardized_score": DOMINANT_MIN_Z,
         "minimum_standardized_margin": DOMINANT_MIN_MARGIN,
         "factor_scaling": factor_scaling,
@@ -820,6 +860,48 @@ def analyze(profile_dir: Path, output_dir: Path, expected_count: int) -> dict:
         if float(row["layer_residual_split_spearman"]) >= 0.3
         and float(row["layer_residual_discovery_iqr"]) > 1e-8
     ]
+    stable_raw = [
+        feature for feature in stable_residual if "excess_seed" not in feature
+    ]
+    stable_corrected = [
+        feature for feature in stable_residual if "excess_seed" in feature
+    ]
+    eligible_raw = [
+        row["feature"]
+        for row in feature_audit
+        if "excess_seed" not in row["feature"]
+    ]
+    eligible_corrected = [
+        row["feature"]
+        for row in feature_audit
+        if "excess_seed" in row["feature"]
+    ]
+    context_raw = [
+        row for row in context_stability
+        if "excess_seed" not in row["variant"]
+    ]
+    context_corrected = [
+        row for row in context_stability
+        if "excess_seed" in row["variant"]
+    ]
+    audit_by_feature = {
+        str(row["feature"]): row for row in feature_audit
+    }
+    label_input_features = {}
+    for factor in SEMANTIC_FACTORS:
+        feature = f"{factor}.compatibility_loss_excess_seed"
+        audit = audit_by_feature[feature]
+        label_input_features[feature] = {
+            "raw_split_spearman": float(audit["raw_split_spearman"]),
+            "layer_residual_split_spearman": float(
+                audit["layer_residual_split_spearman"]
+            ),
+            "split_stable": bool(feature in stable_residual),
+        }
+    dominant["label_input_features"] = label_input_features
+    dominant["descriptive_label_stability_gate"] = all(
+        row["split_stable"] for row in label_input_features.values()
+    )
     report = {
         "version": 1,
         "profile_count": len(indexed),
@@ -831,10 +913,29 @@ def analyze(profile_dir: Path, output_dir: Path, expected_count: int) -> dict:
         "head_count": len(head_axes),
         "split_stable_layer_residual_features": stable_residual,
         "split_stable_layer_residual_feature_count": len(stable_residual),
+        "raw_feature_count": len(eligible_raw),
+        "split_stable_raw_feature_count": len(stable_raw),
+        "seed_corrected_feature_count": len(eligible_corrected),
+        "split_stable_seed_corrected_feature_count": len(stable_corrected),
+        "split_stable_seed_corrected_features": stable_corrected,
         "dominant_semantic_factor": dominant,
         "context_stable_feature_count": sum(
             row["state_interpretation"] == "context_stable_candidate"
             for row in context_stability
+        ),
+        "context_raw_feature_count": len(context_raw),
+        "context_stable_raw_feature_count": sum(
+            row["state_interpretation"] == "context_stable_candidate"
+            for row in context_raw
+        ),
+        "context_seed_corrected_feature_count": len(context_corrected),
+        "context_stable_seed_corrected_feature_count": sum(
+            row["state_interpretation"] == "context_stable_candidate"
+            for row in context_corrected
+        ),
+        "all_context_split_stable_seed_corrected_feature_count": sum(
+            int(row["all_context_split_stable"])
+            for row in context_corrected
         ),
         "interpretation": {
             "seed_control": (
@@ -861,12 +962,19 @@ def analyze(profile_dir: Path, output_dir: Path, expected_count: int) -> dict:
         f"- Profiles: `{report['profile_count']}`",
         f"- State/head observations: `{len(observations)}`",
         (
-            "- Split-stable layer-residual features: "
-            f"`{len(stable_residual)}`"
+            "- Split-stable raw / seed-corrected features: "
+            f"`{len(stable_raw)}/{len(eligible_raw)}` / "
+            f"`{len(stable_corrected)}/{len(eligible_corrected)}`"
         ),
         (
             "- Dominant semantic-factor split agreement: "
             f"`{dominant['split_agreement']:.4f}`"
+        ),
+        (
+            "- Agreement among heads resolved in both splits: "
+            f"`{dominant['both_splits_resolved_agreement']:.4f}` "
+            f"({dominant['both_splits_resolved_agreement_count']}/"
+            f"{dominant['both_splits_resolved_count']})"
         ),
         "",
         "The primary comparison is semantic-factor response relative to the "
