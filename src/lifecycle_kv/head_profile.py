@@ -10,6 +10,13 @@ from typing import Callable
 
 import torch
 
+from .downstream_probe import (
+    apply_history_policy,
+    load_probe_plan,
+    output_delta_metrics,
+    qk_value_motion_correspondence,
+)
+
 
 def _parse_ints(value: str, default: tuple[int, ...]) -> tuple[int, ...]:
     if not value.strip():
@@ -47,6 +54,14 @@ class HeadProfileConfig:
     persistent_spatial_samples: int = 16
     descriptor_export: bool = False
     spatial_topology_metrics: bool = False
+    motion_correspondence_metrics: bool = False
+    motion_correspondence_topk: int = 4
+    downstream_probe_plan_path: Path | None = None
+    downstream_probe_frames: tuple[int, ...] = (117,)
+    downstream_probe_timesteps: tuple[int, ...] = (500, 1000)
+    downstream_probe_clean: bool = True
+    downstream_output_sketch: int = 128
+    downstream_replay_tolerance: float = 1e-4
 
     @classmethod
     def from_env(cls) -> "HeadProfileConfig":
@@ -55,6 +70,9 @@ class HeadProfileConfig:
             os.environ.get("HEAD_PROFILE_OUTPUT_DIR", "runs/v134_head_profile/raw")
         )
         manifest_text = os.environ.get("HEAD_PROFILE_JOB_MANIFEST", "").strip()
+        downstream_plan_text = os.environ.get(
+            "HEAD_PROFILE_DOWNSTREAM_PLAN", ""
+        ).strip()
         return cls(
             enabled=enabled,
             output_dir=output,
@@ -132,6 +150,50 @@ class HeadProfileConfig:
             spatial_topology_metrics=(
                 os.environ.get("HEAD_PROFILE_SPATIAL_TOPOLOGY", "0") == "1"
             ),
+            motion_correspondence_metrics=(
+                os.environ.get(
+                    "HEAD_PROFILE_MOTION_CORRESPONDENCE", "0"
+                )
+                == "1"
+            ),
+            motion_correspondence_topk=max(
+                1,
+                int(
+                    os.environ.get(
+                        "HEAD_PROFILE_MOTION_CORRESPONDENCE_TOPK", "4"
+                    )
+                ),
+            ),
+            downstream_probe_plan_path=(
+                Path(downstream_plan_text) if downstream_plan_text else None
+            ),
+            downstream_probe_frames=_parse_ints(
+                os.environ.get("HEAD_PROFILE_DOWNSTREAM_FRAMES", ""),
+                (117,),
+            ),
+            downstream_probe_timesteps=_parse_ints(
+                os.environ.get("HEAD_PROFILE_DOWNSTREAM_TIMESTEPS", ""),
+                (500, 1000),
+            ),
+            downstream_probe_clean=(
+                os.environ.get("HEAD_PROFILE_DOWNSTREAM_CLEAN", "1") == "1"
+            ),
+            downstream_output_sketch=max(
+                8,
+                int(
+                    os.environ.get(
+                        "HEAD_PROFILE_DOWNSTREAM_OUTPUT_SKETCH", "128"
+                    )
+                ),
+            ),
+            downstream_replay_tolerance=max(
+                0.0,
+                float(
+                    os.environ.get(
+                        "HEAD_PROFILE_DOWNSTREAM_REPLAY_TOLERANCE", "1e-4"
+                    )
+                ),
+            ),
         )
 
 
@@ -143,11 +205,37 @@ class HeadProfileSession:
     SCHEDULE_PROFILE_VERSION = 5
     CAUSAL_POLICY_PROFILE_VERSION = 6
     MECHANISM_PROFILE_VERSION = 7
+    DOWNSTREAM_CAUSAL_PROFILE_VERSION = 8
     PROJECTION_SEED = 20260729
 
     def __init__(self, config: HeadProfileConfig) -> None:
         self.config = config
         self.jobs = self._load_jobs(config.manifest_path)
+        self.downstream_plan = load_probe_plan(
+            config.downstream_probe_plan_path
+        )
+        if self.downstream_plan is not None:
+            if not set(config.downstream_probe_frames).issubset(
+                config.noisy_frames
+            ):
+                raise ValueError(
+                    "downstream probe frames must be noisy capture frames"
+                )
+            if not set(config.downstream_probe_timesteps).issubset(
+                config.noisy_timesteps
+            ):
+                raise ValueError(
+                    "downstream probe timesteps must be capture timesteps"
+                )
+            if (
+                config.downstream_probe_clean
+                and not set(config.downstream_probe_frames).issubset(
+                    config.clean_frames
+                )
+            ):
+                raise ValueError(
+                    "clean downstream probe frames must be clean captures"
+                )
         self.active_job: dict | None = None
         self.records: list[dict] = []
         self.context: dict | None = None
@@ -166,6 +254,14 @@ class HeadProfileSession:
         self._persistent_probe_logged: set[int] = set()
         self._causal_policy_logged: set[int] = set()
         self._spatial_topology_logged: set[tuple[str, int, int]] = set()
+        self._motion_correspondence_logged: set[
+            tuple[str, int, int]
+        ] = set()
+        self.downstream_probe_records: list[dict] = []
+        self._downstream_context: dict | None = None
+        self._downstream_reference: dict[str, torch.Tensor] | None = None
+        self._active_downstream_probe: dict | None = None
+        self._downstream_layer_metadata: dict[int, dict] = {}
 
     @staticmethod
     def _load_jobs(path: Path | None) -> dict[int, dict]:
@@ -226,6 +322,12 @@ class HeadProfileSession:
         self._persistent_probe_logged = set()
         self._causal_policy_logged = set()
         self._spatial_topology_logged = set()
+        self._motion_correspondence_logged = set()
+        self.downstream_probe_records = []
+        self._downstream_context = None
+        self._downstream_reference = None
+        self._active_downstream_probe = None
+        self._downstream_layer_metadata = {}
         self._video_metadata = {
             "run_commit": os.environ.get("HEAD_PROFILE_RUN_COMMIT"),
             "seed": int(
@@ -281,6 +383,31 @@ class HeadProfileSession:
             "spatial_topology_metrics": bool(
                 self.config.spatial_topology_metrics
             ),
+            "motion_correspondence_metrics": bool(
+                self.config.motion_correspondence_metrics
+            ),
+            "motion_correspondence_topk": int(
+                self.config.motion_correspondence_topk
+            ),
+            "downstream_probe_plan": (
+                {
+                    "path": self.downstream_plan["path"],
+                    "sha256": self.downstream_plan["sha256"],
+                    "probe_count": len(self.downstream_plan["probes"]),
+                    "source": self.downstream_plan.get("source"),
+                }
+                if self.downstream_plan is not None
+                else None
+            ),
+            "downstream_probe_frames": list(
+                self.config.downstream_probe_frames
+            ),
+            "downstream_probe_timesteps": list(
+                self.config.downstream_probe_timesteps
+            ),
+            "downstream_probe_clean": bool(
+                self.config.downstream_probe_clean
+            ),
         }
         print(
             "[HeadProfile] begin "
@@ -288,7 +415,9 @@ class HeadProfileSession:
             f"frames={num_frames} seed={self._video_metadata['seed']} "
             f"descriptors={int(self.config.descriptor_export)} "
             f"topology={int(self.config.spatial_topology_metrics)} "
-            f"policy={int(self.config.causal_policy_metrics)}",
+            f"motion={int(self.config.motion_correspondence_metrics)} "
+            f"policy={int(self.config.causal_policy_metrics)} "
+            f"downstream={int(self.downstream_plan is not None)}",
             flush=True,
         )
         return job
@@ -439,6 +568,218 @@ class HeadProfileSession:
 
     def disable_call_context(self) -> None:
         self.context = None
+
+    def wants_downstream_probe_context(
+        self,
+        *,
+        mode: str,
+        current_frame: int,
+        nominal_timestep: int,
+    ) -> bool:
+        if self.active_job is None or self.downstream_plan is None:
+            return False
+        if int(current_frame) not in self.config.downstream_probe_frames:
+            return False
+        if mode == "clean":
+            return bool(self.config.downstream_probe_clean)
+        return (
+            mode == "noisy"
+            and int(nominal_timestep)
+            in self.config.downstream_probe_timesteps
+        )
+
+    def downstream_probes(self) -> list[dict]:
+        if self.downstream_plan is None:
+            return []
+        return [
+            {
+                "name": "native_replay",
+                "policy": "native",
+                "head_map": {},
+                "selected_head_count": 0,
+                "group": "native",
+            },
+            *self.downstream_plan["probes"],
+        ]
+
+    def begin_downstream_probe_context(
+        self,
+        *,
+        mode: str,
+        current_frame: int,
+        nominal_timestep: int,
+        actual_timestep: float,
+        base_flow: torch.Tensor,
+        base_x0: torch.Tensor,
+    ) -> None:
+        if not self.wants_downstream_probe_context(
+            mode=mode,
+            current_frame=current_frame,
+            nominal_timestep=nominal_timestep,
+        ):
+            raise RuntimeError("unexpected downstream probe context")
+        if self._downstream_context is not None:
+            raise RuntimeError("previous downstream probe context is active")
+        self.context = None
+        self._downstream_context = {
+            "mode": str(mode),
+            "current_frame": int(current_frame),
+            "nominal_timestep": int(nominal_timestep),
+            "actual_timestep": float(actual_timestep),
+            "seen_probes": [],
+        }
+        self._downstream_reference = {
+            "flow": base_flow.detach().clone(),
+            "x0": base_x0.detach().clone(),
+        }
+
+    def activate_downstream_probe(self, probe: dict) -> None:
+        if self._downstream_context is None:
+            raise RuntimeError("downstream probe has no active context")
+        if self._active_downstream_probe is not None:
+            raise RuntimeError("another downstream probe is already active")
+        expected = {
+            item["name"]: item for item in self.downstream_probes()
+        }
+        name = str(probe.get("name"))
+        if name not in expected or expected[name] != probe:
+            raise ValueError(f"unknown downstream probe: {name}")
+        if name in self._downstream_context["seen_probes"]:
+            raise RuntimeError(f"downstream probe repeated: {name}")
+        self._active_downstream_probe = probe
+        self._downstream_layer_metadata = {}
+
+    def has_active_downstream_probe(self) -> bool:
+        return self._active_downstream_probe is not None
+
+    def apply_downstream_probe(
+        self,
+        *,
+        layer: int,
+        query: torch.Tensor,
+        current_key: torch.Tensor,
+        current_value: torch.Tensor,
+        history_key: torch.Tensor,
+        history_value: torch.Tensor,
+        native_output: torch.Tensor,
+        frame_seq_length: int,
+        attention_fn: Callable[
+            [torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor
+        ],
+    ) -> torch.Tensor:
+        probe = self._active_downstream_probe
+        if probe is None:
+            return native_output
+        selected = list(probe["head_map"].get(int(layer), ()))
+        if not selected:
+            return native_output
+        output, metadata = apply_history_policy(
+            policy=str(probe["policy"]),
+            selected_heads=selected,
+            query=query,
+            current_key=current_key,
+            current_value=current_value,
+            history_key=history_key,
+            history_value=history_value,
+            native_output=native_output,
+            frame_seq_length=frame_seq_length,
+            attention_fn=attention_fn,
+        )
+        if int(layer) in self._downstream_layer_metadata:
+            raise RuntimeError(
+                f"downstream probe repeated layer={int(layer)}"
+            )
+        self._downstream_layer_metadata[int(layer)] = metadata
+        return output
+
+    def record_downstream_probe_output(
+        self,
+        *,
+        flow: torch.Tensor,
+        x0: torch.Tensor,
+    ) -> None:
+        probe = self._active_downstream_probe
+        context = self._downstream_context
+        reference = self._downstream_reference
+        if probe is None or context is None or reference is None:
+            raise RuntimeError("downstream probe output has no active probe")
+        expected_layers = set(int(value) for value in probe["head_map"])
+        actual_layers = set(self._downstream_layer_metadata)
+        if expected_layers != actual_layers:
+            raise RuntimeError(
+                f"downstream probe {probe['name']} layer coverage differs: "
+                f"expected={sorted(expected_layers)} "
+                f"actual={sorted(actual_layers)}"
+            )
+        flow_metrics = output_delta_metrics(
+            reference["flow"],
+            flow,
+            sketch_size=self.config.downstream_output_sketch,
+        )
+        x0_metrics = output_delta_metrics(
+            reference["x0"],
+            x0,
+            sketch_size=self.config.downstream_output_sketch,
+        )
+        if (
+            probe["name"] == "native_replay"
+            and self.config.strict
+            and max(
+                float(flow_metrics["relative_rms"]),
+                float(x0_metrics["relative_rms"]),
+            )
+            > self.config.downstream_replay_tolerance
+        ):
+            raise RuntimeError(
+                "downstream native replay parity failed: "
+                f"flow={flow_metrics['relative_rms']:.6g} "
+                f"x0={x0_metrics['relative_rms']:.6g} "
+                f"limit={self.config.downstream_replay_tolerance:.6g}"
+            )
+        record = {
+            **{
+                key: value
+                for key, value in context.items()
+                if key != "seen_probes"
+            },
+            "probe_name": str(probe["name"]),
+            "policy": str(probe["policy"]),
+            "group": str(probe["group"]),
+            "selected_head_count": int(probe["selected_head_count"]),
+            "flow_metrics": flow_metrics,
+            "x0_metrics": x0_metrics,
+            "layer_metadata": dict(self._downstream_layer_metadata),
+        }
+        self.downstream_probe_records.append(record)
+        context["seen_probes"].append(str(probe["name"]))
+        print(
+            "[HeadProfile] downstream-probe "
+            f"mode={context['mode']} frame={context['current_frame']} "
+            f"timestep={context['nominal_timestep']} "
+            f"name={probe['name']} policy={probe['policy']} "
+            f"heads={probe['selected_head_count']} "
+            f"flow_rel={flow_metrics['relative_rms']:.6g} "
+            f"x0_rel={x0_metrics['relative_rms']:.6g}",
+            flush=True,
+        )
+        self._active_downstream_probe = None
+        self._downstream_layer_metadata = {}
+
+    def end_downstream_probe_context(self) -> None:
+        if self._downstream_context is None:
+            raise RuntimeError("no downstream probe context is active")
+        if self._active_downstream_probe is not None:
+            raise RuntimeError("cannot end context with an active probe")
+        expected = [probe["name"] for probe in self.downstream_probes()]
+        actual = list(self._downstream_context["seen_probes"])
+        if actual != expected:
+            raise RuntimeError(
+                "downstream probe order/coverage differs: "
+                f"expected={expected} actual={actual}"
+            )
+        self._downstream_context = None
+        self._downstream_reference = None
+        self._downstream_layer_metadata = {}
 
     def wants_history_interventions(self) -> bool:
         return bool(
@@ -1561,6 +1902,47 @@ class HeadProfileSession:
                     f"{float(topology['expected_displacement'].float().mean()):.4f}",
                     flush=True,
                 )
+        if self.config.motion_correspondence_metrics:
+            if current_value is None or spatial_grid_shape is None:
+                raise RuntimeError(
+                    "QK-V motion correspondence requires current V and "
+                    "the latent spatial grid"
+                )
+            motion = qk_value_motion_correspondence(
+                query=query,
+                current_value=current_value,
+                history_key=history_key,
+                history_value=history_value,
+                frame_seq_length=frame_seq_length,
+                spatial_grid_shape=spatial_grid_shape,
+                spatial_samples=self.config.spatial_samples,
+                topk=self.config.motion_correspondence_topk,
+            )
+            record["motion_correspondence_metrics"] = motion
+            motion_log_key = (
+                str(context["mode"]),
+                int(context["current_frame"]),
+                int(context["nominal_timestep"]),
+            )
+            if (
+                int(layer) == 0
+                and motion_log_key not in self._motion_correspondence_logged
+            ):
+                self._motion_correspondence_logged.add(motion_log_key)
+                print(
+                    "[HeadProfile] qk-v-correspondence "
+                    f"mode={motion_log_key[0]} "
+                    f"frame={motion_log_key[1]} "
+                    f"timestep={motion_log_key[2]} "
+                    f"samples={motion['sample_count']} "
+                    "raw_error_mean="
+                    f"{float(motion['raw_value_coordinate_error'].float().mean()):.4f} "
+                    "refined_error_mean="
+                    f"{float(motion['refined_value_coordinate_error'].float().mean()):.4f} "
+                    "refinement_gain_mean="
+                    f"{float(motion['semantic_refinement_gain'].float().mean()):.4f}",
+                    flush=True,
+                )
         projection_gram = None
         if self.config.causal_policy_metrics or self.config.persistent_probe:
             if output_projection_weight is None:
@@ -1744,6 +2126,33 @@ class HeadProfileSession:
                     f"{persistent_missing[:8]} "
                     f"({len(persistent_missing)} missing)"
                 )
+        if self._downstream_context is not None:
+            raise RuntimeError("downstream probe context was not finalized")
+        if self._active_downstream_probe is not None:
+            raise RuntimeError("downstream probe was not finalized")
+        downstream_expected = 0
+        if self.downstream_plan is not None:
+            noisy_contexts = len(self.config.downstream_probe_frames) * len(
+                self.config.downstream_probe_timesteps
+            )
+            clean_contexts = (
+                len(self.config.downstream_probe_frames)
+                if self.config.downstream_probe_clean
+                else 0
+            )
+            downstream_expected = (
+                noisy_contexts + clean_contexts
+            ) * len(self.downstream_probes())
+            if (
+                self.config.strict
+                and len(self.downstream_probe_records)
+                != downstream_expected
+            ):
+                raise RuntimeError(
+                    "downstream probe record count differs: "
+                    f"expected={downstream_expected} "
+                    f"actual={len(self.downstream_probe_records)}"
+                )
         job = dict(self.active_job)
         output_dir = self.config.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -1755,6 +2164,11 @@ class HeadProfileSession:
             self._detach_to_cpu(record) for record in self.records
         ]
         if (
+            self.downstream_plan is not None
+            or self.config.motion_correspondence_metrics
+        ):
+            profile_version = self.DOWNSTREAM_CAUSAL_PROFILE_VERSION
+        elif (
             self.config.descriptor_export
             or self.config.spatial_topology_metrics
         ):
@@ -1794,6 +2208,10 @@ class HeadProfileSession:
             },
             "calls": self.call_summaries,
             "records": self.records,
+            "downstream_probe_records": self._detach_to_cpu(
+                self.downstream_probe_records
+            ),
+            "downstream_probe_expected_count": int(downstream_expected),
         }
         temporary = output.with_suffix(".pt.tmp")
         torch.save(payload, temporary)
@@ -1814,6 +2232,12 @@ class HeadProfileSession:
         self._persistent_probe_logged = set()
         self._causal_policy_logged = set()
         self._spatial_topology_logged = set()
+        self._motion_correspondence_logged = set()
+        self.downstream_probe_records = []
+        self._downstream_context = None
+        self._downstream_reference = None
+        self._active_downstream_probe = None
+        self._downstream_layer_metadata = {}
         return output
 
 

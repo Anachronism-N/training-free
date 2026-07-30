@@ -205,6 +205,7 @@ def _profile_index(profiles: list[dict]) -> tuple[dict, list[dict]]:
     audits = []
     for profile in profiles:
         job = profile["job"]
+        metadata = profile["metadata"]
         key = (
             int(job["family_index"]),
             int(job["seed_replicate"]),

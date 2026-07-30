@@ -370,6 +370,22 @@ class CausalWanSelfAttention(nn.Module):
                 if (
                     profile_session is not None
                     and block_index is not None
+                    and profile_session.has_active_downstream_probe()
+                ):
+                    x = profile_session.apply_downstream_probe(
+                        layer=int(block_index),
+                        query=roped_query,
+                        current_key=roped_key,
+                        current_value=v,
+                        history_key=history_key,
+                        history_value=history_value,
+                        native_output=x,
+                        frame_seq_length=int(frame_seqlen),
+                        attention_fn=attention,
+                    )
+                if (
+                    profile_session is not None
+                    and block_index is not None
                     and history_key.shape[1] >= frame_seqlen
                 ):
                     profile_session.record_attention(

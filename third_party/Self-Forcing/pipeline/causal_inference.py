@@ -939,6 +939,123 @@ class CausalInferencePipeline(torch.nn.Module):
                 )
             session.disable_call_context()
 
+    def _run_head_profile_downstream_probes(
+        self,
+        *,
+        noisy_input: torch.Tensor,
+        timestep: torch.Tensor,
+        current_start_frame: int,
+        mode: str,
+        nominal_timestep: int,
+        actual_timestep: float,
+        conditioning: dict,
+        crossattn_cache: list,
+        base_flow: torch.Tensor,
+        base_x0: torch.Tensor,
+    ) -> None:
+        session = self.head_profile_session
+        if (
+            session is None
+            or not session.wants_downstream_probe_context(
+                mode=mode,
+                current_frame=current_start_frame,
+                nominal_timestep=nominal_timestep,
+            )
+        ):
+            return
+
+        def cache_contract() -> list[tuple[int, int, int, int, int, int]]:
+            return [
+                (
+                    int(cache["global_end_index"].item()),
+                    int(cache["local_end_index"].item()),
+                    int(cache["k"].data_ptr()),
+                    int(cache["v"].data_ptr()),
+                    int(cache["k"]._version),
+                    int(cache["v"]._version),
+                )
+                for cache in self.kv_cache1
+            ]
+
+        def crossattn_contract() -> list[tuple[bool, int, int, int, int]]:
+            contract = []
+            for cache in crossattn_cache:
+                key = cache.get("k")
+                value = cache.get("v")
+                contract.append(
+                    (
+                        bool(cache.get("is_init", False)),
+                        int(key.data_ptr()) if key is not None else -1,
+                        int(value.data_ptr()) if value is not None else -1,
+                        int(key._version) if key is not None else -1,
+                        int(value._version) if value is not None else -1,
+                    )
+                )
+            return contract
+
+        contract_before = cache_contract()
+        crossattn_before = crossattn_contract()
+        cpu_rng_state = torch.random.get_rng_state()
+        cuda_rng_state = (
+            torch.cuda.get_rng_state(noisy_input.device)
+            if noisy_input.is_cuda
+            else None
+        )
+        session.disable_call_context()
+        session.begin_downstream_probe_context(
+            mode=mode,
+            current_frame=current_start_frame,
+            nominal_timestep=nominal_timestep,
+            actual_timestep=actual_timestep,
+            base_flow=base_flow,
+            base_x0=base_x0,
+        )
+        self._mark_head_profile_read_only(self.kv_cache1, True)
+        try:
+            for probe in session.downstream_probes():
+                torch.random.set_rng_state(cpu_rng_state)
+                if cuda_rng_state is not None:
+                    torch.cuda.set_rng_state(
+                        cuda_rng_state, noisy_input.device
+                    )
+                session.activate_downstream_probe(probe)
+                probe_flow, probe_x0 = self.generator(
+                    noisy_image_or_video=noisy_input,
+                    conditional_dict=conditioning,
+                    timestep=timestep,
+                    kv_cache=self.kv_cache1,
+                    crossattn_cache=crossattn_cache,
+                    current_start=current_start_frame
+                    * self.frame_seq_length,
+                    structured_memory_archives=None,
+                    structured_memory_config=None,
+                    structured_memory_mode=mode,
+                )
+                contract_after = cache_contract()
+                crossattn_after = crossattn_contract()
+                if (
+                    contract_after != contract_before
+                    or crossattn_after != crossattn_before
+                ):
+                    raise RuntimeError(
+                        "downstream head probe mutated native self/cross K/V "
+                        "cache: "
+                        f"probe={probe['name']}"
+                    )
+                session.record_downstream_probe_output(
+                    flow=probe_flow,
+                    x0=probe_x0,
+                )
+            session.end_downstream_probe_context()
+        finally:
+            self._mark_head_profile_read_only(self.kv_cache1, False)
+            torch.random.set_rng_state(cpu_rng_state)
+            if cuda_rng_state is not None:
+                torch.cuda.set_rng_state(
+                    cuda_rng_state, noisy_input.device
+                )
+            session.disable_call_context()
+
     def inference(
         self,
         noise: torch.Tensor,
@@ -1439,7 +1556,7 @@ class CausalInferencePipeline(torch.nn.Module):
                         nominal_timestep=nominal_timestep_value,
                         actual_timestep=actual_timestep_value,
                     )
-                _, denoised_pred = self.generator(
+                flow_pred, denoised_pred = self.generator(
                     noisy_image_or_video=noisy_input,
                     conditional_dict=conditional_dict,
                     timestep=timestep,
@@ -1462,6 +1579,18 @@ class CausalInferencePipeline(torch.nn.Module):
                         alternate_crossattn_caches=(
                             alternate_crossattn_caches
                         ),
+                    )
+                    self._run_head_profile_downstream_probes(
+                        noisy_input=noisy_input,
+                        timestep=timestep,
+                        current_start_frame=current_start_frame,
+                        mode="noisy",
+                        nominal_timestep=nominal_timestep_value,
+                        actual_timestep=actual_timestep_value,
+                        conditioning=conditional_dict,
+                        crossattn_cache=self.crossattn_cache,
+                        base_flow=flow_pred,
+                        base_x0=denoised_pred,
                     )
                 if profile_session is not None:
                     profile_session.disable_call_context()
@@ -1525,7 +1654,7 @@ class CausalInferencePipeline(torch.nn.Module):
                     nominal_timestep=0,
                     actual_timestep=float(self.args.context_noise),
                 )
-            self.generator(
+            clean_flow_pred, clean_x0_pred = self.generator(
                 noisy_image_or_video=denoised_pred,
                 conditional_dict=conditional_dict,
                 timestep=context_timestep,
@@ -1546,6 +1675,18 @@ class CausalInferencePipeline(torch.nn.Module):
                     actual_timestep=float(self.args.context_noise),
                     alternate_conditionings=alternate_conditionings,
                     alternate_crossattn_caches=alternate_crossattn_caches,
+                )
+                self._run_head_profile_downstream_probes(
+                    noisy_input=denoised_pred,
+                    timestep=context_timestep,
+                    current_start_frame=current_start_frame,
+                    mode="clean",
+                    nominal_timestep=0,
+                    actual_timestep=float(self.args.context_noise),
+                    conditioning=conditional_dict,
+                    crossattn_cache=self.crossattn_cache,
+                    base_flow=clean_flow_pred,
+                    base_x0=clean_x0_pred,
                 )
             if profile_session is not None:
                 profile_session.disable_call_context()
