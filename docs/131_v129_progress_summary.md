@@ -192,3 +192,48 @@ v125已完成8方法×128 prompt的生成和VBench-Long评估：
 | v125 VBench结果 | `docs/128_v125_vbench_long_results.md` |
 | v129设计文档 | `docs/129_no_pf_paper_comparison_and_10h_runbook.md` |
 | v129附加实验文档 | `docs/130_v129_noncache_addon_experiments.md` |
+
+## 7. Head Profiling 实验系列 (v134–v144)
+
+v129完成后，在4节点32×H20集群上持续推进head profiling实验系列，研究Self-Forcing长视频自回归中的注意力头功能分类。
+
+### 实验总览
+
+| 版本 | 状态 | Profile数 | 关键结论 |
+|---|---|---:|---|
+| v134 head discovery | ✅ 完成 | 256 | 观测+反事实两阶段head发现 |
+| v136 multi-axis analysis | ✅ 完成 | CPU-only | v134多轴再分析 |
+| v138 history interventions | ✅ 完成 | 128 | 历史干预 profiling (RoPE重建阈值放宽至1e-2) |
+| v140 threshold robustness | ✅ 完成 | CPU-only | 阈值鲁棒性分析 |
+| v141 A-B-A prompt switch | ✅ 完成 | 32 | A-B-A提示切换 profiling |
+| v142 output-causal profile | ✅ 完成 | 160 | 输出因果策略 profiling |
+| v143 multiaxis profile | ✅ natural128 | 128+32 | natural128完成; ab32失败(persistent probe archive bug, `head_profile.py:934`); cluster: no_stable_k, best split label agreement 0.93 |
+| v144 deep head profile | ✅ 完成 | 128 | 因子化head机制 profiling (16 families × 8 variants) |
+
+### v144 因子化 Head 机制 Profiling (2026-07-30)
+
+**设计**: 16个受控family × 8个variant = 128个30秒视频，分离Q/K/V/policy/spatial-topology轴。
+
+| Variant | 说明 |
+|---|---|
+| base | 标准A字段 |
+| seed_control | 同文本+不同seed (trajectory noise控制) |
+| paraphrase | 同字段+重写模板 |
+| identity/scene/action/camera | 单因子改变 |
+| full_semantic | 全部8字段改变 |
+
+**Profile版本**: v7 (新增 query_projection, history_key/value_projection, history_value_rms, spatial_topology_metrics, causal_policy_metrics)
+
+**关键结果**:
+- 128 profiles, 360 heads, 241,920 state/head observations
+- 85 split-stable layer-residual features
+- Dominant semantic-factor split agreement: 0.4556
+- 57.5% heads unresolved (未达标准化阈值)
+- functional_claim_admissible: false (需head-selective干预实验才能赋予功能名称)
+- v143_hierarchical: 跳过 (v143 ab32 profiles缺失)
+
+**结果文件**: `docs/results/v144_deep_head_profile/factorized/`
+
+### GPU占用状态
+
+当前32张GPU全部占卡 (4节点 × 8 × 813MiB, 100% duty cycle)。
