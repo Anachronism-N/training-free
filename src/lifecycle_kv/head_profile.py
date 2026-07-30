@@ -40,6 +40,7 @@ class HeadProfileConfig:
     allow_prompt_schedule: bool = False
     causal_policy_metrics: bool = False
     policy_budget_frames: int = 8
+    region_attention_metrics: bool = False
     persistent_probe: bool = False
     persistent_capture_frames: tuple[int, ...] = (0, 18, 36)
     persistent_probe_frames: tuple[int, ...] = (39, 42, 75, 78, 81, 117)
@@ -96,6 +97,9 @@ class HeadProfileConfig:
             policy_budget_frames=max(
                 2,
                 int(os.environ.get("HEAD_PROFILE_POLICY_BUDGET_FRAMES", "8")),
+            ),
+            region_attention_metrics=(
+                os.environ.get("HEAD_PROFILE_REGION_METRICS", "0") == "1"
             ),
             persistent_probe=(
                 os.environ.get("HEAD_PROFILE_PERSISTENT_PROBE", "0") == "1"
@@ -240,6 +244,17 @@ class HeadProfileSession:
             ),
             "policy_budget_frames": int(
                 self.config.policy_budget_frames
+            ),
+            "region_attention_metrics": bool(
+                self.config.region_attention_metrics
+            ),
+            "region_attention_method": (
+                "sampled_token_softmax_cartesian"
+                if self.config.region_attention_metrics
+                else None
+            ),
+            "region_attention_spatial_samples": int(
+                self.config.spatial_samples
             ),
             "persistent_probe": bool(self.config.persistent_probe),
             "persistent_capture_frames": list(
@@ -1047,6 +1062,119 @@ class HeadProfileSession:
             frame_ids,
         )
 
+    def _region_attention_profile(
+        self,
+        query: torch.Tensor,
+        history_key: torch.Tensor,
+        current_key: torch.Tensor,
+        *,
+        frame_seq_length: int,
+        current_frame: int,
+    ) -> dict[str, torch.Tensor | bool]:
+        """Estimate token-softmax frame mass over history plus current block."""
+        current_frames = current_key.shape[1] // frame_seq_length
+        full_key = torch.cat((history_key, current_key), dim=1)
+        query_frames = query.shape[1] // frame_seq_length
+        key_frames = full_key.shape[1] // frame_seq_length
+        if query_frames <= 0 or key_frames <= 0:
+            raise ValueError(
+                "region attention profile requires complete query/key frames"
+            )
+        q = query[:, : query_frames * frame_seq_length].reshape(
+            query.shape[0],
+            query_frames,
+            frame_seq_length,
+            query.shape[2],
+            query.shape[3],
+        )
+        k = full_key[:, : key_frames * frame_seq_length].reshape(
+            full_key.shape[0],
+            key_frames,
+            frame_seq_length,
+            full_key.shape[2],
+            full_key.shape[3],
+        )
+        sample_count = min(self.config.spatial_samples, frame_seq_length)
+        spatial_index = torch.linspace(
+            0,
+            frame_seq_length - 1,
+            steps=sample_count,
+            device=query.device,
+        ).round().long().unique()
+        q_sample = q.index_select(2, spatial_index).float()
+        k_sample = k.index_select(2, spatial_index).float()
+        sampled_logits = torch.einsum(
+            "bqshd,bkthd->bhqkst", q_sample, k_sample
+        ) / math.sqrt(query.shape[-1])
+        logits = sampled_logits.mean(dim=(0, 2, 4, 5))
+        token_probabilities = sampled_logits.permute(
+            0, 1, 2, 4, 3, 5
+        ).reshape(
+            sampled_logits.shape[0],
+            sampled_logits.shape[1],
+            query_frames,
+            spatial_index.numel(),
+            key_frames * spatial_index.numel(),
+        ).softmax(dim=-1)
+        probabilities = token_probabilities.reshape(
+            sampled_logits.shape[0],
+            sampled_logits.shape[1],
+            query_frames,
+            spatial_index.numel(),
+            key_frames,
+            spatial_index.numel(),
+        ).sum(dim=-1).mean(dim=(0, 2, 3))
+        frame_ids = torch.arange(
+            int(current_frame) - (key_frames - current_frames),
+            int(current_frame) + int(current_frames),
+            dtype=torch.int32,
+        )
+        frame_ids_device = frame_ids.to(device=probabilities.device)
+        current_mask = frame_ids_device >= int(current_frame)
+        history_mask = ~current_mask
+        recent_start = int(current_frame) - int(self.config.recent_frames)
+        recent_mask = history_mask & (frame_ids_device >= recent_start)
+        last4_start = int(current_frame) + int(current_frames) - 4
+        last4_mask = frame_ids_device >= last4_start
+        oldest_history = int(current_frame) - (
+            int(key_frames) - int(current_frames)
+        )
+        oldest1_mask = history_mask & (frame_ids_device == oldest_history)
+        oldest3_mask = history_mask & (
+            frame_ids_device < oldest_history + 3
+        )
+        global_sink1_mask = history_mask & (frame_ids_device == 0)
+        global_sink3_mask = history_mask & (frame_ids_device < 3)
+        middle_mask = history_mask & ~recent_mask & ~oldest3_mask
+
+        def mass(mask: torch.Tensor) -> torch.Tensor:
+            return probabilities[:, mask].float().sum(dim=-1)
+
+        non_oldest_mass = mass(~oldest1_mask)
+        return {
+            "frame_ids": frame_ids,
+            "frame_logits": logits.to(dtype=torch.float16),
+            "frame_probabilities": probabilities.to(dtype=torch.float16),
+            "oldest1_mass": mass(oldest1_mask).to(dtype=torch.float16),
+            "oldest3_mass": mass(oldest3_mask).to(dtype=torch.float16),
+            "global_sink1_mass": mass(global_sink1_mask).to(
+                dtype=torch.float16
+            ),
+            "global_sink3_mass": mass(global_sink3_mask).to(
+                dtype=torch.float16
+            ),
+            "middle_mass": mass(middle_mask).to(dtype=torch.float16),
+            "recent4_mass": mass(recent_mask).to(dtype=torch.float16),
+            "last4_mass": mass(last4_mask).to(dtype=torch.float16),
+            "current_mass": mass(current_mask).to(dtype=torch.float16),
+            "recent4_non_oldest_ratio": (
+                mass(recent_mask) / non_oldest_mass.clamp_min(1e-8)
+            ).to(dtype=torch.float16),
+            "global_sink_available": bool(
+                (frame_ids == 0).any().item()
+            ),
+        }
+
     def _projection(
         self,
         feature_dim: int,
@@ -1192,6 +1320,16 @@ class HeadProfileSession:
             "temporal_probs": temporal_probs,
             "history_frame_ids": history_frame_ids,
         }
+        if self.config.region_attention_metrics:
+            record["region_attention_metrics"] = (
+                self._region_attention_profile(
+                    query,
+                    history_key,
+                    current_key,
+                    frame_seq_length=frame_seq_length,
+                    current_frame=int(context["current_frame"]),
+                )
+            )
         projection_gram = None
         if self.config.causal_policy_metrics or self.config.persistent_probe:
             if output_projection_weight is None:
