@@ -1,0 +1,68 @@
+{
+  "aba": {
+    "correctness_gate": true,
+    "matching_branch_policy_parity_p99": 0.0,
+    "native_reconstruction_relative_max": 0.0,
+    "native_reconstruction_relative_rms": 0.0,
+    "persistent_a_selectivity_gate": false,
+    "persistent_content_A2_median": 0.00010152161121368408,
+    "persistent_content_B_median": 0.00017890334129333496,
+    "persistent_content_bootstrap_reliable_fraction": 0.6805555555555556,
+    "persistent_content_paraphrase_noise_median": 0.0008627474308013916,
+    "persistent_content_positive_heads": 250,
+    "persistent_content_selectivity_median": 0.00015851855278015137,
+    "persistent_content_sign_agreement": 0.6555555555555556,
+    "persistent_content_split_spearman": 0.3394888931200452,
+    "policy_exact_distance_median": 0.0019206873879389539,
+    "policy_paraphrase_distance_median": 0.0012502970247467715,
+    "policy_prompt_B_A2_sign_agreement": 0.9611111111111111,
+    "policy_prompt_B_A2_spearman": 0.8665325887111128,
+    "policy_prompt_bootstrap_reliable_fraction": 0.9138888888888889,
+    "policy_prompt_positive_heads": 339,
+    "policy_prompt_sign_agreement": 0.9416666666666667,
+    "policy_prompt_split_spearman": 0.8249102060091756,
+    "profile_count": 32,
+    "prompt_policy_modulation_gate": true
+  },
+  "evidence_boundary": [
+    "Policy losses approximate full attention within one layer; they do not establish final video quality.",
+    "The natural SF window contains at most 21 latent frames.",
+    "The persistent A archive is a bounded diagnostic sample and is never written into the base trajectory.",
+    "Online-oracle regret is an opportunity estimate, not an implementable routing result."
+  ],
+  "gates": {
+    "correctness": true,
+    "online_policy_opportunity": false,
+    "persistent_a_selectivity": false,
+    "prompt_policy_modulation": true,
+    "static_policy": false
+  },
+  "natural": {
+    "context_best_policy_agreement_median": 0.8,
+    "context_best_policy_agreement_min": 0.7138888888888889,
+    "context_policy_need_spearman_median": 0.772322703107277,
+    "context_policy_need_spearman_min": 0.560608492349478,
+    "correctness_gate": true,
+    "discovery_boundary_fraction": 0.05277777777777778,
+    "discovery_policy_counts": {
+      "boundary_recent": 291,
+      "recent_budget": 30,
+      "uniform_recent": 39
+    },
+    "median_modal_state_fraction": 0.7269965277777778,
+    "native_reconstruction_relative_max": 0.0,
+    "native_reconstruction_relative_rms": 0.0,
+    "online_policy_opportunity": false,
+    "profile_count": 128,
+    "split_best_policy_agreement": 0.9166666666666666,
+    "split_policy_need_spearman": 0.9661257674313329,
+    "states_per_profile": [
+      9
+    ],
+    "static_policy_gate": false,
+    "validation_static_regret_median": 0.0,
+    "validation_static_regret_p90": 0.14417151020495397
+  },
+  "recommendation": "online_context_conditioned_output_causal_routing",
+  "version": 1
+}
