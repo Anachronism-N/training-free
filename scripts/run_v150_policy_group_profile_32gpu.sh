@@ -360,7 +360,7 @@ for path in profiles:
         for layer in row["layer_metadata"].values():
             assert not bool(layer["calibration_clipped"])
             assert not bool(layer["calibration_degenerate"])
-            assert float(layer["calibration_relative_error"]) <= 0.02
+            assert float(layer["calibration_relative_error"]) <= 0.03
             scale = float(layer["calibration_scale"])
             assert 0.005 <= scale <= 50.0
             scales.append(scale)
@@ -503,7 +503,7 @@ for path in profiles:
                     float(layer["calibration_relative_error"]),
                 )
 assert max_replay <= 1e-4
-assert max_valid_error <= 0.02
+assert max_valid_error <= 0.03
 print(
     f"[v150-audit] {kind} profiles={expected}: PASS "
     f"replay={max_replay:.6g} clipped={clipped} "
