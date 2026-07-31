@@ -666,6 +666,8 @@ class HeadProfileSession:
         attention_fn: Callable[
             [torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor
         ],
+        output_projection_weight: torch.Tensor | None = None,
+        output_projection_bias: torch.Tensor | None = None,
     ) -> torch.Tensor:
         probe = self._active_downstream_probe
         if probe is None:
@@ -684,6 +686,10 @@ class HeadProfileSession:
             native_output=native_output,
             frame_seq_length=frame_seq_length,
             attention_fn=attention_fn,
+            policy_args=probe.get("policy_args"),
+            calibration=probe.get("calibration"),
+            output_projection_weight=output_projection_weight,
+            output_projection_bias=output_projection_bias,
         )
         if int(layer) in self._downstream_layer_metadata:
             raise RuntimeError(

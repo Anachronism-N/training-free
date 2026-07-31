@@ -15,12 +15,15 @@ SUPPORTED_POLICIES = {
     "current_only",
     "oldest3",
     "recent4",
+    "recent8",
     "uniform8",
     "boundary8",
     "q_retrieval8",
     "key_shift",
     "value_shift",
+    "policy_contrast",
 }
+POLICY_CONTRAST_CANDIDATES = {"recent8", "uniform8", "boundary8"}
 
 
 def load_probe_plan(path: Path | None) -> dict | None:
@@ -48,6 +51,64 @@ def load_probe_plan(path: Path | None) -> dict | None:
             raise ValueError(f"duplicate downstream probe name: {name}")
         if policy not in SUPPORTED_POLICIES - {"native"}:
             raise ValueError(f"unsupported downstream policy: {policy}")
+        raw_policy_args = raw.get("policy_args")
+        if policy == "policy_contrast":
+            if not isinstance(raw_policy_args, dict):
+                raise ValueError(
+                    f"probe {name} requires policy_args for policy_contrast"
+                )
+            left = str(raw_policy_args.get("left") or "")
+            right = str(raw_policy_args.get("right") or "")
+            if (
+                left not in POLICY_CONTRAST_CANDIDATES
+                or right not in POLICY_CONTRAST_CANDIDATES
+                or left == right
+            ):
+                raise ValueError(
+                    f"probe {name} has an invalid policy contrast "
+                    f"{left!r}/{right!r}"
+                )
+            policy_args = {"left": left, "right": right}
+        else:
+            if raw_policy_args not in (None, {}):
+                raise ValueError(
+                    f"probe {name} provides policy_args for {policy}"
+                )
+            policy_args = {}
+        raw_calibration = raw.get("calibration")
+        calibration = None
+        if raw_calibration is not None:
+            if not isinstance(raw_calibration, dict):
+                raise ValueError(
+                    f"probe {name} calibration must be an object"
+                )
+            mode = str(raw_calibration.get("mode") or "")
+            if mode != "projected_relative_rms":
+                raise ValueError(
+                    f"probe {name} has unsupported calibration mode {mode!r}"
+                )
+            target = float(raw_calibration.get("target", 0.0))
+            min_scale = float(raw_calibration.get("min_scale", 0.01))
+            max_scale = float(raw_calibration.get("max_scale", 100.0))
+            if not math.isfinite(target) or not 0.0 < target <= 0.5:
+                raise ValueError(
+                    f"probe {name} calibration target must be in (0, 0.5]"
+                )
+            if (
+                not math.isfinite(min_scale)
+                or not math.isfinite(max_scale)
+                or min_scale <= 0
+                or max_scale < min_scale
+            ):
+                raise ValueError(
+                    f"probe {name} has invalid calibration scale bounds"
+                )
+            calibration = {
+                "mode": mode,
+                "target": target,
+                "min_scale": min_scale,
+                "max_scale": max_scale,
+            }
         raw_map = raw.get("head_map")
         if not isinstance(raw_map, dict):
             raise ValueError(f"probe {name} requires a head_map object")
@@ -74,6 +135,8 @@ def load_probe_plan(path: Path | None) -> dict | None:
                 "head_map": head_map,
                 "selected_head_count": selected,
                 "group": str(raw.get("group") or "unspecified"),
+                "policy_args": policy_args,
+                "calibration": calibration,
             }
         )
         names.add(name)
@@ -106,6 +169,14 @@ def _fixed_frame_indices(
         )
     if policy == "recent4":
         count = min(4, history_frames)
+        return torch.arange(
+            history_frames - count,
+            history_frames,
+            device=device,
+            dtype=torch.long,
+        )
+    if policy == "recent8":
+        count = min(8, history_frames)
         return torch.arange(
             history_frames - count,
             history_frames,
@@ -314,6 +385,10 @@ def apply_history_policy(
     attention_fn: Callable[
         [torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor
     ],
+    policy_args: dict | None = None,
+    calibration: dict | None = None,
+    output_projection_weight: torch.Tensor | None = None,
+    output_projection_bias: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, dict]:
     if policy == "native" or not selected_heads:
         return native_output, {
@@ -334,7 +409,44 @@ def apply_history_policy(
         "selected_heads": list(selected_heads),
         "history_frames": int(history_frames),
     }
-    if policy == "q_retrieval8":
+    candidate_delta = None
+    if policy == "policy_contrast":
+        args = policy_args or {}
+        left = str(args.get("left") or "")
+        right = str(args.get("right") or "")
+        if (
+            left not in POLICY_CONTRAST_CANDIDATES
+            or right not in POLICY_CONTRAST_CANDIDATES
+            or left == right
+        ):
+            raise ValueError(
+                f"invalid policy contrast {left!r}/{right!r}"
+            )
+        candidates = {}
+        frame_indices = {}
+        for name in (left, right):
+            indices = _fixed_frame_indices(
+                name,
+                history_frames=history_frames,
+                device=query.device,
+            )
+            candidate_key, candidate_value = _select_fixed_history(
+                history_key,
+                history_value,
+                frame_seq_length=frame_seq_length,
+                frame_indices=indices,
+                head_indices=heads,
+            )
+            candidates[name] = attention_fn(
+                q,
+                torch.cat((candidate_key, current_k), dim=1),
+                torch.cat((candidate_value, current_v), dim=1),
+            )
+            frame_indices[name] = indices.to(torch.int16)
+        candidate_delta = candidates[left] - candidates[right]
+        metadata["policy_contrast"] = {"left": left, "right": right}
+        metadata["frame_indices"] = frame_indices
+    elif policy == "q_retrieval8":
         frame_indices = _q_retrieval_indices(
             query,
             history_key,
@@ -397,23 +509,110 @@ def apply_history_policy(
             head_indices=heads,
         )
         metadata["frame_indices"] = frame_indices.to(torch.int16)
-    candidate = attention_fn(
-        q,
-        torch.cat((selected_key, current_k), dim=1),
-        torch.cat((selected_value, current_v), dim=1),
+    if candidate_delta is None:
+        candidate = attention_fn(
+            q,
+            torch.cat((selected_key, current_k), dim=1),
+            torch.cat((selected_value, current_v), dim=1),
+        )
+        candidate_delta = (
+            candidate.float()
+            - native_output.index_select(2, heads).float()
+        )
+    raw_delta = candidate_delta.float()
+    native_selected = native_output.index_select(2, heads)
+    raw_replacement_relative_rms = (
+        raw_delta.square().mean().sqrt()
+        / native_selected.float().square().mean().sqrt().clamp_min(1e-8)
     )
+    scale = torch.ones(
+        (), device=raw_delta.device, dtype=torch.float32
+    )
+    projected_native_rms = None
+    selected_weight = None
+    if calibration is not None:
+        if str(calibration.get("mode")) != "projected_relative_rms":
+            raise ValueError("unsupported downstream calibration mode")
+        if output_projection_weight is None:
+            raise ValueError(
+                "projected calibration requires output projection weight"
+            )
+        target = float(calibration["target"])
+        min_scale = float(calibration.get("min_scale", 0.01))
+        max_scale = float(calibration.get("max_scale", 100.0))
+        head_dim = native_output.shape[-1]
+        columns = (
+            heads[:, None] * head_dim
+            + torch.arange(head_dim, device=heads.device)[None, :]
+        ).flatten()
+        selected_weight = output_projection_weight.index_select(1, columns)
+        projected_delta = torch.nn.functional.linear(
+            raw_delta.to(output_projection_weight.dtype).flatten(2),
+            selected_weight,
+            None,
+        )
+        projected_native = torch.nn.functional.linear(
+            native_output.flatten(2),
+            output_projection_weight,
+            output_projection_bias,
+        )
+        projected_relative_rms = (
+            projected_delta.float().square().mean().sqrt()
+            / projected_native.float().square().mean().sqrt().clamp_min(1e-8)
+        )
+        projected_native_rms = (
+            projected_native.float().square().mean().sqrt().clamp_min(1e-8)
+        )
+        degenerate = (
+            ~torch.isfinite(projected_relative_rms)
+            | (projected_relative_rms <= 1e-12)
+        )
+        requested_scale = target / projected_relative_rms.clamp_min(1e-12)
+        scale = requested_scale.clamp(min=min_scale, max=max_scale)
+        clipped = (requested_scale < min_scale) | (
+            requested_scale > max_scale
+        )
+        metadata.update(
+            {
+                "calibration_mode": "projected_relative_rms",
+                "calibration_target": target,
+                "calibration_requested_scale": requested_scale.detach(),
+                "calibration_scale": scale.detach(),
+                "calibration_clipped": clipped.detach(),
+                "calibration_degenerate": degenerate.detach(),
+                "raw_projected_replacement_relative_rms": (
+                    projected_relative_rms.detach()
+                ),
+            }
+        )
+    applied_delta = raw_delta * scale
+    candidate = native_selected.float() + applied_delta
+    candidate = candidate.to(native_output.dtype)
     output = native_output.clone()
     output.index_copy_(2, heads, candidate)
-    delta = candidate.float() - native_output.index_select(2, heads).float()
+    delta = candidate.float() - native_selected.float()
+    metadata["raw_replacement_relative_rms"] = (
+        raw_replacement_relative_rms.detach()
+    )
     metadata["replacement_relative_rms"] = (
         delta.square().mean().sqrt()
-        / native_output.index_select(2, heads)
-        .float()
-        .square()
-        .mean()
-        .sqrt()
-        .clamp_min(1e-8)
+        / native_selected.float().square().mean().sqrt().clamp_min(1e-8)
     ).detach()
+    if calibration is not None:
+        applied_projected_delta = torch.nn.functional.linear(
+            delta.to(output_projection_weight.dtype).flatten(2),
+            selected_weight,
+            None,
+        )
+        achieved = (
+            applied_projected_delta.float().square().mean().sqrt()
+            / projected_native_rms
+        )
+        metadata["projected_replacement_relative_rms"] = achieved.detach()
+        metadata["calibration_relative_error"] = (
+            (achieved - float(calibration["target"])).abs()
+            / float(calibration["target"])
+        ).detach()
     return output, metadata
 
 

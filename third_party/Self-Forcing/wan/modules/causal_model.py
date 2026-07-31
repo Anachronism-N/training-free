@@ -382,6 +382,8 @@ class CausalWanSelfAttention(nn.Module):
                         native_output=x,
                         frame_seq_length=int(frame_seqlen),
                         attention_fn=attention,
+                        output_projection_weight=self.o.weight,
+                        output_projection_bias=self.o.bias,
                     )
                 if (
                     profile_session is not None
