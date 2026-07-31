@@ -1,0 +1,145 @@
+{
+  "claim_boundary": "Dose effects compare top-k and bottom-k at equal head count. Absolute perturbation growth with head count is not evidence.",
+  "downstream_observation_count": 1600,
+  "gates": {
+    "g0_native_replay_parity": true,
+    "g1_positive_rank_separation_at_multiple_doses": {
+      "k": false,
+      "policy": true,
+      "v": true
+    },
+    "g2_dose4_exceeds_dose1": {
+      "k": false,
+      "policy": false,
+      "v": true
+    }
+  },
+  "minimum_qualifying_median_log_effect": 0.04879016416943205,
+  "native_replay_max_relative_rms": 0.0,
+  "native_replay_pass": true,
+  "probe_plan": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v148_axis_causal_profile/inputs/v148_axis_dose_plan.json",
+  "probe_plan_sha256": "86abaff74de9b6008d787b3ab5c444f0f778fde2f26b309b9eefd4ce02b47e28",
+  "profile_count": 32,
+  "prompt_count": 16,
+  "qualifying_doses": {
+    "k": [
+      2
+    ],
+    "policy": [
+      3,
+      4
+    ],
+    "v": [
+      3,
+      4
+    ]
+  },
+  "qualifying_growth_contexts": {
+    "k": [],
+    "policy": [],
+    "v": [
+      "noisy_t1000"
+    ]
+  },
+  "seed_replicates": [
+    0,
+    1
+  ],
+  "shift_interventions_non_degenerate": true,
+  "source": {
+    "analysis_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v145_crossed_seed_head_profile/analysis",
+    "axes": {
+      "k": {
+        "axis": "k_shift",
+        "factor": "full_semantic",
+        "layer_residual_family_split_spearman": 0.9907972540940387,
+        "layer_residual_seed_replicate_spearman": 0.9923394470636345,
+        "reproducibility_screen_pass": true,
+        "score_column": "all_k_shift_mean"
+      },
+      "policy": {
+        "axis": "policy_shift",
+        "factor": "full_semantic",
+        "layer_residual_family_split_spearman": 0.8823666334873983,
+        "layer_residual_seed_replicate_spearman": 0.8919294644763205,
+        "reproducibility_screen_pass": true,
+        "score_column": "all_policy_shift_mean"
+      },
+      "v": {
+        "axis": "v_shift",
+        "factor": "full_semantic",
+        "layer_residual_family_split_spearman": 0.9369712214857625,
+        "layer_residual_seed_replicate_spearman": 0.9465872936262366,
+        "reproducibility_screen_pass": true,
+        "score_column": "all_v_shift_mean"
+      }
+    },
+    "axis_map_diagnostics": {
+      "k": {
+        "bottom_pf_label_counts": {
+          "-1": 49,
+          "1": 15,
+          "2": 26
+        },
+        "top_pf_label_counts": {
+          "-1": 13,
+          "1": 76,
+          "2": 1
+        }
+      },
+      "policy": {
+        "bottom_pf_label_counts": {
+          "-1": 50,
+          "1": 38,
+          "2": 2
+        },
+        "top_pf_label_counts": {
+          "-1": 40,
+          "1": 36,
+          "2": 14
+        }
+      },
+      "v": {
+        "bottom_pf_label_counts": {
+          "-1": 50,
+          "1": 35,
+          "2": 5
+        },
+        "top_pf_label_counts": {
+          "-1": 25,
+          "1": 53,
+          "2": 12
+        }
+      }
+    },
+    "claim_boundary": "PF labels are used only for a post-hoc within-class control. They do not define any v148 ranking.",
+    "experiment": "v145_crossed_seed_head_profile",
+    "factor": "full_semantic",
+    "feature_audit_sha256": "f99fab9d6d2f42a1e78964d9f7463c3190cd934bd4fa0b7666b6499b938b990d",
+    "head_scores_sha256": "3fcfb8f1921e54c5b67e04909e70f0cc8bba789d23109ec22ab497590b6ad318",
+    "per_layer_count": 3,
+    "pf_label_counts": {
+      "-1": 156,
+      "1": 172,
+      "2": 32
+    },
+    "pf_labels_path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/configs/head_configs/best_labels.csv",
+    "pf_labels_sha256": "80f861deaecd89c2f514c42a0ce5fd390bf1ec4e557dae7241401050e0de605d",
+    "random_seed": 20260801,
+    "top_map_overlaps": {
+      "k__policy": {
+        "intersection": 20,
+        "jaccard": 0.125
+      },
+      "k__v": {
+        "intersection": 26,
+        "jaccard": 0.16883116883116883
+      },
+      "v__policy": {
+        "intersection": 25,
+        "jaccard": 0.16129032258064516
+      }
+    }
+  },
+  "suite": "v148_axis_dose"
+}
