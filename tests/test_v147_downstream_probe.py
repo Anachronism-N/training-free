@@ -85,7 +85,7 @@ def test_recent_policy_changes_only_selected_heads():
     assert metadata["replacement_relative_rms"] > 0
 
 
-def test_retrieval_and_value_shift_are_frame_aligned():
+def test_retrieval_and_kv_shifts_are_frame_aligned():
     torch.manual_seed(148)
     query = torch.randn(2, 4, 3, 4)
     current_key = torch.randn_like(query)
@@ -128,6 +128,42 @@ def test_retrieval_and_value_shift_are_frame_aligned():
     assert shifted["shifted_old_frames"] == 6
     assert torch.equal(shifted_output[:, :, 0], native[:, :, 0])
     assert not torch.equal(shifted_output[:, :, 1], native[:, :, 1])
+
+    captured = {}
+
+    def capture_attention(q, k, v):
+        captured["key"] = k.clone()
+        captured["value"] = v.clone()
+        return _attention(q, k, v)
+
+    key_shifted_output, key_shifted = apply_history_policy(
+        policy="key_shift",
+        selected_heads=[1],
+        query=query,
+        current_key=current_key,
+        current_value=current_value,
+        history_key=history_key,
+        history_value=history_value,
+        native_output=native,
+        frame_seq_length=4,
+        attention_fn=capture_attention,
+    )
+    assert key_shifted["recent_frames_preserved"] == 4
+    assert key_shifted["shifted_old_frames"] == 6
+    assert torch.equal(key_shifted_output[:, :, 0], native[:, :, 0])
+    assert not torch.equal(key_shifted_output[:, :, 1], native[:, :, 1])
+    expected_key = history_key[:, :, 1:2].reshape(2, 10, 4, 1, 4).clone()
+    expected_key[:, :6] = torch.roll(
+        expected_key[:, :6].clone(), shifts=1, dims=1
+    )
+    expected_key = torch.cat(
+        (expected_key.flatten(1, 2), current_key[:, :, 1:2]), dim=1
+    )
+    expected_value = torch.cat(
+        (history_value[:, :, 1:2], current_value[:, :, 1:2]), dim=1
+    )
+    assert torch.equal(captured["key"], expected_key)
+    assert torch.equal(captured["value"], expected_value)
 
 
 def test_downstream_output_metrics_have_exact_zero_replay():

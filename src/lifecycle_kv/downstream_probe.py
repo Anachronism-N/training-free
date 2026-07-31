@@ -18,6 +18,7 @@ SUPPORTED_POLICIES = {
     "uniform8",
     "boundary8",
     "q_retrieval8",
+    "key_shift",
     "value_shift",
 }
 
@@ -348,8 +349,14 @@ def apply_history_policy(
             head_indices=heads,
         )
         metadata["frame_indices"] = frame_indices.to(torch.int16)
-    elif policy == "value_shift":
-        selected_key = history_key.index_select(2, heads)
+    elif policy in {"key_shift", "value_shift"}:
+        selected_key = history_key.index_select(2, heads).reshape(
+            history_key.shape[0],
+            history_frames,
+            frame_seq_length,
+            heads.numel(),
+            history_key.shape[-1],
+        )
         selected_value = history_value.index_select(2, heads).reshape(
             history_value.shape[0],
             history_frames,
@@ -360,11 +367,19 @@ def apply_history_policy(
         recent = min(4, history_frames)
         old_end = history_frames - recent
         if old_end > 1:
-            shifted = selected_value.clone()
-            shifted[:, :old_end] = torch.roll(
-                selected_value[:, :old_end], shifts=1, dims=1
-            )
-            selected_value = shifted
+            if policy == "key_shift":
+                shifted_key = selected_key.clone()
+                shifted_key[:, :old_end] = torch.roll(
+                    selected_key[:, :old_end], shifts=1, dims=1
+                )
+                selected_key = shifted_key
+            else:
+                shifted_value = selected_value.clone()
+                shifted_value[:, :old_end] = torch.roll(
+                    selected_value[:, :old_end], shifts=1, dims=1
+                )
+                selected_value = shifted_value
+        selected_key = selected_key.flatten(1, 2)
         selected_value = selected_value.flatten(1, 2)
         metadata["recent_frames_preserved"] = recent
         metadata["shifted_old_frames"] = max(0, old_end)
