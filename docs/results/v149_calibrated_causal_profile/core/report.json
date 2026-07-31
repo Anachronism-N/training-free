@@ -1,0 +1,444 @@
+{
+  "acceptable_calibration_scale_range": [
+    0.02,
+    50.0
+  ],
+  "calibration_clipped_layer_count": 0,
+  "calibration_degenerate_layer_count": 4,
+  "calibration_max_relative_error": 1.0,
+  "calibration_pass": false,
+  "calibration_scale_max": 500.0,
+  "calibration_scale_min": 0.0885705053806305,
+  "calibration_target_max": 0.05,
+  "calibration_target_min": 0.05,
+  "claim_boundary": "Passing susceptibility identifies a reproducible local response. Passing calibrated leverage identifies downstream amplification at equal projected perturbation strength. Neither establishes trajectory-level video improvement.",
+  "downstream_observation_count": 3968,
+  "gates": {
+    "g0_integrity_and_calibration": false,
+    "g1_matched_axis_effect": {
+      "leverage": {
+        "k": false,
+        "policy": false,
+        "v": false
+      },
+      "susceptibility": {
+        "k": true,
+        "policy": false,
+        "v": false
+      }
+    },
+    "g2_pf_independent_effect": {
+      "leverage": {
+        "k": false,
+        "policy": false,
+        "v": false
+      },
+      "susceptibility": {
+        "k": true,
+        "policy": true,
+        "v": false
+      }
+    },
+    "g3_intervention_specificity": {
+      "leverage": {
+        "k": false,
+        "policy": false,
+        "v": false
+      },
+      "susceptibility": {
+        "k": false,
+        "policy": true,
+        "v": false
+      }
+    }
+  },
+  "maximum_calibration_relative_error": 0.02,
+  "minimum_qualifying_median_log_effect": 0.04879016416943205,
+  "native_replay_max_relative_rms": 0.0,
+  "native_replay_pass": true,
+  "policy_contrast_valid": true,
+  "probe_plan": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v149_calibrated_causal_profile/inputs/v149_calibrated_core_plan.json",
+  "probe_plan_sha256": "17d78fb98fef68064fb4af186655543d0c762666e71cf00dddcaf2407afc1e1e",
+  "profile_count": 64,
+  "prompt_count": 32,
+  "qualifying_matched_contexts": {
+    "leverage": {
+      "k": [],
+      "policy": [],
+      "v": []
+    },
+    "susceptibility": {
+      "k": [
+        "noisy_t1000",
+        "noisy_t500"
+      ],
+      "policy": [],
+      "v": []
+    }
+  },
+  "qualifying_pf_contexts": {
+    "leverage": {
+      "k": [],
+      "policy": [],
+      "v": []
+    },
+    "susceptibility": {
+      "k": [
+        "noisy_t500"
+      ],
+      "policy": [
+        "noisy_t1000",
+        "noisy_t500"
+      ],
+      "v": []
+    }
+  },
+  "qualifying_specificity_contexts": {
+    "leverage": {
+      "k": [],
+      "policy": [],
+      "v": []
+    },
+    "susceptibility": {
+      "k": [],
+      "policy": [
+        "noisy_t1000",
+        "noisy_t500"
+      ],
+      "v": []
+    }
+  },
+  "seed_replicates": [
+    0,
+    1
+  ],
+  "shift_interventions_non_degenerate": true,
+  "source": {
+    "analysis_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v145_crossed_seed_head_profile/analysis",
+    "axes": {
+      "k": {
+        "axis": "k_shift",
+        "factor": "full_semantic",
+        "layer_residual_family_split_spearman": 0.9907972540940387,
+        "layer_residual_seed_replicate_spearman": 0.9923394470636345,
+        "reproducibility_screen_pass": true,
+        "score_column": "all_k_shift_mean"
+      },
+      "policy": {
+        "axis": "policy_shift",
+        "factor": "full_semantic",
+        "layer_residual_family_split_spearman": 0.8823666334873983,
+        "layer_residual_seed_replicate_spearman": 0.8919294644763205,
+        "reproducibility_screen_pass": true,
+        "score_column": "all_policy_shift_mean"
+      },
+      "v": {
+        "axis": "v_shift",
+        "factor": "full_semantic",
+        "layer_residual_family_split_spearman": 0.9369712214857625,
+        "layer_residual_seed_replicate_spearman": 0.9465872936262366,
+        "reproducibility_screen_pass": true,
+        "score_column": "all_v_shift_mean"
+      }
+    },
+    "axis_audit_names": {
+      "k": "k_shift",
+      "policy": "policy_shift",
+      "v": "v_shift"
+    },
+    "axis_map_diagnostics": {
+      "k": {
+        "bottom_pf_label_counts": {
+          "-1": 49,
+          "1": 15,
+          "2": 26
+        },
+        "top_pf_label_counts": {
+          "-1": 13,
+          "1": 76,
+          "2": 1
+        }
+      },
+      "policy": {
+        "bottom_pf_label_counts": {
+          "-1": 50,
+          "1": 38,
+          "2": 2
+        },
+        "top_pf_label_counts": {
+          "-1": 40,
+          "1": 36,
+          "2": 14
+        }
+      },
+      "v": {
+        "bottom_pf_label_counts": {
+          "-1": 50,
+          "1": 35,
+          "2": 5
+        },
+        "top_pf_label_counts": {
+          "-1": 25,
+          "1": 53,
+          "2": 12
+        }
+      }
+    },
+    "calibration": {
+      "max_scale": 500.0,
+      "min_scale": 0.01,
+      "mode": "projected_relative_rms",
+      "target": 0.05
+    },
+    "claim_boundary": "v149 rankings come only from v145 full-semantic scores. PF labels define post-hoc within-class controls. Every intervention is calibrated independently at each layer after the native attention output projection.",
+    "experiment": "v145_crossed_seed_head_profile",
+    "factor": "full_semantic",
+    "feature_audit_sha256": "f99fab9d6d2f42a1e78964d9f7463c3190cd934bd4fa0b7666b6499b938b990d",
+    "head_scores_sha256": "3fcfb8f1921e54c5b67e04909e70f0cc8bba789d23109ec22ab497590b6ad318",
+    "per_layer_count": 3,
+    "pf_label_counts": {
+      "-1": 156,
+      "1": 172,
+      "2": 32
+    },
+    "pf_labels_path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/configs/head_configs/best_labels.csv",
+    "pf_labels_sha256": "80f861deaecd89c2f514c42a0ce5fd390bf1ec4e557dae7241401050e0de605d",
+    "pf_matched_selection": {
+      "k": {
+        "label_counts": {
+          "-1": 12,
+          "1": 18
+        },
+        "labels_by_layer": {
+          "0": 1,
+          "1": -1,
+          "10": -1,
+          "11": 1,
+          "12": 1,
+          "13": 1,
+          "14": 1,
+          "15": 1,
+          "16": 1,
+          "17": 1,
+          "18": 1,
+          "19": 1,
+          "2": 1,
+          "20": -1,
+          "21": -1,
+          "22": 1,
+          "23": -1,
+          "24": -1,
+          "25": -1,
+          "26": 1,
+          "27": 1,
+          "28": 1,
+          "29": -1,
+          "3": 1,
+          "4": -1,
+          "5": -1,
+          "6": 1,
+          "7": 1,
+          "8": -1,
+          "9": -1
+        },
+        "score_spread_by_layer": {
+          "0": 0.7399053946137428,
+          "1": 0.20513978600502014,
+          "10": 0.25956660509109497,
+          "11": 0.21781492978334427,
+          "12": 0.3376729413866997,
+          "13": 0.21832653880119324,
+          "14": 0.20635037869215012,
+          "15": 0.28937866538763046,
+          "16": 0.24135446548461914,
+          "17": 0.35663751512765884,
+          "18": 0.28228868544101715,
+          "19": 0.4523599147796631,
+          "2": 0.40968043357133865,
+          "20": 0.1374213993549347,
+          "21": 0.19039896875619888,
+          "22": 0.35176749527454376,
+          "23": 0.2564772740006447,
+          "24": 0.24762791395187378,
+          "25": 0.24371910095214844,
+          "26": 0.19072676450014114,
+          "27": 0.3751624673604965,
+          "28": 0.271944560110569,
+          "29": 0.3103284388780594,
+          "3": 0.2302730455994606,
+          "4": 0.4026644453406334,
+          "5": 0.3300637826323509,
+          "6": 0.2841164544224739,
+          "7": 0.26837240904569626,
+          "8": 0.32035326212644577,
+          "9": 0.25034844875335693
+        },
+        "selection": "within each layer, choose the PF class with the largest score range, then compare its highest- and lowest-score heads"
+      },
+      "policy": {
+        "label_counts": {
+          "-1": 16,
+          "1": 13,
+          "2": 1
+        },
+        "labels_by_layer": {
+          "0": -1,
+          "1": -1,
+          "10": 1,
+          "11": -1,
+          "12": -1,
+          "13": 1,
+          "14": 1,
+          "15": 1,
+          "16": -1,
+          "17": -1,
+          "18": 1,
+          "19": -1,
+          "2": -1,
+          "20": -1,
+          "21": -1,
+          "22": 1,
+          "23": 1,
+          "24": 1,
+          "25": 1,
+          "26": 1,
+          "27": 1,
+          "28": 1,
+          "29": -1,
+          "3": -1,
+          "4": 1,
+          "5": -1,
+          "6": -1,
+          "7": 2,
+          "8": -1,
+          "9": -1
+        },
+        "score_spread_by_layer": {
+          "0": 0.08882182836532593,
+          "1": 0.10716358758509159,
+          "10": 0.06353186629712582,
+          "11": 0.061118969693779945,
+          "12": 0.08103488758206367,
+          "13": 0.05326953437179327,
+          "14": 0.05772667936980724,
+          "15": 0.03345507197082043,
+          "16": 0.16644528741016984,
+          "17": 0.0961218411102891,
+          "18": 0.12228766828775406,
+          "19": 0.2079461058601737,
+          "2": 0.09097718028351665,
+          "20": 0.2262320735026151,
+          "21": 0.2743394300341606,
+          "22": 0.10342657752335072,
+          "23": 0.15962570440024137,
+          "24": 0.18147531896829605,
+          "25": 0.1755971796810627,
+          "26": 0.25827570632100105,
+          "27": 0.28499827813357115,
+          "28": 0.1696760430932045,
+          "29": 0.11608272837474942,
+          "3": 0.0711656017228961,
+          "4": 0.10142328590154648,
+          "5": 0.06548915477469563,
+          "6": 0.054213378578424454,
+          "7": 0.06510680634528399,
+          "8": 0.16534372232854366,
+          "9": 0.11169155687093735
+        },
+        "selection": "within each layer, choose the PF class with the largest score range, then compare its highest- and lowest-score heads"
+      },
+      "v": {
+        "label_counts": {
+          "-1": 15,
+          "1": 14,
+          "2": 1
+        },
+        "labels_by_layer": {
+          "0": -1,
+          "1": -1,
+          "10": 1,
+          "11": -1,
+          "12": -1,
+          "13": 1,
+          "14": 1,
+          "15": 1,
+          "16": -1,
+          "17": -1,
+          "18": 1,
+          "19": -1,
+          "2": -1,
+          "20": -1,
+          "21": -1,
+          "22": 1,
+          "23": 1,
+          "24": 1,
+          "25": 1,
+          "26": -1,
+          "27": 1,
+          "28": 1,
+          "29": 1,
+          "3": 1,
+          "4": -1,
+          "5": -1,
+          "6": 1,
+          "7": 2,
+          "8": -1,
+          "9": -1
+        },
+        "score_spread_by_layer": {
+          "0": 0.21174608170986176,
+          "1": 0.6765558198094368,
+          "10": 0.2437184974551201,
+          "11": 0.10627599060535431,
+          "12": 0.24047137051820755,
+          "13": 0.17992852628231049,
+          "14": 0.2271161898970604,
+          "15": 0.13716183602809906,
+          "16": 0.22255737334489822,
+          "17": 0.19805847853422165,
+          "18": 0.1527041345834732,
+          "19": 0.14366837590932846,
+          "2": 0.4927225410938263,
+          "20": 0.36378105729818344,
+          "21": 0.18176621198654175,
+          "22": 0.1258891001343727,
+          "23": 0.08949462324380875,
+          "24": 0.08223849534988403,
+          "25": 0.1356721967458725,
+          "26": 0.3508584052324295,
+          "27": 0.23165082186460495,
+          "28": 0.26912252604961395,
+          "29": 0.3722525015473366,
+          "3": 0.3181726112961769,
+          "4": 0.3096025586128235,
+          "5": 0.27734073251485825,
+          "6": 0.26658451557159424,
+          "7": 0.19847959280014038,
+          "8": 0.21255065500736237,
+          "9": 0.29507483541965485
+        },
+        "selection": "within each layer, choose the PF class with the largest score range, then compare its highest- and lowest-score heads"
+      }
+    },
+    "policy_contrast": {
+      "left": "uniform8",
+      "right": "recent8"
+    },
+    "random_seed": 20260801,
+    "top_map_overlaps": {
+      "k__policy": {
+        "intersection": 20,
+        "jaccard": 0.125
+      },
+      "k__v": {
+        "intersection": 26,
+        "jaccard": 0.16883116883116883
+      },
+      "v__policy": {
+        "intersection": 25,
+        "jaccard": 0.16129032258064516
+      }
+    }
+  },
+  "suite": "v149_calibrated_core"
+}

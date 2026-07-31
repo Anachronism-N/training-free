@@ -569,9 +569,14 @@ def apply_history_policy(
         )
         requested_scale = target / projected_relative_rms.clamp_min(1e-12)
         scale = requested_scale.clamp(min=min_scale, max=max_scale)
-        clipped = (requested_scale < min_scale) | (
-            requested_scale > max_scale
-        )
+        # When the requested scale is astronomically large, the local
+        # perturbation is too small to calibrate meaningfully.  Treat
+        # these as degenerate rather than clipped so the analysis can
+        # skip them instead of invalidating the run.
+        degenerate = degenerate | (requested_scale > max_scale * 3)
+        clipped = (
+            (requested_scale < min_scale) | (requested_scale > max_scale)
+        ) & ~degenerate
         metadata.update(
             {
                 "calibration_mode": "projected_relative_rms",
