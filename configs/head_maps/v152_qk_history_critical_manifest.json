@@ -1,0 +1,835 @@
+{
+  "classifier": {
+    "discovery_seed_replicate": 0,
+    "label10": "history_critical",
+    "label11": "default",
+    "random_seed": 2026,
+    "score": "median over prompts and four denoising contexts of uniform8 QK compatibility minus recent8 QK compatibility",
+    "selection": "top 4 heads independently in each of 30 layers",
+    "validation_seed_replicate": 1
+  },
+  "discovery_rank_boundary": {
+    "maximum_top4_minus_fifth": 0.3422093391418457,
+    "median_top4_minus_fifth": 0.01784968376159668,
+    "minimum_top4_minus_fifth": 0.0004923343658447266
+  },
+  "discovery_validation_recurrence": {
+    "exact_match_layers": 23,
+    "layer_jaccards": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.6,
+      1.0,
+      0.6,
+      1.0,
+      1.0,
+      0.6,
+      1.0,
+      0.3333333333333333,
+      1.0,
+      1.0,
+      1.0,
+      0.6,
+      1.0,
+      0.6,
+      0.6,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mean_layer_jaccard": 0.8977777777777778,
+    "median_layer_jaccard": 1.0,
+    "overlap_heads": 112,
+    "total_selected_heads": 120
+  },
+  "experiment": "v152_one_sided_history_critical_reanalysis",
+  "gate_reanalysis": {
+    "claim_boundary": "The symmetric uniform-vs-recent binary taxonomy remains rejected. The passing claim is only that the high-QK tail is a stable, one-sided candidate for distributed-history retention; trajectory-level utility must be tested by generation.",
+    "one_sided_transfer_candidate": true,
+    "original_symmetric_gates": {
+      "g0_native_replay_and_contract": true,
+      "g1_oracle_policy_choice": false,
+      "g2_qk_policy_choice": false,
+      "g3_qk_beats_count_matched_random": false,
+      "g4_qk_matches_oracle": true,
+      "g5_online_qk_candidate_confirmed": false,
+      "g6_old_mass_baseline": false
+    },
+    "qk_high_beats_random_qualifying_contexts": [
+      "noisy_f117_t750",
+      "noisy_f117_t500",
+      "noisy_f117_t250"
+    ],
+    "qk_high_uniform_qualifying_contexts": [
+      "noisy_f117_t1000",
+      "noisy_f117_t750",
+      "noisy_f117_t500"
+    ],
+    "qk_low_recent_qualifying_contexts": [],
+    "qk_oracle_alignment_contexts": [
+      "noisy_f117_t1000",
+      "noisy_f117_t750",
+      "noisy_f117_t500",
+      "noisy_f117_t250"
+    ],
+    "qk_oracle_spearman": {
+      "noisy_f117_t1000": 0.5314685314685316,
+      "noisy_f117_t250": 0.5384615384615385,
+      "noisy_f117_t500": 0.5314685314685316,
+      "noisy_f117_t750": 0.5384615384615385
+    }
+  },
+  "generation_contract": {
+    "default_route": "sink1 + recent8",
+    "full_frame_equivalents_per_head": 9,
+    "history_critical_route": "sink1 + TemporalPrototype4 + recent4",
+    "purpose": "causal generation transfer screen; no trajectory-level claim is made by the profiling result alone"
+  },
+  "maps": {
+    "qk_bottom4_control": {
+      "counts": {
+        "10": 120,
+        "11": 240
+      },
+      "filename": "v152_qk_history_critical_bottom4_seed0_control.csv",
+      "label10_per_layer": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "10": 84,
+          "11": 88
+        },
+        "veil": {
+          "10": 5,
+          "11": 27
+        },
+        "wave": {
+          "10": 31,
+          "11": 125
+        }
+      },
+      "selected_heads_by_layer": {
+        "0": [
+          0,
+          1,
+          3,
+          8
+        ],
+        "1": [
+          0,
+          5,
+          7,
+          11
+        ],
+        "10": [
+          2,
+          4,
+          5,
+          11
+        ],
+        "11": [
+          0,
+          1,
+          6,
+          7
+        ],
+        "12": [
+          1,
+          6,
+          7,
+          9
+        ],
+        "13": [
+          5,
+          7,
+          8,
+          10
+        ],
+        "14": [
+          1,
+          2,
+          3,
+          7
+        ],
+        "15": [
+          0,
+          1,
+          4,
+          10
+        ],
+        "16": [
+          1,
+          7,
+          8,
+          10
+        ],
+        "17": [
+          0,
+          3,
+          6,
+          8
+        ],
+        "18": [
+          1,
+          5,
+          8,
+          11
+        ],
+        "19": [
+          5,
+          6,
+          8,
+          9
+        ],
+        "2": [
+          2,
+          5,
+          9,
+          10
+        ],
+        "20": [
+          0,
+          6,
+          10,
+          11
+        ],
+        "21": [
+          1,
+          6,
+          7,
+          8
+        ],
+        "22": [
+          0,
+          2,
+          5,
+          9
+        ],
+        "23": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "24": [
+          1,
+          3,
+          4,
+          5
+        ],
+        "25": [
+          0,
+          5,
+          6,
+          11
+        ],
+        "26": [
+          2,
+          3,
+          8,
+          11
+        ],
+        "27": [
+          2,
+          8,
+          10,
+          11
+        ],
+        "28": [
+          2,
+          3,
+          4,
+          9
+        ],
+        "29": [
+          1,
+          3,
+          6,
+          8
+        ],
+        "3": [
+          2,
+          5,
+          6,
+          8
+        ],
+        "4": [
+          1,
+          6,
+          7,
+          10
+        ],
+        "5": [
+          0,
+          5,
+          7,
+          8
+        ],
+        "6": [
+          1,
+          3,
+          4,
+          5
+        ],
+        "7": [
+          1,
+          5,
+          7,
+          11
+        ],
+        "8": [
+          1,
+          7,
+          8,
+          9
+        ],
+        "9": [
+          5,
+          7,
+          8,
+          11
+        ]
+      },
+      "sha256": "d3e879083d40fada8a35fdbd2dbac32704dffe011795ce1a2d42cfad2081dcc5"
+    },
+    "qk_top4": {
+      "counts": {
+        "10": 120,
+        "11": 240
+      },
+      "filename": "v152_qk_history_critical_top4_seed0.csv",
+      "label10_per_layer": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "10": 24,
+          "11": 148
+        },
+        "veil": {
+          "10": 19,
+          "11": 13
+        },
+        "wave": {
+          "10": 77,
+          "11": 79
+        }
+      },
+      "selected_heads_by_layer": {
+        "0": [
+          4,
+          5,
+          10,
+          11
+        ],
+        "1": [
+          4,
+          6,
+          8,
+          9
+        ],
+        "10": [
+          3,
+          7,
+          8,
+          9
+        ],
+        "11": [
+          2,
+          4,
+          9,
+          10
+        ],
+        "12": [
+          2,
+          3,
+          10,
+          11
+        ],
+        "13": [
+          0,
+          1,
+          9,
+          11
+        ],
+        "14": [
+          0,
+          4,
+          5,
+          8
+        ],
+        "15": [
+          3,
+          8,
+          9,
+          11
+        ],
+        "16": [
+          2,
+          3,
+          4,
+          6
+        ],
+        "17": [
+          1,
+          4,
+          5,
+          9
+        ],
+        "18": [
+          0,
+          2,
+          4,
+          6
+        ],
+        "19": [
+          0,
+          4,
+          7,
+          10
+        ],
+        "2": [
+          3,
+          4,
+          7,
+          8
+        ],
+        "20": [
+          2,
+          3,
+          5,
+          7
+        ],
+        "21": [
+          3,
+          9,
+          10,
+          11
+        ],
+        "22": [
+          1,
+          4,
+          6,
+          11
+        ],
+        "23": [
+          1,
+          7,
+          9,
+          10
+        ],
+        "24": [
+          2,
+          6,
+          8,
+          10
+        ],
+        "25": [
+          1,
+          3,
+          7,
+          9
+        ],
+        "26": [
+          1,
+          4,
+          7,
+          10
+        ],
+        "27": [
+          1,
+          6,
+          7,
+          9
+        ],
+        "28": [
+          6,
+          8,
+          10,
+          11
+        ],
+        "29": [
+          0,
+          2,
+          9,
+          11
+        ],
+        "3": [
+          0,
+          4,
+          7,
+          9
+        ],
+        "4": [
+          0,
+          3,
+          4,
+          5
+        ],
+        "5": [
+          2,
+          4,
+          6,
+          9
+        ],
+        "6": [
+          0,
+          2,
+          9,
+          11
+        ],
+        "7": [
+          0,
+          3,
+          4,
+          8
+        ],
+        "8": [
+          2,
+          4,
+          5,
+          10
+        ],
+        "9": [
+          0,
+          3,
+          4,
+          9
+        ]
+      },
+      "sha256": "505aaff2a5e6db94748b6aa632a53606ab6f8e1dc35e0a35d8519d9ce1e7818f"
+    },
+    "random4_control": {
+      "counts": {
+        "10": 120,
+        "11": 240
+      },
+      "filename": "v152_qk_history_critical_random4_seed2026_control.csv",
+      "label10_per_layer": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "pf_cross_tab": {
+        "anchor": {
+          "10": 59,
+          "11": 113
+        },
+        "veil": {
+          "10": 7,
+          "11": 25
+        },
+        "wave": {
+          "10": 54,
+          "11": 102
+        }
+      },
+      "selected_heads_by_layer": {
+        "0": [
+          1,
+          5,
+          8,
+          9
+        ],
+        "1": [
+          1,
+          3,
+          8,
+          10
+        ],
+        "10": [
+          2,
+          4,
+          7,
+          11
+        ],
+        "11": [
+          0,
+          5,
+          7,
+          10
+        ],
+        "12": [
+          1,
+          6,
+          8,
+          11
+        ],
+        "13": [
+          1,
+          6,
+          7,
+          8
+        ],
+        "14": [
+          6,
+          7,
+          8,
+          9
+        ],
+        "15": [
+          4,
+          6,
+          7,
+          9
+        ],
+        "16": [
+          0,
+          3,
+          8,
+          11
+        ],
+        "17": [
+          0,
+          1,
+          2,
+          8
+        ],
+        "18": [
+          6,
+          7,
+          9,
+          11
+        ],
+        "19": [
+          1,
+          2,
+          3,
+          7
+        ],
+        "2": [
+          6,
+          7,
+          8,
+          9
+        ],
+        "20": [
+          7,
+          8,
+          10,
+          11
+        ],
+        "21": [
+          4,
+          6,
+          8,
+          11
+        ],
+        "22": [
+          7,
+          8,
+          10,
+          11
+        ],
+        "23": [
+          3,
+          4,
+          6,
+          11
+        ],
+        "24": [
+          0,
+          2,
+          4,
+          10
+        ],
+        "25": [
+          7,
+          8,
+          9,
+          10
+        ],
+        "26": [
+          3,
+          4,
+          5,
+          7
+        ],
+        "27": [
+          7,
+          8,
+          10,
+          11
+        ],
+        "28": [
+          0,
+          6,
+          7,
+          8
+        ],
+        "29": [
+          1,
+          4,
+          5,
+          7
+        ],
+        "3": [
+          0,
+          3,
+          7,
+          9
+        ],
+        "4": [
+          1,
+          4,
+          9,
+          10
+        ],
+        "5": [
+          0,
+          1,
+          7,
+          10
+        ],
+        "6": [
+          3,
+          5,
+          6,
+          10
+        ],
+        "7": [
+          4,
+          5,
+          6,
+          10
+        ],
+        "8": [
+          1,
+          5,
+          8,
+          11
+        ],
+        "9": [
+          1,
+          4,
+          8,
+          10
+        ]
+      },
+      "sha256": "6aa1ca76870ef16834f8353a28c58b18d56324dbf77fd5a05c9c3df2b643b5fb"
+    }
+  },
+  "snapshot_audit": {
+    "contexts": [
+      "noisy_f117_t1000",
+      "noisy_f117_t750",
+      "noisy_f117_t500",
+      "noisy_f117_t250"
+    ],
+    "observations_per_head_per_replicate": 256,
+    "prompt_count": 64,
+    "seed_replicates": [
+      0,
+      1
+    ],
+    "selector_rows": 15360
+  },
+  "source": {
+    "files": {
+      "policy_pair_summary.csv": "80fe34f8d5b0c004c208d1db2824a265064d4d7d85eaf6593b6cf49950571a81",
+      "random_control_summary.csv": "a27e8c60c40fbb5f270945b3930d2fddf01aadb6fd8f48239643530066f0b2b9",
+      "report.json": "0d82cabe53e326a1ad7fa7f0e562a1170758cf339e7ea5e01bc0ea3da2559865",
+      "selector_alignment_summary.csv": "14c584c09de2f89eab946b308c6332b23e68f727ace49520a2387757260310e4",
+      "selector_snapshots.csv.gz": "f14fe2f9b9011c9a74c1a37f40504eb18b4cce2d59ecc754de74f9cd501a4882"
+    },
+    "pf_labels_sha256": "3768a00c692bd18284a3cde82d76e4d83052d46959a0dda22abfd58d3d784a86",
+    "result_directory": "docs/results/v152_online_policy_profile/core"
+  },
+  "version": 1
+}
