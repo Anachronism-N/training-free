@@ -1,0 +1,618 @@
+{
+  "acceptable_calibration_scale_range": [
+    0.005,
+    50.0
+  ],
+  "calibration_clipped_layer_count": 0,
+  "calibration_degenerate_layer_count": 0,
+  "calibration_max_relative_error": 0.04362640902400017,
+  "calibration_scale_max": 20.05428123474121,
+  "calibration_scale_min": 0.017006272450089455,
+  "claim_boundary": "Passing v150 supports a count-matched collective policy-group effect at a measured denoising context, not a binary taxonomy or improved long-video generation.",
+  "confirmed_contexts": {
+    "leverage": []
+  },
+  "downstream_observation_count": 2176,
+  "gates": {
+    "g0_native_replay": true,
+    "g1_group_effect_at_multiple_targets": {
+      "leverage": false,
+      "susceptibility": false
+    },
+    "g2_target_response_sanity": {
+      "leverage": false
+    },
+    "g3_strength_robust_policy_group": {
+      "leverage": false
+    }
+  },
+  "maximum_calibration_relative_error": 0.02,
+  "minimum_qualifying_median_log_effect": 0.04879016416943205,
+  "minimum_random_positive_maps": 6,
+  "minimum_target_response_log_effect": 0.1823215567939546,
+  "native_replay_max_relative_rms": 0.0,
+  "native_replay_pass": true,
+  "probe_context_count": 66,
+  "probe_context_integrity_pass_count": 41,
+  "probe_context_integrity_pass_rate": 0.6212121212121212,
+  "probe_plan": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v150_policy_group_confirmation/inputs/v150_policy_strength_plan.json",
+  "probe_plan_sha256": "c410462a43e8118b7e72f023e982a2cf211443da5ef5adcdfa27aad9a6781f40",
+  "profile_count": 32,
+  "prompt_count": 16,
+  "qualifying_group_contexts": {
+    "leverage": {
+      "policy_contrast": {
+        "0.01": [],
+        "0.02": [],
+        "0.05": []
+      }
+    },
+    "susceptibility": {
+      "policy_contrast": {
+        "0.01": [],
+        "0.02": [],
+        "0.05": []
+      }
+    }
+  },
+  "random_positive_map_counts": {
+    "leverage": {
+      "policy_contrast": {
+        "0.01": {
+          "noisy_t1000": 8,
+          "noisy_t500": 6
+        },
+        "0.02": {
+          "noisy_t1000": 7,
+          "noisy_t500": 6
+        },
+        "0.05": {
+          "noisy_t1000": 7,
+          "noisy_t500": 6
+        }
+      }
+    },
+    "susceptibility": {
+      "policy_contrast": {
+        "0.01": {
+          "noisy_t1000": 5,
+          "noisy_t500": 7
+        },
+        "0.02": {
+          "noisy_t1000": 6,
+          "noisy_t500": 8
+        },
+        "0.05": {
+          "noisy_t1000": 7,
+          "noisy_t500": 8
+        }
+      }
+    }
+  },
+  "robust_target_contexts": {
+    "leverage": [],
+    "susceptibility": []
+  },
+  "seed_replicates": [
+    0,
+    1
+  ],
+  "source": {
+    "analysis_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v145_crossed_seed_head_profile/analysis",
+    "axis": {
+      "axis": "policy_shift",
+      "factor": "full_semantic",
+      "layer_residual_family_split_spearman": 0.8823666334873983,
+      "layer_residual_seed_replicate_spearman": 0.8919294644763205,
+      "reproducibility_screen_pass": true,
+      "score_column": "all_policy_shift_mean"
+    },
+    "calibration": {
+      "core_target": 0.02,
+      "max_scale": 50.0,
+      "min_scale": 0.001,
+      "strength_targets": [
+        0.01,
+        0.02,
+        0.05
+      ]
+    },
+    "claim_boundary": "v150 tests only the v145 full-semantic policy ranking. PF labels do not define or filter any head map. Eight deterministic, balanced, count-matched random maps are independent controls.",
+    "experiment": "v145_crossed_seed_head_profile",
+    "factor": "full_semantic",
+    "feature_audit_sha256": "f99fab9d6d2f42a1e78964d9f7463c3190cd934bd4fa0b7666b6499b938b990d",
+    "head_scores_sha256": "3fcfb8f1921e54c5b67e04909e70f0cc8bba789d23109ec22ab497590b6ad318",
+    "map_diagnostics": {
+      "group_score_means": {
+        "bottom4": 0.07305045533721569,
+        "middle4": 0.10377233081732508,
+        "random0": 0.1076155607913582,
+        "random1": 0.10764739694968739,
+        "random2": 0.11603107298530328,
+        "random3": 0.11526412470266223,
+        "random4": 0.11075019910507157,
+        "random5": 0.10527970691861507,
+        "random6": 0.1121489018337646,
+        "random7": 0.10817726962219847,
+        "top4": 0.1544712445718081
+      },
+      "random_head_usage_by_layer": {
+        "0": [
+          3,
+          3,
+          3,
+          3,
+          2,
+          3,
+          3,
+          2,
+          3,
+          2,
+          3,
+          2
+        ],
+        "1": [
+          2,
+          2,
+          3,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          3
+        ],
+        "10": [
+          3,
+          3,
+          3,
+          2,
+          3,
+          2,
+          2,
+          3,
+          2,
+          3,
+          3,
+          3
+        ],
+        "11": [
+          3,
+          3,
+          3,
+          2,
+          3,
+          3,
+          2,
+          3,
+          2,
+          2,
+          3,
+          3
+        ],
+        "12": [
+          3,
+          2,
+          2,
+          3,
+          3,
+          3,
+          2,
+          3,
+          3,
+          3,
+          3,
+          2
+        ],
+        "13": [
+          3,
+          3,
+          3,
+          3,
+          2,
+          2,
+          3,
+          3,
+          3,
+          2,
+          2,
+          3
+        ],
+        "14": [
+          2,
+          3,
+          3,
+          3,
+          2,
+          2,
+          3,
+          3,
+          2,
+          3,
+          3,
+          3
+        ],
+        "15": [
+          2,
+          3,
+          3,
+          2,
+          3,
+          3,
+          2,
+          3,
+          3,
+          2,
+          3,
+          3
+        ],
+        "16": [
+          2,
+          2,
+          3,
+          3,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ],
+        "17": [
+          3,
+          3,
+          2,
+          3,
+          3,
+          3,
+          3,
+          2,
+          3,
+          2,
+          3,
+          2
+        ],
+        "18": [
+          2,
+          2,
+          3,
+          2,
+          3,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ],
+        "19": [
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          2,
+          3,
+          2,
+          3,
+          2,
+          3
+        ],
+        "2": [
+          3,
+          2,
+          3,
+          3,
+          3,
+          2,
+          2,
+          3,
+          3,
+          2,
+          3,
+          3
+        ],
+        "20": [
+          2,
+          2,
+          3,
+          3,
+          3,
+          2,
+          3,
+          3,
+          2,
+          3,
+          3,
+          3
+        ],
+        "21": [
+          3,
+          3,
+          3,
+          3,
+          2,
+          3,
+          3,
+          3,
+          2,
+          3,
+          2,
+          2
+        ],
+        "22": [
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          2,
+          3
+        ],
+        "23": [
+          2,
+          3,
+          3,
+          3,
+          2,
+          3,
+          3,
+          3,
+          3,
+          2,
+          3,
+          2
+        ],
+        "24": [
+          3,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          2,
+          3,
+          3,
+          3
+        ],
+        "25": [
+          3,
+          3,
+          3,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          2
+        ],
+        "26": [
+          2,
+          3,
+          3,
+          2,
+          3,
+          3,
+          2,
+          3,
+          3,
+          3,
+          3,
+          2
+        ],
+        "27": [
+          3,
+          3,
+          2,
+          3,
+          2,
+          3,
+          3,
+          3,
+          2,
+          3,
+          3,
+          2
+        ],
+        "28": [
+          3,
+          3,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          2,
+          2,
+          3,
+          3
+        ],
+        "29": [
+          3,
+          3,
+          3,
+          3,
+          2,
+          3,
+          3,
+          3,
+          3,
+          2,
+          2,
+          2
+        ],
+        "3": [
+          2,
+          2,
+          3,
+          2,
+          3,
+          3,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3
+        ],
+        "4": [
+          2,
+          2,
+          3,
+          3,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ],
+        "5": [
+          2,
+          2,
+          3,
+          3,
+          3,
+          2,
+          3,
+          2,
+          3,
+          3,
+          3,
+          3
+        ],
+        "6": [
+          3,
+          3,
+          2,
+          3,
+          3,
+          3,
+          2,
+          3,
+          2,
+          3,
+          2,
+          3
+        ],
+        "7": [
+          3,
+          2,
+          3,
+          3,
+          2,
+          3,
+          3,
+          3,
+          3,
+          2,
+          2,
+          3
+        ],
+        "8": [
+          3,
+          3,
+          3,
+          3,
+          2,
+          2,
+          2,
+          3,
+          3,
+          2,
+          3,
+          3
+        ],
+        "9": [
+          3,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          3,
+          2,
+          2
+        ]
+      },
+      "random_usage_max": 3,
+      "random_usage_min": 2,
+      "top_overlap": {
+        "bottom4": {
+          "intersection": 0,
+          "jaccard": 0.0
+        },
+        "middle4": {
+          "intersection": 0,
+          "jaccard": 0.0
+        },
+        "random0": {
+          "intersection": 39,
+          "jaccard": 0.19402985074626866
+        },
+        "random1": {
+          "intersection": 36,
+          "jaccard": 0.17647058823529413
+        },
+        "random2": {
+          "intersection": 45,
+          "jaccard": 0.23076923076923078
+        },
+        "random3": {
+          "intersection": 42,
+          "jaccard": 0.21212121212121213
+        },
+        "random4": {
+          "intersection": 38,
+          "jaccard": 0.18811881188118812
+        },
+        "random5": {
+          "intersection": 40,
+          "jaccard": 0.2
+        },
+        "random6": {
+          "intersection": 38,
+          "jaccard": 0.18811881188118812
+        },
+        "random7": {
+          "intersection": 37,
+          "jaccard": 0.18226600985221675
+        }
+      }
+    },
+    "per_layer_count": 4,
+    "policy_contrast": {
+      "left": "uniform8",
+      "right": "recent8"
+    },
+    "random_map_count": 8,
+    "random_seed": 20260802
+  },
+  "suite": "v150_policy_group_strength",
+  "target_response_contexts": {
+    "leverage": []
+  }
+}
