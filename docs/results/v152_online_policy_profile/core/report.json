@@ -1,0 +1,54 @@
+{
+  "claim_boundary": "Selectors are frozen from native replay and tested with equal-budget one-step policy replacements. The oracle selector is an upper bound; only qk_policy_margin is online-computable from a shared candidate bank. This experiment does not measure trajectory-level video quality.",
+  "contexts": [
+    "noisy_f117_t1000",
+    "noisy_f117_t750",
+    "noisy_f117_t500",
+    "noisy_f117_t250"
+  ],
+  "gates": {
+    "g0_native_replay_and_contract": true,
+    "g1_oracle_policy_choice": false,
+    "g2_qk_policy_choice": false,
+    "g3_qk_beats_count_matched_random": false,
+    "g4_qk_matches_oracle": true,
+    "g5_online_qk_candidate_confirmed": false,
+    "g6_old_mass_baseline": false
+  },
+  "native_replay_max_relative_rms": 0.0,
+  "profile_count": 128,
+  "prompt_count": 64,
+  "qualifying_contexts": {
+    "old_mass_policy_choice": [],
+    "online_qk_candidate": [],
+    "oracle_policy_choice": [],
+    "qk_beats_random": [],
+    "qk_oracle_alignment": [
+      "noisy_f117_t1000",
+      "noisy_f117_t750",
+      "noisy_f117_t500",
+      "noisy_f117_t250"
+    ],
+    "qk_policy_choice": []
+  },
+  "selection_recurrence": {
+    "qk_recent4": {
+      "adjacent_timestep_median_jaccard": 0.6,
+      "seed_median_jaccard": 0.3333333333333333
+    },
+    "qk_uniform4": {
+      "adjacent_timestep_median_jaccard": 1.0,
+      "seed_median_jaccard": 0.6
+    }
+  },
+  "suite": "v152_online_policy_core",
+  "thresholds": {
+    "minimum_oracle_score_spearman": 0.3,
+    "minimum_oracle_topk_jaccard": 0.3,
+    "minimum_positive_fraction": 0.65,
+    "minimum_preferred_policy_effect_log_ratio": 0.02955880224154443,
+    "minimum_random_margin_log_ratio": 0.009950330853168092,
+    "minimum_seed_replicate_spearman": 0.3
+  },
+  "version": 1
+}
