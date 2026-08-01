@@ -1,0 +1,61 @@
+{
+  "claim_boundary": "This map is an observational candidate. Validation-family screening does not establish downstream causal leverage.",
+  "contrasts": {
+    "boundary_vs_recent": [
+      "boundary_recent",
+      "recent_budget"
+    ],
+    "uniform_vs_recent": [
+      "uniform_recent",
+      "recent_budget"
+    ]
+  },
+  "family_count": 16,
+  "feature_audit_count": 48,
+  "head_score_count": 17280,
+  "map_sha256": "9e9d3cfd1d8a3b3b337037bb364c27ba694260329a6ecdcb9f305250051aa5a5",
+  "policy_names": [
+    "boundary_recent",
+    "current_only",
+    "recent4",
+    "recent_budget",
+    "uniform_recent"
+  ],
+  "profile_count": 160,
+  "seed_replicates": [
+    0,
+    1
+  ],
+  "selected_axis": {
+    "contrast": "uniform_vs_recent",
+    "current_frame": 117,
+    "factor": "scene",
+    "mode": "noisy",
+    "nominal_timestep": 500,
+    "score": "mean absolute signed log-error-ratio response"
+  },
+  "selected_axis_screen": {
+    "candidate_screen_pass": 1,
+    "contrast": "uniform_vs_recent",
+    "current_frame": 117,
+    "factor": "scene",
+    "layer_residual_family_split_spearman": 0.7457230894271303,
+    "layer_residual_seed_replicate_spearman": 0.7898401993842545,
+    "layer_residual_signed_split_spearman": 0.06259384717474671,
+    "mode": "noisy",
+    "nominal_timestep": 500,
+    "validation_factor_paraphrase_ratio": 1.183061421926182,
+    "validation_high_low_ratio": 2.3000669460973016,
+    "validation_positive_layer_fraction": 1.0
+  },
+  "source_screen_pass": true,
+  "state_signed_observation_count": 552960,
+  "thresholds": {
+    "minimum_factor_paraphrase_ratio": 1.05,
+    "minimum_family_split_spearman": 0.3,
+    "minimum_positive_layer_fraction": 0.7,
+    "minimum_seed_replicate_spearman": 0.3,
+    "minimum_validation_high_low_ratio": 1.1
+  },
+  "version": 1
+}
