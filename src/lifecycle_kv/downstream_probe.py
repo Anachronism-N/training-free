@@ -10,6 +10,11 @@ import torch
 
 
 PROBE_PLAN_VERSION = 1
+DYNAMIC_PROBE_PLAN_VERSION = 2
+SUPPORTED_PROBE_PLAN_VERSIONS = {
+    PROBE_PLAN_VERSION,
+    DYNAMIC_PROBE_PLAN_VERSION,
+}
 SUPPORTED_POLICIES = {
     "native",
     "current_only",
@@ -24,13 +29,20 @@ SUPPORTED_POLICIES = {
     "policy_contrast",
 }
 POLICY_CONTRAST_CANDIDATES = {"recent8", "uniform8", "boundary8"}
+SUPPORTED_HEAD_SELECTORS = {
+    "policy_error_margin",
+    "qk_policy_margin",
+    "old_history_mass",
+}
+HEAD_SELECTOR_DIRECTIONS = {"high", "low"}
 
 
 def load_probe_plan(path: Path | None) -> dict | None:
     if path is None:
         return None
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if int(payload.get("version", -1)) != PROBE_PLAN_VERSION:
+    plan_version = int(payload.get("version", -1))
+    if plan_version not in SUPPORTED_PROBE_PLAN_VERSIONS:
         raise ValueError(
             f"unsupported downstream probe plan version in {path}"
         )
@@ -117,22 +129,78 @@ def load_probe_plan(path: Path | None) -> dict | None:
                 "refinement_steps": refinement_steps,
             }
         raw_map = raw.get("head_map")
-        if not isinstance(raw_map, dict):
-            raise ValueError(f"probe {name} requires a head_map object")
+        raw_selector = raw.get("head_selector")
+        if raw_map is not None and raw_selector is not None:
+            raise ValueError(
+                f"probe {name} cannot define both head_map and head_selector"
+            )
+        if raw_selector is not None and plan_version < DYNAMIC_PROBE_PLAN_VERSION:
+            raise ValueError(
+                f"probe {name} requires downstream plan version "
+                f"{DYNAMIC_PROBE_PLAN_VERSION}"
+            )
+        if raw_map is None and raw_selector is None:
+            raise ValueError(
+                f"probe {name} requires a head_map or head_selector"
+            )
         head_map = {}
         selected = 0
-        for layer_text, raw_heads in raw_map.items():
-            layer = int(layer_text)
-            if not 0 <= layer < layers:
-                raise ValueError(f"probe {name} has invalid layer {layer}")
-            values = sorted({int(value) for value in raw_heads})
-            if any(value < 0 or value >= heads for value in values):
+        if raw_map is not None:
+            if not isinstance(raw_map, dict):
+                raise ValueError(f"probe {name} head_map must be an object")
+            for layer_text, raw_heads in raw_map.items():
+                layer = int(layer_text)
+                if not 0 <= layer < layers:
+                    raise ValueError(f"probe {name} has invalid layer {layer}")
+                values = sorted({int(value) for value in raw_heads})
+                if any(value < 0 or value >= heads for value in values):
+                    raise ValueError(
+                        f"probe {name} has an invalid head in layer {layer}"
+                    )
+                if values:
+                    head_map[layer] = values
+                    selected += len(values)
+            head_selector = None
+        else:
+            if not isinstance(raw_selector, dict):
                 raise ValueError(
-                    f"probe {name} has an invalid head in layer {layer}"
+                    f"probe {name} head_selector must be an object"
                 )
-            if values:
-                head_map[layer] = values
-                selected += len(values)
+            selector_type = str(raw_selector.get("type") or "")
+            direction = str(raw_selector.get("direction") or "")
+            heads_per_layer = int(raw_selector.get("heads_per_layer", 0))
+            budget_frames = int(raw_selector.get("budget_frames", 8))
+            recent_frames = int(raw_selector.get("recent_frames", 4))
+            spatial_samples = int(raw_selector.get("spatial_samples", 8))
+            if selector_type not in SUPPORTED_HEAD_SELECTORS:
+                raise ValueError(
+                    f"probe {name} has unsupported selector {selector_type!r}"
+                )
+            if direction not in HEAD_SELECTOR_DIRECTIONS:
+                raise ValueError(
+                    f"probe {name} has invalid selector direction {direction!r}"
+                )
+            if not 1 <= heads_per_layer <= heads:
+                raise ValueError(
+                    f"probe {name} has invalid heads_per_layer={heads_per_layer}"
+                )
+            if not 2 <= budget_frames or not 1 <= recent_frames < budget_frames:
+                raise ValueError(
+                    f"probe {name} has invalid selector frame budget"
+                )
+            if spatial_samples <= 0:
+                raise ValueError(
+                    f"probe {name} requires positive spatial_samples"
+                )
+            head_selector = {
+                "type": selector_type,
+                "direction": direction,
+                "heads_per_layer": heads_per_layer,
+                "budget_frames": budget_frames,
+                "recent_frames": recent_frames,
+                "spatial_samples": spatial_samples,
+            }
+            selected = layers * heads_per_layer
         if selected <= 0:
             raise ValueError(f"probe {name} selects no heads")
         normalized.append(
@@ -140,6 +208,7 @@ def load_probe_plan(path: Path | None) -> dict | None:
                 "name": name,
                 "policy": policy,
                 "head_map": head_map,
+                "head_selector": head_selector,
                 "selected_head_count": selected,
                 "group": str(raw.get("group") or "unspecified"),
                 "policy_args": policy_args,
@@ -376,6 +445,367 @@ def _select_per_head_history(
         selected_key.append(torch.stack(key_batches, dim=0))
         selected_value.append(torch.stack(value_batches, dim=0))
     return torch.cat(selected_key, dim=2), torch.cat(selected_value, dim=2)
+
+
+def dynamic_selector_score_key(selector: dict) -> str:
+    """Return the score identity shared by high/low selector directions."""
+
+    payload = {
+        "type": str(selector["type"]),
+        "budget_frames": int(selector["budget_frames"]),
+        "recent_frames": int(selector["recent_frames"]),
+        "spatial_samples": int(selector["spatial_samples"]),
+    }
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def _selector_frame_indices(
+    *,
+    history_frames: int,
+    budget_frames: int,
+    recent_frames: int,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if history_frames <= budget_frames:
+        raise ValueError(
+            "dynamic policy selection requires more history than its budget"
+        )
+    budget = min(int(budget_frames), history_frames)
+    recent_reference = min(int(recent_frames), budget)
+    recent = torch.arange(
+        history_frames - budget,
+        history_frames,
+        device=device,
+        dtype=torch.long,
+    )
+    old_count = budget - recent_reference
+    old_end = history_frames - recent_reference
+    old = torch.linspace(
+        0,
+        max(0, old_end - 1),
+        steps=old_count,
+        device=device,
+    ).round().long().unique(sorted=True)
+    newest = torch.arange(
+        history_frames - recent_reference,
+        history_frames,
+        device=device,
+        dtype=torch.long,
+    )
+    uniform = torch.cat((old, newest)).unique(sorted=True)
+    if uniform.numel() < budget:
+        used = set(int(value) for value in uniform.tolist())
+        fill = [
+            index
+            for index in range(history_frames - 1, -1, -1)
+            if index not in used
+        ][: budget - uniform.numel()]
+        uniform = torch.tensor(
+            sorted([*used, *fill]),
+            device=device,
+            dtype=torch.long,
+        )
+    if uniform.numel() != recent.numel() or uniform.numel() != budget:
+        raise RuntimeError("dynamic selector frame budgets do not match")
+    if torch.equal(uniform, recent):
+        raise RuntimeError("dynamic selector policies resolve to equal frames")
+    return uniform, recent
+
+
+def _sampled_qk_policy_score(
+    query: torch.Tensor,
+    history_key: torch.Tensor,
+    *,
+    frame_seq_length: int,
+    frame_indices: torch.Tensor,
+    spatial_samples: int,
+) -> torch.Tensor:
+    if query.ndim != 4 or history_key.ndim != 4:
+        raise ValueError("dynamic Q/K selector expects [B,T,H,D] tensors")
+    if query.shape[0] != history_key.shape[0]:
+        raise ValueError("dynamic Q/K selector batch sizes differ")
+    if query.shape[2:] != history_key.shape[2:]:
+        raise ValueError("dynamic Q/K selector head shapes differ")
+    if query.shape[1] % frame_seq_length:
+        raise ValueError("dynamic selector query is not frame aligned")
+    if history_key.shape[1] % frame_seq_length:
+        raise ValueError("dynamic selector history is not frame aligned")
+    sample_count = min(max(1, int(spatial_samples)), frame_seq_length)
+    spatial_index = torch.linspace(
+        0,
+        frame_seq_length - 1,
+        steps=sample_count,
+        device=query.device,
+    ).round().long().unique(sorted=True)
+    query_frames = query.reshape(
+        query.shape[0],
+        -1,
+        frame_seq_length,
+        query.shape[2],
+        query.shape[3],
+    )
+    history_frames = history_key.shape[1] // frame_seq_length
+    key_frames = history_key.reshape(
+        history_key.shape[0],
+        history_frames,
+        frame_seq_length,
+        history_key.shape[2],
+        history_key.shape[3],
+    )
+    sampled_query = query_frames.index_select(2, spatial_index).flatten(1, 2)
+    sampled_key = (
+        key_frames.index_select(1, frame_indices.to(history_key.device))
+        .index_select(2, spatial_index)
+        .flatten(1, 2)
+    )
+    logits = torch.einsum(
+        "bqhd,bkhd->bhqk",
+        sampled_query.float(),
+        sampled_key.float(),
+    ) / math.sqrt(query.shape[-1])
+    return (
+        logits.logsumexp(dim=-1) - math.log(max(1, sampled_key.shape[1]))
+    ).mean(dim=(0, 2))
+
+
+def _sampled_old_history_mass(
+    query: torch.Tensor,
+    history_key: torch.Tensor,
+    *,
+    frame_seq_length: int,
+    recent_budget_frames: int,
+    spatial_samples: int,
+) -> torch.Tensor:
+    history_frames = history_key.shape[1] // frame_seq_length
+    old_frames = history_frames - int(recent_budget_frames)
+    if old_frames <= 0:
+        raise ValueError("old-history selector has no frames outside recent")
+    all_frames = torch.arange(
+        history_frames, device=history_key.device, dtype=torch.long
+    )
+    sample_count = min(max(1, int(spatial_samples)), frame_seq_length)
+    spatial_index = torch.linspace(
+        0,
+        frame_seq_length - 1,
+        steps=sample_count,
+        device=query.device,
+    ).round().long().unique(sorted=True)
+    query_frames = query.reshape(
+        query.shape[0],
+        -1,
+        frame_seq_length,
+        query.shape[2],
+        query.shape[3],
+    )
+    key_frames = history_key.reshape(
+        history_key.shape[0],
+        history_frames,
+        frame_seq_length,
+        history_key.shape[2],
+        history_key.shape[3],
+    )
+    sampled_query = query_frames.index_select(2, spatial_index).flatten(1, 2)
+    sampled_key = (
+        key_frames.index_select(1, all_frames)
+        .index_select(2, spatial_index)
+        .flatten(1, 2)
+    )
+    logits = torch.einsum(
+        "bqhd,bkhd->bhqk",
+        sampled_query.float(),
+        sampled_key.float(),
+    ) / math.sqrt(query.shape[-1])
+    probabilities = logits.softmax(dim=-1)
+    old_tokens = old_frames * spatial_index.numel()
+    return probabilities[..., :old_tokens].sum(dim=-1).mean(dim=(0, 2))
+
+
+def _projected_per_head_rms(
+    delta: torch.Tensor,
+    output_projection_weight: torch.Tensor,
+) -> torch.Tensor:
+    if delta.ndim != 4:
+        raise ValueError("projected head RMS expects [B,T,H,D]")
+    heads, head_dim = delta.shape[2:]
+    weight = output_projection_weight.detach().float()
+    if weight.ndim != 2 or weight.shape[1] != heads * head_dim:
+        raise ValueError("output projection does not match head geometry")
+    weight = weight.reshape(weight.shape[0], heads, head_dim).permute(1, 2, 0)
+    gram = torch.einsum("hdo,heo->hde", weight, weight) / weight.shape[-1]
+    energy = torch.einsum(
+        "bthd,hde,bthe->h",
+        delta.float(),
+        gram,
+        delta.float(),
+    ) / max(1, delta.shape[0] * delta.shape[1])
+    return energy.clamp_min(0).sqrt()
+
+
+def _sample_complete_frame_tokens(
+    tensor: torch.Tensor,
+    *,
+    frame_seq_length: int,
+    spatial_samples: int,
+) -> torch.Tensor:
+    if tensor.ndim != 4 or tensor.shape[1] % frame_seq_length:
+        raise ValueError("selector output is not frame aligned")
+    sample_count = min(max(1, int(spatial_samples)), frame_seq_length)
+    spatial_index = torch.linspace(
+        0,
+        frame_seq_length - 1,
+        steps=sample_count,
+        device=tensor.device,
+    ).round().long().unique(sorted=True)
+    frames = tensor.reshape(
+        tensor.shape[0],
+        -1,
+        frame_seq_length,
+        tensor.shape[2],
+        tensor.shape[3],
+    )
+    return frames.index_select(2, spatial_index).flatten(1, 2)
+
+
+def compute_dynamic_head_scores(
+    *,
+    selector: dict,
+    query: torch.Tensor,
+    current_key: torch.Tensor,
+    current_value: torch.Tensor,
+    history_key: torch.Tensor,
+    history_value: torch.Tensor,
+    native_output: torch.Tensor,
+    frame_seq_length: int,
+    attention_fn: Callable[
+        [torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor
+    ],
+    output_projection_weight: torch.Tensor | None,
+) -> dict:
+    """Compute per-head scores once from the frozen native replay state."""
+
+    selector_type = str(selector["type"])
+    budget = int(selector["budget_frames"])
+    recent_reference = int(selector["recent_frames"])
+    spatial_samples = int(selector["spatial_samples"])
+    history_frames = history_key.shape[1] // frame_seq_length
+    uniform, recent = _selector_frame_indices(
+        history_frames=history_frames,
+        budget_frames=budget,
+        recent_frames=recent_reference,
+        device=query.device,
+    )
+    metadata: dict[str, object] = {
+        "type": selector_type,
+        "history_frames": int(history_frames),
+        "budget_frames": budget,
+        "recent_frames": recent_reference,
+        "spatial_samples": spatial_samples,
+        "uniform_frame_indices": uniform.to(torch.int16),
+        "recent_frame_indices": recent.to(torch.int16),
+    }
+    if selector_type == "policy_error_margin":
+        if output_projection_weight is None:
+            raise ValueError(
+                "policy-error selector requires output projection weight"
+            )
+        errors = {}
+        sampled_native = _sample_complete_frame_tokens(
+            native_output,
+            frame_seq_length=frame_seq_length,
+            spatial_samples=spatial_samples,
+        ).float()
+        for name, indices in (("uniform8", uniform), ("recent8", recent)):
+            selected_key, selected_value = _select_fixed_history(
+                history_key,
+                history_value,
+                frame_seq_length=frame_seq_length,
+                frame_indices=indices,
+                head_indices=torch.arange(
+                    query.shape[2], device=query.device, dtype=torch.long
+                ),
+            )
+            candidate = attention_fn(
+                query,
+                torch.cat((selected_key, current_key), dim=1),
+                torch.cat((selected_value, current_value), dim=1),
+            )
+            errors[name] = _projected_per_head_rms(
+                (
+                    _sample_complete_frame_tokens(
+                        candidate,
+                        frame_seq_length=frame_seq_length,
+                        spatial_samples=spatial_samples,
+                    ).float()
+                    - sampled_native
+                ),
+                output_projection_weight,
+            )
+        scores = (
+            (errors["recent8"] + 1e-12).log()
+            - (errors["uniform8"] + 1e-12).log()
+        )
+        metadata["uniform_projected_error"] = errors["uniform8"]
+        metadata["recent_projected_error"] = errors["recent8"]
+    elif selector_type == "qk_policy_margin":
+        uniform_score = _sampled_qk_policy_score(
+            query,
+            history_key,
+            frame_seq_length=frame_seq_length,
+            frame_indices=uniform,
+            spatial_samples=spatial_samples,
+        )
+        recent_score = _sampled_qk_policy_score(
+            query,
+            history_key,
+            frame_seq_length=frame_seq_length,
+            frame_indices=recent,
+            spatial_samples=spatial_samples,
+        )
+        scores = uniform_score - recent_score
+        metadata["uniform_qk_compatibility"] = uniform_score
+        metadata["recent_qk_compatibility"] = recent_score
+    elif selector_type == "old_history_mass":
+        scores = _sampled_old_history_mass(
+            query,
+            history_key,
+            frame_seq_length=frame_seq_length,
+            recent_budget_frames=budget,
+            spatial_samples=spatial_samples,
+        )
+        metadata["old_frame_count"] = int(history_frames - budget)
+    else:
+        raise ValueError(f"unsupported dynamic selector {selector_type!r}")
+    if scores.ndim != 1 or scores.shape[0] != query.shape[2]:
+        raise RuntimeError("dynamic selector produced the wrong score shape")
+    if not torch.isfinite(scores).all():
+        raise RuntimeError("dynamic selector produced a non-finite score")
+    metadata["scores"] = scores
+    return metadata
+
+
+def select_dynamic_heads(score_bundle: dict, selector: dict) -> dict:
+    scores = torch.as_tensor(score_bundle["scores"]).detach().float()
+    values = [float(value) for value in scores.cpu().tolist()]
+    direction = str(selector["direction"])
+    count = int(selector["heads_per_layer"])
+    if direction == "high":
+        ranked = sorted(range(len(values)), key=lambda head: (-values[head], head))
+    elif direction == "low":
+        ranked = sorted(range(len(values)), key=lambda head: (values[head], -head))
+    else:
+        raise ValueError(f"invalid dynamic selector direction {direction!r}")
+    selected = sorted(ranked[:count])
+    if len(selected) != count:
+        raise RuntimeError("dynamic selector returned the wrong head count")
+    return {
+        **score_bundle,
+        "direction": direction,
+        "heads_per_layer": count,
+        "selected_heads": selected,
+        "selected_scores": scores.index_select(
+            0, torch.tensor(selected, device=scores.device, dtype=torch.long)
+        ),
+    }
 
 
 def apply_history_policy(

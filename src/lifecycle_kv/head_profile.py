@@ -12,9 +12,12 @@ import torch
 
 from .downstream_probe import (
     apply_history_policy,
+    compute_dynamic_head_scores,
+    dynamic_selector_score_key,
     load_probe_plan,
     output_delta_metrics,
     qk_value_motion_correspondence,
+    select_dynamic_heads,
 )
 
 
@@ -262,6 +265,8 @@ class HeadProfileSession:
         self._downstream_reference: dict[str, torch.Tensor] | None = None
         self._active_downstream_probe: dict | None = None
         self._downstream_layer_metadata: dict[int, dict] = {}
+        self._downstream_selector_scores: dict[tuple[int, str], dict] = {}
+        self._downstream_selector_cache: dict[tuple[int, str], dict] = {}
 
     @staticmethod
     def _load_jobs(path: Path | None) -> dict[int, dict]:
@@ -328,6 +333,8 @@ class HeadProfileSession:
         self._downstream_reference = None
         self._active_downstream_probe = None
         self._downstream_layer_metadata = {}
+        self._downstream_selector_scores = {}
+        self._downstream_selector_cache = {}
         self._video_metadata = {
             "run_commit": os.environ.get("HEAD_PROFILE_RUN_COMMIT"),
             "seed": int(
@@ -632,6 +639,8 @@ class HeadProfileSession:
             "flow": base_flow.detach().clone(),
             "x0": base_x0.detach().clone(),
         }
+        self._downstream_selector_scores = {}
+        self._downstream_selector_cache = {}
 
     def activate_downstream_probe(self, probe: dict) -> None:
         if self._downstream_context is None:
@@ -651,6 +660,72 @@ class HeadProfileSession:
 
     def has_active_downstream_probe(self) -> bool:
         return self._active_downstream_probe is not None
+
+    @staticmethod
+    def _downstream_selector_key(selector: dict) -> str:
+        return json.dumps(selector, sort_keys=True, separators=(",", ":"))
+
+    def _capture_downstream_selectors(
+        self,
+        *,
+        layer: int,
+        query: torch.Tensor,
+        current_key: torch.Tensor,
+        current_value: torch.Tensor,
+        history_key: torch.Tensor,
+        history_value: torch.Tensor,
+        native_output: torch.Tensor,
+        frame_seq_length: int,
+        attention_fn: Callable[
+            [torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor
+        ],
+        output_projection_weight: torch.Tensor | None,
+    ) -> None:
+        if self.downstream_plan is None:
+            return
+        selectors = {
+            self._downstream_selector_key(probe["head_selector"]): probe[
+                "head_selector"
+            ]
+            for probe in self.downstream_plan["probes"]
+            if probe.get("head_selector") is not None
+        }
+        for selector_key, selector in selectors.items():
+            score_key = dynamic_selector_score_key(selector)
+            score_cache_key = (int(layer), score_key)
+            if score_cache_key not in self._downstream_selector_scores:
+                self._downstream_selector_scores[score_cache_key] = (
+                    compute_dynamic_head_scores(
+                        selector=selector,
+                        query=query,
+                        current_key=current_key,
+                        current_value=current_value,
+                        history_key=history_key,
+                        history_value=history_value,
+                        native_output=native_output,
+                        frame_seq_length=frame_seq_length,
+                        attention_fn=attention_fn,
+                        output_projection_weight=output_projection_weight,
+                    )
+                )
+            selected = select_dynamic_heads(
+                self._downstream_selector_scores[score_cache_key], selector
+            )
+            self._downstream_selector_cache[(int(layer), selector_key)] = selected
+            if int(layer) == 0:
+                scores = torch.as_tensor(selected["scores"]).float()
+                context = self._downstream_context or {}
+                print(
+                    "[HeadProfile] dynamic-selector "
+                    f"mode={context.get('mode')} "
+                    f"frame={context.get('current_frame')} "
+                    f"timestep={context.get('nominal_timestep')} "
+                    f"type={selector['type']} direction={selector['direction']} "
+                    f"heads={selected['selected_heads']} "
+                    f"score_min={float(scores.min()):.6g} "
+                    f"score_max={float(scores.max()):.6g}",
+                    flush=True,
+                )
 
     def apply_downstream_probe(
         self,
@@ -672,7 +747,34 @@ class HeadProfileSession:
         probe = self._active_downstream_probe
         if probe is None:
             return native_output
-        selected = list(probe["head_map"].get(int(layer), ()))
+        if str(probe["name"]) == "native_replay":
+            self._capture_downstream_selectors(
+                layer=int(layer),
+                query=query,
+                current_key=current_key,
+                current_value=current_value,
+                history_key=history_key,
+                history_value=history_value,
+                native_output=native_output,
+                frame_seq_length=frame_seq_length,
+                attention_fn=attention_fn,
+                output_projection_weight=output_projection_weight,
+            )
+            return native_output
+        selector = probe.get("head_selector")
+        selector_metadata = None
+        if selector is not None:
+            selector_key = self._downstream_selector_key(selector)
+            cache_key = (int(layer), selector_key)
+            if cache_key not in self._downstream_selector_cache:
+                raise RuntimeError(
+                    "dynamic selector was not frozen during native replay: "
+                    f"probe={probe['name']} layer={int(layer)}"
+                )
+            selector_metadata = self._downstream_selector_cache[cache_key]
+            selected = list(selector_metadata["selected_heads"])
+        else:
+            selected = list(probe["head_map"].get(int(layer), ()))
         if not selected:
             return native_output
         output, metadata = apply_history_policy(
@@ -691,6 +793,8 @@ class HeadProfileSession:
             output_projection_weight=output_projection_weight,
             output_projection_bias=output_projection_bias,
         )
+        if selector_metadata is not None:
+            metadata["head_selector"] = selector_metadata
         if int(layer) in self._downstream_layer_metadata:
             raise RuntimeError(
                 f"downstream probe repeated layer={int(layer)}"
@@ -709,7 +813,11 @@ class HeadProfileSession:
         reference = self._downstream_reference
         if probe is None or context is None or reference is None:
             raise RuntimeError("downstream probe output has no active probe")
-        expected_layers = set(int(value) for value in probe["head_map"])
+        expected_layers = (
+            set(range(int(self.downstream_plan["layers"])))
+            if probe.get("head_selector") is not None
+            else set(int(value) for value in probe["head_map"])
+        )
         actual_layers = set(self._downstream_layer_metadata)
         if expected_layers != actual_layers:
             raise RuntimeError(
@@ -786,6 +894,8 @@ class HeadProfileSession:
         self._downstream_context = None
         self._downstream_reference = None
         self._downstream_layer_metadata = {}
+        self._downstream_selector_scores = {}
+        self._downstream_selector_cache = {}
 
     def wants_history_interventions(self) -> bool:
         return bool(
