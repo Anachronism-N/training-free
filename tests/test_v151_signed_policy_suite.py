@@ -117,7 +117,7 @@ def test_suite_is_holdout_balanced_and_has_refined_probe_grid(tmp_path):
         *{f"random{index}" for index in range(8)},
     }
     assert all(
-        probe["calibration"]["refinement_steps"] == 4
+        probe["calibration"]["refinement_steps"] == 8
         for probe in plan["probes"]
     )
     for layer in range(30):

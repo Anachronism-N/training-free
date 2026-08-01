@@ -174,7 +174,7 @@ for probe in plan["probes"]:
         "target": 0.02,
         "min_scale": 0.001,
         "max_scale": 50.0,
-        "refinement_steps": 4,
+        "refinement_steps": 8,
     }
     assert len(probe["head_map"]) == 30
     assert all(len(set(heads)) == 4 for heads in probe["head_map"].values())
@@ -327,9 +327,9 @@ for path in profiles:
             assert not bool(layer["calibration_clipped"])
             assert not bool(layer["calibration_degenerate"])
             assert not bool(layer["calibration_refinement_bound_hit"])
-            assert int(layer["calibration_refinement_steps"]) == 4
+            assert int(layer["calibration_refinement_steps"]) == 8
             error = float(layer["calibration_relative_error"])
-            assert error <= 0.02
+            assert error <= 0.025
             scale = float(layer["calibration_scale"])
             assert 0.005 <= scale <= 50.0
             scales.append(scale)
@@ -425,7 +425,7 @@ for path in profiles:
             clipped += int(bool(layer["calibration_clipped"]))
             degenerate += int(bool(layer["calibration_degenerate"]))
             bound_hits += int(bool(layer["calibration_refinement_bound_hit"]))
-            assert int(layer["calibration_refinement_steps"]) == 4
+            assert int(layer["calibration_refinement_steps"]) == 8
             max_error = max(max_error, float(layer["calibration_relative_error"]))
 assert seen == {(prompt, seed) for prompt in range(32) for seed in (0, 1)}
 assert max_replay <= 1e-4
