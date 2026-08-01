@@ -65,6 +65,12 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def sha256_normalized_text_file(path: Path) -> str:
+    text = path.read_text(encoding="utf-8-sig")
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    return sha256_bytes(normalized.encode("utf-8"))
+
+
 def read_matrix(path: Path, allowed: set[int]) -> list[list[int]]:
     with path.open("r", encoding="utf-8", newline="") as handle:
         rows = [
@@ -128,7 +134,8 @@ def audit_binary_map(
     pf = read_matrix(pf_labels, set(PF_NAMES))
     return {
         "path": str(path),
-        "sha256": sha256_file(path),
+        "sha256": sha256_bytes(_matrix_bytes(matrix)),
+        "hash_contract": "parsed_30x12_matrix_with_lf",
         **audit_binary_matrix(
             matrix,
             pf,
@@ -404,7 +411,7 @@ def build_artifacts(
             - discovery_scores[(layer, ranked[HEADS_PER_LAYER])]
         )
     manifest = {
-        "version": 1,
+        "version": 2,
         "experiment": "v152_one_sided_history_critical_reanalysis",
         "classifier": {
             "score": (
@@ -421,7 +428,11 @@ def build_artifacts(
         "source": {
             "result_directory": "docs/results/v152_online_policy_profile/core",
             "files": {
-                filename: sha256_file(result_root / filename)
+                filename: (
+                    sha256_file(result_root / filename)
+                    if filename.endswith(".gz")
+                    else sha256_normalized_text_file(result_root / filename)
+                )
                 for filename in (
                     "policy_pair_summary.csv",
                     "random_control_summary.csv",
@@ -430,7 +441,14 @@ def build_artifacts(
                     "report.json",
                 )
             },
-            "pf_labels_sha256": sha256_file(pf_labels),
+            "pf_labels_sha256": sha256_bytes(
+                _matrix_bytes(read_matrix(pf_labels, set(PF_NAMES)))
+            ),
+            "hash_contract": {
+                "text": "utf8_bom_removed_and_newlines_normalized_to_lf",
+                "gzip": "raw_file_sha256",
+                "pf_labels": "parsed_30x12_matrix_with_lf",
+            },
         },
         "gate_reanalysis": gates,
         "snapshot_audit": snapshot_audit,
@@ -522,7 +540,17 @@ def main() -> None:
     for filename, payload in payloads.items():
         path = args.output_dir / filename
         if args.check:
-            if not path.is_file() or path.read_bytes() != payload:
+            if not path.is_file():
+                raise SystemExit(f"frozen artifact mismatch: {path}")
+            if filename == MANIFEST_FILENAME:
+                matches = json.loads(path.read_text(encoding="utf-8")) == json.loads(
+                    payload.decode("utf-8")
+                )
+            else:
+                existing = path.read_text(encoding="utf-8-sig")
+                existing = existing.replace("\r\n", "\n").replace("\r", "\n")
+                matches = existing.encode("utf-8") == payload
+            if not matches:
                 raise SystemExit(f"frozen artifact mismatch: {path}")
         else:
             path.write_bytes(payload)
