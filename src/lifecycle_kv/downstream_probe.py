@@ -90,6 +90,7 @@ def load_probe_plan(path: Path | None) -> dict | None:
             target = float(raw_calibration.get("target", 0.0))
             min_scale = float(raw_calibration.get("min_scale", 0.01))
             max_scale = float(raw_calibration.get("max_scale", 100.0))
+            refinement_steps = int(raw_calibration.get("refinement_steps", 0))
             if not math.isfinite(target) or not 0.0 < target <= 0.5:
                 raise ValueError(
                     f"probe {name} calibration target must be in (0, 0.5]"
@@ -103,11 +104,17 @@ def load_probe_plan(path: Path | None) -> dict | None:
                 raise ValueError(
                     f"probe {name} has invalid calibration scale bounds"
                 )
+            if not 0 <= refinement_steps <= 8:
+                raise ValueError(
+                    f"probe {name} calibration refinement_steps must be "
+                    "between 0 and 8"
+                )
             calibration = {
                 "mode": mode,
                 "target": target,
                 "min_scale": min_scale,
                 "max_scale": max_scale,
+                "refinement_steps": refinement_steps,
             }
         raw_map = raw.get("head_map")
         if not isinstance(raw_map, dict):
@@ -530,6 +537,10 @@ def apply_history_policy(
     )
     projected_native_rms = None
     selected_weight = None
+    requested_scale = None
+    clipped = None
+    degenerate = None
+    refinement_bound_hit = None
     if calibration is not None:
         if str(calibration.get("mode")) != "projected_relative_rms":
             raise ValueError("unsupported downstream calibration mode")
@@ -540,6 +551,7 @@ def apply_history_policy(
         target = float(calibration["target"])
         min_scale = float(calibration.get("min_scale", 0.01))
         max_scale = float(calibration.get("max_scale", 100.0))
+        refinement_steps = int(calibration.get("refinement_steps", 0))
         head_dim = native_output.shape[-1]
         columns = (
             heads[:, None] * head_dim
@@ -577,22 +589,52 @@ def apply_history_policy(
         clipped = (
             (requested_scale < min_scale) | (requested_scale > max_scale)
         ) & ~degenerate
-        metadata.update(
-            {
-                "calibration_mode": "projected_relative_rms",
-                "calibration_target": target,
-                "calibration_requested_scale": requested_scale.detach(),
-                "calibration_scale": scale.detach(),
-                "calibration_clipped": clipped.detach(),
-                "calibration_degenerate": degenerate.detach(),
-                "raw_projected_replacement_relative_rms": (
-                    projected_relative_rms.detach()
-                ),
-            }
-        )
+        refinement_bound_hit = torch.zeros_like(clipped)
+
+        # The selected-head replacement is cast back to the model dtype before
+        # the real output projection. At small targets this quantization can
+        # move the achieved RMS by several percent, so optionally refine the
+        # scalar against the exact cast-and-project path used by the probe.
+        if refinement_steps:
+            best_scale = scale
+            best_error = torch.full_like(scale, float("inf"))
+            current_scale = scale
+            valid = ~(clipped | degenerate)
+            for _ in range(refinement_steps + 1):
+                trial_candidate = (
+                    native_selected.float() + raw_delta * current_scale
+                ).to(native_output.dtype)
+                trial_delta = trial_candidate.float() - native_selected.float()
+                trial_projected = torch.nn.functional.linear(
+                    trial_delta.to(output_projection_weight.dtype).flatten(2),
+                    selected_weight,
+                    None,
+                )
+                trial_achieved = (
+                    trial_projected.float().square().mean().sqrt()
+                    / projected_native_rms
+                )
+                trial_error = (trial_achieved - target).abs() / target
+                better = valid & torch.isfinite(trial_error) & (
+                    trial_error < best_error
+                )
+                best_error = torch.where(better, trial_error, best_error)
+                best_scale = torch.where(better, current_scale, best_scale)
+                correction = target / trial_achieved.clamp_min(1e-12)
+                proposed = current_scale * correction
+                refinement_bound_hit = refinement_bound_hit | (
+                    valid & ((proposed < min_scale) | (proposed > max_scale))
+                )
+                current_scale = torch.where(
+                    valid,
+                    proposed.clamp(min=min_scale, max=max_scale),
+                    current_scale,
+                )
+            scale = best_scale
+            clipped = clipped | refinement_bound_hit
+
     applied_delta = raw_delta * scale
-    candidate = native_selected.float() + applied_delta
-    candidate = candidate.to(native_output.dtype)
+    candidate = (native_selected.float() + applied_delta).to(native_output.dtype)
     output = native_output.clone()
     output.index_copy_(2, heads, candidate)
     delta = candidate.float() - native_selected.float()
@@ -618,6 +660,23 @@ def apply_history_policy(
             (achieved - float(calibration["target"])).abs()
             / float(calibration["target"])
         ).detach()
+        metadata.update(
+            {
+                "calibration_mode": "projected_relative_rms",
+                "calibration_target": target,
+                "calibration_requested_scale": requested_scale.detach(),
+                "calibration_scale": scale.detach(),
+                "calibration_clipped": clipped.detach(),
+                "calibration_degenerate": degenerate.detach(),
+                "calibration_refinement_steps": refinement_steps,
+                "calibration_refinement_bound_hit": (
+                    refinement_bound_hit.detach()
+                ),
+                "raw_projected_replacement_relative_rms": (
+                    projected_relative_rms.detach()
+                ),
+            }
+        )
     return output, metadata
 
 
