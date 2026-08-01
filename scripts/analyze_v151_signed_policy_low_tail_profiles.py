@@ -68,7 +68,7 @@ MIN_ACCEPTABLE_CALIBRATION_SCALE = 0.005
 MAX_ACCEPTABLE_CALIBRATION_SCALE = 50.0
 
 
-def _load_plan(path: Path) -> tuple[dict, str]:
+def _load_plan(path: Path) -> tuple[dict, str, int]:
     plan = json.loads(path.read_text(encoding="utf-8"))
     if (
         int(plan.get("version", -1)) != 1
@@ -91,6 +91,16 @@ def _load_plan(path: Path) -> tuple[dict, str]:
         250,
     ]:
         raise RuntimeError("v151 timestep grid changed")
+    refinement_steps = {
+        int(probe.get("calibration", {}).get("refinement_steps", -1))
+        for probe in probes
+    }
+    if (
+        len(refinement_steps) != 1
+        or not 0 < next(iter(refinement_steps)) <= 8
+    ):
+        raise RuntimeError("v151 refinement-step contract changed")
+    expected_refinement_steps = refinement_steps.pop()
     for probe in probes:
         calibration = probe.get("calibration") or {}
         if (
@@ -98,7 +108,6 @@ def _load_plan(path: Path) -> tuple[dict, str]:
             or float(calibration.get("target", -1)) != 0.02
             or float(calibration.get("min_scale", -1)) != 0.001
             or float(calibration.get("max_scale", -1)) != 50.0
-            or int(calibration.get("refinement_steps", -1)) != 4
         ):
             raise RuntimeError("v151 calibration contract changed")
         head_map = probe.get("head_map") or {}
@@ -133,7 +142,7 @@ def _load_plan(path: Path) -> tuple[dict, str]:
             raise RuntimeError("v151 comparison references an unknown probe")
         if len(family["random_uniform_probes"]) != RANDOM_CONTROL_COUNT:
             raise RuntimeError("v151 comparison has the wrong random controls")
-    return plan, _canonical_digest(plan)
+    return plan, _canonical_digest(plan), expected_refinement_steps
 
 
 def _load_profiles(
@@ -142,6 +151,7 @@ def _load_profiles(
     plan: dict,
     plan_sha256: str,
     expected_count: int,
+    expected_refinement_steps: int,
 ) -> tuple[list[dict], list[dict]]:
     import torch
 
@@ -197,11 +207,8 @@ def _load_profiles(
         if (
             len(refined_layers) != len(CONTEXTS) * EXPECTED_PROBES * LAYERS
             or any(
-                int(layer.get("calibration_refinement_steps", -1)) != 4
-                for layer in refined_layers
-            )
-            or any(
-                bool(layer.get("calibration_refinement_bound_hit", True))
+                int(layer.get("calibration_refinement_steps", -1))
+                != expected_refinement_steps
                 for layer in refined_layers
             )
         ):
@@ -803,6 +810,8 @@ def _write_report(path: Path, report: dict) -> None:
             f"`{report['probe_context_integrity_pass_count']}/"
             f"{report['probe_context_count']}`"
         ),
+        f"- Intact contexts: `{report['intact_contexts']}`",
+        f"- Invalid contexts: `{report['invalid_contexts']}`",
         "",
         "## Gates",
         "",
@@ -812,6 +821,8 @@ def _write_report(path: Path, report: dict) -> None:
         "",
         "The scalar and signed branches are separate hypotheses. A passing "
         "one-step gate does not establish improved long-video generation.",
+        "Contexts that fail calibration integrity remain in diagnostic CSVs "
+        "but cannot satisfy any confirmation gate.",
         "",
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -824,17 +835,25 @@ def analyze(
     output_dir: Path,
     expected_count: int = EXPECTED_PROFILES,
 ) -> dict:
-    plan, plan_sha256 = _load_plan(probe_plan_path)
+    plan, plan_sha256, refinement_steps = _load_plan(probe_plan_path)
     profiles, audits = _load_profiles(
         profile_dir,
         plan=plan,
         plan_sha256=plan_sha256,
         expected_count=expected_count,
+        expected_refinement_steps=refinement_steps,
     )
     rows = _enrich_rows(_downstream_rows(profiles), plan)
     integrity_rows, integrity_lookup, integrity = _probe_integrity(
         rows, expected_units=expected_count
     )
+    context_integrity = {
+        context: all(
+            integrity_lookup.get((probe["name"], context), False)
+            for probe in plan["probes"]
+        )
+        for context in CONTEXTS
+    }
     outputs, families = _family_analysis(rows, plan, integrity_lookup)
     if not integrity["native_replay_pass"]:
         for family in families.values():
@@ -882,7 +901,18 @@ def analyze(
         **integrity,
         "gates": gates,
         "families": families,
+        "context_integrity": context_integrity,
+        "intact_contexts": sorted(
+            context for context, passed in context_integrity.items() if passed
+        ),
+        "invalid_contexts": sorted(
+            context for context, passed in context_integrity.items() if not passed
+        ),
+        "calibration_refinement_bound_hit_count": sum(
+            int(row["refinement_bound_hit_count"]) for row in audits
+        ),
         "minimum_random_positive_maps": MIN_RANDOM_POSITIVE_MAPS,
+        "calibration_refinement_steps": refinement_steps,
         "thresholds": {
             "minimum_median_effect_log_ratio": MIN_LOG_EFFECT,
             "minimum_median_effect_ratio": math.exp(MIN_LOG_EFFECT),

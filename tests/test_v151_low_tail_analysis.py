@@ -169,3 +169,49 @@ def test_integrity_accepts_the_frozen_four_context_grid():
     assert len(lookup) == len(summaries)
     assert report["native_replay_pass"]
     assert report["probe_context_integrity_pass_rate"] == 1.0
+
+
+def test_integrity_rejects_only_the_failing_probe_context():
+    rows = []
+    for context in CONTEXTS:
+        rows.append(
+            {
+                "probe_name": "native_replay",
+                "context": context,
+                "flow_relative_rms": 0.0,
+                "x0_relative_rms": 0.0,
+            }
+        )
+        for probe_index in range(EXPECTED_PROBES):
+            rows.append(
+                {
+                    "probe_name": f"probe_{probe_index}",
+                    "context": context,
+                    "policy": "key_shift",
+                    "rank_group": "test",
+                    "target": 0.02,
+                    "calibrated_layer_count": LAYERS,
+                    "calibration_clipped_count": 0,
+                    "calibration_degenerate_count": 0,
+                    "calibration_relative_error_max": (
+                        0.03
+                        if context == "noisy_t250" and probe_index == 0
+                        else 0.01
+                    ),
+                    "calibration_scale_min": 0.01,
+                    "calibration_scale_max": 1.0,
+                    "calibration_target_min": 0.02,
+                    "calibration_target_max": 0.02,
+                    "policy_contrast_valid": 1,
+                    "min_shifted_old_frames": 2,
+                }
+            )
+
+    _, lookup, report = _probe_integrity(rows, expected_units=1)
+
+    assert not lookup[("probe_0", "noisy_t250")]
+    assert lookup[("probe_0", "noisy_t500")]
+    assert lookup[("probe_1", "noisy_t250")]
+    assert report["probe_context_integrity_pass_count"] == (
+        EXPECTED_PROBES * len(CONTEXTS) - 1
+    )

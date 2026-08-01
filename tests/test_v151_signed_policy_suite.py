@@ -2,9 +2,16 @@ import csv
 import json
 
 from scripts.build_v151_signed_policy_low_tail_suite import (
+    CALIBRATION_REFINEMENT_STEPS,
     CONTEXT_TIMESTEPS,
     FIXED_GROUPS,
     write_suite,
+)
+from scripts.analyze_v151_signed_policy_low_tail_profiles import (
+    _load_plan as load_analysis_plan,
+)
+from scripts.audit_v151_signed_policy_profiles import (
+    _load_plan as load_audit_plan,
 )
 
 
@@ -117,9 +124,20 @@ def test_suite_is_holdout_balanced_and_has_refined_probe_grid(tmp_path):
         *{f"random{index}" for index in range(8)},
     }
     assert all(
-        probe["calibration"]["refinement_steps"] == 8
+        probe["calibration"]["refinement_steps"]
+        == CALIBRATION_REFINEMENT_STEPS
         for probe in plan["probes"]
     )
+    loaded_plan, _, analysis_steps = load_analysis_plan(
+        output / "v151_probe_plan.json"
+    )
+    assert loaded_plan == plan
+    assert analysis_steps == CALIBRATION_REFINEMENT_STEPS
+    _, _, _, audit_steps, audit_target = load_audit_plan(
+        output / "v151_probe_plan.json"
+    )
+    assert audit_steps == CALIBRATION_REFINEMENT_STEPS
+    assert audit_target == 0.02
     for layer in range(30):
         forbidden = {
             frozenset(

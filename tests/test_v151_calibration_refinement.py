@@ -8,6 +8,9 @@ from lifecycle_kv.downstream_probe import (
     apply_history_policy,
     load_probe_plan,
 )
+from scripts.build_v151_signed_policy_low_tail_suite import (
+    CALIBRATION_REFINEMENT_STEPS,
+)
 
 
 def _attention(query, key, value):
@@ -57,7 +60,7 @@ def test_plan_normalizes_and_bounds_refinement_steps(tmp_path):
                 "calibration": {
                     "mode": "projected_relative_rms",
                     "target": 0.02,
-                    "refinement_steps": 4,
+                    "refinement_steps": CALIBRATION_REFINEMENT_STEPS,
                 },
             }
         ],
@@ -65,7 +68,10 @@ def test_plan_normalizes_and_bounds_refinement_steps(tmp_path):
     path = tmp_path / "plan.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     plan = load_probe_plan(path)
-    assert plan["probes"][0]["calibration"]["refinement_steps"] == 4
+    assert (
+        plan["probes"][0]["calibration"]["refinement_steps"]
+        == CALIBRATION_REFINEMENT_STEPS
+    )
 
     payload["probes"][0]["calibration"]["refinement_steps"] = 9
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -90,10 +96,16 @@ def test_refinement_uses_exact_cast_and_projection_path():
     _, refined = apply_history_policy(
         policy="key_shift",
         selected_heads=[1, 3],
-        calibration={**common, "refinement_steps": 4},
+        calibration={
+            **common,
+            "refinement_steps": CALIBRATION_REFINEMENT_STEPS,
+        },
         **inputs,
     )
-    assert int(refined["calibration_refinement_steps"]) == 4
+    assert (
+        int(refined["calibration_refinement_steps"])
+        == CALIBRATION_REFINEMENT_STEPS
+    )
     assert not bool(refined["calibration_refinement_bound_hit"])
     assert float(refined["calibration_relative_error"]) <= float(
         baseline["calibration_relative_error"]

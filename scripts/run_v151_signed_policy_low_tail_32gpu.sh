@@ -4,12 +4,12 @@ set -euo pipefail
 
 ACTION="${1:-}"
 case "$ACTION" in
-    signed_analyze|prepare|preflight|smoke|core64|audit|analyze|package|status)
+    signed_analyze|prepare|preflight|smoke|core64|audit|audit_analysis|analyze|package|status)
         ;;
     *)
         echo "usage: bash scripts/run_v151_signed_policy_low_tail_32gpu.sh ACTION"
         echo "actions: signed_analyze prepare preflight smoke core64 audit"
-        echo "         analyze package status"
+        echo "         audit_analysis analyze package status"
         exit 2
         ;;
 esac
@@ -290,13 +290,21 @@ smoke() {
         echo "[error] one or more v151 smoke jobs failed"
         exit 1
     }
-    python - "$root/profiles" "$root/videos" <<'PY'
+    python - "$root/profiles" "$root/videos" "$PLAN" <<'PY'
+import json
 import sys
 from pathlib import Path
 import torch
 
 profiles = sorted(Path(sys.argv[1]).glob("*.pt"))
 videos = sorted(Path(sys.argv[2]).glob("*.mp4"))
+plan = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+refinement_steps = {
+    int(probe["calibration"]["refinement_steps"])
+    for probe in plan["probes"]
+}
+assert len(refinement_steps) == 1
+refinement_steps = refinement_steps.pop()
 assert len(profiles) == len(videos) == 4
 scales = []
 errors = []
@@ -327,9 +335,9 @@ for path in profiles:
             assert not bool(layer["calibration_clipped"])
             assert not bool(layer["calibration_degenerate"])
             assert not bool(layer["calibration_refinement_bound_hit"])
-            assert int(layer["calibration_refinement_steps"]) == 8
+            assert int(layer["calibration_refinement_steps"]) == refinement_steps
             error = float(layer["calibration_relative_error"])
-            assert error <= 0.025
+            assert error <= 0.02
             scale = float(layer["calibration_scale"])
             assert 0.005 <= scale <= 50.0
             scales.append(scale)
@@ -380,63 +388,17 @@ core64() {
     run_sharded
 }
 
-audit() {
+run_audit() {
+    local mode="$1"
     activate_env
-    python - "$PROFILE_ROOT" "$VIDEO_ROOT" <<'PY'
-import sys
-from pathlib import Path
-import torch
-
-profiles = sorted(Path(sys.argv[1]).glob("*.pt"))
-videos = sorted(Path(sys.argv[2]).glob("*.mp4"))
-assert len(profiles) == len(videos) == 64
-seen = set()
-max_replay = 0.0
-max_error = 0.0
-clipped = 0
-degenerate = 0
-bound_hits = 0
-for path in profiles:
-    payload = torch.load(path, map_location="cpu", weights_only=False)
-    job = payload["job"]
-    metadata = payload["metadata"]
-    key = (int(job["prompt_slot"]), int(job["seed_replicate"]))
-    assert key not in seen
-    seen.add(key)
-    assert payload["version"] == 8
-    assert job["kind"] == "v151_signed_policy_low_tail_core"
-    assert metadata["seed"] == job["seed"] == job["reference_seed"]
-    assert metadata["captured_calls"] == 4
-    assert metadata["record_count"] == 120
-    assert not metadata["incomplete_calls"]
-    rows = payload["downstream_probe_records"]
-    assert len(rows) == payload["downstream_probe_expected_count"] == 132
-    for row in rows:
-        if row["probe_name"] == "native_replay":
-            max_replay = max(
-                max_replay,
-                float(row["flow_metrics"]["relative_rms"]),
-                float(row["x0_metrics"]["relative_rms"]),
-            )
-            continue
-        assert row["selected_head_count"] == 120
-        assert len(row["layer_metadata"]) == 30
-        for layer in row["layer_metadata"].values():
-            clipped += int(bool(layer["calibration_clipped"]))
-            degenerate += int(bool(layer["calibration_degenerate"]))
-            bound_hits += int(bool(layer["calibration_refinement_bound_hit"]))
-            assert int(layer["calibration_refinement_steps"]) == 8
-            max_error = max(max_error, float(layer["calibration_relative_error"]))
-assert seen == {(prompt, seed) for prompt in range(32) for seed in (0, 1)}
-assert max_replay <= 1e-4
-assert clipped == degenerate == bound_hits == 0
-assert max_error <= 0.02
-print(
-    "[v151-audit] profiles=64 PASS "
-    f"replay={max_replay:.6g} max_error={max_error:.6g} "
-    f"clipped={clipped} degenerate={degenerate} bound_hits={bound_hits}"
-)
-PY
+    mkdir -p "$ANALYSIS_ROOT"
+    python "$ROOT/scripts/audit_v151_signed_policy_profiles.py" \
+        --profile-dir "$PROFILE_ROOT" \
+        --video-dir "$VIDEO_ROOT" \
+        --probe-plan "$PLAN" \
+        --mode "$mode" \
+        --output-json "$ANALYSIS_ROOT/pre_analysis_audit_${mode}.json" \
+        --offenders-csv "$ANALYSIS_ROOT/calibration_offenders_${mode}.csv"
     if grep -R -n -E \
         'Traceback|CUDA out of memory|AssertionError|RuntimeError' \
         "$LOG_ROOT"; then
@@ -445,12 +407,20 @@ PY
     fi
 }
 
+audit() {
+    run_audit strict
+}
+
+audit_analysis() {
+    run_audit analysis
+}
+
 analyze() {
     [[ "$NODE_RANK" -eq 0 ]] || {
         echo "[error] analyze runs on NODE_RANK=0 only"
         exit 2
     }
-    audit
+    audit_analysis
     python "$ROOT/scripts/analyze_v151_signed_policy_low_tail_profiles.py" \
         --profile-dir "$PROFILE_ROOT" \
         --probe-plan "$PLAN" \
@@ -495,6 +465,7 @@ case "$ACTION" in
     smoke) smoke ;;
     core64) core64 ;;
     audit) audit ;;
+    audit_analysis) audit_analysis ;;
     analyze) analyze ;;
     package) package ;;
     status) status ;;
