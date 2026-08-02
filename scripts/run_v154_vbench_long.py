@@ -38,6 +38,9 @@ FAILURE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 VIDEO_PATTERN = re.compile(r"^(\d+)-(\d+)(?:_|$)")
+LEGACY_WRAPPER_SHA256S = {
+    "7a47529fb5cfc56c352b8b3fe82142253973faa123e749e094f79c680a2b2e46",
+}
 
 
 def sha256(path: Path) -> str:
@@ -262,16 +265,149 @@ def runtime_contract(args: argparse.Namespace) -> dict[str, Any]:
             key: {"path": str(path.resolve()), "sha256": sha256(path)}
             for key, path in required.items()
         },
+        "model_loading": {
+            "local_models": bool(args.local_models),
+            "torch_hub_dir": (
+                None
+                if args.torch_hub_dir is None
+                else str(args.torch_hub_dir)
+            ),
+            "runtime_home": (
+                None if args.runtime_home is None else str(args.runtime_home)
+            ),
+        },
         "split_audits": split_audits,
     }
 
 
-def all_jobs() -> list[tuple[str, str]]:
+def all_jobs(
+    dimensions: tuple[str, ...] | None = None,
+) -> list[tuple[str, str]]:
+    selected = DIMENSIONS if dimensions is None else dimensions
     return [
         (method, dimension)
-        for dimension in DIMENSIONS
+        for dimension in selected
         for method in METHODS
     ]
+
+
+def job_completion_status(
+    args: argparse.Namespace,
+    context: dict[str, Any],
+    *,
+    method: str,
+    dimension: str,
+) -> tuple[bool, str]:
+    method_row = next(
+        row for row in context["manifest"]["methods"] if row["key"] == method
+    )
+    video_dir = Path(str(method_row["video_dir"]))
+    output = args.parts_root / method / dimension
+    result = output / "results.json"
+    marker = output / "done.json"
+    contract_path = output / "job_contract.json"
+    mapping = output / "prompt_mapping.json"
+    for path in (result, marker, contract_path, mapping):
+        if not path.is_file():
+            return False, f"missing:{path.name}"
+    expected_contract = job_contract(
+        context,
+        method=method,
+        dimension=dimension,
+        video_dir=video_dir,
+    )
+    try:
+        actual_contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        if not contracts_are_compatible(actual_contract, expected_contract):
+            return False, "stale:job_contract"
+        validate_prompt_mapping(mapping, context["manifest_sha256"])
+        if valid_result(result, dimension) is None:
+            return False, "invalid:score"
+        expected_marker = marker_payload(
+            context,
+            method=method,
+            dimension=dimension,
+            result=result,
+            contract=contract_path,
+            mapping=mapping,
+        )
+        if not marker_is_valid(marker, expected_marker):
+            return False, "stale:done_marker"
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+        return False, f"invalid:{type(error).__name__}"
+    return True, "complete"
+
+
+def contracts_are_compatible(
+    actual: Any,
+    expected: Any,
+) -> bool:
+    """Accept completed jobs produced by the pre-offline-cache wrapper.
+
+    The wrapper revision only changes model discovery, not prompts, videos,
+    VBench code, or score semantics.  All other frozen dependencies remain
+    exact, and the done marker still authenticates the recorded contract.
+    """
+    if not isinstance(actual, dict) or not isinstance(expected, dict):
+        return False
+    if actual == expected:
+        return True
+    if "model_loading" in actual:
+        return False
+    actual_copy = json.loads(json.dumps(actual))
+    expected_copy = json.loads(json.dumps(expected))
+    actual_dependencies = actual_copy.get("dependencies")
+    expected_dependencies = expected_copy.get("dependencies")
+    if not isinstance(actual_dependencies, dict) or not isinstance(
+        expected_dependencies, dict
+    ):
+        return False
+    actual_wrapper = actual_dependencies.get("wrapper")
+    expected_wrapper = expected_dependencies.get("wrapper")
+    if (
+        not isinstance(actual_wrapper, dict)
+        or not isinstance(expected_wrapper, dict)
+        or actual_wrapper.get("sha256") not in LEGACY_WRAPPER_SHA256S
+        or actual_wrapper.get("path") != expected_wrapper.get("path")
+    ):
+        return False
+    actual_dependencies.pop("wrapper")
+    expected_dependencies.pop("wrapper")
+    expected_copy.pop("model_loading", None)
+    return actual_copy == expected_copy
+
+
+def completion_report(
+    args: argparse.Namespace,
+    context: dict[str, Any],
+    jobs: list[tuple[str, str]],
+) -> dict[str, Any]:
+    rows = []
+    by_dimension: dict[str, dict[str, int]] = {}
+    for method, dimension in jobs:
+        complete, reason = job_completion_status(
+            args, context, method=method, dimension=dimension
+        )
+        row = {
+            "method": method,
+            "dimension": dimension,
+            "complete": complete,
+            "reason": reason,
+        }
+        rows.append(row)
+        counts = by_dimension.setdefault(
+            dimension, {"complete": 0, "missing": 0}
+        )
+        counts["complete" if complete else "missing"] += 1
+    missing = [row for row in rows if not row["complete"]]
+    return {
+        "version": 1,
+        "task_count": len(rows),
+        "complete_count": len(rows) - len(missing),
+        "missing_count": len(missing),
+        "by_dimension": by_dimension,
+        "missing": missing,
+    }
 
 
 def job_contract(
@@ -296,6 +432,7 @@ def job_contract(
         "mode": "long_custom_input",
         "dev_flag": True,
         "num_of_samples_per_prompt": 1,
+        "model_loading": context["model_loading"],
     }
 
 
@@ -347,34 +484,26 @@ def run_job(
     mapping = output / "prompt_mapping.json"
     log_path = output / "run.log"
     output.mkdir(parents=True, exist_ok=True)
+    complete, _ = job_completion_status(
+        args,
+        context,
+        method=method,
+        dimension=dimension,
+    )
+    if complete:
+        return {
+            "method": method,
+            "dimension": dimension,
+            "gpu": gpu,
+            "status": "resumed",
+        }
     contract = job_contract(
         context,
         method=method,
         dimension=dimension,
         video_dir=video_dir,
     )
-    write_frozen_json(contract_path, contract)
-    try:
-        normalize_result(output, dimension)
-        validate_prompt_mapping(mapping, context["manifest_sha256"])
-        expected_marker = marker_payload(
-            context,
-            method=method,
-            dimension=dimension,
-            result=result,
-            contract=contract_path,
-            mapping=mapping,
-        )
-        if marker_is_valid(marker, expected_marker):
-            return {
-                "method": method,
-                "dimension": dimension,
-                "gpu": gpu,
-                "status": "resumed",
-            }
-    except (OSError, ValueError, RuntimeError, KeyError, json.JSONDecodeError):
-        pass
-
+    write_json_atomically(contract_path, contract, sort_keys=True)
     for path in (result, marker, mapping):
         path.unlink(missing_ok=True)
     for path in output.glob("*_eval_results.json"):
@@ -401,6 +530,14 @@ def run_job(
     environment = os.environ.copy()
     environment["CUDA_VISIBLE_DEVICES"] = gpu
     environment["VBENCH_CACHE_DIR"] = str(args.vbench_cache)
+    if args.torch_hub_dir is not None:
+        environment["TORCH_HOME"] = str(args.torch_hub_dir.parent)
+    if args.runtime_home is not None:
+        environment["HOME"] = str(args.runtime_home)
+    if args.local_models:
+        command.append("--local-models")
+    if args.torch_hub_dir is not None:
+        command.extend(("--torch-hub-dir", str(args.torch_hub_dir)))
     with log_path.open("w", encoding="utf-8") as log_handle:
         completed = subprocess.run(
             command,
@@ -481,25 +618,22 @@ def collect(
     for method in METHODS:
         rows[method] = {}
         sources[method] = {}
-        method_row = next(
-            row
-            for row in context["manifest"]["methods"]
-            if row["key"] == method
-        )
-        video_dir = Path(str(method_row["video_dir"]))
-        for dimension in DIMENSIONS:
+        for dimension in args.dimensions:
             output = args.parts_root / method / dimension
             result = output / "results.json"
             marker = output / "done.json"
             contract_path = output / "job_contract.json"
             mapping = output / "prompt_mapping.json"
-            expected_contract = job_contract(
+            complete, reason = job_completion_status(
+                args,
                 context,
                 method=method,
                 dimension=dimension,
-                video_dir=video_dir,
             )
-            write_frozen_json(contract_path, expected_contract)
+            if not complete:
+                raise ValueError(
+                    f"incomplete VBench job: {method}:{dimension} ({reason})"
+                )
             payload = normalize_result(output, dimension)
             validate_prompt_mapping(mapping, context["manifest_sha256"])
             expected_marker = marker_payload(
@@ -523,42 +657,47 @@ def collect(
         "comparison_manifest": str(args.manifest),
         "comparison_manifest_sha256": context["manifest_sha256"],
         "methods": rows,
-        "dimensions": list(DIMENSIONS),
+        "dimensions": list(args.dimensions),
         "sources": sources,
         "missing": [],
     }
     args.summary_root.mkdir(parents=True, exist_ok=True)
-    summary_json = args.summary_root / "vbench_long_summary.json"
+    summary_json = args.summary_root / f"{args.summary_stem}.json"
     write_json_atomically(summary_json, summary, sort_keys=False)
-    with (args.summary_root / "vbench_long_summary.csv").open(
+    with (args.summary_root / f"{args.summary_stem}.csv").open(
         "w", encoding="utf-8", newline=""
     ) as handle:
         writer = csv.writer(handle)
-        writer.writerow(["method", *DIMENSIONS])
+        writer.writerow(["method", *args.dimensions])
         for method in METHODS:
             writer.writerow(
-                [method, *(rows[method][dimension] for dimension in DIMENSIONS)]
+                [
+                    method,
+                    *(rows[method][dimension] for dimension in args.dimensions),
+                ]
             )
     markdown = [
-        f"# {SUMMARY_TITLE}",
+        f"# {args.summary_title}",
         "",
-        "| Method | " + " | ".join(DIMENSIONS) + " |",
-        "|---|" + "|".join("---:" for _ in DIMENSIONS) + "|",
+        "| Method | " + " | ".join(args.dimensions) + " |",
+        "|---|" + "|".join("---:" for _ in args.dimensions) + "|",
     ]
     for method in METHODS:
-        values = [f"{rows[method][dimension]:.5f}" for dimension in DIMENSIONS]
+        values = [
+            f"{rows[method][dimension]:.5f}" for dimension in args.dimensions
+        ]
         markdown.append(f"| {method} | " + " | ".join(values) + " |")
-    (args.summary_root / "vbench_long_summary.md").write_text(
+    (args.summary_root / f"{args.summary_stem}.md").write_text(
         "\n".join(markdown) + "\n", encoding="utf-8"
     )
     report = analyze(summary)
     args.analysis_root.mkdir(parents=True, exist_ok=True)
     write_json_atomically(
-        args.analysis_root / f"{ANALYSIS_STEM}.json",
+        args.analysis_root / f"{args.analysis_stem}.json",
         report,
         sort_keys=True,
     )
-    (args.analysis_root / f"{ANALYSIS_STEM}.md").write_text(
+    (args.analysis_root / f"{args.analysis_stem}.md").write_text(
         render_markdown(report), encoding="utf-8"
     )
     return report
@@ -567,7 +706,10 @@ def collect(
 def parse_args() -> argparse.Namespace:
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("preflight", "eval", "collect"))
+    parser.add_argument(
+        "mode",
+        choices=("preflight", "eval", "eval-missing", "status", "collect"),
+    )
     parser.add_argument("--comparison-root", required=True, type=Path)
     parser.add_argument("--vbench-root", required=True, type=Path)
     parser.add_argument("--vbench-cache", required=True, type=Path)
@@ -577,6 +719,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--node-rank", type=int, default=0)
     parser.add_argument("--num-nodes", type=int, default=4)
     parser.add_argument("--gpu-list", default="0,1,2,3,4,5,6,7")
+    parser.add_argument(
+        "--dimensions",
+        help="Comma-separated subset of the frozen manifest dimensions.",
+    )
+    parser.add_argument("--local-models", action="store_true")
+    parser.add_argument("--torch-hub-dir", type=Path)
+    parser.add_argument("--runtime-home", type=Path)
+    parser.add_argument("--summary-stem", default="vbench_long_summary")
+    parser.add_argument("--analysis-stem", default=ANALYSIS_STEM)
+    parser.add_argument("--summary-title", default=SUMMARY_TITLE)
     parser.add_argument(
         "--wrapper",
         type=Path,
@@ -591,6 +743,16 @@ def parse_args() -> argparse.Namespace:
     args.summary_root = args.summary_root.resolve()
     args.analysis_root = args.analysis_root.resolve()
     args.wrapper = args.wrapper.resolve()
+    args.torch_hub_dir = (
+        None
+        if args.torch_hub_dir is None
+        else args.torch_hub_dir.expanduser().resolve()
+    )
+    args.runtime_home = (
+        None
+        if args.runtime_home is None
+        else args.runtime_home.expanduser().resolve()
+    )
     args.full_info = (
         args.vbench_root / "vbench2_beta_long" / "VBench_full_info.json"
     )
@@ -599,6 +761,19 @@ def parse_args() -> argparse.Namespace:
     args.gpus = [item.strip() for item in args.gpu_list.split(",") if item.strip()]
     if not args.gpus or len(args.gpus) != len(set(args.gpus)):
         raise SystemExit("--gpu-list must contain unique GPU ids")
+    requested = (
+        list(DIMENSIONS)
+        if not args.dimensions
+        else [item.strip() for item in args.dimensions.split(",") if item.strip()]
+    )
+    if not requested or len(requested) != len(set(requested)):
+        raise SystemExit("--dimensions must contain unique dimension names")
+    unknown = set(requested) - set(DIMENSIONS)
+    if unknown:
+        raise SystemExit(f"unknown --dimensions: {sorted(unknown)}")
+    args.dimensions = tuple(
+        dimension for dimension in DIMENSIONS if dimension in requested
+    )
     return args
 
 
@@ -609,7 +784,25 @@ def main() -> None:
             f"missing {args.manifest}; run the VBench prepare action first"
         )
     context = runtime_contract(args)
-    jobs = all_jobs()[args.node_rank :: args.num_nodes]
+    selected_jobs = all_jobs(args.dimensions)
+    jobs = selected_jobs[args.node_rank :: args.num_nodes]
+    if args.mode == "status":
+        report = completion_report(args, context, selected_jobs)
+        print(json.dumps(report, indent=2, sort_keys=True), flush=True)
+        return
+    if args.mode == "eval-missing":
+        if args.node_rank != 0 or args.num_nodes != 1:
+            raise SystemExit("eval-missing requires NODE_RANK=0 NUM_NODES=1")
+        report = completion_report(args, context, selected_jobs)
+        jobs = [
+            (row["method"], row["dimension"])
+            for row in report["missing"]
+        ]
+        print(
+            f"[{RUN_LABEL}-vbench-resume] complete={report['complete_count']} "
+            f"missing={report['missing_count']}",
+            flush=True,
+        )
     if args.mode == "preflight":
         print(
             f"[{RUN_LABEL}-vbench-preflight] node={args.node_rank}/{args.num_nodes} "
@@ -660,7 +853,8 @@ def main() -> None:
         "failures": failures,
         "ok": not failures and len(results) == len(jobs),
     }
-    summary_path = args.parts_root / f"node{args.node_rank}.summary.json"
+    suffix = ".resume_missing" if args.mode == "eval-missing" else ""
+    summary_path = args.parts_root / f"node{args.node_rank}{suffix}.summary.json"
     write_json_atomically(summary_path, summary, sort_keys=True)
     if not summary["ok"]:
         raise SystemExit(

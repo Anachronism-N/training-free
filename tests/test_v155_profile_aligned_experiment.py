@@ -14,7 +14,9 @@ if str(SCRIPTS) not in sys.path:
 import analyze_v155_vbench as analysis  # noqa: E402
 import analyze_v155_blind_review as blind_analysis  # noqa: E402
 import prepare_v155_vbench_comparison as v155_vbench  # noqa: E402
+import prepare_v155_vbench_local_cache as local_cache  # noqa: E402
 import run_v120_moviebench32_main as parent  # noqa: E402
+import run_v154_vbench_long as vbench_runner  # noqa: E402
 import run_v155_profile_aligned_moviebench16 as v155  # noqa: E402
 from run_v100_fast_selection_1video import expected_policy  # noqa: E402
 
@@ -62,6 +64,80 @@ def test_v155_uses_complete_pf_style_vbench_dimensions() -> None:
         v155_vbench.DIMENSIONS
     )
     assert "overall_consistency" in v155_vbench.DIMENSIONS
+    assert v155_vbench.CORE_EVALUATION_DIMENSIONS == (
+        *v155_vbench.CORE_DIMENSIONS,
+        "temporal_style",
+    )
+    assert len(v155_vbench.CORE_EVALUATION_DIMENSIONS) == 9
+
+
+def test_v155_core9_analysis_is_a_valid_incomplete_official_table() -> None:
+    dimensions = v155_vbench.CORE_EVALUATION_DIMENSIONS
+    rows = {
+        method: {dimension: 0.7 for dimension in dimensions}
+        for method in analysis.METHODS
+    }
+    for dimension in (
+        "subject_consistency",
+        "background_consistency",
+        "overall_consistency",
+    ):
+        rows[analysis.PRIMARY][dimension] = 0.8
+    report = analysis.analyze(
+        {
+            "methods": rows,
+            "dimensions": list(dimensions),
+            "missing": [],
+        }
+    )
+
+    assert report["dimensions"] == list(dimensions)
+    assert report["semantic_alignment_dimensions"] == [
+        "temporal_style",
+        "overall_consistency",
+    ]
+    assert report["metric_promotion_gate"] is True
+
+
+def test_vbench_contract_upgrade_only_ignores_wrapper_revision() -> None:
+    expected = {
+        "version": 1,
+        "vbench_commit": "commit",
+        "model_loading": {
+            "local_models": True,
+            "torch_hub_dir": "/models",
+            "runtime_home": "/runtime",
+        },
+        "dependencies": {
+            "wrapper": {"path": "/new", "sha256": "new"},
+            "full_info": {"path": "/info", "sha256": "same"},
+        },
+    }
+    actual = json.loads(json.dumps(expected))
+    actual["dependencies"]["wrapper"] = {
+        "path": "/old",
+        "sha256": next(iter(vbench_runner.LEGACY_WRAPPER_SHA256S)),
+    }
+
+    assert not vbench_runner.contracts_are_compatible(actual, expected)
+    legacy = json.loads(json.dumps(actual))
+    legacy.pop("model_loading")
+    legacy["dependencies"]["wrapper"]["path"] = "/new"
+    assert vbench_runner.contracts_are_compatible(legacy, expected)
+    legacy["vbench_commit"] = "different"
+    assert not vbench_runner.contracts_are_compatible(legacy, expected)
+
+
+def test_v155_local_cache_links_are_idempotent(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    target = tmp_path / "cache" / "model"
+
+    local_cache.ensure_link(target, source)
+    local_cache.ensure_link(target, source)
+
+    assert target.is_symlink()
+    assert target.resolve() == source.resolve()
 
 
 def test_v155_loads_frozen_qk_maps() -> None:

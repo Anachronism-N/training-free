@@ -148,6 +148,8 @@ def history_polarity_policy_overrides(
         "prototype",
         "prototype2",
         "reservoir",
+        "profile_anchor",
+        "recent8_exact",
         "snapshot",
         "snapshot2",
         "sparse75",
@@ -178,6 +180,8 @@ def history_polarity_policy_overrides(
         "prototype",
         "prototype2",
         "reservoir",
+        "profile_anchor",
+        "recent8_exact",
         "snapshot",
         "snapshot2",
         "sparse75",
@@ -197,13 +201,31 @@ def history_polarity_policy_overrides(
         )
     capacity = max(1, int(capacity))
     budget = str(budget_profile).strip().lower()
-    if budget not in {"default", "sink3_extra", "sink3_budget9"}:
+    if budget not in {
+        "default",
+        "sink3_extra",
+        "sink3_budget9",
+        "profile_exact8",
+    }:
         raise ValueError(f"unsupported history budget profile: {budget!r}")
     if budget == "sink3_budget9" and (
         support != "landmark" or suppress != "motion_pair1"
     ):
         raise ValueError(
             "sink3_budget9 is defined only for landmark/motion_pair1"
+        )
+    profile_policies = {"profile_anchor", "recent8_exact"}
+    if budget == "profile_exact8" and (
+        support not in profile_policies or suppress not in profile_policies
+    ):
+        raise ValueError(
+            "profile_exact8 requires profile_anchor/recent8_exact routes"
+        )
+    if budget != "profile_exact8" and (
+        support in profile_policies or suppress in profile_policies
+    ):
+        raise ValueError(
+            "profile_anchor/recent8_exact require profile_exact8"
         )
 
     support_cyclic = (
@@ -310,6 +332,8 @@ def history_polarity_policy_overrides(
     )
     support_reservoir_capacity = 4 if support == "reservoir" else 0
     suppress_reservoir_capacity = 4 if suppress == "reservoir" else 0
+    support_profile_anchor_capacity = 4 if support == "profile_anchor" else 0
+    suppress_profile_anchor_capacity = 4 if suppress == "profile_anchor" else 0
     support_snapshot_capacity = (
         4 if support == "snapshot" else 2 if support == "snapshot2" else 0
     )
@@ -418,6 +442,11 @@ def history_polarity_policy_overrides(
         support_landmark_capacity = 2
         support_recent = 4
         suppress_recent = 4
+    elif budget == "profile_exact8":
+        support_sink = 0
+        suppress_sink = 0
+        support_recent = 4 if support == "profile_anchor" else 8
+        suppress_recent = 4 if suppress == "profile_anchor" else 8
     support_key = str(support_label)
     suppress_key = str(suppress_label)
     return {
@@ -470,6 +499,10 @@ def history_polarity_policy_overrides(
         "pyramidkv_label_temporal_reservoir_capacity_map": {
             support_key: support_reservoir_capacity,
             suppress_key: suppress_reservoir_capacity,
+        },
+        "pyramidkv_label_temporal_profile_anchor_capacity_map": {
+            support_key: support_profile_anchor_capacity,
+            suppress_key: suppress_profile_anchor_capacity,
         },
         "pyramidkv_label_unique_snapshot_capacity_map": {
             support_key: support_snapshot_capacity,

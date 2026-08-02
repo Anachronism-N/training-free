@@ -94,6 +94,7 @@ class Cell:
                 "retrieval1_motion1_age24",
                 "prototype",
                 "prototype2",
+                "profile_anchor",
                 "snapshot",
                 "snapshot2",
                 "sparse75",
@@ -448,7 +449,16 @@ def expected_policy(
 ) -> tuple[tuple[str, ...], int, int, str]:
     result: tuple[tuple[str, ...], int, int, str]
     if label == 10:
-        if cell.support_policy == "recent8":
+        if cell.support_policy == "profile_anchor":
+            result = (
+                ("TemporalProfileAnchorStrategy",),
+                0,
+                4,
+                "temporal_profile_anchor",
+            )
+        elif cell.support_policy == "recent8_exact":
+            result = ((), 0, 8, "stride")
+        elif cell.support_policy == "recent8":
             result = ((), 1, 8, "stride")
         elif cell.support_policy == "landmark":
             result = (
@@ -621,6 +631,13 @@ def expected_policy(
                 4,
                 "temporal_reservoir",
             ),
+            "profile_anchor": (
+                ("TemporalProfileAnchorStrategy",),
+                0,
+                4,
+                "temporal_profile_anchor",
+            ),
+            "recent8_exact": ((), 0, 8, "stride"),
             "snapshot": (
                 ("UniqueSnapshotStrategy",),
                 1,
@@ -652,6 +669,22 @@ def expected_policy(
                 "sink3_budget9 requires landmark/motion_pair1"
             )
         result = (result[0], 3, 4, result[3])
+    elif cell.history_budget_profile == "profile_exact8":
+        if cell.support_policy not in {"profile_anchor", "recent8_exact"} or (
+            cell.suppress_policy not in {"profile_anchor", "recent8_exact"}
+        ):
+            raise ValueError(
+                "profile_exact8 requires profile_anchor/recent8_exact"
+            )
+        result = (
+            result[0],
+            0,
+            4
+            if (label == 10 and cell.support_policy == "profile_anchor")
+            or (label == 11 and cell.suppress_policy == "profile_anchor")
+            else 8,
+            result[3],
+        )
     elif cell.history_budget_profile != "default":
         raise ValueError(
             f"unknown history budget profile {cell.history_budget_profile!r}"
@@ -783,6 +816,68 @@ def audit_policy_trace(
                             failures.append(
                                 f"line {line_number}: reservoir anchors "
                                 "are not sorted"
+                            )
+                if "TemporalProfileAnchorStrategy" in strategies:
+                    union_count = int(event["union_frame_count"])
+                    if union_count > 4:
+                        failures.append(
+                            f"line {line_number}: profile-anchor middle has "
+                            f"{union_count} frames, expected at most 4"
+                        )
+                    frame_seqlen = int(event.get("frame_seqlen", 0))
+                    read_tokens = sum(
+                        int(event.get(field, 0))
+                        for field in (
+                            "sink_token_count",
+                            "union_token_count",
+                            "recent_token_count",
+                        )
+                    )
+                    if (
+                        frame_seqlen <= 0
+                        or read_tokens
+                        > cell.max_full_frame_equivalents * frame_seqlen
+                    ):
+                        failures.append(
+                            f"line {line_number}: profile-anchor read has "
+                            f"{read_tokens} tokens at frame_seqlen="
+                            f"{frame_seqlen}, expected at most "
+                            f"{cell.max_full_frame_equivalents} FFE"
+                        )
+                    item = next(
+                        row
+                        for row in event["strategies"]
+                        if row["name"] == "TemporalProfileAnchorStrategy"
+                    )
+                    state = item.get("state")
+                    if not isinstance(state, dict):
+                        failures.append(
+                            f"line {line_number}: profile-anchor state missing"
+                        )
+                    else:
+                        targets = [
+                            int(value)
+                            for value in state.get("target_frame_ids", [])
+                        ]
+                        anchors = [
+                            int(value)
+                            for value in state.get("anchor_frame_ids", [])
+                        ]
+                        if targets != [0, 37, 75, 112]:
+                            failures.append(
+                                f"line {line_number}: profile targets "
+                                f"{targets} != [0, 37, 75, 112]"
+                            )
+                        if (
+                            len(anchors) > 4
+                            or len(anchors) != len(set(anchors))
+                            or not set(anchors).issubset(targets)
+                            or int(state.get("physical_frame_count", -1))
+                            != len(anchors)
+                        ):
+                            failures.append(
+                                f"line {line_number}: invalid profile "
+                                f"anchors {anchors}"
                             )
                 if cell.uses_role_event:
                     union_count = int(event["union_frame_count"])

@@ -66,6 +66,7 @@ class PyramidKVPipelineConfig:
     pyramidkv_semantic_retrieval_abstain: bool = False
     pyramidkv_label_temporal_prototype_capacity_map: Optional[dict] = None
     pyramidkv_label_temporal_reservoir_capacity_map: Optional[dict] = None
+    pyramidkv_label_temporal_profile_anchor_capacity_map: Optional[dict] = None
     pyramidkv_label_unique_snapshot_capacity_map: Optional[dict] = None
     pyramidkv_label_sparse_snapshot_capacity_map: Optional[dict] = None
     pyramidkv_label_sparse_snapshot_keep_ratio_map: Optional[dict] = None
@@ -354,6 +355,11 @@ class PyramidKVPipelineConfig:
             pyramidkv_label_temporal_reservoir_capacity_map=getattr(
                 args,
                 "pyramidkv_label_temporal_reservoir_capacity_map",
+                None,
+            ),
+            pyramidkv_label_temporal_profile_anchor_capacity_map=getattr(
+                args,
+                "pyramidkv_label_temporal_profile_anchor_capacity_map",
                 None,
             ),
             pyramidkv_label_unique_snapshot_capacity_map=getattr(

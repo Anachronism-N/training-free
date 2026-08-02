@@ -118,6 +118,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--full_json_dir", required=True, type=Path)
     parser.add_argument("--num_of_samples_per_prompt", type=int, default=1)
     parser.add_argument("--dev_flag", action="store_true")
+    parser.add_argument(
+        "--local-models",
+        action="store_true",
+        help="Load VBench models from VBENCH_CACHE_DIR without downloading.",
+    )
+    parser.add_argument(
+        "--torch-hub-dir",
+        type=Path,
+        help="Shared torch.hub cache containing DINO/DINOv2 repositories.",
+    )
     return parser.parse_args()
 
 
@@ -128,6 +138,8 @@ def main() -> None:
     prompts = load_prompt_items(args.comparison_manifest)
     sys.path.insert(0, str(args.vbench_root))
     import torch
+    if args.torch_hub_dir is not None:
+        torch.hub.set_dir(str(args.torch_hub_dir.expanduser().resolve()))
     from vbench2_beta_long import VBenchLong
 
     class PromptAwareVBenchLong(VBenchLong):
@@ -192,7 +204,7 @@ def main() -> None:
         name=f"v129_{args.dimension}",
         prompt_list=[],
         dimension_list=[args.dimension],
-        local=False,
+        local=bool(args.local_models),
         read_frame=False,
         mode="long_custom_input",
         sb_clip2clip_feat_extractor="dinov2",

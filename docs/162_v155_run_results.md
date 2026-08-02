@@ -13,11 +13,16 @@ directly matching the v152 QK score definition ("dispersed vs recent QK
 compatibility").
 
 **Generation fully succeeded**: 7 methods x 16 prompts = 112 videos (64 newly
-generated + 48 reused from v154). Audit, blind review, and package all passed.
-VBench-Long completed 53/63 tasks (84%): 7 of 9 dimensions fully complete
-across all 7 methods. The remaining 10 tasks (subject/background_consistency
-on several methods) failed due to network timeouts during model download on
-remote nodes, not a generation or split issue. Collect cannot merge.
+generated + 48 reused from v154). Audit, blind preparation, and package all
+passed. The review sheet has not yet been scored.
+
+The frozen VBench manifest contains 16 dimensions x 7 methods = 112 jobs, of
+which 53 are complete (47.3%). The scientifically valid MovieBench core-9
+subset is 53/63 complete (84.1%): seven dimensions are complete and subject /
+background consistency each have five missing jobs. The other seven official
+semantic dimensions account for 49 missing jobs and cannot be treated as
+network-only failures: several lack optional code dependencies, and the
+arbitrary MovieBench prompts do not provide their required auxiliary labels.
 
 ## 2. Generation
 
@@ -52,9 +57,9 @@ remote nodes, not a generation or split issue. Collect cannot merge.
 
 ## 3. VBench-Long
 
-### 3.1 Completed dimensions
+### 3.1 Actual completion state
 
-53/63 tasks done (84%). 9 dimensions evaluated:
+The frozen 16-dimension status is 53/112. The valid core-9 view is:
 
 | Dimension | Complete | Missing |
 |---|---|---|
@@ -65,50 +70,76 @@ remote nodes, not a generation or split issue. Collect cannot merge.
 | overall_consistency | 7/7 | — |
 | aesthetic_quality | 7/7 | — |
 | temporal_style | 7/7 | — |
-| subject_consistency | 1/7 | 6 methods |
-| background_consistency | 3/7 | 4 methods |
+| subject_consistency | 2/7 | 5 methods |
+| background_consistency | 2/7 | 5 methods |
 
 7 of 9 dimensions fully complete across all 7 methods. The 4 key decision
 dimensions (dynamic_degree, temporal_flickering, motion_smoothness,
 imaging_quality) plus overall_consistency, aesthetic_quality, and
 temporal_style are all fully available.
 
-### 3.2 Failure root cause
+### 3.2 Failure root causes
 
-The 10 missing tasks fail with:
+The ten missing core jobs failed while resolving DINO or DreamSim models,
+including:
 ```
 urllib.error.URLError: <urlopen error [Errno 110] Connection timed out>
 ```
 
-VBench's subject/background_consistency dimensions auto-download models (DINO
-for subject, CLIP for background) via `torch.hub` or `clip` package. On remote
-nodes (1-3), these downloads time out (no proxy configured or network
-restriction). Node 0 has DINO/CLIP cached from v154 and succeeds on some
-tasks. The split_clip fix from `vbench_long_split_cache.py` was applied
-successfully (split stage passed on all nodes) — the failure is purely a
-network/model-download issue.
+The recovery code now enables VBench's local-model mode, points `torch.hub` at
+the shared DINOv2 cache, validates the local CLIP checkpoint, and links DINO
+and DreamSim's nested DINO cache into shared storage. It also adds read-only
+`status`, missing-only resume, and dimension-subset collection. Existing 53
+markers remain valid under their original job contracts; only unfinished jobs
+receive the offline-cache wrapper contract.
+
+The other 49 failures are separate:
+
+| Dimension group | Jobs | Cause |
+|---|---:|---|
+| object_class / multiple_objects / color / spatial_relationship | 28 | optional Detectron2 stack absent |
+| scene | 7 | optional FairScale stack absent |
+| human_action | 7 | installed timm API incompatible with VBench model constructor |
+| appearance_style | 7 | MovieBench mapping lacks required `auxiliary_info` labels |
+
+More importantly, object/action/color/spatial/scene/style scoring is defined
+against benchmark-specific annotations. Installing packages would not make
+those scores valid for this arbitrary 16-prompt MovieBench subset. They remain
+in the frozen manifest for auditability, but are excluded from the core-9
+decision table.
 
 ### 3.3 Recovery path
 
-To complete the 10 missing tasks:
-1. Set `HTTP_PROXY`/`HTTPS_PROXY` on all nodes before eval; OR
-2. Pre-download DINO to `~/.cache/torch/hub/` and CLIP to `~/.cache/clip/`
-   on nodes 1-3 (CLIP already done; DINO still needed); OR
-3. Run eval on node 0 only (NUM_NODES=1) — node 0 has all models cached.
+Run the ten missing core jobs on any node that can see the shared repository:
 
-Then re-run `collect` on node 0.
+```bash
+export V155_VBENCH_DIMENSIONS=subject_consistency,background_consistency,temporal_flickering,motion_smoothness,overall_consistency,dynamic_degree,aesthetic_quality,imaging_quality,temporal_style
+NODE_RANK=0 NUM_NODES=1 bash scripts/run_v155_vbench_long.sh status
+NODE_RANK=0 NUM_NODES=1 bash scripts/run_v155_vbench_long.sh resume-missing
+NODE_RANK=0 NUM_NODES=1 bash scripts/run_v155_vbench_long.sh collect-core
+```
+
+`resume-missing` defaults to `V155_LOCAL_MODELS=1`; it does not require proxy
+access. `collect-core` writes `vbench_core9_summary.*`,
+`v155_vbench_core9_analysis.*`, and `paper_table_core9/`. The official Quality
+composite is available there; Semantic and Total remain `n/a` because the full
+nine-dimension semantic contract is intentionally incomplete.
 
 ## 4. Decision status
 
 Per `docs/161` section 9, the promotion gate requires both blind review and
-VBench. Blind review is prepared but not scored (human task). VBench has 7/9
-dimensions complete — the key decision dimensions are fully available but
-subject/background_consistency is incomplete.
+core-9 VBench. Blind review is prepared but not scored. Seven core dimensions
+are complete, while subject/background consistency still require ten offline
+jobs. The frozen metric promotion gate already cannot pass because
+top-reservoir is `0.0375` below bottom-reservoir on dynamic degree, beyond the
+`0.03` non-inferiority bound. Completing core-9 and human review is still
+required to diagnose identity/background retention and decide whether the
+cache mechanism, rather than the head classifier, should be retained.
 
 The v155 hypothesis (reservoir directly matches QK score definition) is a
-stronger test than v154's Prototype4 mismatch. The aggregate VBench scores
-for the 7 complete dimensions will be available once the missing tasks are
-re-run and collect succeeds.
+stronger test than v154's Prototype4 mismatch. The seven complete dimensions
+are analyzed in `docs/163`; collection remains necessary for the core-9
+aggregate and final diagnostic table.
 
 ## 5. Preserved artifacts
 
@@ -121,7 +152,7 @@ runs/v155_profile_aligned_moviebench16/full7/
 |   `-- private/               # blind key
 |-- contracts/
 |-- diagnostics/
-|-- metrics/vbench_long_parts/ # 53/63 VBench task results
+|-- metrics/vbench_long_parts/ # 53/112 frozen-manifest task results
 `-- v155_diagnostics.tar.gz
 ```
 

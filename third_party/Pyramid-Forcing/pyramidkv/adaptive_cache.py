@@ -1622,7 +1622,7 @@ class AdaptiveKVCache(PyramidKVCache):
             if not label:
                 continue
             try:
-                out[label] = max(1, int(val))
+                out[label] = max(0, int(val))
             except (TypeError, ValueError):
                 continue
         return out
@@ -1807,7 +1807,7 @@ class AdaptiveKVCache(PyramidKVCache):
     def _head_sink_frames(self, head_idx: int) -> int | None:
         label = self._head_label_key(head_idx)
         if label in self.label_sink_frames_map:
-            return max(1, int(self.label_sink_frames_map[label]))
+            return max(0, int(self.label_sink_frames_map[label]))
         if self.use_af_head_policies and self.af_sink_frames_map:
             group = self._af_group(head_idx)
             if group in self.af_sink_frames_map:

@@ -195,12 +195,13 @@ Collect on node 0:
 NODE_RANK=0 NUM_NODES=4 bash scripts/run_v155_vbench_long.sh collect
 ```
 
-All 16 official dimensions are evaluated (112 method/dimension jobs). The
-analysis separately reports history consistency, visual quality, temporal
-quality, dynamic degree, and an unnormalized semantic diagnostic. Collection
-also writes the official VBench-normalized Quality, Semantic, and Total scores
-to `metrics/paper_table/`; it does not replace the disaggregated trade-off
-analysis with the Total score.
+The frozen manifest requests all 16 official dimensions (112 method/dimension
+jobs). For arbitrary MovieBench prompts, however, seven semantic dimensions
+require benchmark-specific auxiliary annotations that this prompt set does not
+carry. The valid decision set is therefore the eight core dimensions plus
+`temporal_style` (core-9, 63 jobs). `collect-core` writes the disaggregated
+analysis and official Quality composite; Semantic and Total remain `n/a`
+rather than silently interpreting missing annotations as model failures.
 
 ## 8. Required review information
 

@@ -11,7 +11,7 @@ if [[ "${ACTION}" != "prepare" && "${ACTION}" != "split" && \
 fi
 
 ROOT="${REPO_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free}"
-RUN_ROOT="${RUN_ROOT:-${ROOT}/runs/v155_profile_aligned_moviebench16/full7}"
+RUN_ROOT="${RUN_ROOT:-${ROOT}/runs/v156_profile_exact_moviebench16/full7}"
 COMPARISON_ROOT="${COMPARISON_ROOT:-${RUN_ROOT}/vbench_comparison}"
 VBENCH_ROOT="${VBENCH_ROOT:-${ROOT}/../research_sprint/bench_baselines/VBench}"
 VBENCH_CACHE_DIR="${VBENCH_CACHE_DIR:-${ROOT}/runs/vbench_cache}"
@@ -32,7 +32,7 @@ fi
 
 if [[ "${ACTION}" == "prepare" ]]; then
   [[ "${NODE_RANK}" == "0" ]] || { echo "prepare requires rank 0" >&2; exit 2; }
-  "${PYTHON_BIN}" "${ROOT}/scripts/prepare_v155_vbench_comparison.py" \
+  "${PYTHON_BIN}" "${ROOT}/scripts/prepare_v156_vbench_comparison.py" \
     --run-root "${RUN_ROOT}" --comparison-root "${COMPARISON_ROOT}"
   exit $?
 fi
@@ -41,10 +41,10 @@ if [[ "${ACTION}" == "split" ]]; then
   source "${CONDA_SH}"
   conda activate "${CONDA_ENV}"
   export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
-  "${PYTHON_BIN}" "${ROOT}/scripts/prepare_v155_vbench_splits.py" \
+  "${PYTHON_BIN}" "${ROOT}/scripts/prepare_v156_vbench_splits.py" \
     --comparison-root "${COMPARISON_ROOT}" \
     --vbench-root "${VBENCH_ROOT}" \
-    --workers "${V155_SPLIT_WORKERS:-2}" \
+    --workers "${V156_SPLIT_WORKERS:-2}" \
     --node-rank "${NODE_RANK}" --num-nodes "${NUM_NODES}"
   exit $?
 fi
@@ -55,10 +55,10 @@ if [[ "${ACTION}" == "eval" || "${ACTION}" == "resume-missing" ]]; then
   export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 fi
 
-TORCH_HUB_DIR="${V155_TORCH_HUB_DIR:-${ROOT}/runs/_model_cache/torch_hub}"
-RUNTIME_HOME="${V155_RUNTIME_HOME:-${ROOT}/runs/_model_cache/dreamsim_home}"
+TORCH_HUB_DIR="${V156_TORCH_HUB_DIR:-${ROOT}/runs/_model_cache/torch_hub}"
+RUNTIME_HOME="${V156_RUNTIME_HOME:-${ROOT}/runs/_model_cache/dreamsim_home}"
 if [[ ( "${ACTION}" == "eval" || "${ACTION}" == "resume-missing" ) && \
-      "${V155_LOCAL_MODELS:-1}" == "1" ]]; then
+      "${V156_LOCAL_MODELS:-1}" == "1" ]]; then
   "${PYTHON_BIN}" "${ROOT}/scripts/prepare_v155_vbench_local_cache.py" \
     --vbench-cache "${VBENCH_CACHE_DIR}" \
     --torch-hub-dir "${TORCH_HUB_DIR}" \
@@ -66,32 +66,32 @@ if [[ ( "${ACTION}" == "eval" || "${ACTION}" == "resume-missing" ) && \
 fi
 
 PYTHON_ACTION="${ACTION}"
-DIMENSIONS="${V155_VBENCH_DIMENSIONS:-}"
+DIMENSIONS="${V156_VBENCH_DIMENSIONS:-}"
 SUMMARY_STEM="vbench_long_summary"
-ANALYSIS_STEM="v155_vbench_analysis"
-SUMMARY_TITLE="v155 Profile-Aligned VBench-Long Summary"
+ANALYSIS_STEM="v156_vbench_analysis"
+SUMMARY_TITLE="v156 Profile-Exact VBench-Long Summary"
 if [[ "${ACTION}" == "resume-missing" ]]; then
   PYTHON_ACTION="eval-missing"
 fi
 if [[ "${ACTION}" == "collect-core" ]]; then
   PYTHON_ACTION="collect"
-  DIMENSIONS="${V155_CORE_DIMENSIONS:-subject_consistency,background_consistency,temporal_flickering,motion_smoothness,overall_consistency,dynamic_degree,aesthetic_quality,imaging_quality,temporal_style}"
+  DIMENSIONS="${V156_CORE_DIMENSIONS:-subject_consistency,background_consistency,temporal_flickering,motion_smoothness,overall_consistency,dynamic_degree,aesthetic_quality,imaging_quality,temporal_style}"
   SUMMARY_STEM="vbench_core9_summary"
-  ANALYSIS_STEM="v155_vbench_core9_analysis"
-  SUMMARY_TITLE="v155 Profile-Aligned VBench-Long Core-9 Summary"
+  ANALYSIS_STEM="v156_vbench_core9_analysis"
+  SUMMARY_TITLE="v156 Profile-Exact VBench-Long Core-9 Summary"
 fi
 
 EXTRA_ARGS=()
 if [[ -n "${DIMENSIONS}" ]]; then
   EXTRA_ARGS+=(--dimensions "${DIMENSIONS}")
 fi
-if [[ "${V155_LOCAL_MODELS:-1}" == "1" ]]; then
+if [[ "${V156_LOCAL_MODELS:-1}" == "1" ]]; then
   EXTRA_ARGS+=(--local-models)
   EXTRA_ARGS+=(--torch-hub-dir "${TORCH_HUB_DIR}")
   EXTRA_ARGS+=(--runtime-home "${RUNTIME_HOME}")
 fi
 
-"${PYTHON_BIN}" "${ROOT}/scripts/run_v155_vbench_long.py" "${PYTHON_ACTION}" \
+"${PYTHON_BIN}" "${ROOT}/scripts/run_v156_vbench_long.py" "${PYTHON_ACTION}" \
   --comparison-root "${COMPARISON_ROOT}" \
   --vbench-root "${VBENCH_ROOT}" \
   --vbench-cache "${VBENCH_CACHE_DIR}" \

@@ -1216,6 +1216,7 @@ class CausalInferencePipeline(torch.nn.Module):
                     semantic_retrieval_abstain=hc.pyramidkv_semantic_retrieval_abstain,
                     label_temporal_prototype_capacity_map=hc.pyramidkv_label_temporal_prototype_capacity_map,
                     label_temporal_reservoir_capacity_map=hc.pyramidkv_label_temporal_reservoir_capacity_map,
+                    label_temporal_profile_anchor_capacity_map=hc.pyramidkv_label_temporal_profile_anchor_capacity_map,
                     label_unique_snapshot_capacity_map=hc.pyramidkv_label_unique_snapshot_capacity_map,
                     label_sparse_snapshot_capacity_map=hc.pyramidkv_label_sparse_snapshot_capacity_map,
                     label_sparse_snapshot_keep_ratio_map=hc.pyramidkv_label_sparse_snapshot_keep_ratio_map,

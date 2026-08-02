@@ -1,27 +1,24 @@
 #!/usr/bin/env python3
-"""Analyze profile alignment, membership, and selectivity for v155."""
+"""Analyze exact-profile membership and policy selectivity for v156."""
 from __future__ import annotations
 
 import statistics
 
-from prepare_v155_vbench_comparison import (
+from prepare_v156_vbench_comparison import (
     CORE_EVALUATION_DIMENSIONS,
     DIMENSIONS,
+    METHODS,
 )
 
 
-PRIMARY = "ours_qk_top4_reservoir4"
+PRIMARY = "ours_qk_top4_profile_uniform4"
 MEMBERSHIP_CONTROLS = (
-    "ours_qk_bottom4_reservoir4_control",
-    "ours_qk_random4_reservoir4_control",
+    "ours_qk_bottom4_profile_uniform4_control",
+    "ours_qk_random4_profile_uniform4_control",
 )
-METHODS = (
-    "sf_native",
-    PRIMARY,
-    *MEMBERSHIP_CONTROLS,
-    "ours_all_reservoir4_control",
-    "ours_qk_top4_prototype4_reference",
-    "ours_all_recent8_reference",
+SELECTIVITY_CONTROLS = (
+    "ours_all_profile_uniform4_control",
+    "ours_all_recent8_exact_control",
 )
 SEMANTIC_DIMENSIONS = (
     "object_class",
@@ -43,16 +40,14 @@ def _mean(row: dict[str, float], keys: tuple[str, ...]) -> float:
 def analyze(payload: dict) -> dict:
     rows = payload.get("methods") or {}
     if set(rows) != set(METHODS):
-        raise ValueError(f"unexpected v155 methods: {tuple(rows)}")
+        raise ValueError(f"unexpected v156 methods: {tuple(rows)}")
     dimensions = tuple(payload.get("dimensions") or ())
     if dimensions not in (DIMENSIONS, CORE_EVALUATION_DIMENSIONS):
-        raise ValueError("unexpected v155 dimensions")
+        raise ValueError("unexpected v156 dimensions")
     if payload.get("missing"):
-        raise ValueError(f"v155 VBench summary is incomplete: {payload['missing']}")
+        raise ValueError(f"v156 VBench summary is incomplete: {payload['missing']}")
     available_semantic = tuple(
-        dimension
-        for dimension in SEMANTIC_DIMENSIONS
-        if dimension in dimensions
+        dimension for dimension in SEMANTIC_DIMENSIONS if dimension in dimensions
     )
     derived = {}
     for method in METHODS:
@@ -75,8 +70,6 @@ def analyze(payload: dict) -> dict:
                 row, ("temporal_flickering", "motion_smoothness")
             ),
             "dynamic_degree": float(row["dynamic_degree"]),
-            # Diagnostic unnormalized mean only. Official normalized Semantic
-            # and Total scores are emitted by build_v129_paper_table.py.
             "semantic_alignment": _mean(row, available_semantic),
         }
     differences = {
@@ -97,37 +90,44 @@ def analyze(payload: dict) -> dict:
             "dynamic_degree_noninferior": delta["dynamic_degree"] >= -0.03,
         }
         gates[control]["passes"] = all(gates[control].values())
+    selectivity = {
+        control: differences[control]["history_consistency"] > 0
+        for control in SELECTIVITY_CONTROLS
+    }
     return {
         "version": 1,
-        "experiment": "v155_profile_aligned_moviebench16_vbench",
+        "experiment": "v156_profile_exact_moviebench16_vbench",
         "dimensions": list(dimensions),
         "semantic_alignment_dimensions": list(available_semantic),
         "primary": PRIMARY,
         "derived_scores": derived,
         "primary_minus_comparator": differences,
         "membership_control_gates": gates,
-        "metric_promotion_gate": all(row["passes"] for row in gates.values()),
+        "selectivity_gates": selectivity,
+        "metric_promotion_gate": (
+            all(row["passes"] for row in gates.values())
+            and all(selectivity.values())
+        ),
         "diagnostic_questions": {
-            "policy_alignment": (
-                "primary minus ours_qk_top4_prototype4_reference"
+            "profile_fidelity": (
+                "primary minus ours_qk_top4_reservoir4_reference"
             ),
-            "head_selectivity": "primary minus ours_all_reservoir4_control",
-            "history_necessity": "primary minus ours_all_recent8_reference",
+            "head_selectivity": "primary minus both all-head policy controls",
             "native_tradeoff": "primary minus sf_native",
         },
         "claim_boundary": (
-            "This 16-prompt screen tests whether the v152 QK ranking transfers "
-            "under a matching dispersed-history mechanism. Human review and a "
-            "larger paired run remain necessary for a generation claim."
+            "This 16-prompt screen tests exact frozen-context policy transfer. "
+            "It does not establish rolling uniform-history equivalence or a "
+            "paper-scale generation claim."
         ),
     }
 
 
 def render_markdown(report: dict) -> str:
     lines = [
-        "# v155 VBench Analysis",
+        "# v156 VBench Analysis",
         "",
-        f"Membership gate: **{report['metric_promotion_gate']}**",
+        f"Promotion gate: **{report['metric_promotion_gate']}**",
         "",
         (
             "| Comparator | History consistency | Visual quality | "

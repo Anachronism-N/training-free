@@ -255,3 +255,161 @@ class TemporalReservoirStrategy:
             "sample_span": int(frame_ids[-1] - frame_ids[0]) if frame_ids else 0,
             "max_sample_gap": int(max(gaps)) if gaps else 0,
         }
+
+
+class TemporalProfileAnchorStrategy:
+    """Capture the old-history frames used by the v152 frame-117 probe.
+
+    With 117 history frames, four recent frames, and capacity four, v152's
+    uniform8 policy selects old frame ids 0, 37, 75, and 112. This strategy
+    stores only those exact frames, with no pending queue or replacement.
+    """
+
+    def __init__(
+        self,
+        capacity: int = 4,
+        *,
+        history_frames: int = 117,
+        recent_frames: int = 4,
+        dynamic_rope: bool = True,
+    ) -> None:
+        self.capacity = max(1, int(capacity))
+        self.history_frames = max(self.capacity + 1, int(history_frames))
+        self.recent_frames = max(1, int(recent_frames))
+        old_end = self.history_frames - self.recent_frames
+        if old_end < self.capacity:
+            raise ValueError("profile anchor context has insufficient old history")
+        self.target_frame_ids = tuple(
+            int(value)
+            for value in torch.linspace(
+                0,
+                old_end - 1,
+                steps=self.capacity,
+                dtype=torch.float64,
+            ).round().long().tolist()
+        )
+        if len(set(self.target_frame_ids)) != self.capacity:
+            raise ValueError("profile anchor targets are not unique")
+        self.dynamic_rope = bool(dynamic_rope)
+        self._anchors: list[dict[int, FrameAnchor]] = []
+        self._duplicate_counts: list[int] = []
+        self._discard_counts: list[int] = []
+        self._max_observed_t: list[int] = []
+
+    def reset(self, num_seq: int) -> None:
+        self._anchors = [{} for _ in range(num_seq)]
+        self._duplicate_counts = [0 for _ in range(num_seq)]
+        self._discard_counts = [0 for _ in range(num_seq)]
+        self._max_observed_t = [-1 for _ in range(num_seq)]
+
+    def update(
+        self,
+        idx: int,
+        k_seq: torch.Tensor,
+        v_seq: torch.Tensor,
+        pos_seq: torch.Tensor,
+        frame_seqlen: int,
+        current_t: int,
+        t_vals: list[int] | None = None,
+    ) -> None:
+        if (
+            frame_seqlen <= 0
+            or k_seq.shape[0] < frame_seqlen
+            or k_seq.shape[0] % frame_seqlen != 0
+        ):
+            return
+        num_frames = k_seq.shape[0] // frame_seqlen
+        if t_vals is None:
+            t_vals = list(range(int(current_t), int(current_t) + num_frames))
+        if len(t_vals) != num_frames:
+            raise ValueError(
+                "TemporalProfileAnchorStrategy received invalid t_vals"
+            )
+        targets = set(self.target_frame_ids)
+        for frame_idx, raw_t in enumerate(t_vals):
+            t_val = int(raw_t)
+            self._max_observed_t[idx] = max(self._max_observed_t[idx], t_val)
+            if t_val not in targets:
+                continue
+            if t_val in self._anchors[idx]:
+                self._duplicate_counts[idx] += 1
+            self._anchors[idx][t_val] = TemporalReservoirStrategy._anchor(
+                k_seq,
+                v_seq,
+                pos_seq,
+                frame_idx=frame_idx,
+                frame_seqlen=frame_seqlen,
+                t_val=t_val,
+            )
+
+    def collect(
+        self,
+        idx: int,
+        current_t: int,
+        recent_min_t: int,
+        sink_max_t: int,
+    ) -> list[CollectedAnchor]:
+        anchors = [
+            anchor
+            for _, anchor in sorted(self._anchors[idx].items())
+            if int(anchor.t) > int(sink_max_t)
+            and int(anchor.t) < int(recent_min_t)
+        ]
+        return [
+            CollectedAnchor(
+                kind="frame",
+                t=int(anchor.t),
+                dynamic_rope=self.dynamic_rope,
+                k=anchor.k,
+                v=anchor.v,
+                pos=anchor.pos,
+                token_count=int(anchor.k.shape[0]),
+                source_kind="temporal_profile_anchor",
+            )
+            for anchor in anchors
+        ]
+
+    def discard_range(self, idx: int, current_t: int, num_frames: int) -> None:
+        start = int(current_t)
+        end = start + max(0, int(num_frames))
+        removed = 0
+        for t_val in list(self._anchors[idx]):
+            if start <= t_val < end:
+                self._anchors[idx].pop(t_val)
+                removed += 1
+        self._discard_counts[idx] += removed
+
+    def reset_sequence(
+        self,
+        idx: int,
+        *,
+        reason: str = "scene_switch",
+    ) -> dict[str, Any]:
+        dropped = len(self._anchors[idx])
+        self._anchors[idx].clear()
+        self._duplicate_counts[idx] = 0
+        self._discard_counts[idx] = 0
+        self._max_observed_t[idx] = -1
+        return {
+            "strategy": type(self).__name__,
+            "action": "clear_local",
+            "reason": str(reason),
+            "dropped_frames": int(dropped),
+        }
+
+    def debug_state(self, idx: int) -> dict[str, Any]:
+        captured = sorted(self._anchors[idx])
+        return {
+            "capacity": int(self.capacity),
+            "history_frames": int(self.history_frames),
+            "recent_frames": int(self.recent_frames),
+            "target_frame_ids": list(self.target_frame_ids),
+            "anchor_frame_ids": captured,
+            "missing_target_frame_ids": [
+                value for value in self.target_frame_ids if value not in captured
+            ],
+            "duplicate_update_count": int(self._duplicate_counts[idx]),
+            "discard_count": int(self._discard_counts[idx]),
+            "max_observed_t": int(self._max_observed_t[idx]),
+            "physical_frame_count": len(captured),
+        }

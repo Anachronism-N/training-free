@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Materialize prompt-correct VBench inputs for v155."""
+"""Materialize prompt-correct VBench inputs for v156."""
 from __future__ import annotations
 
 import argparse
@@ -8,17 +8,17 @@ from pathlib import Path
 import prepare_v154_vbench_comparison as base
 
 
-EXPERIMENT = "v155_profile_aligned_moviebench16"
-COMPARISON_EXPERIMENT = "v155_profile_aligned_vbench16"
+EXPERIMENT = "v156_profile_exact_moviebench16"
+COMPARISON_EXPERIMENT = "v156_profile_exact_vbench16"
 PROMPT_COUNT = 16
 METHODS = (
     "sf_native",
-    "ours_qk_top4_reservoir4",
-    "ours_qk_bottom4_reservoir4_control",
-    "ours_qk_random4_reservoir4_control",
-    "ours_all_reservoir4_control",
-    "ours_qk_top4_prototype4_reference",
-    "ours_all_recent8_reference",
+    "ours_qk_top4_profile_uniform4",
+    "ours_qk_bottom4_profile_uniform4_control",
+    "ours_qk_random4_profile_uniform4_control",
+    "ours_all_profile_uniform4_control",
+    "ours_all_recent8_exact_control",
+    "ours_qk_top4_reservoir4_reference",
 )
 CORE_DIMENSIONS = base.DIMENSIONS
 SEMANTIC_DIMENSIONS = (
@@ -31,15 +31,9 @@ SEMANTIC_DIMENSIONS = (
     "appearance_style",
     "temporal_style",
 )
-# The eight core dimensions plus the semantic extension reproduce the complete
-# VBench paper-table contract. overall_consistency is already in the core set.
 DIMENSIONS = (*CORE_DIMENSIONS, *SEMANTIC_DIMENSIONS)
-# MovieBench prompts do not carry the auxiliary object/action/style labels
-# required by seven VBench semantic dimensions.  Keep the full paper-table
-# contract frozen above, but expose the independently valid core recovery set.
 CORE_EVALUATION_DIMENSIONS = (*CORE_DIMENSIONS, "temporal_style")
 comparison_name = base.comparison_name
-sha256 = base.sha256
 
 
 def configure_base() -> None:
@@ -73,7 +67,7 @@ def main() -> None:
     comparison_root = args.comparison_root or args.run_root / "vbench_comparison"
     report = prepare(args.run_root, comparison_root, args.prompt_manifest)
     print(
-        "[v155-vbench-prepare] "
+        "[v156-vbench-prepare] "
         f"methods={report['methods']} videos={report['videos']} "
         f"manifest_sha256={report['manifest_sha256']} "
         f"links={report['link_counts']}",

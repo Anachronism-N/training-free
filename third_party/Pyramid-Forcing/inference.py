@@ -412,6 +412,8 @@ parser.add_argument(
         "prototype",
         "prototype2",
         "reservoir",
+        "profile_anchor",
+        "recent8_exact",
         "snapshot",
         "snapshot2",
         "sparse75",
@@ -443,6 +445,8 @@ parser.add_argument(
         "prototype",
         "prototype2",
         "reservoir",
+        "profile_anchor",
+        "recent8_exact",
         "snapshot",
         "snapshot2",
         "sparse75",
@@ -451,11 +455,12 @@ parser.add_argument(
 )
 parser.add_argument(
     "--pyramidkv_history_budget_profile",
-    choices=("default", "sink3_extra", "sink3_budget9"),
+    choices=("default", "sink3_extra", "sink3_budget9", "profile_exact8"),
     default="default",
     help=(
         "Explicit sink/middle/recent allocation for history-polarity routes. "
-        "sink3_budget9 is valid only for landmark/motion_pair1."
+        "sink3_budget9 is valid only for landmark/motion_pair1; "
+        "profile_exact8 is valid only for profile_anchor/recent8_exact."
     ),
 )
 parser.add_argument(
