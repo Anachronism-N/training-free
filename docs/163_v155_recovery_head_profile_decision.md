@@ -32,17 +32,21 @@ access. Final scores are in `docs/163_v155_vbench_core9_results.md`.
 | v149-v151 | scalar policy tail and signed policy classes fail randomized/calibrated confirmation | do not route generation from these maps |
 | v152 one-sided reanalysis | per-layer QK top-4 is a stable `History-Critical` candidate (112/120 overlap across seeds) | only the high tail is supported; the remaining 240 heads are `Default`, not `Recent-Critical` |
 
-The only classification currently suitable for a generation intervention is
-the frozen v152 top-4-per-layer map. Even that is a hypothesis under test, not
-a proven functional taxonomy. PF Wave/Anchor/Veil and the weak semantic-factor
-labels may be reported as descriptive cross-tabs, but not as causal role names.
+Historical note: before the completed v155 trajectory comparison, the frozen
+v152 top-4-per-layer map was the only classification suitable for a final
+generation falsification test. v155 has now completed that test and rejected
+the membership claim. No static head classification is currently suitable as
+a deployment route. PF Wave/Anchor/Veil and the weak semantic-factor labels
+may be reported as descriptive cross-tabs, but not as causal role names. The
+full evidence hierarchy and allowed uses are documented in
+`docs/166_head_profiling_classification_results_and_usage.md`.
 
 ## 3. How to apply the usable result
 
-Use the v152 score only as a continuous, layer-relative candidate propensity
-for dispersed history. v152's own oracle policy-choice gate failed, so this is
-a final falsification experiment rather than a validated deployment rule. The
-v155 allocation under test was:
+Use the v152 score only as a continuous, layer-relative diagnostic propensity
+or as a frozen negative-control membership. v152's own oracle policy-choice
+gate failed and v155's final trajectory membership gate also failed, so it is
+not a validated deployment rule. The v155 allocation that was tested was:
 
 ```text
 high QK-margin heads: sink1 + dispersed-history4 + recent4
@@ -52,7 +56,8 @@ all other heads:      sink1 + recent8
 Every test must retain bottom-4 and count-matched random-4 maps. `Default` must
 not be interpreted as a coherent recent-preferring class. The v145/v148 K-axis
 can be a secondary prior or gate feature, but not another hard semantic label.
-No broad profiling sweep is justified until trajectory-level membership works.
+No broad profiling sweep is justified. The next experiment tests layer-level
+cache placement without any head classifier.
 
 ## 4. Preliminary v155 evidence
 

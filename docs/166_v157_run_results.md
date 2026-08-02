@@ -13,9 +13,13 @@ v155 (SF, all-reservoir, QK-top-reservoir, all-recent8). Total 128 videos
 (64 new + 64 reused).
 
 **Generation and VBench core-9 fully succeeded.** All 72 core tasks (8 methods
-× 9 dimensions) complete. The interleaved10 placement — the pre-registered
-blind primary — passes all 5 metric gates, retaining most of all-reservoir's
-motion gain while recovering temporal stability.
+× 9 dimensions) complete. The interleaved10 placement, which was the
+pre-registered blind primary, passes all 5 metric gates. Middle10 and late10
+also pass the same metric screen; therefore the result supports layer-gated
+allocation but does not establish that interleaved10 is uniquely optimal.
+
+The blind package contains 128 rows, but all score fields are still empty.
+No human-promotion conclusion is available yet.
 
 ## 2. VBench Core-9 Paper Table
 
@@ -36,16 +40,21 @@ The interleaved10 blind primary must satisfy all 5 gates:
 
 | Gate | Requirement | interleaved10 | Reference | Delta | Pass |
 |---|---|---|---|---|---|
-| dynamic vs recent8 | ≥ +0.02 | 0.79167 | 0.73333 | +0.05834 | ✅ |
-| temporal quality vs all-reservoir | ≥ +0.003 | 0.96230 | 0.95468 | +0.00762 | ✅ |
-| history consistency vs recent8 | ≥ -0.002 | 0.97213 | 0.96848 | +0.00365 | ✅ |
-| temporal quality vs recent8 | ≥ -0.004 | 0.96230 | 0.95941 | +0.00289 | ✅ |
-| visual quality vs recent8 | ≥ -0.01 | 0.71240 | 0.70789 | +0.00451 | ✅ |
+| dynamic vs recent8 | ≥ +0.02 | 0.79167 | 0.73333 | +0.05833 | PASS |
+| temporal quality vs all-reservoir | ≥ +0.003 | 0.97190 | 0.96588 | +0.00603 | PASS |
+| history consistency vs recent8 | ≥ -0.002 | 0.72448 | 0.72019 | +0.00429 | PASS |
+| temporal quality vs recent8 | ≥ -0.004 | 0.97190 | 0.96950 | +0.00240 | PASS |
+| visual quality vs recent8 | ≥ -0.01 | 0.66956 | 0.66378 | +0.00578 | PASS |
 
-**All 5 gates pass.** The interleaved10 layer-gated reservoir retains most of
-all-reservoir's motion gain (79.17 vs 83.33 dynamic) while recovering temporal
-stability (flicker 0.96230 vs 0.95468) and improving visual quality (imaging
-0.71240 vs 0.69689).
+**All 5 primary gates pass.** Here `temporal_quality` is the mean of flicker
+and smoothness, `history_consistency` is the mean of subject/background/overall
+consistency, and `visual_quality` is the mean of aesthetic/imaging quality.
+The earlier version of this table accidentally printed individual dimensions
+under composite labels; the frozen analyzer and pass/fail decisions were not
+affected.
+
+For completeness, middle10 and late10 also pass all five metric gates. Early10
+fails only temporal recovery versus all-reservoir (`+0.00270 < +0.003`).
 
 ## 4. Layer Placement Comparison
 
@@ -57,11 +66,11 @@ stability (flicker 0.96230 vs 0.95468) and improving visual quality (imaging
 | **interleaved10** | **79.17** | **0.96230** | **0.98150** | **84.54** |
 | all (layers 0-29) | 83.33 | 0.95468 | 0.97708 | 83.72 |
 
-Layer placement matters: interleaved10 achieves the best Quality Score (84.54)
-and best temporal stability among reservoir methods, while all-reservoir has the
-most motion but worst stability. Early and late placements are weaker than
-middle and interleaved, suggesting the reservoir benefit is not uniform across
-depth — it concentrates in middle and distributed layers.
+Layer placement matters: interleaved10 has the best point estimates for Quality
+Score and temporal stability among the tested reservoir methods, while
+all-reservoir has the most motion but worst stability. With only 16 prompts and
+one generation seed, these point estimates do not prove that the interleaved
+layout is uniquely better than middle10 or late10.
 
 ## 5. Key Findings
 
@@ -69,10 +78,10 @@ depth — it concentrates in middle and distributed layers.
    temporal stability while retaining most of the motion gain. This confirms
    the v157 hypothesis (doc 165 section 6.1).
 
-2. **Interleaved placement is optimal**: distributed layer selection (1,4,7,
-   10,13,16,19,22,25,28) outperforms contiguous blocks on both motion and
-   quality. This suggests the reservoir benefit is depth-distributed, not
-   concentrated in one transformer region.
+2. **Interleaved placement is the predeclared primary and best point estimate**:
+   distributed layer selection (1,4,7,10,13,16,19,22,25,28) has the strongest
+   observed motion/quality combination. Middle10 and late10 passing the same
+   screen prevents a unique-optimum claim.
 
 3. **All layer-gated methods beat SF**: every placement has higher Dynamic
    Degree (75-79 vs 64) and Quality Score (83.7-84.5 vs 83.0) than native SF.
@@ -91,9 +100,11 @@ depth — it concentrates in middle and distributed layers.
 > If interleaved simultaneously passes metric and blind gate, do a smaller
 > layer-count budget sweep, rather than directly expanding to 128 prompts.
 
-The metric gate passes. The blind gate requires human review (not yet scored).
-Next step: complete the blind review, then if confirmed, run a layer-count
-budget sweep (e.g., 6, 8, 10, 12 layers) before scaling to 128 prompts.
+The metric gate passes. The blind gate requires human review and is not yet
+scored. The v158 layer-count budget sweep is implemented, but its GPU launch is
+hard-blocked until the frozen v157 human gate passes. This preserves the
+predeclared decision sequence rather than treating automatic metrics as a
+replacement for review.
 
 This result belongs to **cache allocation**, not head taxonomy. The v155
 "cache useful, classifier unsupported" conclusion stands — v157 adds that

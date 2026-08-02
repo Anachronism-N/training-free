@@ -2,6 +2,14 @@
 
 日期：2026-08-02
 
+更新：v157 已完成生成与 core-9，详细复核和 v158 条件实验见
+`docs/166_v157_run_results.md` 与
+`docs/167_v157_analysis_and_v158_interleaved_budget_plan.md`。本文件第 6-9 节
+保留为 v157 运行前的预注册设计，不应用后验结果覆盖。
+
+Head profiling 的历史分类、因果 gate、最终可用边界和后续应用方案，
+详见 `docs/166_head_profiling_classification_results_and_usage.md`。
+
 ## 1. 本轮实验状态
 
 本轮有完整结果的是 v155，不是 v156：
