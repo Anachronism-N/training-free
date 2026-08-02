@@ -26,6 +26,11 @@ COMPARATORS = (
     "ours_legacy_membership",
     "ours_legacy_reference",
 )
+REQUIRED_CONTROLS = (
+    "ours_qk_bottom4_control",
+    "ours_qk_random4_control",
+)
+BOOTSTRAP_SEED = 1542026
 
 
 def bootstrap_mean_ci(values: list[float], *, seed: int, samples: int = 5000):
@@ -103,7 +108,7 @@ def analyze(rows: list[dict]) -> dict:
             ]
             low, high = bootstrap_mean_ci(
                 differences,
-                seed=1542026 + comparator_index * 100 + column_index,
+                seed=BOOTSTRAP_SEED + comparator_index * 100 + column_index,
             )
             dimensions[column] = {
                 "mean_difference": statistics.mean(differences),
@@ -115,10 +120,6 @@ def analyze(rows: list[dict]) -> dict:
                 "bootstrap_mean_ci95": [low, high],
             }
         paired[comparator] = dimensions
-    required_controls = (
-        "ours_qk_bottom4_control",
-        "ours_qk_random4_control",
-    )
     overall = "overall_preference_-2_to_2"
     identity = "identity_continuity_-2_to_2"
     background = "background_continuity_-2_to_2"
@@ -127,7 +128,7 @@ def analyze(rows: list[dict]) -> dict:
         methods[PRIMARY]["severe_failures"] <= 1
         and all(
             paired[control][overall]["noninferior_prompts"] >= 10
-            for control in required_controls
+            for control in REQUIRED_CONTROLS
         )
         and all(
             0.5
@@ -136,11 +137,11 @@ def analyze(rows: list[dict]) -> dict:
                 + paired[control][background]["mean_difference"]
             )
             > 0
-            for control in required_controls
+            for control in REQUIRED_CONTROLS
         )
         and all(
             paired[control][motion]["mean_difference"] >= -0.25
-            for control in required_controls
+            for control in REQUIRED_CONTROLS
         )
     )
     return {

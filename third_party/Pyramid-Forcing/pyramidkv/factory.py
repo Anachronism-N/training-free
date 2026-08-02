@@ -23,6 +23,7 @@ from .role_memory import (
     UniqueSnapshotStrategy,
 )
 from .stride import StrideStrategy
+from .temporal_reservoir import TemporalReservoirStrategy
 from .recent import RecentStrategy
 
 HEAD_LABEL_MAP = {
@@ -315,6 +316,7 @@ def build_compositions(
     semantic_retrieval_min_margin: float = 0.0,
     semantic_retrieval_abstain: bool = False,
     label_temporal_prototype_capacity_map: dict | None = None,
+    label_temporal_reservoir_capacity_map: dict | None = None,
     label_unique_snapshot_capacity_map: dict | None = None,
     label_sparse_snapshot_capacity_map: dict | None = None,
     label_sparse_snapshot_keep_ratio_map: dict | None = None,
@@ -363,6 +365,10 @@ def build_compositions(
     )
     temporal_prototype_capacity_map = _build_int_map(
         label_temporal_prototype_capacity_map,
+        min_value=0,
+    )
+    temporal_reservoir_capacity_map = _build_int_map(
+        label_temporal_reservoir_capacity_map,
         min_value=0,
     )
     unique_snapshot_capacity_map = _build_int_map(
@@ -513,6 +519,9 @@ def build_compositions(
             temporal_prototype_capacity = (
                 temporal_prototype_capacity_map.get(label_key, 0)
             )
+            temporal_reservoir_capacity = (
+                temporal_reservoir_capacity_map.get(label_key, 0)
+            )
             unique_snapshot_capacity = (
                 unique_snapshot_capacity_map.get(label_key, 0)
             )
@@ -523,6 +532,7 @@ def build_compositions(
             use_coherent_motion = coherent_motion_pair_capacity > 0
             use_semantic_retrieval = semantic_retrieval_capacity > 0
             use_temporal_prototype = temporal_prototype_capacity > 0
+            use_temporal_reservoir = temporal_reservoir_capacity > 0
             use_unique_snapshot = unique_snapshot_capacity > 0
             use_sparse_snapshot = sparse_snapshot_capacity > 0
 
@@ -543,6 +553,8 @@ def build_compositions(
                 active_middle.append("semantic_retrieval")
             if use_temporal_prototype:
                 active_middle.append("temporal_prototype")
+            if use_temporal_reservoir:
+                active_middle.append("temporal_reservoir")
             if use_unique_snapshot:
                 active_middle.append("unique_snapshot")
             if use_sparse_snapshot:
@@ -700,6 +712,18 @@ def build_compositions(
                     )
                 )
                 policy_type = "temporal_prototype"
+
+            if use_temporal_reservoir:
+                strategies.append(
+                    TemporalReservoirStrategy(
+                        capacity=temporal_reservoir_capacity,
+                        min_frame_t=sink,
+                        defer_frames=head_recent,
+                        seed=2026,
+                        dynamic_rope=True,
+                    )
+                )
+                policy_type = "temporal_reservoir"
 
             if use_unique_snapshot:
                 strategies.append(

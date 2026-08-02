@@ -11,12 +11,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from prepare_v129_vbench_splits import sha256, split_method
+from prepare_v129_vbench_splits import sha256
 from prepare_v154_vbench_comparison import (
     COMPARISON_EXPERIMENT,
     METHODS,
     PROMPT_COUNT,
 )
+from vbench_long_split_cache import prepare_clean_split
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
@@ -78,7 +79,7 @@ def main() -> None:
     ) as executor:
         futures = {
             executor.submit(
-                split_method,
+                prepare_clean_split,
                 method=method,
                 video_dir=video_dir,
                 manifest_sha=manifest_sha,

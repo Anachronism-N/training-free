@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Any
 
 from analyze_v154_vbench import analyze, render_markdown
-from prepare_v129_vbench_splits import validate_split
 from prepare_v154_vbench_comparison import (
     COMPARISON_EXPERIMENT,
     DIMENSIONS,
@@ -25,9 +24,14 @@ from prepare_v154_vbench_comparison import (
     PROMPT_COUNT,
     comparison_name,
 )
+from vbench_long_split_cache import clean_manifest_path, validate_clean_split
 
 
 CLIPS_PER_VIDEO = 15
+RUN_LABEL = "v154"
+SUMMARY_EXPERIMENT = "v154_history_critical_moviebench16_vbench"
+ANALYSIS_STEM = "v154_vbench_analysis"
+SUMMARY_TITLE = "v154 VBench-Long Summary"
 FAILURE_PATTERN = re.compile(
     r"Traceback \(most recent call last\)|CUDA out of memory|"
     r"OutOfMemoryError|FileNotFoundError",
@@ -171,7 +175,7 @@ def validate_prompt_mapping(path: Path, manifest_sha: str) -> dict[str, Any]:
         if payload.get(key) != expected
     }
     if failures:
-        raise ValueError(f"invalid v154 prompt mapping: {failures}")
+        raise ValueError(f"invalid {RUN_LABEL} prompt mapping: {failures}")
     return payload
 
 
@@ -189,7 +193,9 @@ def load_manifest(path: Path) -> dict[str, Any]:
         or [int(row.get("index", -1)) for row in prompt_items]
         != list(range(PROMPT_COUNT))
     ):
-        raise ValueError(f"invalid v154 VBench comparison manifest: {path}")
+        raise ValueError(
+            f"invalid {RUN_LABEL} VBench comparison manifest: {path}"
+        )
     expected_names = {
         comparison_name(index) for index in range(PROMPT_COUNT)
     }
@@ -227,14 +233,13 @@ def runtime_contract(args: argparse.Namespace) -> dict[str, Any]:
     }
     missing = [str(path) for path in required.values() if not path.is_file()]
     if missing:
-        raise ValueError(f"missing v154 VBench dependencies: {missing}")
+        raise ValueError(f"missing {RUN_LABEL} VBench dependencies: {missing}")
     split_audits = {}
     for row in manifest["methods"]:
         method = str(row["key"])
         video_dir = Path(str(row["video_dir"]))
-        split_root = video_dir / "split_clip"
-        audit = validate_split(
-            split_root,
+        audit = validate_clean_split(
+            video_dir,
             comparison_manifest_sha256=manifest_sha,
             vbench_commit=vbench_commit,
             prompt_count=PROMPT_COUNT,
@@ -245,10 +250,8 @@ def runtime_contract(args: argparse.Namespace) -> dict[str, Any]:
                 f"{method}: missing/stale split cache; run the split action"
             )
         split_audits[method] = {
-            "manifest": str(split_root / ".v129_split_manifest.json"),
-            "manifest_sha256": sha256(
-                split_root / ".v129_split_manifest.json"
-            ),
+            "manifest": str(clean_manifest_path(video_dir)),
+            "manifest_sha256": sha256(clean_manifest_path(video_dir)),
             "clip_count": int(audit["clip_count"]),
         }
     return {
@@ -516,7 +519,7 @@ def collect(
             sources[method][dimension] = str(result)
     summary = {
         "version": 1,
-        "experiment": "v154_history_critical_moviebench16_vbench",
+        "experiment": SUMMARY_EXPERIMENT,
         "comparison_manifest": str(args.manifest),
         "comparison_manifest_sha256": context["manifest_sha256"],
         "methods": rows,
@@ -537,7 +540,7 @@ def collect(
                 [method, *(rows[method][dimension] for dimension in DIMENSIONS)]
             )
     markdown = [
-        "# v154 VBench-Long Summary",
+        f"# {SUMMARY_TITLE}",
         "",
         "| Method | " + " | ".join(DIMENSIONS) + " |",
         "|---|" + "|".join("---:" for _ in DIMENSIONS) + "|",
@@ -551,11 +554,11 @@ def collect(
     report = analyze(summary)
     args.analysis_root.mkdir(parents=True, exist_ok=True)
     write_json_atomically(
-        args.analysis_root / "v154_vbench_analysis.json",
+        args.analysis_root / f"{ANALYSIS_STEM}.json",
         report,
         sort_keys=True,
     )
-    (args.analysis_root / "v154_vbench_analysis.md").write_text(
+    (args.analysis_root / f"{ANALYSIS_STEM}.md").write_text(
         render_markdown(report), encoding="utf-8"
     )
     return report
@@ -609,7 +612,7 @@ def main() -> None:
     jobs = all_jobs()[args.node_rank :: args.num_nodes]
     if args.mode == "preflight":
         print(
-            f"[v154-vbench-preflight] node={args.node_rank}/{args.num_nodes} "
+            f"[{RUN_LABEL}-vbench-preflight] node={args.node_rank}/{args.num_nodes} "
             f"jobs={len(jobs)} gpus={len(args.gpus)} "
             f"manifest_sha256={context['manifest_sha256']} "
             f"vbench_commit={context['vbench_commit']}",
@@ -621,7 +624,7 @@ def main() -> None:
             raise SystemExit("collect must run on node rank 0")
         report = collect(args, context)
         print(
-            f"[v154-vbench-collect] gate={report['metric_promotion_gate']} "
+            f"[{RUN_LABEL}-vbench-collect] gate={report['metric_promotion_gate']} "
             f"output={args.summary_root}",
             flush=True,
         )
@@ -662,7 +665,7 @@ def main() -> None:
     if not summary["ok"]:
         raise SystemExit(
             "\n".join(row["error"] for row in failures)
-            or "v154 VBench task count mismatch"
+            or f"{RUN_LABEL} VBench task count mismatch"
         )
     print(f"[complete] summary={summary_path}", flush=True)
 

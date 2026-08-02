@@ -496,6 +496,13 @@ def expected_policy(
                 6 if cell.support_policy == "prototype2" else 4,
                 "temporal_prototype",
             )
+        elif cell.support_policy == "reservoir":
+            result = (
+                ("TemporalReservoirStrategy",),
+                1,
+                4,
+                "temporal_reservoir",
+            )
         elif cell.support_policy in {"snapshot", "snapshot2"}:
             result = (
                 ("UniqueSnapshotStrategy",),
@@ -608,6 +615,12 @@ def expected_policy(
                 6,
                 "temporal_prototype",
             ),
+            "reservoir": (
+                ("TemporalReservoirStrategy",),
+                1,
+                4,
+                "temporal_reservoir",
+            ),
             "snapshot": (
                 ("UniqueSnapshotStrategy",),
                 1,
@@ -710,6 +723,67 @@ def audit_policy_trace(
                         f"line {line_number}: cache contract failed "
                         f"{event['cache_contract_violations']}"
                     )
+                if "TemporalReservoirStrategy" in strategies:
+                    union_count = int(event["union_frame_count"])
+                    if union_count > 4:
+                        failures.append(
+                            f"line {line_number}: reservoir middle has "
+                            f"{union_count} frames, expected at most 4"
+                        )
+                    frame_seqlen = int(event.get("frame_seqlen", 0))
+                    read_tokens = sum(
+                        int(event.get(field, 0))
+                        for field in (
+                            "sink_token_count",
+                            "union_token_count",
+                            "recent_token_count",
+                        )
+                    )
+                    if (
+                        frame_seqlen <= 0
+                        or read_tokens
+                        > cell.max_full_frame_equivalents * frame_seqlen
+                    ):
+                        failures.append(
+                            f"line {line_number}: reservoir read has "
+                            f"{read_tokens} tokens at frame_seqlen="
+                            f"{frame_seqlen}, expected at most "
+                            f"{cell.max_full_frame_equivalents} FFE"
+                        )
+                    item = next(
+                        row
+                        for row in event["strategies"]
+                        if row["name"] == "TemporalReservoirStrategy"
+                    )
+                    state = item.get("state")
+                    if not isinstance(state, dict):
+                        failures.append(
+                            f"line {line_number}: reservoir state missing"
+                        )
+                    else:
+                        anchors = [
+                            int(value)
+                            for value in state.get("anchor_frame_ids", [])
+                        ]
+                        pending = [
+                            int(value)
+                            for value in state.get("pending_frame_ids", [])
+                        ]
+                        if len(anchors) > 4 or len(anchors) != len(set(anchors)):
+                            failures.append(
+                                f"line {line_number}: invalid reservoir "
+                                f"anchors {anchors}"
+                            )
+                        if len(pending) > int(state.get("defer_frames", 4)):
+                            failures.append(
+                                f"line {line_number}: reservoir pending "
+                                f"overflow {pending}"
+                            )
+                        if anchors != sorted(anchors):
+                            failures.append(
+                                f"line {line_number}: reservoir anchors "
+                                "are not sorted"
+                            )
                 if cell.uses_role_event:
                     union_count = int(event["union_frame_count"])
                     if union_count > 4:

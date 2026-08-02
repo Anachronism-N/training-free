@@ -103,6 +103,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--comparison-manifest", required=True, type=Path)
     parser.add_argument("--vbench-root", required=True, type=Path)
     parser.add_argument("--output-root", required=True, type=Path)
+    parser.add_argument(
+        "--title",
+        default="v129 VBench-Long paper table",
+        help="Markdown heading and report title; v129 remains the default.",
+    )
     return parser.parse_args()
 
 
@@ -177,6 +182,7 @@ def main() -> None:
             "official VBench normalization and weights; incomplete "
             "composites are null"
         ),
+        "title": args.title,
         "rows": rows,
     }
     args.output_root.mkdir(parents=True, exist_ok=True)
@@ -211,7 +217,7 @@ def main() -> None:
         "Total Score",
     )
     lines = [
-        "# v129 VBench-Long paper table",
+        f"# {args.title}",
         "",
         "| " + " | ".join(labels) + " |",
         "|" + "|".join("---" if index == 0 else "---:" for index in range(len(labels))) + "|",

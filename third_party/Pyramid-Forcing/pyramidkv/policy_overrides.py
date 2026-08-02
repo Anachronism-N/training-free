@@ -147,6 +147,7 @@ def history_polarity_policy_overrides(
         "retrieval1_motion1_age24",
         "prototype",
         "prototype2",
+        "reservoir",
         "snapshot",
         "snapshot2",
         "sparse75",
@@ -176,6 +177,7 @@ def history_polarity_policy_overrides(
         "retrieval1_motion1_age24",
         "prototype",
         "prototype2",
+        "reservoir",
         "snapshot",
         "snapshot2",
         "sparse75",
@@ -306,6 +308,8 @@ def history_polarity_policy_overrides(
         if suppress == "prototype2"
         else 0
     )
+    support_reservoir_capacity = 4 if support == "reservoir" else 0
+    suppress_reservoir_capacity = 4 if suppress == "reservoir" else 0
     support_snapshot_capacity = (
         4 if support == "snapshot" else 2 if support == "snapshot2" else 0
     )
@@ -336,6 +340,7 @@ def history_polarity_policy_overrides(
             "retrieval1_motion1_age24",
             "prototype",
             "prototype2",
+            "reservoir",
             "snapshot",
             "snapshot2",
             "sparse75",
@@ -378,6 +383,7 @@ def history_polarity_policy_overrides(
             "retrieval1_motion1_age24",
             "prototype",
             "prototype2",
+            "reservoir",
             "snapshot",
             "snapshot2",
             "sparse75",
@@ -460,6 +466,10 @@ def history_polarity_policy_overrides(
         "pyramidkv_label_temporal_prototype_capacity_map": {
             support_key: support_prototype_capacity,
             suppress_key: suppress_prototype_capacity,
+        },
+        "pyramidkv_label_temporal_reservoir_capacity_map": {
+            support_key: support_reservoir_capacity,
+            suppress_key: suppress_reservoir_capacity,
         },
         "pyramidkv_label_unique_snapshot_capacity_map": {
             support_key: support_snapshot_capacity,

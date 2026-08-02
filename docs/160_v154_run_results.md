@@ -15,8 +15,8 @@ each generated 16 thirty-second videos — 128 videos total on 32 GPUs.
 (contract ok=true, 128 publish markers, no failures), blind review prepared.
 VBench-Long evaluation completed 56/64 tasks (87.5%): 6 of 8 dimensions are
 fully complete across all 8 methods. The remaining 8 tasks (subject_consistency
-for 7 methods, background_consistency for 2 methods) fail due to a split_clip
-directory issue, not a model or generation problem. Collect cannot merge
+for 6 methods, background_consistency for 2 methods) fail because a metadata
+file is visible to two VBench clip-enumeration paths. Collect cannot merge
 because it requires all 64 tasks.
 
 ## 2. Generation
@@ -88,7 +88,7 @@ from `torch.hub` to `~/.cache/torch/hub/` per node.
 | overall_consistency | 8/8 PASS | CLIP ViT-L-14 |
 | aesthetic_quality | 8/8 PASS | aesthetic + CLIP |
 | background_consistency | 6/8 | CLIP (missing ours_qk_top4, ours_legacy_reference) |
-| subject_consistency | 1/8 | DINO (only sf_native; 7 fail on split_clip) |
+| subject_consistency | 2/8 | DINO (sf_native and ours_all_recent8_control) |
 
 ### 3.3 Missing tasks and root cause
 
@@ -98,11 +98,13 @@ Exception: .../split_clip/.v129_split_manifest.json should be a path
 that contains video clips or a path of a video file!
 ```
 
-The `split` stage (which ran on all 4 nodes) created split_clip directories
-but some methods' directories contain only the manifest JSON, not the actual
-split clip files. This is a split-stage distribution issue, not a model or
-generation problem. The `collect` step requires all 64 tasks and cannot
-produce a merged summary.
+All split directories contain the expected 16 prompt folders and 240 clips.
+The actual failure is that `.v129_split_manifest.json` was written inside the
+`split_clip` root. VBench subject/background utilities inspect the first root
+entry as if it were a clip directory; filesystem enumeration can therefore
+select the JSON file and fail nondeterministically. The repaired pipeline moves
+the unchanged manifest beside `split_clip`, requires a directory-only clip
+root, and resumes the 56 valid results without regenerating videos.
 
 ### 3.4 Available per-task results
 

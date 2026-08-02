@@ -18,6 +18,7 @@ from .base import FrameAnchor, HeadComposition, MiddleStrategy
 from .cyclic import CyclicStrategy
 from .lag import LagStrategy
 from .stride import StrideStrategy
+from .temporal_reservoir import TemporalReservoirStrategy
 from .merge import MergeStrategy
 from .motion_event import MotionEventStrategy
 from .role_event import CoherentMotionStrategy, SemanticLandmarkStrategy
@@ -55,6 +56,7 @@ __all__ = [
     "CyclicStrategy",
     "LagStrategy",
     "StrideStrategy",
+    "TemporalReservoirStrategy",
     "MergeStrategy",
     "MotionEventStrategy",
     "SemanticLandmarkStrategy",
