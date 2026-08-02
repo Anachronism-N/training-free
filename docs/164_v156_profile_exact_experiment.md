@@ -2,25 +2,31 @@
 
 日期：2026-08-02
 
+状态更新：**HOLD，不建议启动**。v155 core-9 已完成且 QK membership gate
+失败，v156 原启动条件没有满足。当前推荐实验已转为 v157 layer-gated
+reservoir，见 `docs/165_v155_final_analysis_and_v157_layer_gate_plan.md`。本文保留
+用于复现 v156 代码合同，不代表当前实验优先级。
+
 ## 1. 当前项目与实验进度
 
 项目在研究长视频生成中的 training-free KV cache 分配：先通过 head
 profiling 找出可能需要分散历史的 attention heads，再把分类结果转成有限
 KV 预算下的生成策略，并用严格对照验证是否真的改善长程一致性。
 
-截至当前版本：
+以下 v155 数字记录 v156 设计时的首次状态；core-9 后续已恢复到 63/63，最终
+分析见 `docs/165`：
 
 - v155 生成完成：7 方法 x 16 prompts = 112 视频，audit、blind package 和
   diagnostics package 均通过；
-- v155 冻结 VBench 合同实际是 16 dimensions x 7 methods = 112 tasks，当前
-  53/112；科学上有效的 MovieBench core-9 是 53/63；
-- 7 个 core dimensions 已全部完成，`subject_consistency` 与
-  `background_consistency` 各完成 2/7，合计还缺 10 tasks；
+- v155 冻结 VBench 合同实际是 16 dimensions x 7 methods = 112 tasks，首次
+  状态为 53/112；当时 MovieBench core-9 是 53/63；
+- 后续离线恢复已补齐 `subject_consistency` 与 `background_consistency`，当前
+  core-9 为 63/63；
 - 旧 `collect` 要求全部 112 tasks，因此失败；现在已有 read-only status、
   missing-only resume 和 `collect-core`；
 - DINO、DINOv2、CLIP、DreamSim 已改为共享离线缓存加载，已有 53 个结果的
   原冻结合同保持不变；
-- v155 已完成维度上，top-reservoir 相对 bottom-reservoir 的 dynamic degree
+- v155 完整 core-9 上，top-reservoir 相对 bottom-reservoir 的 dynamic degree
   为 `-0.0375`，低于冻结 non-inferiority 下限 `-0.03`，所以原 metric
   promotion gate 已不可能通过；补齐 core-9 与人工盲评仍有诊断价值。
 

@@ -5,11 +5,11 @@ Date: 2026-08-02
 ## 1. Evaluation recovery
 
 The frozen v155 manifest has 112 jobs (16 dimensions x 7 methods), not 63.
-Its current status is 53/112. The valid MovieBench core-9 view is 53/63:
-seven dimensions are complete, while subject and background consistency are
-both 2/7.
+The first-run status was 53/112 and the valid MovieBench core-9 view was 53/63.
+Offline recovery has since completed the ten missing subject/background jobs:
+the current valid core-9 status is 63/63.
 
-The recovery path now:
+The completed recovery path:
 
 - preserves the 53 completed jobs under their original frozen contracts;
 - reports status without mutating contracts or results;
@@ -19,7 +19,7 @@ The recovery path now:
   as valid for arbitrary MovieBench prompts.
 
 The offline smoke test initializes DINO, CLIP, and DreamSim without network
-access. Recovery commands are in `docs/162_v155_run_results.md`.
+access. Final scores are in `docs/163_v155_vbench_core9_results.md`.
 
 ## 2. What head profiling actually classified
 
@@ -74,14 +74,20 @@ higher aesthetic and imaging quality. This is not robust membership evidence.
 
 ## 5. Next experiment decision
 
-Do not launch a 128-prompt scale-up. First complete the ten offline core jobs
-and the prepared 112-video blind review. They remain useful for diagnosing
-identity/background retention and deciding whether the reservoir itself is
-useful, even though the frozen metric promotion gate has already failed.
+Update after core-9 completion: all 63 valid jobs are complete and the QK-top
+membership gate failed. Top did not beat bottom/random under the frozen rule.
+The conditional trigger for v156 was therefore not met; v156 is on hold.
 
-The v156 diagnostic implementation is now prepared; it must not be scaled
-unless both objective and blind-review gates pass. After core-9 and human
-review:
+Do not launch a 128-prompt scale-up. Core-9 is complete; the prepared 112-video
+blind review remains unscored. It is still useful for diagnosing visible
+identity/background retention, although the objective membership gate has
+already failed.
+
+The next recommended screen is v157 count-matched layer gating, documented in
+`docs/165_v155_final_analysis_and_v157_layer_gate_plan.md`. It keeps the useful
+reservoir mechanism while dropping the unsupported QK membership claim.
+
+For historical clarity, the earlier conditional decision was:
 
 - If top does not beat both bottom and random on identity/background, stop the
   static QK membership axis. Keep any all-head reservoir benefit as a cache

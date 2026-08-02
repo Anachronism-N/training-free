@@ -4,6 +4,11 @@ Date: 2026-08-02
 Cluster: 4 nodes x 8x H20 (32 GPUs)
 Commit: `c42f40a` on `codex/v98-correctness-fixes`
 
+Status update: the ten missing core jobs were recovered offline and core-9 is
+now 63/63 complete. The original 53/63 state below records the first run.
+Final scores and decisions are in `docs/163_v155_vbench_core9_results.md` and
+`docs/165_v155_final_analysis_and_v157_layer_gate_plan.md`.
+
 ## 1. Summary
 
 v155 tests the v152 QK hypothesis with a profile-aligned cache:

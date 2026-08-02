@@ -1,0 +1,61 @@
+{
+  "experiment": "v157_layer_gated_reservoir",
+  "labels": {
+    "10": "reservoir4",
+    "11": "recent8"
+  },
+  "maps": {
+    "early10": {
+      "filename": "v157_layer_early10_reservoir.csv",
+      "label10_per_layer": [
+        12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+      ],
+      "selected_head_count": 120,
+      "selected_layers": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "sha256": "19dddba8403f55fe094df9bde3dea1d533aef6d3b9b3b32018cce16cd64a8d40"
+    },
+    "interleaved10": {
+      "filename": "v157_layer_interleaved10_reservoir.csv",
+      "label10_per_layer": [
+        0, 12, 0, 0, 12, 0, 0, 12, 0, 0,
+        12, 0, 0, 12, 0, 0, 12, 0, 0, 12,
+        0, 0, 12, 0, 0, 12, 0, 0, 12, 0
+      ],
+      "selected_head_count": 120,
+      "selected_layers": [1, 4, 7, 10, 13, 16, 19, 22, 25, 28],
+      "sha256": "8ee900ab0edc820c56dbd24cfb388b3a07db70b15b3d5fa38bb0cd6a702a690c"
+    },
+    "late10": {
+      "filename": "v157_layer_late10_reservoir.csv",
+      "label10_per_layer": [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        12, 12, 12, 12, 12, 12, 12, 12, 12, 12
+      ],
+      "selected_head_count": 120,
+      "selected_layers": [20, 21, 22, 23, 24, 25, 26, 27, 28, 29],
+      "sha256": "adeb5e75fad883419ca13961ee10320c71b9f26a72e8e033e831fe4682a3f38a"
+    },
+    "middle10": {
+      "filename": "v157_layer_middle10_reservoir.csv",
+      "label10_per_layer": [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+      ],
+      "selected_head_count": 120,
+      "selected_layers": [10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+      "sha256": "61d43441c3092e406398e4c8f703ec8438ff9d918e359ba43d38656e8a53ca8c"
+    }
+  },
+  "matrix_shape": [
+    30,
+    12
+  ],
+  "purpose": "count-matched layer placement after v155 showed cache utility without QK head-membership selectivity",
+  "qk_top4_count_match": true,
+  "selected_head_count": 120,
+  "version": 1
+}
