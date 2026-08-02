@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "experiment": "v155_profile_aligned_moviebench16_vbench",
+  "comparison_manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/vbench_comparison/comparison_manifest.json",
+  "comparison_manifest_sha256": "827b5d0b0e98ed0d7bf239f98767aecaf9171b99d1b6e5743166374183a4912b",
+  "methods": {
+    "sf_native": {
+      "subject_consistency": 0.9686754966992907,
+      "background_consistency": 0.961025162877718,
+      "temporal_flickering": 0.968037148164768,
+      "motion_smoothness": 0.9821834467437298,
+      "overall_consistency": 0.23314183177426456,
+      "dynamic_degree": 0.6416666666666667,
+      "aesthetic_quality": 0.6162859880675872,
+      "imaging_quality": 0.6891360936909914,
+      "temporal_style": 0.23314183177426456
+    },
+    "ours_qk_top4_reservoir4": {
+      "subject_consistency": 0.9695934938697625,
+      "background_consistency": 0.9623342857538412,
+      "temporal_flickering": 0.9634580531190422,
+      "motion_smoothness": 0.9816599735639115,
+      "overall_consistency": 0.2382421828340739,
+      "dynamic_degree": 0.725,
+      "aesthetic_quality": 0.6166061555345853,
+      "imaging_quality": 0.706719378794233,
+      "temporal_style": 0.2382421828340739
+    },
+    "ours_qk_bottom4_reservoir4_control": {
+      "subject_consistency": 0.9689084130309715,
+      "background_consistency": 0.9601908594660986,
+      "temporal_flickering": 0.9612651208276837,
+      "motion_smoothness": 0.979892998598047,
+      "overall_consistency": 0.23740890476231774,
+      "dynamic_degree": 0.7625,
+      "aesthetic_quality": 0.619651693602403,
+      "imaging_quality": 0.7149371659954389,
+      "temporal_style": 0.23740890476231774
+    },
+    "ours_qk_random4_reservoir4_control": {
+      "subject_consistency": 0.9695926086561364,
+      "background_consistency": 0.9619351294835012,
+      "temporal_flickering": 0.9642261005051778,
+      "motion_smoothness": 0.9830767925112646,
+      "overall_consistency": 0.23794058980420232,
+      "dynamic_degree": 0.7083333333333334,
+      "aesthetic_quality": 0.621672606592377,
+      "imaging_quality": 0.7109285818239053,
+      "temporal_style": 0.23794058980420232
+    },
+    "ours_all_reservoir4_control": {
+      "subject_consistency": 0.9645697840087493,
+      "background_consistency": 0.9584191388387365,
+      "temporal_flickering": 0.954679480415154,
+      "motion_smoothness": 0.9770828578021494,
+      "overall_consistency": 0.24141877498477698,
+      "dynamic_degree": 0.8333333333333334,
+      "aesthetic_quality": 0.6182404876997073,
+      "imaging_quality": 0.6968356855263313,
+      "temporal_style": 0.24141877498477698
+    },
+    "ours_qk_top4_prototype4_reference": {
+      "subject_consistency": 0.9716377116193714,
+      "background_consistency": 0.9637661053049066,
+      "temporal_flickering": 0.9634410959053666,
+      "motion_smoothness": 0.9817457260793013,
+      "overall_consistency": 0.23165777411001423,
+      "dynamic_degree": 0.6791666666666667,
+      "aesthetic_quality": 0.6220214329659939,
+      "imaging_quality": 0.6957946469982466,
+      "temporal_style": 0.23165777411001423
+    },
+    "ours_all_recent8_reference": {
+      "subject_consistency": 0.9685702549629435,
+      "background_consistency": 0.9612114602974354,
+      "temporal_flickering": 0.9594078600737782,
+      "motion_smoothness": 0.9795980372744902,
+      "overall_consistency": 0.23086967514827847,
+      "dynamic_degree": 0.7333333333333333,
+      "aesthetic_quality": 0.6196842184911172,
+      "imaging_quality": 0.7079033275917171,
+      "temporal_style": 0.23086967514827847
+    }
+  },
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "sources": {
+    "sf_native": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/sf_native/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/sf_native/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/sf_native/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/sf_native/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/sf_native/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/sf_native/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/sf_native/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/sf_native/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/sf_native/temporal_style/results.json"
+    },
+    "ours_qk_top4_reservoir4": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_reservoir4/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_reservoir4/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_reservoir4/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_reservoir4/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_reservoir4/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_reservoir4/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_reservoir4/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_reservoir4/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_reservoir4/temporal_style/results.json"
+    },
+    "ours_qk_bottom4_reservoir4_control": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_bottom4_reservoir4_control/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_bottom4_reservoir4_control/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_bottom4_reservoir4_control/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_bottom4_reservoir4_control/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_bottom4_reservoir4_control/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_bottom4_reservoir4_control/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_bottom4_reservoir4_control/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_bottom4_reservoir4_control/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_bottom4_reservoir4_control/temporal_style/results.json"
+    },
+    "ours_qk_random4_reservoir4_control": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_random4_reservoir4_control/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_random4_reservoir4_control/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_random4_reservoir4_control/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_random4_reservoir4_control/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_random4_reservoir4_control/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_random4_reservoir4_control/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_random4_reservoir4_control/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_random4_reservoir4_control/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_random4_reservoir4_control/temporal_style/results.json"
+    },
+    "ours_all_reservoir4_control": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_reservoir4_control/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_reservoir4_control/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_reservoir4_control/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_reservoir4_control/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_reservoir4_control/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_reservoir4_control/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_reservoir4_control/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_reservoir4_control/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_reservoir4_control/temporal_style/results.json"
+    },
+    "ours_qk_top4_prototype4_reference": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_prototype4_reference/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_prototype4_reference/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_prototype4_reference/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_prototype4_reference/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_prototype4_reference/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_prototype4_reference/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_prototype4_reference/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_prototype4_reference/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_qk_top4_prototype4_reference/temporal_style/results.json"
+    },
+    "ours_all_recent8_reference": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_recent8_reference/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_recent8_reference/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_recent8_reference/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_recent8_reference/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_recent8_reference/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_recent8_reference/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_recent8_reference/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_recent8_reference/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v155_profile_aligned_moviebench16/full7/metrics/vbench_long_parts/ours_all_recent8_reference/temporal_style/results.json"
+    }
+  },
+  "missing": []
+}
