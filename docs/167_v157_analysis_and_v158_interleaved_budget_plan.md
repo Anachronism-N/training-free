@@ -127,6 +127,11 @@ middle10 和 all-reservoir 是 contextual controls，不参与 v158 primary huma
 
 ## 6. 启动约束
 
+2026-08-03 协议修订：考虑到完整 128-video 人评成本，v158 现在接受两种冻结
+授权，详细依据、边界和操作见 `docs/169_v157_metric_screened_review_and_v158_amendment.md`。
+原完整盲审仍然有效；新增的 64-video metric-screened confirmation 只授权 v158
+16-prompt pilot。
+
 v158 CPU preflight 已通过合同、map、reuse source 和 shard 检查，但按预注册决策
 返回：
 
@@ -135,7 +140,7 @@ v158 CPU preflight 已通过合同、map、reuse source 和 shard 检查，但�
 contract_sha256=0b8e31963735a9c178ea2871d1c7d4f0dedae4395b65171173f3410485afc5a1
 ```
 
-`generate` 会检查一份冻结的 v157 blind report，且必须满足：
+原始路径可检查冻结的 v157 blind report，且必须满足：
 
 ```text
 experiment = v157_layer_gated_moviebench16_blind_review
@@ -144,8 +149,10 @@ prompt_count = 16
 human_promotion_gate = true
 ```
 
-缺失或失败时 GPU launch 会硬阻断。通过后另写
-`contracts/v157_blind_authorization.json`，避免运行时授权悄悄修改实验合同。
+修订路径检查 `v157_metric_screened_confirmation_report.json`、固定四方法、64 条视频、
+`metric_screened_confirmation_gate=true` 以及全部源证据哈希。两种授权均缺失或失败
+时 GPU launch 会硬阻断。通过后另写
+`contracts/v157_human_authorization.json`，避免运行时授权悄悄修改实验合同。
 
 ## 7. 代码入口
 
@@ -171,7 +178,7 @@ NODE_RANK=0 NUM_NODES=4 GPU_LIST=0,1,2,3,4,5,6,7 \
 bash scripts/run_v158_interleaved_budget_moviebench16.sh preflight
 ```
 
-只有 v157 blind 通过后，四个节点才分别运行：
+只有任一种 v157 人工授权通过后，四个节点才分别运行：
 
 ```bash
 NODE_RANK=<0|1|2|3> NUM_NODES=4 GPU_LIST=0,1,2,3,4,5,6,7 \
@@ -180,8 +187,8 @@ bash scripts/run_v158_interleaved_budget_moviebench16.sh generate
 
 ## 8. 下一步顺序
 
-1. 完成 v157 blind review 并运行 v157 blind analyzer；
-2. 若 human gate 失败，停止 v158 GPU 生成并分析失败维度；
+1. 完成 doc 169 的 64-video blind confirmation，或原 128-video 完整 blind review；
+2. 若所选 human gate 失败，停止 v158 GPU 生成并分析失败维度；
 3. 若通过，运行 v158 48 个新视频、audit、blind、core-9；
 4. 只有 v158 metric 与 human gate 都通过，才考虑更多 prompts/seeds；
 5. head profiling 的后续设计见

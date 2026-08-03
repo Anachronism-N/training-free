@@ -13,6 +13,7 @@ from prepare_v157_vbench_comparison import (
     METHODS,
     PROMPT_COUNT,
 )
+from run_v100_fast_selection_1video import sha256
 
 
 PRIMARY = "ours_layer_interleaved10_reservoir4"
@@ -36,22 +37,45 @@ def configure_base() -> None:
     base.BOOTSTRAP_SEED = 1572026
 
 
-def main() -> None:
+def load_completed_rows(review_sheet: Path, blind_key: Path) -> list[dict]:
     configure_base()
+    return base.load_completed_rows(review_sheet, blind_key)
+
+
+def analyze(rows: list[dict], review_sheet: Path, blind_key: Path) -> dict:
+    configure_base()
+    report = base.analyze(rows)
+    report.update(
+        {
+            "experiment": "v157_layer_gated_moviebench16_blind_review",
+            "provisional_primary": PRIMARY,
+            "video_count": PROMPT_COUNT * len(METHODS),
+            "methods_reviewed": list(METHODS),
+            "review_contract": {
+                "review_sheet": str(review_sheet.resolve()),
+                "review_sheet_sha256": sha256(review_sheet),
+                "blind_key": str(blind_key.resolve()),
+                "blind_key_sha256": sha256(blind_key),
+            },
+            "claim_boundary": (
+                "The predeclared interleaved route is the human-review "
+                "primary. If VBench selects a different layer route, that "
+                "route requires a new confirmatory paired review and cannot "
+                "be promoted post hoc."
+            ),
+        }
+    )
+    return report
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--review-sheet", type=Path, required=True)
     parser.add_argument("--blind-key", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
     args = parser.parse_args()
-    rows = base.load_completed_rows(args.review_sheet, args.blind_key)
-    report = base.analyze(rows)
-    report["experiment"] = "v157_layer_gated_moviebench16_blind_review"
-    report["provisional_primary"] = PRIMARY
-    report["claim_boundary"] = (
-        "The predeclared interleaved route is the human-review primary. If "
-        "VBench selects a different layer route, that route requires a new "
-        "confirmatory paired review and cannot be promoted post hoc."
-    )
+    rows = load_completed_rows(args.review_sheet, args.blind_key)
+    report = analyze(rows, args.review_sheet, args.blind_key)
     args.output_root.mkdir(parents=True, exist_ok=True)
     (args.output_root / "v157_blind_review_report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n",

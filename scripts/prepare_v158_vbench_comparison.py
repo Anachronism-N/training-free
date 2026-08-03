@@ -56,7 +56,9 @@ def main() -> None:
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--run-root", type=Path, default=root / "runs" / EXPERIMENT / "full8"
+        "--run-root",
+        type=Path,
+        default=root / "runs" / EXPERIMENT / "metric_screened64",
     )
     parser.add_argument("--comparison-root", type=Path)
     parser.add_argument(

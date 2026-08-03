@@ -11,7 +11,7 @@ case "${ACTION}" in
 esac
 
 ROOT="${REPO_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free}"
-RUN_ROOT="${RUN_ROOT:-${ROOT}/runs/v158_interleaved_budget_moviebench16/full8}"
+RUN_ROOT="${RUN_ROOT:-${ROOT}/runs/v158_interleaved_budget_moviebench16/metric_screened64}"
 COMPARISON_ROOT="${COMPARISON_ROOT:-${RUN_ROOT}/vbench_comparison}"
 VBENCH_ROOT="${VBENCH_ROOT:-${ROOT}/../research_sprint/bench_baselines/VBench}"
 VBENCH_CACHE_DIR="${VBENCH_CACHE_DIR:-${ROOT}/runs/vbench_cache}"

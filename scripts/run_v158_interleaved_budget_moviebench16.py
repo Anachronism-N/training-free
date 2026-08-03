@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import analyze_v157_vbench as v157_analysis
+import analyze_v157_blind_review as v157_human_analysis
 import run_v120_moviebench32_main as runner
 import run_v155_profile_aligned_moviebench16 as v155
 from analyze_v152_one_sided_history_critical import audit_binary_map
@@ -17,6 +18,12 @@ from build_v158_interleaved_budget_maps import (
     MAP_FILENAMES,
     MAP_SPECS,
     build_manifest,
+)
+from prepare_v157_metric_screened_review import (
+    EXPERIMENT as SCREENED_REVIEW_EXPERIMENT,
+    METHODS as SCREENED_REVIEW_METHODS,
+    PRIMARY as V157_PRIMARY,
+    source_evidence as screened_review_source_evidence,
 )
 from run_v100_fast_selection_1video import (
     Cell,
@@ -175,9 +182,13 @@ def load_budget_maps(args) -> tuple[dict, dict[str, Path], dict]:
     return manifest, paths, audits
 
 
-def load_v157_source(prompt_manifest: dict) -> dict:
+def v157_run_root() -> Path:
     default_root = ROOT / "runs" / "v157_layer_gated_moviebench16" / "full8"
-    root = Path(os.environ.get("V158_REUSE_V157_ROOT", default_root)).resolve()
+    return Path(os.environ.get("V158_REUSE_V157_ROOT", default_root)).resolve()
+
+
+def load_v157_source(prompt_manifest: dict) -> dict:
+    root = v157_run_root()
     published_path = root / "published_manifest.json"
     contract_path = root / "contracts" / "experiment.json"
     summary_path = (
@@ -232,32 +243,94 @@ def load_v157_source(prompt_manifest: dict) -> dict:
 
 
 def load_blind_authorization() -> dict:
-    default_path = (
-        ROOT
-        / "runs"
-        / "v157_layer_gated_moviebench16"
-        / "full8"
-        / "analysis"
-        / "v157_blind_review_report.json"
+    analysis_root = v157_run_root() / "analysis"
+    screened_path = (
+        analysis_root / "v157_metric_screened_confirmation_report.json"
     )
-    path = Path(os.environ.get("V158_V157_BLIND_REPORT", default_path)).resolve()
+    full_path = analysis_root / "v157_blind_review_report.json"
+    explicit_path = os.environ.get("V158_V157_REVIEW_REPORT") or os.environ.get(
+        "V158_V157_BLIND_REPORT"
+    )
+    if explicit_path:
+        path = Path(explicit_path).resolve()
+    elif screened_path.is_file():
+        path = screened_path.resolve()
+    elif full_path.is_file():
+        path = full_path.resolve()
+    else:
+        path = screened_path.resolve()
     if not path.is_file():
-        return {"ready": False, "path": str(path), "reason": "missing"}
+        return {
+            "ready": False,
+            "path": str(path),
+            "candidates": [str(screened_path), str(full_path)],
+            "reason": "missing",
+        }
     report = json.loads(path.read_text(encoding="utf-8"))
-    ready = bool(
-        report.get("experiment")
-        == "v157_layer_gated_moviebench16_blind_review"
-        and report.get("primary")
-        == "ours_layer_interleaved10_reservoir4"
-        and int(report.get("prompt_count", -1)) == PROMPT_COUNT
-        and report.get("human_promotion_gate") is True
-    )
+    if report.get("experiment") == SCREENED_REVIEW_EXPERIMENT:
+        evidence_matches = False
+        try:
+            evidence_matches = report.get(
+                "source_evidence"
+            ) == screened_review_source_evidence(v157_run_root())
+        except (KeyError, TypeError, ValueError):
+            pass
+        ready = bool(
+            report.get("protocol_amendment") is True
+            and report.get("primary") == V157_PRIMARY
+            and int(report.get("prompt_count", -1)) == PROMPT_COUNT
+            and int(report.get("video_count", -1)) == 64
+            and tuple(report.get("methods_reviewed", []))
+            == SCREENED_REVIEW_METHODS
+            and report.get("metric_screened_confirmation_gate") is True
+            and evidence_matches
+        )
+        authorization_type = "metric_screened_confirmation64"
+        gate = report.get("metric_screened_confirmation_gate")
+        reason = "passed" if ready else "gate_or_evidence_failed"
+    else:
+        review_contract = report.get("review_contract", {})
+        review_sheet = Path(review_contract.get("review_sheet", ""))
+        blind_key = Path(review_contract.get("blind_key", ""))
+        reproducible = False
+        try:
+            hashes_match = bool(
+                review_sheet.is_file()
+                and blind_key.is_file()
+                and review_contract.get("review_sheet_sha256")
+                == sha256(review_sheet)
+                and review_contract.get("blind_key_sha256") == sha256(blind_key)
+            )
+            if hashes_match:
+                completed_rows = v157_human_analysis.load_completed_rows(
+                    review_sheet, blind_key
+                )
+                reproducible = report == v157_human_analysis.analyze(
+                    completed_rows, review_sheet, blind_key
+                )
+        except (KeyError, TypeError, ValueError):
+            pass
+        ready = bool(
+            report.get("experiment")
+            == "v157_layer_gated_moviebench16_blind_review"
+            and report.get("primary") == V157_PRIMARY
+            and int(report.get("prompt_count", -1)) == PROMPT_COUNT
+            and int(report.get("video_count", -1)) == 128
+            and tuple(report.get("methods_reviewed", []))
+            == tuple(v157_human_analysis.METHODS)
+            and report.get("human_promotion_gate") is True
+            and reproducible
+        )
+        authorization_type = "full_blind_review128"
+        gate = report.get("human_promotion_gate")
+        reason = "passed" if ready else "gate_or_provenance_failed"
     return {
         "ready": ready,
         "path": str(path),
         "sha256": sha256(path),
-        "human_promotion_gate": report.get("human_promotion_gate"),
-        "reason": "passed" if ready else "gate_failed",
+        "authorization_type": authorization_type,
+        "gate": gate,
+        "reason": reason,
     }
 
 
@@ -348,11 +421,23 @@ def build_contract(
             "budget_map_manifest": budget_manifest,
             "v157_source": args.v158_source,
             "launch_requirement": {
-                "required_experiment": (
-                    "v157_layer_gated_moviebench16_blind_review"
-                ),
-                "required_primary": "ours_layer_interleaved10_reservoir4",
-                "required_human_promotion_gate": True,
+                "required_primary": V157_PRIMARY,
+                "accepted_authorizations": [
+                    {
+                        "experiment": (
+                            "v157_layer_gated_moviebench16_blind_review"
+                        ),
+                        "gate": "human_promotion_gate",
+                        "video_count": 128,
+                    },
+                    {
+                        "experiment": SCREENED_REVIEW_EXPERIMENT,
+                        "gate": "metric_screened_confirmation_gate",
+                        "video_count": 64,
+                        "methods": list(SCREENED_REVIEW_METHODS),
+                        "scope": "v158_16_prompt_budget_pilot_only",
+                    },
+                ],
                 "authorization_is_separate_frozen_runtime_artifact": True,
             },
             "cache_contract": {
@@ -418,6 +503,9 @@ def build_contract(
         ROOT / "scripts" / "analyze_v158_vbench.py",
         ROOT / "scripts" / "analyze_v158_blind_review.py",
         ROOT / "scripts" / "prepare_v158_vbench_comparison.py",
+        ROOT / "scripts" / "prepare_v157_metric_screened_review.py",
+        ROOT / "scripts" / "analyze_v157_metric_screened_review.py",
+        ROOT / "scripts" / "analyze_v157_blind_review.py",
         ROOT / "configs" / "head_maps" / MANIFEST_FILENAME,
         *(ROOT / "configs" / "head_maps" / value for value in MAP_FILENAMES.values()),
         ROOT / "prompts" / v155.PROMPT_FILENAME,
@@ -495,16 +583,18 @@ def main() -> None:
         print(
             f"[v158-preflight] {state} node={args.node_rank}/{args.num_nodes} "
             f"tasks={len(tasks)} gpus={len(gpus)} "
-            f"blind={authorization['reason']}",
+            f"human_confirmation={authorization['reason']}",
             flush=True,
         )
         return
-    authorization_path = args.out_root / "contracts" / "v157_blind_authorization.json"
+    authorization_path = (
+        args.out_root / "contracts" / "v157_human_authorization.json"
+    )
     if args.mode == "generate":
         if not authorization["ready"]:
             raise SystemExit(
-                "v158 generation is blocked until the frozen v157 blind "
-                f"review passes: {authorization['path']}"
+                "v158 generation is blocked until a frozen v157 human "
+                f"authorization passes: {authorization['path']}"
             )
         authorization_payload = {
             "version": 1,

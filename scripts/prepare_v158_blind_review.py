@@ -28,7 +28,12 @@ def main() -> None:
     parser.add_argument(
         "--run-root",
         type=Path,
-        default=root / "runs" / "v158_interleaved_budget_moviebench16" / "full8",
+        default=(
+            root
+            / "runs"
+            / "v158_interleaved_budget_moviebench16"
+            / "metric_screened64"
+        ),
     )
     parser.add_argument(
         "--prompt-manifest",

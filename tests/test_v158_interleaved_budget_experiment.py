@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import sys
 from pathlib import Path
@@ -12,6 +13,7 @@ if str(SCRIPTS) not in sys.path:
 
 import analyze_v158_blind_review as blind  # noqa: E402
 import analyze_v158_vbench as analysis  # noqa: E402
+import prepare_v157_metric_screened_review as screened_review  # noqa: E402
 import prepare_v158_vbench_comparison as vbench  # noqa: E402
 import run_v120_moviebench32_main as parent  # noqa: E402
 import run_v158_interleaved_budget_moviebench16 as v158  # noqa: E402
@@ -99,7 +101,7 @@ def test_v158_metric_gate_is_only_for_predeclared_interleaved8() -> None:
     assert analysis.analyze(payload)["primary_confirmation_gate"] is False
 
 
-def test_v158_launch_authorization_requires_passed_v157_blind(
+def test_v158_rejects_unprovenanced_v157_blind_bypass(
     tmp_path: Path, monkeypatch
 ) -> None:
     report_path = tmp_path / "v157_blind_review_report.json"
@@ -116,7 +118,92 @@ def test_v158_launch_authorization_requires_passed_v157_blind(
         ),
         encoding="utf-8",
     )
-    assert v158.load_blind_authorization()["ready"] is True
+    authorization = v158.load_blind_authorization()
+    assert authorization["ready"] is False
+    assert authorization["reason"] == "gate_or_provenance_failed"
+
+
+def test_v158_accepts_reproducible_full_v157_blind_report(
+    tmp_path: Path, monkeypatch
+) -> None:
+    source_sheet = (
+        ROOT
+        / "runs"
+        / "v157_layer_gated_moviebench16"
+        / "full8"
+        / "blind_review"
+        / "reviewer"
+        / "v157_review_sheet.csv"
+    )
+    blind_key = source_sheet.parents[1] / "private" / "v157_blind_key.json"
+    key = json.loads(blind_key.read_text(encoding="utf-8"))
+    method_by_video = {row["video"]: row["method"] for row in key["rows"]}
+    with source_sheet.open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+        fieldnames = list(rows[0])
+    for row in rows:
+        score = (
+            "1"
+            if method_by_video[row["video"]]
+            == "ours_layer_interleaved10_reservoir4"
+            else "0"
+        )
+        for column in v158.v157_human_analysis.base.RATING_COLUMNS:
+            row[column] = score
+        row[v158.v157_human_analysis.base.SEVERE_COLUMN] = "0"
+    review_sheet = tmp_path / "completed_v157_review.csv"
+    with review_sheet.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+    monkeypatch.setattr(
+        v158.v157_human_analysis.base,
+        "bootstrap_mean_ci",
+        lambda values, *, seed, samples=5000: (0.0, 0.0),
+    )
+    completed = v158.v157_human_analysis.load_completed_rows(
+        review_sheet, blind_key
+    )
+    report = v158.v157_human_analysis.analyze(
+        completed, review_sheet, blind_key
+    )
+    report_path = tmp_path / "v157_blind_review_report.json"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    monkeypatch.setenv("V158_V157_REVIEW_REPORT", str(report_path))
+    authorization = v158.load_blind_authorization()
+    assert authorization["ready"] is True
+    assert authorization["authorization_type"] == "full_blind_review128"
+
+
+def test_v158_accepts_frozen_metric_screened_confirmation_only_with_evidence(
+    tmp_path: Path, monkeypatch
+) -> None:
+    report_path = tmp_path / "v157_metric_screened_confirmation_report.json"
+    run_root = ROOT / "runs" / "v157_layer_gated_moviebench16" / "full8"
+    evidence = screened_review.source_evidence(run_root)
+    report = {
+        "experiment": screened_review.EXPERIMENT,
+        "protocol_amendment": True,
+        "primary": screened_review.PRIMARY,
+        "prompt_count": 16,
+        "video_count": 64,
+        "methods_reviewed": list(screened_review.METHODS),
+        "source_evidence": evidence,
+        "metric_screened_confirmation_gate": True,
+    }
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    monkeypatch.setenv("V158_V157_REVIEW_REPORT", str(report_path))
+    authorization = v158.load_blind_authorization()
+    assert authorization["ready"] is True
+    assert authorization["authorization_type"] == (
+        "metric_screened_confirmation64"
+    )
+
+    report["source_evidence"]["vbench_core9_summary_sha256"] = "tampered"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    authorization = v158.load_blind_authorization()
+    assert authorization["ready"] is False
+    assert authorization["reason"] == "gate_or_evidence_failed"
 
 
 def test_v158_blind_gate_uses_only_preregistered_promotion_controls() -> None:
