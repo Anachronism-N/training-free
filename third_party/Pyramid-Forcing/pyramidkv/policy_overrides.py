@@ -148,6 +148,7 @@ def history_polarity_policy_overrides(
         "prototype",
         "prototype2",
         "reservoir",
+        "reservoir2_motion1",
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -180,6 +181,7 @@ def history_polarity_policy_overrides(
         "prototype",
         "prototype2",
         "reservoir",
+        "reservoir2_motion1",
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -268,7 +270,12 @@ def history_polarity_policy_overrides(
         2
         if support == "motion_pair"
         else 1
-        if support in {"motion_pair1", "retrieval1_motion1_age24"}
+        if support
+        in {
+            "motion_pair1",
+            "retrieval1_motion1_age24",
+            "reservoir2_motion1",
+        }
         else 1
         if support == "landmark_motion"
         else 0
@@ -277,7 +284,12 @@ def history_polarity_policy_overrides(
         2
         if suppress == "motion_pair"
         else 1
-        if suppress in {"motion_pair1", "retrieval1_motion1_age24"}
+        if suppress
+        in {
+            "motion_pair1",
+            "retrieval1_motion1_age24",
+            "reservoir2_motion1",
+        }
         else 1
         if suppress == "landmark_motion"
         else 0
@@ -330,8 +342,20 @@ def history_polarity_policy_overrides(
         if suppress == "prototype2"
         else 0
     )
-    support_reservoir_capacity = 4 if support == "reservoir" else 0
-    suppress_reservoir_capacity = 4 if suppress == "reservoir" else 0
+    support_reservoir_capacity = (
+        4
+        if support == "reservoir"
+        else 2
+        if support == "reservoir2_motion1"
+        else 0
+    )
+    suppress_reservoir_capacity = (
+        4
+        if suppress == "reservoir"
+        else 2
+        if suppress == "reservoir2_motion1"
+        else 0
+    )
     support_profile_anchor_capacity = 4 if support == "profile_anchor" else 0
     suppress_profile_anchor_capacity = 4 if suppress == "profile_anchor" else 0
     support_snapshot_capacity = (
@@ -365,6 +389,7 @@ def history_polarity_policy_overrides(
             "prototype",
             "prototype2",
             "reservoir",
+            "reservoir2_motion1",
             "snapshot",
             "snapshot2",
             "sparse75",
@@ -408,6 +433,7 @@ def history_polarity_policy_overrides(
             "prototype",
             "prototype2",
             "reservoir",
+            "reservoir2_motion1",
             "snapshot",
             "snapshot2",
             "sparse75",
@@ -534,6 +560,8 @@ def history_polarity_policy_overrides(
             or suppress == "landmark_motion"
             or support == "retrieval1_motion1_age24"
             or suppress == "retrieval1_motion1_age24"
+            or support == "reservoir2_motion1"
+            or suppress == "reservoir2_motion1"
         ),
         # The neutral-label route must not inherit a second legacy dynamic
         # history path alongside its explicit middle strategy.

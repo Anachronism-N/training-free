@@ -578,6 +578,7 @@ def build_compositions(
                 {"cyclic", "motion_event"},
                 {"semantic_landmark", "coherent_motion"},
                 {"coherent_motion", "semantic_retrieval"},
+                {"coherent_motion", "temporal_reservoir"},
             )
             if len(active_middle) > 1 and not (
                 hybrid_middle_enabled and hybrid_pair
@@ -737,7 +738,11 @@ def build_compositions(
                         dynamic_rope=True,
                     )
                 )
-                policy_type = "temporal_reservoir"
+                policy_type = (
+                    "reservoir_motion"
+                    if use_coherent_motion
+                    else "temporal_reservoir"
+                )
 
             if use_temporal_profile_anchor:
                 strategies.append(

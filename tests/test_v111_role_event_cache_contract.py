@@ -30,6 +30,7 @@ from pyramidkv.role_event import (
     SemanticLandmarkStrategy,
 )
 from pyramidkv.stride import StrideStrategy
+from pyramidkv.temporal_reservoir import TemporalReservoirStrategy
 
 import run_v100_fast_selection_1video as fast
 
@@ -231,6 +232,58 @@ def test_history_override_builds_only_requested_role_event_routes(tmp_path):
         for strategy in composition.middle_strategies
     )
     assert overrides["pyramidkv_composition_owns_dynamic"] is True
+
+
+def test_reservoir_motion_hybrid_is_budget_matched_and_exclusive(tmp_path):
+    labels = tmp_path / "history_roles.csv"
+    _write_labels(labels, [[10, 11]])
+    overrides = history_polarity_policy_overrides(
+        "reservoir2_motion1",
+        "recent8_sink1",
+    )
+    compositions = build_compositions(
+        1,
+        2,
+        torch.full((1, 2), 32760, dtype=torch.int32),
+        csv_path=str(labels),
+        cyclic_enabled=True,
+        stride_enabled=True,
+        merge_enabled=True,
+        **_factory_kwargs(overrides),
+    )[0]
+    supportive, suppressive = compositions
+
+    assert [type(strategy) for strategy in supportive.middle_strategies] == [
+        CoherentMotionStrategy,
+        TemporalReservoirStrategy,
+    ]
+    motion, reservoir = supportive.middle_strategies
+    assert motion.pair_capacity == 1
+    assert motion.capacity == 2
+    assert reservoir.capacity == 2
+    assert supportive.sink_frames == 1
+    assert supportive.recent_frames == 4
+    assert supportive.policy_type == "reservoir_motion"
+    assert suppressive.middle_strategies == []
+    assert suppressive.sink_frames == 1
+    assert suppressive.recent_frames == 8
+    assert overrides["pyramidkv_hybrid_middle_enabled"] is True
+    assert overrides["pyramidkv_composition_owns_dynamic"] is True
+
+    cell = fast.Cell(
+        "reservoir_motion_contract",
+        "test",
+        "single",
+        support_policy="reservoir2_motion1",
+        suppress_policy="recent8_sink1",
+    )
+    assert fast.expected_policy(cell, 10) == (
+        ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+        1,
+        4,
+        "reservoir_motion",
+    )
+    assert fast.expected_policy(cell, 11) == ((), 1, 8, "stride")
 
 
 def test_same_route_controls_share_one_layer_wide_feature_context(tmp_path):

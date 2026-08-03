@@ -94,6 +94,7 @@ class Cell:
                 "retrieval1_motion1_age24",
                 "prototype",
                 "prototype2",
+                "reservoir2_motion1",
                 "profile_anchor",
                 "snapshot",
                 "snapshot2",
@@ -513,6 +514,13 @@ def expected_policy(
                 4,
                 "temporal_reservoir",
             )
+        elif cell.support_policy == "reservoir2_motion1":
+            result = (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            )
         elif cell.support_policy in {"snapshot", "snapshot2"}:
             result = (
                 ("UniqueSnapshotStrategy",),
@@ -630,6 +638,12 @@ def expected_policy(
                 1,
                 4,
                 "temporal_reservoir",
+            ),
+            "reservoir2_motion1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
             ),
             "profile_anchor": (
                 ("TemporalProfileAnchorStrategy",),
@@ -802,7 +816,26 @@ def audit_policy_trace(
                             int(value)
                             for value in state.get("pending_frame_ids", [])
                         ]
-                        if len(anchors) > 4 or len(anchors) != len(set(anchors)):
+                        active_policy = (
+                            cell.support_policy
+                            if label == 10
+                            else cell.suppress_policy
+                        )
+                        expected_capacity = (
+                            2
+                            if active_policy == "reservoir2_motion1"
+                            else 4
+                        )
+                        if int(state.get("capacity", -1)) != expected_capacity:
+                            failures.append(
+                                f"line {line_number}: reservoir capacity "
+                                f"{state.get('capacity')} != "
+                                f"{expected_capacity}"
+                            )
+                        if (
+                            len(anchors) > expected_capacity
+                            or len(anchors) != len(set(anchors))
+                        ):
                             failures.append(
                                 f"line {line_number}: invalid reservoir "
                                 f"anchors {anchors}"
@@ -947,6 +980,19 @@ def audit_policy_trace(
                                 )
                         elif name == "CoherentMotionStrategy":
                             pairs = state.get("pair_frame_ids", [])
+                            active_policy = (
+                                cell.support_policy
+                                if label == 10
+                                else cell.suppress_policy
+                            )
+                            if (
+                                active_policy == "reservoir2_motion1"
+                                and int(state.get("pair_capacity", -1)) != 1
+                            ):
+                                failures.append(
+                                    f"line {line_number}: hybrid motion "
+                                    "pair capacity must be one"
+                                )
                             if len(pairs) > int(state["pair_capacity"]):
                                 failures.append(
                                     f"line {line_number}: motion-pair bank "
@@ -1313,6 +1359,7 @@ def audit_role_event_trace(
             "motion_pair1",
             "landmark_motion",
             "retrieval1_motion1_age24",
+            "reservoir2_motion1",
         }:
             routes["motion"] = 2 if policy == "motion_pair" else 1
         if policy in {

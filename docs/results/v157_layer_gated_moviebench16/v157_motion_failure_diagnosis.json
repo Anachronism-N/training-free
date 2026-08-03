@@ -1,0 +1,516 @@
+{
+  "comparator": "ours_all_reservoir4_reference",
+  "experiment": "v157_motion_failure_diagnosis",
+  "interpretation": {
+    "all_reservoir_never_loses_motion": true,
+    "claim_boundary": "The prompt subset is diagnosed after viewing v157 ratings. v159 therefore keeps all 16 prompts and is exploratory.",
+    "localized_not_universal": true,
+    "next_test": "At fixed sink1+middle4+recent4 budget, replace two random reservoir frames with one semantically coherent adjacent motion pair; keep layer membership fixed."
+  },
+  "primary": "ours_layer_interleaved10_reservoir4",
+  "primary_minus_all_reservoir_motion": {
+    "deficit_count": 6,
+    "deficit_prompts": [
+      0,
+      1,
+      5,
+      6,
+      7,
+      15
+    ],
+    "leave_one_prompt_out": [
+      {
+        "mean_difference": -0.26666666666666666,
+        "omitted_prompt_index": 0
+      },
+      {
+        "mean_difference": -0.26666666666666666,
+        "omitted_prompt_index": 1
+      },
+      {
+        "mean_difference": -0.3333333333333333,
+        "omitted_prompt_index": 2
+      },
+      {
+        "mean_difference": -0.3333333333333333,
+        "omitted_prompt_index": 3
+      },
+      {
+        "mean_difference": -0.3333333333333333,
+        "omitted_prompt_index": 4
+      },
+      {
+        "mean_difference": -0.3,
+        "omitted_prompt_index": 5
+      },
+      {
+        "mean_difference": -0.26666666666666666,
+        "omitted_prompt_index": 6
+      },
+      {
+        "mean_difference": -0.3,
+        "omitted_prompt_index": 7
+      },
+      {
+        "mean_difference": -0.3333333333333333,
+        "omitted_prompt_index": 8
+      },
+      {
+        "mean_difference": -0.3333333333333333,
+        "omitted_prompt_index": 9
+      },
+      {
+        "mean_difference": -0.3333333333333333,
+        "omitted_prompt_index": 10
+      },
+      {
+        "mean_difference": -0.3333333333333333,
+        "omitted_prompt_index": 11
+      },
+      {
+        "mean_difference": -0.3333333333333333,
+        "omitted_prompt_index": 12
+      },
+      {
+        "mean_difference": -0.3333333333333333,
+        "omitted_prompt_index": 13
+      },
+      {
+        "mean_difference": -0.3333333333333333,
+        "omitted_prompt_index": 14
+      },
+      {
+        "mean_difference": -0.26666666666666666,
+        "omitted_prompt_index": 15
+      }
+    ],
+    "mean": -0.3125,
+    "median": 0.0,
+    "positive_count": 0,
+    "zero_count": 10
+  },
+  "primary_specific_severe_prompts": [
+    0,
+    8,
+    15
+  ],
+  "prompt_count": 16,
+  "prompt_rows": [
+    {
+      "all_reservoir_motion": 0.0,
+      "notes": {
+        "ours_all_recent8_reference": "后期运动太小几乎静止，且出现id变大的情况",
+        "ours_all_reservoir4_reference": "id保持可以，但是id存在变大的情况，运动也稍微有一丢丢小",
+        "ours_layer_interleaved10_reservoir4": "id变化明显且后期也有变大，运动也很小",
+        "ours_layer_middle10_reservoir4": "id保持中等，存在id变大和运动小的情况"
+      },
+      "primary_minus_all_reservoir_motion": -1.0,
+      "primary_motion": -1.0,
+      "primary_specific_severe": true,
+      "prompt_index": 0,
+      "severe_methods": [
+        "ours_layer_interleaved10_reservoir4",
+        "ours_all_recent8_reference"
+      ],
+      "shared_hard_prompt": true,
+      "source_prompt_index": 0,
+      "tags": [
+        "human_identity",
+        "walking",
+        "crowd",
+        "night_city"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "最开始的id漂移出了画面，最后保留了一半在画内一半在画外。此外后续出现很多新的id进入画面，新id的运动还是可以的，但是最初id在一半身体出画之后基本就没有运动",
+        "ours_all_reservoir4_reference": "最开始的id漂移出了画面，最后完全出画但是之后又进来了。此外有几个id反向进入画面，但是最初id和新进入id基本就没有运动",
+        "ours_layer_interleaved10_reservoir4": "最开始的id漂移出了画面，最后保留了一半在画内一半在画外。此外有一个id反向进入画面，但是最初id和新进入id基本就没有运动",
+        "ours_layer_middle10_reservoir4": "最初的id一直往画外漂移，最后有一个主体的id的头部变得很大，已经有点不像原始id了。此外背景中出现了很多新的主体，整体运动也不大，主要是镜头移动"
+      },
+      "primary_minus_all_reservoir_motion": -1.0,
+      "primary_motion": 0.0,
+      "primary_specific_severe": false,
+      "prompt_index": 1,
+      "severe_methods": [],
+      "shared_hard_prompt": false,
+      "source_prompt_index": 1,
+      "tags": [
+        "multi_subject",
+        "animal",
+        "snow",
+        "camera_depth"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "id和背景保持很好，但是可能因为prompt本身运动较小，导致只有嘴巴和眼睛的少量移动",
+        "ours_all_reservoir4_reference": "id和背景保持很好，但是可能因为prompt本身运动较小，导致只有嘴巴和眼睛的少量移动",
+        "ours_layer_interleaved10_reservoir4": "id和背景保持很好，但是可能因为prompt本身运动较小，导致只有嘴巴和眼睛的少量移动",
+        "ours_layer_middle10_reservoir4": "id和背景保持很好，但是可能因为prompt本身运动较小，导致只有嘴巴和眼睛的少量移动"
+      },
+      "primary_minus_all_reservoir_motion": 0.0,
+      "primary_motion": 1.0,
+      "primary_specific_severe": false,
+      "prompt_index": 2,
+      "severe_methods": [],
+      "shared_hard_prompt": false,
+      "source_prompt_index": 4,
+      "tags": [
+        "3d_animation",
+        "character_identity",
+        "object_interaction",
+        "fire"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "id整体位置保持的不错，没有什么镜头移动，但是船只和剑的边缘处存在一些改变，但是问题不是很大。背景存在后期偏蓝色且条纹加重的情况，烟雾也有些不一样了",
+        "ours_all_reservoir4_reference": "id整体位置保持还行，没有什么镜头移动，但是船只和剑的边缘处存在一些改变，且存在船员人数的改变。背景存在后期偏蓝色且条纹加重的情况，烟雾也有些不一样了",
+        "ours_layer_interleaved10_reservoir4": "id整体位置保持的不错，没有什么镜头移动，但是船只和剑的边缘处存在一些改变，但是问题不是很大。背景存在后期偏蓝色且条纹加重的情况，烟雾也有些不一样了",
+        "ours_layer_middle10_reservoir4": "id整体位置保持还行，没有什么镜头移动，但是船只和剑的边缘处存在一些改变，且存在船员人数的改变。背景存在后期偏蓝色且条纹加重的情况，烟雾也有些不一样了"
+      },
+      "primary_minus_all_reservoir_motion": 0.0,
+      "primary_motion": 1.0,
+      "primary_specific_severe": false,
+      "prompt_index": 3,
+      "severe_methods": [],
+      "shared_hard_prompt": false,
+      "source_prompt_index": 7,
+      "tags": [
+        "multi_object",
+        "miniature_scale",
+        "water_motion",
+        "photorealistic"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "可能是因为prompt的问题，前景中出现了很多人，所以导致会有幻觉以及id保持不好的情况。背景其实整体不错，但是最后有少量的改变，可能是幻觉",
+        "ours_all_reservoir4_reference": "背景变化大，前景中也存在幻觉和id不好的情况",
+        "ours_layer_interleaved10_reservoir4": "可能是因为prompt的问题，前景中出现了很多人，所以导致会有幻觉以及id保持不好的情况。背景其实整体不错，但是最后有少量的改变，可能是幻觉",
+        "ours_layer_middle10_reservoir4": "背景变化大，镜头移动大，前景中也存在幻觉和id不好的情况"
+      },
+      "primary_minus_all_reservoir_motion": 0.0,
+      "primary_motion": 1.0,
+      "primary_specific_severe": false,
+      "prompt_index": 4,
+      "severe_methods": [
+        "ours_layer_middle10_reservoir4",
+        "ours_all_reservoir4_reference"
+      ],
+      "shared_hard_prompt": true,
+      "source_prompt_index": 13,
+      "tags": [
+        "multi_person",
+        "mobile_video",
+        "urban",
+        "documentary"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "镜头移动得太近，后期镜头存在旋转",
+        "ours_all_reservoir4_reference": "镜头逐渐向主体移动，且背景在后期存在一些幻觉。不同电视机里的内容也存在改变",
+        "ours_layer_interleaved10_reservoir4": "镜头逐渐向主体移动，不同电视机里的内容也存在改变，后期镜头几乎完全不移动，但是电视中的画面变化也小了",
+        "ours_layer_middle10_reservoir4": "镜头逐渐向主体移动，不同电视机里的内容也存在改变，后期镜头存在转动"
+      },
+      "primary_minus_all_reservoir_motion": -0.5,
+      "primary_motion": 0.5,
+      "primary_specific_severe": false,
+      "prompt_index": 5,
+      "severe_methods": [
+        "ours_all_recent8_reference"
+      ],
+      "shared_hard_prompt": false,
+      "source_prompt_index": 15,
+      "tags": [
+        "rotating_camera",
+        "indoor",
+        "many_objects",
+        "screen_content"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "主体角度发生了改变，并逐渐漂移出画。此外整个视频完全不符合物理逻辑，汽车行驶方向与车头方向关系完全错误，但是id还是有一些保持",
+        "ours_all_reservoir4_reference": "主体其实一直变化比较小，但是存在主体穿过树枝的不符合物理现象的情况，此外运动信息上从最开始往前开车变为了倒车。背景也存在一些跳变",
+        "ours_layer_interleaved10_reservoir4": "主体角度发生了改变，此外整个视频完全不符合物理逻辑，汽车行驶方向与车头方向关系完全错误，但是id还是有一些保持",
+        "ours_layer_middle10_reservoir4": "主体角度发生了改变，并进行了掉头，后续id越来越远并重新出现在画面中。此外整个视频完全不符合物理逻辑，汽车行驶方向与车头方向关系错误，但是id还是有一些保持"
+      },
+      "primary_minus_all_reservoir_motion": -1.0,
+      "primary_motion": 0.0,
+      "primary_specific_severe": false,
+      "prompt_index": 6,
+      "severe_methods": [
+        "ours_layer_interleaved10_reservoir4",
+        "ours_layer_middle10_reservoir4",
+        "ours_all_reservoir4_reference",
+        "ours_all_recent8_reference"
+      ],
+      "shared_hard_prompt": true,
+      "source_prompt_index": 17,
+      "tags": [
+        "vehicle",
+        "fast_motion",
+        "dust",
+        "tracking_camera"
+      ]
+    },
+    {
+      "all_reservoir_motion": 2.0,
+      "notes": {
+        "ours_all_recent8_reference": "id保持了，但之后从四只脚变为两只脚。运动不少，但是背景变化较大，包括环境和背景中的人，前期比较符合逻辑，后期稍微变化太大了一些",
+        "ours_all_reservoir4_reference": "id保持了且运动不少，但是背景变化较大，包括环境和背景中的人",
+        "ours_layer_interleaved10_reservoir4": "id保持了，但之后从四只脚变为两只脚。运动不少，但是背景变化较大，包括环境和背景中的人，但是符合逻辑。",
+        "ours_layer_middle10_reservoir4": "id保持了，但之后从四只脚变为两只脚。运动不少，但是背景变化较大，包括环境和背景中的人，前期比较符合逻辑，后期稍微变化太大了一些"
+      },
+      "primary_minus_all_reservoir_motion": -0.5,
+      "primary_motion": 1.5,
+      "primary_specific_severe": false,
+      "prompt_index": 7,
+      "severe_methods": [],
+      "shared_hard_prompt": false,
+      "source_prompt_index": 24,
+      "tags": [
+        "articulated_motion",
+        "festival",
+        "crowd",
+        "colorful"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "id显著变化，且镜头越来越近",
+        "ours_all_reservoir4_reference": "id从正面变为侧面，其实算是改变很大了",
+        "ours_layer_interleaved10_reservoir4": "id显著变化，且镜头越来越近",
+        "ours_layer_middle10_reservoir4": "因为prompt的原因，整体就是脸部特写镜头，背景是虚化的，整体id保持不错，虚化的背景也没很大的问题"
+      },
+      "primary_minus_all_reservoir_motion": 0.0,
+      "primary_motion": 1.0,
+      "primary_specific_severe": true,
+      "prompt_index": 8,
+      "severe_methods": [
+        "ours_layer_interleaved10_reservoir4",
+        "ours_all_recent8_reference"
+      ],
+      "shared_hard_prompt": true,
+      "source_prompt_index": 33,
+      "tags": [
+        "human_motion",
+        "running",
+        "cinematic",
+        "step_printing"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "因为prompt，主要是两只动物的特写，整体id保持一般，后期两只动物id过大，且看上去比较奇怪。5s后镜头显著前移了，整体的运动也只有少量的动物面部运动和背景运动",
+        "ours_all_reservoir4_reference": "因为prompt，主要是两只动物的特写，整体id保持得很好，但是5s后镜头显著前移了，整体的运动也只有少量的动物面部运动和背景运动",
+        "ours_layer_interleaved10_reservoir4": "因为prompt，主要是两只动物的特写，整体id保持得很好，但是5s后镜头显著前移了，整体的运动也只有少量的动物面部运动和背景运动",
+        "ours_layer_middle10_reservoir4": "因为prompt，主要是两只动物的特写，整体id保持得很好，但是5s后镜头显著前移了，整体的运动也只有少量的动物面部运动和背景运动"
+      },
+      "primary_minus_all_reservoir_motion": 0.0,
+      "primary_motion": 1.0,
+      "primary_specific_severe": false,
+      "prompt_index": 9,
+      "severe_methods": [],
+      "shared_hard_prompt": false,
+      "source_prompt_index": 47,
+      "tags": [
+        "two_subjects",
+        "animal_identity",
+        "running",
+        "neon_city"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "id有改变，也存在方向的翻转，且翻转不一定符合逻辑，中间还重新出现了两只手臂",
+        "ours_all_reservoir4_reference": "id存在方向的翻转，且翻转不一定符合逻辑",
+        "ours_layer_interleaved10_reservoir4": "id前几秒快速拉进，之后是侧面，整体看上去是一个id，但是存在少量改变",
+        "ours_layer_middle10_reservoir4": "id前几秒快速拉进，中间大部分时间是侧面，之后又转向正脸并快速又转向另一个侧面，整体看上去是一个id，但是存在改变"
+      },
+      "primary_minus_all_reservoir_motion": 0.0,
+      "primary_motion": 1.0,
+      "primary_specific_severe": false,
+      "prompt_index": 10,
+      "severe_methods": [
+        "ours_all_reservoir4_reference",
+        "ours_all_recent8_reference"
+      ],
+      "shared_hard_prompt": true,
+      "source_prompt_index": 61,
+      "tags": [
+        "child_identity",
+        "bicycle",
+        "season_change",
+        "scene_evolution"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "汽车的部分id信息有保留，比如基本形状和颜色，但是存在很多翻转以及不符合物理定律的id改变，比如汽车的头和尾突然调换等等",
+        "ours_all_reservoir4_reference": "汽车的部分id信息有保留，比如基本形状和颜色，但是存在很多翻转以及不符合物理定律的id改变，比如汽车的头和尾突然调换等等",
+        "ours_layer_interleaved10_reservoir4": "汽车的部分id信息有保留，比如基本形状和颜色，但是存在很多翻转以及不符合物理定律的id改变，比如汽车的头和尾突然调换等等",
+        "ours_layer_middle10_reservoir4": "汽车的部分id信息有保留，比如基本形状和颜色，但是存在很多翻转以及不符合物理定律的id改变，比如汽车的头和尾突然调换等等"
+      },
+      "primary_minus_all_reservoir_motion": 0.0,
+      "primary_motion": 1.0,
+      "primary_specific_severe": false,
+      "prompt_index": 11,
+      "severe_methods": [],
+      "shared_hard_prompt": false,
+      "source_prompt_index": 67,
+      "tags": [
+        "vehicle",
+        "high_speed",
+        "turning",
+        "dynamic_background"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "因prompt的原因，视频主体一直是一个气球，后期出现小黑点。背景的变化不是非常连贯，也存在镜头的运动等",
+        "ours_all_reservoir4_reference": "主体保持不错，但是背景变化较大",
+        "ours_layer_interleaved10_reservoir4": "因prompt的原因，视频主体一直是一个气球，几乎没有什么改变。背景的变化也很连贯，但是略微变化较快也存在镜头的运动等",
+        "ours_layer_middle10_reservoir4": "因prompt的原因，视频主体一直是一个气球，几乎没有什么改变。背景的变化也很连贯，也存在镜头的运动等"
+      },
+      "primary_minus_all_reservoir_motion": 0.0,
+      "primary_motion": 1.0,
+      "primary_specific_severe": false,
+      "prompt_index": 12,
+      "severe_methods": [],
+      "shared_hard_prompt": false,
+      "source_prompt_index": 75,
+      "tags": [
+        "object_identity",
+        "tracking_camera",
+        "long_motion",
+        "abandoned_street"
+      ]
+    },
+    {
+      "all_reservoir_motion": 0.0,
+      "notes": {
+        "ours_all_recent8_reference": "背景中反复出现不同的门，id应该是瀑布但是在颜色和形状上都存在轻微的改变",
+        "ours_all_reservoir4_reference": "背景中反复出现不同的门，id应该是瀑布但是在颜色和形状上都存在轻微的改变",
+        "ours_layer_interleaved10_reservoir4": "背景中反复出现不同的门，id应该是瀑布但是在颜色和形状上都存在轻微的改变",
+        "ours_layer_middle10_reservoir4": "背景中反复出现不同的门，id应该是瀑布但是在颜色和形状上都存在轻微的改变"
+      },
+      "primary_minus_all_reservoir_motion": 0.0,
+      "primary_motion": 0.0,
+      "primary_specific_severe": false,
+      "prompt_index": 13,
+      "severe_methods": [],
+      "shared_hard_prompt": false,
+      "source_prompt_index": 84,
+      "tags": [
+        "fpv",
+        "scene_transition",
+        "rapid_camera",
+        "interior"
+      ]
+    },
+    {
+      "all_reservoir_motion": 1.0,
+      "notes": {
+        "ours_all_recent8_reference": "id存在退化，背景在后期存在变色和幻觉",
+        "ours_all_reservoir4_reference": "id保持的不错，但是存在几次头部完全反折的情况。整体没有什么运动",
+        "ours_layer_interleaved10_reservoir4": "id保持的不错，没有什么运动",
+        "ours_layer_middle10_reservoir4": "id保持的不错，没有什么运动"
+      },
+      "primary_minus_all_reservoir_motion": 0.0,
+      "primary_motion": 1.0,
+      "primary_specific_severe": false,
+      "prompt_index": 14,
+      "severe_methods": [],
+      "shared_hard_prompt": false,
+      "source_prompt_index": 109,
+      "tags": [
+        "human_identity",
+        "anime",
+        "ship",
+        "camera_facing"
+      ]
+    },
+    {
+      "all_reservoir_motion": 0.0,
+      "notes": {
+        "ours_all_recent8_reference": "id的头部从乌龟逐渐变为类似鳄鱼，且逐渐接近镜头，存在一定退化。背景还行，主体没有运动了几乎",
+        "ours_all_reservoir4_reference": "id的头部从乌龟逐渐变为类似鳄鱼，且逐渐接近镜头。背景还行，总体没什么运动",
+        "ours_layer_interleaved10_reservoir4": "id的头部从乌龟逐渐变为类似鳄鱼，且逐渐接近镜头。背景还行，主体没有运动了几乎",
+        "ours_layer_middle10_reservoir4": "id的头部从乌龟逐渐变为类似鳄鱼，且逐渐接近镜头。背景还行，主体没有运动了几乎"
+      },
+      "primary_minus_all_reservoir_motion": -1.0,
+      "primary_motion": -1.0,
+      "primary_specific_severe": true,
+      "prompt_index": 15,
+      "severe_methods": [
+        "ours_layer_interleaved10_reservoir4",
+        "ours_layer_middle10_reservoir4",
+        "ours_all_recent8_reference"
+      ],
+      "shared_hard_prompt": true,
+      "source_prompt_index": 124,
+      "tags": [
+        "transformation",
+        "animal_identity",
+        "lightning",
+        "scene_event"
+      ]
+    }
+  ],
+  "severe_prompts_by_method": {
+    "ours_all_recent8_reference": [
+      0,
+      5,
+      6,
+      8,
+      10,
+      15
+    ],
+    "ours_all_reservoir4_reference": [
+      4,
+      6,
+      10
+    ],
+    "ours_layer_interleaved10_reservoir4": [
+      0,
+      6,
+      8,
+      15
+    ],
+    "ours_layer_middle10_reservoir4": [
+      4,
+      6,
+      15
+    ]
+  },
+  "shared_hard_prompts": [
+    0,
+    4,
+    6,
+    8,
+    10,
+    15
+  ],
+  "source": {
+    "blind_key": "docs/results/v157_layer_gated_moviebench16/metric_screened_review/v157_metric_screened_blind_key.json",
+    "blind_key_sha256": "39888e447d951416e9d2c910dbb3c60042aa541f2007872450a98e0ea709a7e6",
+    "review_sheet": "docs/results/v157_layer_gated_moviebench16/metric_screened_review/v157_metric_screened_review.csv",
+    "review_sheet_sha256": "3003f6eee5e945044b7e88738adf6568d4d578d02e12c7fd1cf2cd09675c7cee"
+  },
+  "version": 1
+}
