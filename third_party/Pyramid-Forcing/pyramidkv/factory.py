@@ -313,6 +313,8 @@ def build_compositions(
     label_motion_event_capacity_map: dict | None = None,
     label_semantic_landmark_capacity_map: dict | None = None,
     label_coherent_motion_pair_capacity_map: dict | None = None,
+    label_coherent_motion_max_pair_age_map: dict | None = None,
+    label_coherent_motion_stale_refresh_map: dict | None = None,
     label_semantic_retrieval_capacity_map: dict | None = None,
     label_semantic_retrieval_max_age_map: dict | None = None,
     semantic_retrieval_min_similarity: float = -0.25,
@@ -358,6 +360,13 @@ def build_compositions(
     coherent_motion_pair_capacity_map = _build_int_map(
         label_coherent_motion_pair_capacity_map,
         min_value=0,
+    )
+    coherent_motion_max_pair_age_map = _build_int_map(
+        label_coherent_motion_max_pair_age_map,
+        min_value=1,
+    )
+    coherent_motion_stale_refresh_map = _build_bool_map(
+        label_coherent_motion_stale_refresh_map
     )
     semantic_retrieval_capacity_map = _build_int_map(
         label_semantic_retrieval_capacity_map,
@@ -675,6 +684,16 @@ def build_compositions(
                             else f"motion:{label_key}"
                         ),
                         min_frame_t=sink,
+                        max_pair_age=coherent_motion_max_pair_age_map.get(
+                            label_key,
+                            24,
+                        ),
+                        stale_refresh_bypass_quantile=(
+                            coherent_motion_stale_refresh_map.get(
+                                label_key,
+                                False,
+                            )
+                        ),
                         dynamic_rope=True,
                     )
                 )

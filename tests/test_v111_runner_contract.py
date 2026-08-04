@@ -46,16 +46,20 @@ def _write_motion_policy_trace(
                             "pair_capacity": 2,
                             "capacity": 4,
                             "min_pair_spacing": 4,
+                            "max_pair_age": 24,
+                            "stale_refresh_bypass_quantile": False,
                             "pair_frame_ids": pair_frame_ids,
                             "last_decision": {
                                 "candidate_pair": [10, 11],
                                 "bank_size_before": 2,
                                 "filling": False,
+                                "victim_age": 8,
                                 "retained_pair_end_ts": [7],
                                 "spacing_checks": [
                                     {"end_t": 7, "distance": 4}
                                 ],
                                 "spacing_ok": True,
+                                "motion_quantile_pass": True,
                                 "motion_ok": True,
                                 "replacement_ok": True,
                             },

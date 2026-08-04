@@ -95,6 +95,7 @@ class Cell:
                 "prototype",
                 "prototype2",
                 "reservoir2_motion1",
+                "reservoir2_freshmotion1",
                 "profile_anchor",
                 "snapshot",
                 "snapshot2",
@@ -514,7 +515,10 @@ def expected_policy(
                 4,
                 "temporal_reservoir",
             )
-        elif cell.support_policy == "reservoir2_motion1":
+        elif cell.support_policy in {
+            "reservoir2_motion1",
+            "reservoir2_freshmotion1",
+        }:
             result = (
                 ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
                 1,
@@ -640,6 +644,12 @@ def expected_policy(
                 "temporal_reservoir",
             ),
             "reservoir2_motion1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_freshmotion1": (
                 ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
                 1,
                 4,
@@ -823,7 +833,11 @@ def audit_policy_trace(
                         )
                         expected_capacity = (
                             2
-                            if active_policy == "reservoir2_motion1"
+                            if active_policy
+                            in {
+                                "reservoir2_motion1",
+                                "reservoir2_freshmotion1",
+                            }
                             else 4
                         )
                         if int(state.get("capacity", -1)) != expected_capacity:
@@ -986,12 +1000,44 @@ def audit_policy_trace(
                                 else cell.suppress_policy
                             )
                             if (
-                                active_policy == "reservoir2_motion1"
+                                active_policy
+                                in {
+                                    "reservoir2_motion1",
+                                    "reservoir2_freshmotion1",
+                                }
                                 and int(state.get("pair_capacity", -1)) != 1
                             ):
                                 failures.append(
                                     f"line {line_number}: hybrid motion "
                                     "pair capacity must be one"
+                                )
+                            expected_pair_age = (
+                                12
+                                if active_policy
+                                == "reservoir2_freshmotion1"
+                                else 24
+                            )
+                            expected_stale_refresh = (
+                                active_policy == "reservoir2_freshmotion1"
+                            )
+                            if (
+                                int(state.get("max_pair_age", -1))
+                                != expected_pair_age
+                            ):
+                                failures.append(
+                                    f"line {line_number}: motion-pair "
+                                    f"max age {state.get('max_pair_age')} != "
+                                    f"{expected_pair_age}"
+                                )
+                            if bool(
+                                state.get(
+                                    "stale_refresh_bypass_quantile",
+                                    False,
+                                )
+                            ) != expected_stale_refresh:
+                                failures.append(
+                                    f"line {line_number}: stale-refresh "
+                                    "quantile policy mismatch"
                                 )
                             if len(pairs) > int(state["pair_capacity"]):
                                 failures.append(
@@ -1048,9 +1094,11 @@ def audit_policy_trace(
                                 required = {
                                     "bank_size_before",
                                     "filling",
+                                    "victim_age",
                                     "retained_pair_end_ts",
                                     "spacing_checks",
                                     "spacing_ok",
+                                    "motion_quantile_pass",
                                     "motion_ok",
                                     "replacement_ok",
                                 }
@@ -1062,6 +1110,24 @@ def audit_policy_trace(
                                         f"line {line_number}: motion-pair "
                                         "decision is missing debug fields "
                                         f"{missing}"
+                                    )
+                                if (
+                                    active_policy
+                                    == "reservoir2_freshmotion1"
+                                    and "stale_quantile_bypass"
+                                    not in last_decision
+                                ):
+                                    failures.append(
+                                        f"line {line_number}: fresh-motion "
+                                        "decision is missing "
+                                        "stale_quantile_bypass"
+                                    )
+                                if last_decision.get(
+                                    "stale_quantile_bypass"
+                                ) and not last_decision.get("victim_stale"):
+                                    failures.append(
+                                        f"line {line_number}: quantile "
+                                        "bypass used for a non-stale pair"
                                     )
                         elif name == "SemanticRetrievalStrategy":
                             archive = [
@@ -1360,6 +1426,7 @@ def audit_role_event_trace(
             "landmark_motion",
             "retrieval1_motion1_age24",
             "reservoir2_motion1",
+            "reservoir2_freshmotion1",
         }:
             routes["motion"] = 2 if policy == "motion_pair" else 1
         if policy in {

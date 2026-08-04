@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 try:
@@ -27,6 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-width", type=int, default=256)
     parser.add_argument("--frame-step", type=int, default=1)
     parser.add_argument("--expected-videos", type=int)
+    parser.add_argument("--workers", type=int, default=1)
     return parser.parse_args()
 
 
@@ -176,7 +179,55 @@ def _robust_outlier_fraction(values: list[float]) -> float:
     return float(np.mean(array > threshold))
 
 
+def _longest_true_run(values: np.ndarray) -> int:
+    longest = 0
+    current = 0
+    for value in values.tolist():
+        if bool(value):
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+    return longest
+
+
+def _motion_coverage(flow_speed: list[float]) -> dict[str, float]:
+    values = np.asarray(flow_speed, dtype=np.float64)
+    if values.size == 0:
+        return {
+            "motion_floor": 0.0,
+            "motion_coverage_fraction": 0.0,
+            "low_motion_fraction": 1.0,
+            "longest_low_motion_run_fraction": 1.0,
+            "late_motion_median": 0.0,
+            "earlier_motion_median": 0.0,
+            "late_motion_ratio": 0.0,
+        }
+    motion_median = float(np.median(values))
+    motion_floor = max(0.02, 0.10 * motion_median)
+    low = values < motion_floor
+    late_count = max(1, int(math.ceil(values.size * 0.25)))
+    earlier = values[:-late_count]
+    if earlier.size == 0:
+        earlier = values
+    late = values[-late_count:]
+    earlier_median = float(np.median(earlier))
+    late_median = float(np.median(late))
+    return {
+        "motion_floor": motion_floor,
+        "motion_coverage_fraction": float(np.mean(~low)),
+        "low_motion_fraction": float(np.mean(low)),
+        "longest_low_motion_run_fraction": (
+            float(_longest_true_run(low)) / float(values.size)
+        ),
+        "late_motion_median": late_median,
+        "earlier_motion_median": earlier_median,
+        "late_motion_ratio": late_median / max(earlier_median, 1e-6),
+    }
+
+
 def analyze_video(path: Path, *, max_width: int, frame_step: int) -> dict[str, object]:
+    cv2.setNumThreads(1)
     capture = cv2.VideoCapture(str(path))
     if not capture.isOpened():
         raise RuntimeError(f"cannot open video: {path}")
@@ -186,6 +237,9 @@ def analyze_video(path: Path, *, max_width: int, frame_step: int) -> dict[str, o
     previous = None
     appearance_delta: list[float] = []
     flow_speed: list[float] = []
+    luma_mean: list[float] = []
+    luma_contrast: list[float] = []
+    edge_density: list[float] = []
     try:
         while True:
             ok, frame = capture.read()
@@ -197,6 +251,11 @@ def analyze_video(path: Path, *, max_width: int, frame_step: int) -> dict[str, o
                 continue
             gray = _resize_gray(frame, max_width)
             retained += 1
+            luma_mean.append(float(np.mean(gray)) / 255.0)
+            luma_contrast.append(float(np.std(gray)) / 255.0)
+            edge_density.append(
+                float(np.mean(cv2.Canny(gray, 100, 200) > 0))
+            )
             if previous is not None:
                 appearance_delta.append(
                     float(np.mean(np.abs(gray.astype(np.float32) - previous)) / 255.0)
@@ -225,6 +284,10 @@ def analyze_video(path: Path, *, max_width: int, frame_step: int) -> dict[str, o
     appearance = _summary(appearance_delta, "appearance_delta")
     speed = _summary(flow_speed, "flow_speed")
     acceleration = _summary(flow_acceleration, "flow_accel")
+    coverage = _motion_coverage(flow_speed)
+    luminance = _summary(luma_mean, "luma")
+    contrast = _summary(luma_contrast, "luma_contrast")
+    edges = _summary(edge_density, "edge_density")
     eps = 1e-6
     appearance_jump_ratio = appearance["appearance_delta_p95"] / max(
         appearance["appearance_delta_median"], eps
@@ -241,6 +304,22 @@ def analyze_video(path: Path, *, max_width: int, frame_step: int) -> dict[str, o
         **appearance,
         **speed,
         **acceleration,
+        **coverage,
+        **luminance,
+        **contrast,
+        **edges,
+        "dark_frame_fraction": float(
+            np.mean(np.asarray(luma_mean, dtype=np.float64) < 0.03)
+        ),
+        "bright_frame_fraction": float(
+            np.mean(np.asarray(luma_mean, dtype=np.float64) > 0.97)
+        ),
+        "low_contrast_frame_fraction": float(
+            np.mean(np.asarray(luma_contrast, dtype=np.float64) < 0.02)
+        ),
+        "edge_density_outlier_fraction": _robust_outlier_fraction(
+            edge_density
+        ),
         "appearance_jump_ratio": appearance_jump_ratio,
         "flow_jump_ratio": flow_jump_ratio,
         "appearance_outlier_fraction": _robust_outlier_fraction(appearance_delta),
@@ -256,32 +335,38 @@ def main() -> None:
             "compute_temporal_jump_diagnostic.py requires "
             "opencv-python and numpy"
         )
-    if args.max_width <= 0 or args.frame_step <= 0:
-        raise ValueError("max-width and frame-step must be positive")
+    if args.max_width <= 0 or args.frame_step <= 0 or args.workers <= 0:
+        raise ValueError("max-width, frame-step and workers must be positive")
     videos = _indexed_video_paths(
         args.inputs,
         expected_videos=args.expected_videos,
     )
     if not videos:
         raise ValueError("no MP4 files found")
-    rows = []
-    for index, (method, prompt_index, path) in enumerate(videos, start=1):
-        row = analyze_video(
-            path,
-            max_width=args.max_width,
-            frame_step=args.frame_step,
-        )
-        row = {
+    def run_one(item: tuple[str, int, Path]) -> dict[str, object]:
+        method, prompt_index, path = item
+        return {
             "method": method,
             "prompt_index": prompt_index,
             "sample_index": 0,
-            **row,
+            **analyze_video(
+                path,
+                max_width=args.max_width,
+                frame_step=args.frame_step,
+            ),
         }
-        rows.append(row)
-        print(
-            f"[temporal-jump] {index}/{len(videos)} "
-            f"score={row['temporal_jump']:.5f} video={path}"
-        )
+
+    rows = []
+    with ThreadPoolExecutor(max_workers=args.workers) as executor:
+        futures = {executor.submit(run_one, item): item for item in videos}
+        for index, future in enumerate(as_completed(futures), start=1):
+            row = future.result()
+            rows.append(row)
+            print(
+                f"[temporal-jump] {index}/{len(videos)} "
+                f"score={row['temporal_jump']:.5f} video={row['video']}"
+            )
+    rows.sort(key=lambda row: (str(row["method"]), int(row["prompt_index"])))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))

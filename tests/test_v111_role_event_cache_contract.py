@@ -260,6 +260,8 @@ def test_reservoir_motion_hybrid_is_budget_matched_and_exclusive(tmp_path):
     motion, reservoir = supportive.middle_strategies
     assert motion.pair_capacity == 1
     assert motion.capacity == 2
+    assert motion.max_pair_age == 24
+    assert motion.stale_refresh_bypass_quantile is False
     assert reservoir.capacity == 2
     assert supportive.sink_frames == 1
     assert supportive.recent_frames == 4
@@ -284,6 +286,50 @@ def test_reservoir_motion_hybrid_is_budget_matched_and_exclusive(tmp_path):
         "reservoir_motion",
     )
     assert fast.expected_policy(cell, 11) == ((), 1, 8, "stride")
+
+
+def test_fresh_motion_hybrid_wires_stale_only_quantile_bypass(tmp_path):
+    labels = tmp_path / "history_roles.csv"
+    _write_labels(labels, [[10, 11]])
+    overrides = history_polarity_policy_overrides(
+        "reservoir2_freshmotion1",
+        "recent8_sink1",
+    )
+    compositions = build_compositions(
+        1,
+        2,
+        torch.full((1, 2), 32760, dtype=torch.int32),
+        csv_path=str(labels),
+        **_factory_kwargs(overrides),
+    )[0]
+    motion, reservoir = compositions[0].middle_strategies
+    assert isinstance(motion, CoherentMotionStrategy)
+    assert isinstance(reservoir, TemporalReservoirStrategy)
+    assert motion.pair_capacity == 1
+    assert motion.max_pair_age == 12
+    assert motion.stale_refresh_bypass_quantile is True
+    assert reservoir.capacity == 2
+    assert overrides["pyramidkv_label_coherent_motion_max_pair_age_map"] == {
+        "10": 12,
+        "11": 24,
+    }
+    assert overrides["pyramidkv_label_coherent_motion_stale_refresh_map"] == {
+        "10": True,
+        "11": False,
+    }
+    cell = fast.Cell(
+        "fresh_motion_contract",
+        "test",
+        "single",
+        support_policy="reservoir2_freshmotion1",
+        suppress_policy="recent8_sink1",
+    )
+    assert fast.expected_policy(cell, 10) == (
+        ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+        1,
+        4,
+        "reservoir_motion",
+    )
 
 
 def test_same_route_controls_share_one_layer_wide_feature_context(tmp_path):
@@ -472,6 +518,62 @@ def test_coherent_motion_fills_second_slot_then_replaces_a_full_bank():
     assert replaced["last_decision"]["spacing_checks"] == [
         {"end_t": 7, "distance": 4}
     ]
+
+
+def test_stale_motion_pair_can_bypass_quantile_without_bypassing_semantics():
+    descriptors = torch.tensor(
+        [[[1.0, 0.0], [0.99, 0.01], [0.98, 0.02], [0.97, 0.03]]],
+        dtype=torch.float32,
+    )
+    descriptors = torch.nn.functional.normalize(descriptors, dim=-1)
+
+    def build(enabled: bool) -> CoherentMotionStrategy:
+        strategy = CoherentMotionStrategy(
+            pair_capacity=1,
+            context_key="motion:10",
+            min_frame_t=1,
+            min_pair_spacing=1,
+            max_pair_age=8,
+            stale_refresh_bypass_quantile=enabled,
+        )
+        strategy.reset(1)
+        return strategy
+
+    def update(
+        strategy: CoherentMotionStrategy,
+        frame_start_t: int,
+        peak_motion: float,
+    ) -> None:
+        strategy.set_update_context(
+            _features(
+                "motion:10",
+                descriptors,
+                torch.tensor([[0.0, 0.1, peak_motion, 0.1]]),
+                frame_start_t=frame_start_t,
+            )
+        )
+        k, v, pos = _kv_block(4, base=float(frame_start_t * 10))
+        strategy.update(0, k, v, pos, 1, frame_start_t)
+
+    fresh = build(True)
+    control = build(False)
+    for strategy in (fresh, control):
+        update(strategy, 1, 1.0)
+        update(strategy, 5, 0.9)
+        update(strategy, 9, 0.2)
+
+    fresh_state = fresh.debug_state(0)
+    control_state = control.debug_state(0)
+    assert fresh_state["pair_frame_ids"] == [[10, 11]]
+    assert fresh_state["last_decision"]["victim_age"] == 8
+    assert fresh_state["last_decision"]["victim_stale"] is True
+    assert fresh_state["last_decision"]["motion_quantile_pass"] is False
+    assert fresh_state["last_decision"]["stale_quantile_bypass"] is True
+    assert fresh_state["last_decision"]["reason"] == "stale_quantile_refresh"
+    assert control_state["pair_frame_ids"] == [[2, 3]]
+    assert control_state["last_decision"]["victim_stale"] is True
+    assert control_state["last_decision"]["stale_quantile_bypass"] is False
+    assert control_state["last_decision"]["reason"] == "motion_quantile_gate"
 
 
 def test_v111_command_wires_old_map_and_new_policies(tmp_path):

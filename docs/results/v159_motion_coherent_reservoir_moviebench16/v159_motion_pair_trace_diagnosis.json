@@ -1,0 +1,175 @@
+{
+  "analyzer_sha256": "720c7090643bb039fc417ff739c9a439c715a23beba96cd9cc3750b8540c8406",
+  "claim_boundary": "Trace evidence localizes mechanism behavior only and cannot establish video-quality improvement.",
+  "diagnosis": {
+    "dominant_rejection": "motion_quantile_gate",
+    "max_pair_age_is_not_a_hard_refresh_bound": true,
+    "mechanism_executed": true,
+    "next_isolated_change": "Middle10 reservoir2+motionpair1; max_pair_age=12; stale eligible pair bypasses motion quantile"
+  },
+  "experiment": "v159_motion_pair_trace_diagnosis",
+  "methods": {
+    "ours_interleaved10_motionpair2": {
+      "accepted_per_prompt": {
+        "max": 11.0,
+        "mean": 6.6875,
+        "p50": 6.5,
+        "p95": 10.25
+      },
+      "evicted_per_prompt": {
+        "max": 9.0,
+        "mean": 4.6875,
+        "p50": 4.5,
+        "p95": 8.25
+      },
+      "pair_age_max": 115.0,
+      "pair_age_p95_per_prompt": {
+        "max": 106.89999999999999,
+        "mean": 71.86249999999998,
+        "p50": 68.475,
+        "p95": 105.21249999999999
+      },
+      "prompt_count": 16,
+      "reason_counts": {
+        "fill_motion_pair": 32,
+        "motion_quantile_gate": 376,
+        "replacement_gate": 89,
+        "spacing_gate": 52,
+        "stale_motion_refresh": 33,
+        "stronger_motion_event": 42
+      },
+      "rejected_per_prompt": {
+        "max": 36.0,
+        "mean": 32.3125,
+        "p50": 32.5,
+        "p95": 35.25
+      },
+      "union_full4_fraction": 0.6968749999999999,
+      "union_mean_per_prompt": {
+        "max": 3.6,
+        "mean": 3.29375,
+        "p50": 3.35,
+        "p95": 3.5624999999999996
+      },
+      "union_zero_fraction": 0.05000000000000001,
+      "updates_per_prompt": [
+        40
+      ]
+    },
+    "ours_interleaved10_reservoir2_motionpair1": {
+      "accepted_per_prompt": {
+        "max": 8.0,
+        "mean": 6.125,
+        "p50": 6.0,
+        "p95": 8.0
+      },
+      "evicted_per_prompt": {
+        "max": 7.0,
+        "mean": 5.125,
+        "p50": 5.0,
+        "p95": 7.0
+      },
+      "pair_age_max": 61.0,
+      "pair_age_p95_per_prompt": {
+        "max": 55.300000000000004,
+        "mean": 34.493750000000006,
+        "p50": 30.300000000000004,
+        "p95": 48.550000000000004
+      },
+      "prompt_count": 16,
+      "reason_counts": {
+        "fill_motion_pair": 16,
+        "motion_quantile_gate": 376,
+        "replacement_gate": 150,
+        "stale_motion_refresh": 33,
+        "stronger_motion_event": 49
+      },
+      "rejected_per_prompt": {
+        "max": 35.0,
+        "mean": 32.875,
+        "p50": 33.0,
+        "p95": 35.0
+      },
+      "union_full4_fraction": 0.6953125000000001,
+      "union_mean_per_prompt": {
+        "max": 3.575,
+        "mean": 3.3921875,
+        "p50": 3.425,
+        "p95": 3.575
+      },
+      "union_zero_fraction": 0.05000000000000001,
+      "updates_per_prompt": [
+        40
+      ]
+    },
+    "ours_middle10_reservoir2_motionpair1": {
+      "accepted_per_prompt": {
+        "max": 8.0,
+        "mean": 5.9375,
+        "p50": 6.0,
+        "p95": 7.25
+      },
+      "evicted_per_prompt": {
+        "max": 7.0,
+        "mean": 4.9375,
+        "p50": 5.0,
+        "p95": 6.25
+      },
+      "pair_age_max": 73.0,
+      "pair_age_p95_per_prompt": {
+        "max": 67.30000000000001,
+        "mean": 36.431250000000006,
+        "p50": 29.800000000000004,
+        "p95": 65.80000000000001
+      },
+      "prompt_count": 16,
+      "reason_counts": {
+        "fill_motion_pair": 16,
+        "motion_quantile_gate": 367,
+        "replacement_gate": 162,
+        "stale_motion_refresh": 37,
+        "stronger_motion_event": 42
+      },
+      "rejected_per_prompt": {
+        "max": 34.0,
+        "mean": 33.0625,
+        "p50": 33.0,
+        "p95": 34.0
+      },
+      "union_full4_fraction": 0.6984375000000002,
+      "union_mean_per_prompt": {
+        "max": 3.525,
+        "mean": 3.4000000000000004,
+        "p50": 3.45,
+        "p95": 3.525
+      },
+      "union_zero_fraction": 0.05000000000000001,
+      "updates_per_prompt": [
+        40
+      ]
+    }
+  },
+  "representative_trace": {
+    "ours_interleaved10_motionpair2": {
+      "head": 0,
+      "label": 10,
+      "layer": 7
+    },
+    "ours_interleaved10_reservoir2_motionpair1": {
+      "head": 0,
+      "label": 10,
+      "layer": 7
+    },
+    "ours_middle10_reservoir2_motionpair1": {
+      "head": 0,
+      "label": 10,
+      "layer": 15
+    }
+  },
+  "source": {
+    "path": "E:\\SystemData\\Documents\\training-free\\docs\\results\\v159_motion_coherent_reservoir_moviebench16\\v159_diagnostics.tar.gz",
+    "sha256": "506d35a47f196891a25b18c4ef7a66e81be2ef7386942043ef1eeef7b4927c21",
+    "type": "diagnostics_tar"
+  },
+  "version": 1
+}

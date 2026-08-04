@@ -149,6 +149,7 @@ def history_polarity_policy_overrides(
         "prototype2",
         "reservoir",
         "reservoir2_motion1",
+        "reservoir2_freshmotion1",
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -182,6 +183,7 @@ def history_polarity_policy_overrides(
         "prototype2",
         "reservoir",
         "reservoir2_motion1",
+        "reservoir2_freshmotion1",
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -275,6 +277,7 @@ def history_polarity_policy_overrides(
             "motion_pair1",
             "retrieval1_motion1_age24",
             "reservoir2_motion1",
+            "reservoir2_freshmotion1",
         }
         else 1
         if support == "landmark_motion"
@@ -289,6 +292,7 @@ def history_polarity_policy_overrides(
             "motion_pair1",
             "retrieval1_motion1_age24",
             "reservoir2_motion1",
+            "reservoir2_freshmotion1",
         }
         else 1
         if suppress == "landmark_motion"
@@ -346,14 +350,14 @@ def history_polarity_policy_overrides(
         4
         if support == "reservoir"
         else 2
-        if support == "reservoir2_motion1"
+        if support in {"reservoir2_motion1", "reservoir2_freshmotion1"}
         else 0
     )
     suppress_reservoir_capacity = (
         4
         if suppress == "reservoir"
         else 2
-        if suppress == "reservoir2_motion1"
+        if suppress in {"reservoir2_motion1", "reservoir2_freshmotion1"}
         else 0
     )
     support_profile_anchor_capacity = 4 if support == "profile_anchor" else 0
@@ -390,6 +394,7 @@ def history_polarity_policy_overrides(
             "prototype2",
             "reservoir",
             "reservoir2_motion1",
+            "reservoir2_freshmotion1",
             "snapshot",
             "snapshot2",
             "sparse75",
@@ -434,6 +439,7 @@ def history_polarity_policy_overrides(
             "prototype2",
             "reservoir",
             "reservoir2_motion1",
+            "reservoir2_freshmotion1",
             "snapshot",
             "snapshot2",
             "sparse75",
@@ -510,6 +516,16 @@ def history_polarity_policy_overrides(
             support_key: support_motion_pair_capacity,
             suppress_key: suppress_motion_pair_capacity,
         },
+        "pyramidkv_label_coherent_motion_max_pair_age_map": {
+            support_key: 12 if support == "reservoir2_freshmotion1" else 24,
+            suppress_key: (
+                12 if suppress == "reservoir2_freshmotion1" else 24
+            ),
+        },
+        "pyramidkv_label_coherent_motion_stale_refresh_map": {
+            support_key: support == "reservoir2_freshmotion1",
+            suppress_key: suppress == "reservoir2_freshmotion1",
+        },
         "pyramidkv_label_semantic_retrieval_capacity_map": {
             support_key: support_retrieval_capacity,
             suppress_key: suppress_retrieval_capacity,
@@ -562,6 +578,8 @@ def history_polarity_policy_overrides(
             or suppress == "retrieval1_motion1_age24"
             or support == "reservoir2_motion1"
             or suppress == "reservoir2_motion1"
+            or support == "reservoir2_freshmotion1"
+            or suppress == "reservoir2_freshmotion1"
         ),
         # The neutral-label route must not inherit a second legacy dynamic
         # history path alongside its explicit middle strategy.

@@ -443,6 +443,7 @@ class CoherentMotionStrategy:
         warmup_edges: int = 4,
         replacement_margin: float = 0.05,
         max_pair_age: int = 24,
+        stale_refresh_bypass_quantile: bool = False,
         dynamic_rope: bool = True,
     ):
         self.pair_capacity = max(1, int(pair_capacity))
@@ -456,6 +457,9 @@ class CoherentMotionStrategy:
         self.warmup_edges = max(1, int(warmup_edges))
         self.replacement_margin = max(0.0, float(replacement_margin))
         self.max_pair_age = max(1, int(max_pair_age))
+        self.stale_refresh_bypass_quantile = bool(
+            stale_refresh_bypass_quantile
+        )
         self.dynamic_rope = bool(dynamic_rope)
         self._pairs: list[OrderedDict[int, _MotionPairRecord]] = []
         self._references: list[torch.Tensor | None] = []
@@ -606,6 +610,7 @@ class CoherentMotionStrategy:
             filling = len(pairs) < self.pair_capacity
             victim_end_t: int | None = None
             victim_utility: float | None = None
+            victim_age: int | None = None
             victim_stale = False
             improves = False
             if not filling:
@@ -622,10 +627,8 @@ class CoherentMotionStrategy:
                         f"{self.context_key} idx={idx}"
                     )
                 victim_utility = float(victim.utility)
-                victim_stale = (
-                    int(candidate["end_t"]) - int(victim_end_t)
-                    >= self.max_pair_age
-                )
+                victim_age = int(candidate["end_t"]) - int(victim_end_t)
+                victim_stale = victim_age >= self.max_pair_age
                 improves = float(candidate["utility"]) >= (
                     victim_utility * (1.0 + self.replacement_margin)
                 )
@@ -645,15 +648,23 @@ class CoherentMotionStrategy:
                 int(item["distance"]) >= self.min_pair_spacing
                 for item in spacing_checks
             )
-            motion_ok = (
+            motion_quantile_pass = (
                 len(history) < self.warmup_edges
                 or float(candidate["motion"]) >= float(threshold)
             )
+            stale_quantile_bypass = bool(
+                self.stale_refresh_bypass_quantile
+                and victim_stale
+                and not motion_quantile_pass
+            )
+            motion_ok = motion_quantile_pass or stale_quantile_bypass
             replacement_ok = filling or improves or victim_stale
             accepted = spacing_ok and motion_ok and replacement_ok
             reason = (
                 "fill_motion_pair"
                 if accepted and filling
+                else "stale_quantile_refresh"
+                if accepted and stale_quantile_bypass
                 else "stronger_motion_event"
                 if accepted and improves
                 else "stale_motion_refresh"
@@ -683,16 +694,19 @@ class CoherentMotionStrategy:
                     "bank_size_before": len(pairs),
                     "filling": bool(filling),
                     "victim_end_t": victim_end_t,
+                    "victim_age": victim_age,
                     "victim_utility": (
                         None
                         if victim_utility is None
                         else round(victim_utility, 6)
                     ),
                     "victim_stale": bool(victim_stale),
+                    "stale_quantile_bypass": stale_quantile_bypass,
                     "improves_victim": bool(improves),
                     "retained_pair_end_ts": retained_pair_end_ts,
                     "spacing_checks": spacing_checks,
                     "spacing_ok": bool(spacing_ok),
+                    "motion_quantile_pass": bool(motion_quantile_pass),
                     "motion_ok": bool(motion_ok),
                     "replacement_ok": bool(replacement_ok),
                     "accepted": bool(accepted),
@@ -815,6 +829,9 @@ class CoherentMotionStrategy:
             "history_size": int(self.history_size),
             "replacement_margin": float(self.replacement_margin),
             "max_pair_age": int(self.max_pair_age),
+            "stale_refresh_bypass_quantile": bool(
+                self.stale_refresh_bypass_quantile
+            ),
             "pair_frame_ids": [
                 [int(record.start.t), int(record.end.t)]
                 for record in self._pairs[idx].values()
