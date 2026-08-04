@@ -21,6 +21,13 @@ from prepare_v160_adaptive_review import SCORE_COLUMNS
 
 DIMENSIONS = SCORE_COLUMNS[:-2]
 SEVERE = SCORE_COLUMNS[-2]
+FILE_PREFIX = "v160"
+BLIND_EXPERIMENT = "v160_adaptive_blind_review"
+ANALYSIS_EXPERIMENT = "v160_adaptive_blind_review_analysis"
+SCREEN_EXPERIMENT = "v160_automated_diagnostic_screen"
+REPORT_TITLE = "v160 Adaptive Review Analysis"
+LOG_PREFIX = "v160-review-analysis"
+CURRENT_DESCRIPTION = "old hybrid"
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,11 +50,11 @@ def parse_score(raw: object, *, column: str, video: str) -> float:
 
 
 def load_wave(root: Path, wave: int) -> list[dict]:
-    key_path = root / "private" / f"v160_wave{wave}_blind_key.json"
-    sheet_path = root / "reviewer" / f"v160_wave{wave}_review_sheet.csv"
+    key_path = root / "private" / f"{FILE_PREFIX}_wave{wave}_blind_key.json"
+    sheet_path = root / "reviewer" / f"{FILE_PREFIX}_wave{wave}_review_sheet.csv"
     key = json.loads(key_path.read_text(encoding="utf-8"))
     if (
-        key.get("experiment") != "v160_adaptive_blind_review"
+        key.get("experiment") != BLIND_EXPERIMENT
         or int(key.get("wave", -1)) != wave
         or tuple(key.get("methods", [])) != REVIEW_METHODS
         or int(key.get("video_count", -1)) != 12
@@ -185,7 +192,7 @@ def analyze(screen: dict, wave1: list[dict], wave2: list[dict] | None) -> dict:
         decision = "continue_wave2"
     report = {
         "version": 1,
-        "experiment": "v160_adaptive_blind_review_analysis",
+        "experiment": ANALYSIS_EXPERIMENT,
         "automatic_safety_screen": automatic_safety,
         "wave1": first,
         "wave1_decision": decision,
@@ -195,7 +202,8 @@ def analyze(screen: dict, wave1: list[dict], wave2: list[dict] | None) -> dict:
                 "motion naturalness and overall are each >= both references "
                 "on at least 3/4 prompts; mean motion-naturalness gain over "
                 "the old hybrid is >=0.25; motion naturalness is noninferior "
-                "to reservoir4; motion amount is noninferior to the old hybrid"
+                "to reservoir4; motion amount is noninferior to the "
+                f"{CURRENT_DESCRIPTION}"
             ),
             "reject": (
                 "at least two primary severe failures or primary motion "
@@ -274,7 +282,7 @@ def analyze(screen: dict, wave1: list[dict], wave2: list[dict] | None) -> dict:
 
 def markdown(report: dict) -> str:
     lines = [
-        "# v160 Adaptive Review Analysis",
+        f"# {REPORT_TITLE}",
         "",
         f"Wave-1 decision: **{report['wave1_decision']}**",
         "",
@@ -299,10 +307,10 @@ def main() -> None:
     args = parse_args()
     screen = json.loads(args.screen_json.read_text(encoding="utf-8"))
     if (
-        screen.get("experiment") != "v160_automated_diagnostic_screen"
+        screen.get("experiment") != SCREEN_EXPERIMENT
         or screen.get("automatic_safety_is_not_promotion") is not True
     ):
-        raise ValueError("invalid v160 automated screen")
+        raise ValueError(f"invalid {SCREEN_EXPERIMENT} screen")
     wave1 = load_wave(args.wave1_root, 1)
     wave2 = load_wave(args.wave2_root, 2) if args.wave2_root else None
     report = analyze(screen, wave1, wave2)
@@ -313,7 +321,7 @@ def main() -> None:
     )
     args.output.with_suffix(".md").write_text(markdown(report), encoding="utf-8")
     print(
-        f"[v160-review-analysis] decision={report['wave1_decision']} "
+        f"[{LOG_PREFIX}] decision={report['wave1_decision']} "
         f"complete={report['review_complete']} "
         f"gate={report['exploratory_recovery_gate']}"
     )

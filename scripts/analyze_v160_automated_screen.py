@@ -17,6 +17,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENT = "v160_automated_diagnostic_screen"
+SOURCE_EXPERIMENT = "v160_fresh_motion_moviebench16"
+REPORT_TITLE = "v160 Automated Diagnostic Screen"
+LOG_PREFIX = "v160-screen"
 PROMPT_COUNT = 16
 PRIMARY = "ours_middle10_reservoir2_freshmotionpair1"
 CURRENT = "ours_middle10_reservoir2_motionpair1_reference"
@@ -392,7 +395,7 @@ def method_summary(
 
 def markdown(report: dict) -> str:
     lines = [
-        "# v160 Automated Diagnostic Screen",
+        f"# {REPORT_TITLE}",
         "",
         "This report is for failure triage and adaptive review selection. "
         "It is not a paper metric or a promotion gate.",
@@ -440,13 +443,15 @@ def main() -> None:
     prompt_manifest = json.loads(args.prompt_manifest.read_text(encoding="utf-8"))
     if (
         not published.get("ok")
-        or published.get("experiment") != "v160_fresh_motion_moviebench16"
+        or published.get("experiment") != SOURCE_EXPERIMENT
         or int(published.get("prompt_count", -1)) != PROMPT_COUNT
         or tuple(row["key"] for row in published.get("methods", [])) != METHODS
         or prompt_manifest.get("suite") != "v154_qwen_moviebench_diverse16"
         or int(prompt_manifest.get("prompt_count", -1)) != PROMPT_COUNT
     ):
-        raise ValueError("v160 screen inputs violate the frozen manifest contract")
+        raise ValueError(
+            f"{SOURCE_EXPERIMENT} screen inputs violate the frozen manifest contract"
+        )
     temporal = load_temporal(args.temporal_csv)
     comprehensive = load_comprehensive(args.comprehensive_json)
     prompt_rows = score_prompts(temporal, comprehensive)
@@ -505,7 +510,7 @@ def main() -> None:
         encoding="utf-8",
     )
     print(
-        f"[v160-screen] safety={automatic_safety} flagged={len(flagged)} "
+        f"[{LOG_PREFIX}] safety={automatic_safety} flagged={len(flagged)} "
         f"wave1={[row['prompt_index'] for row in plan['wave1']]} "
         f"wave2={[row['prompt_index'] for row in plan['wave2']]}"
     )

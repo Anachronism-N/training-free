@@ -315,6 +315,7 @@ def build_compositions(
     label_coherent_motion_pair_capacity_map: dict | None = None,
     label_coherent_motion_max_pair_age_map: dict | None = None,
     label_coherent_motion_stale_refresh_map: dict | None = None,
+    label_coherent_motion_state_match_map: dict | None = None,
     label_semantic_retrieval_capacity_map: dict | None = None,
     label_semantic_retrieval_max_age_map: dict | None = None,
     semantic_retrieval_min_similarity: float = -0.25,
@@ -367,6 +368,9 @@ def build_compositions(
     )
     coherent_motion_stale_refresh_map = _build_bool_map(
         label_coherent_motion_stale_refresh_map
+    )
+    coherent_motion_state_match_map = _build_bool_map(
+        label_coherent_motion_state_match_map
     )
     semantic_retrieval_capacity_map = _build_int_map(
         label_semantic_retrieval_capacity_map,
@@ -693,6 +697,10 @@ def build_compositions(
                                 label_key,
                                 False,
                             )
+                        ),
+                        state_match=coherent_motion_state_match_map.get(
+                            label_key,
+                            False,
                         ),
                         dynamic_rope=True,
                     )

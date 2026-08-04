@@ -24,6 +24,17 @@ def _cosine(left: torch.Tensor, right: torch.Tensor) -> float:
     return float(torch.dot(left.float(), right.float()).clamp(-1.0, 1.0).item())
 
 
+def _normalized_delta(
+    start: torch.Tensor,
+    end: torch.Tensor,
+) -> tuple[torch.Tensor, float]:
+    delta = (end.float() - start.float()).reshape(-1)
+    norm = float(torch.linalg.vector_norm(delta).item())
+    if norm <= 1e-8:
+        return torch.zeros_like(delta), norm
+    return delta / norm, norm
+
+
 def _quantile(values: deque[float], fraction: float) -> float:
     if not values:
         return 0.0
@@ -425,6 +436,10 @@ class _MotionPairRecord:
     motion_score: float
     semantic_score: float
     utility: float
+    start_descriptor: torch.Tensor
+    end_descriptor: torch.Tensor
+    direction: torch.Tensor
+    direction_norm: float
 
 
 class CoherentMotionStrategy:
@@ -444,6 +459,11 @@ class CoherentMotionStrategy:
         replacement_margin: float = 0.05,
         max_pair_age: int = 24,
         stale_refresh_bypass_quantile: bool = False,
+        state_match: bool = False,
+        state_archive_capacity: int = 4,
+        state_min_similarity: float = -0.25,
+        state_min_direction_similarity: float = 0.0,
+        state_max_read_age: int = 24,
         dynamic_rope: bool = True,
     ):
         self.pair_capacity = max(1, int(pair_capacity))
@@ -460,6 +480,22 @@ class CoherentMotionStrategy:
         self.stale_refresh_bypass_quantile = bool(
             stale_refresh_bypass_quantile
         )
+        self.state_match = bool(state_match)
+        self.state_archive_capacity = max(
+            self.pair_capacity,
+            int(state_archive_capacity),
+        )
+        self.state_min_similarity = float(state_min_similarity)
+        self.state_min_direction_similarity = float(
+            state_min_direction_similarity
+        )
+        self.state_max_read_age = max(1, int(state_max_read_age))
+        if not -1.0 <= self.state_min_similarity <= 1.0:
+            raise ValueError("state_min_similarity must be within [-1, 1]")
+        if not -1.0 <= self.state_min_direction_similarity <= 1.0:
+            raise ValueError(
+                "state_min_direction_similarity must be within [-1, 1]"
+            )
         self.dynamic_rope = bool(dynamic_rope)
         self._pairs: list[OrderedDict[int, _MotionPairRecord]] = []
         self._references: list[torch.Tensor | None] = []
@@ -470,6 +506,12 @@ class CoherentMotionStrategy:
         self._rejected_counts: list[int] = []
         self._evicted_counts: list[int] = []
         self._scene_reset_counts: list[int] = []
+        self._state_queries: list[torch.Tensor | None] = []
+        self._state_directions: list[torch.Tensor | None] = []
+        self._last_retrievals: list[dict[str, Any]] = []
+        self._last_retrieval_keys: list[tuple[int, int, int] | None] = []
+        self._retrieval_accept_counts: list[int] = []
+        self._retrieval_abstain_counts: list[int] = []
 
     def reset(self, num_seq: int) -> None:
         self._pairs = [OrderedDict() for _ in range(num_seq)]
@@ -483,6 +525,12 @@ class CoherentMotionStrategy:
         self._rejected_counts = [0 for _ in range(num_seq)]
         self._evicted_counts = [0 for _ in range(num_seq)]
         self._scene_reset_counts = [0 for _ in range(num_seq)]
+        self._state_queries = [None for _ in range(num_seq)]
+        self._state_directions = [None for _ in range(num_seq)]
+        self._last_retrievals = [{} for _ in range(num_seq)]
+        self._last_retrieval_keys = [None for _ in range(num_seq)]
+        self._retrieval_accept_counts = [0 for _ in range(num_seq)]
+        self._retrieval_abstain_counts = [0 for _ in range(num_seq)]
 
     def set_update_context(self, context: dict[str, Any] | None) -> None:
         self._last_context = context
@@ -524,6 +572,16 @@ class CoherentMotionStrategy:
         if t_vals is None:
             t_vals = list(range(int(current_t), int(current_t) + num_frames))
 
+        state_query = descriptors[-1].detach().cpu().clone()
+        state_direction, state_direction_norm = _normalized_delta(
+            descriptors[0].detach().cpu(),
+            descriptors[-1].detach().cpu(),
+        )
+        self._state_queries[idx] = state_query
+        self._state_directions[idx] = (
+            state_direction if state_direction_norm > 1e-8 else None
+        )
+
         reference = self._references[idx]
         if reference is None:
             reference = descriptors[0].detach().cpu().clone()
@@ -553,6 +611,10 @@ class CoherentMotionStrategy:
                 1.0, max(0.0, (semantic_score + 1.0) * 0.5)
             )
             utility = motion_score * (0.25 + 0.75 * semantic_unit)
+            direction, direction_norm = _normalized_delta(
+                start_descriptor,
+                end_descriptor,
+            )
             if semantic_score < self.semantic_floor or motion_score <= 0.0:
                 continue
             candidates.append(
@@ -566,6 +628,10 @@ class CoherentMotionStrategy:
                     "pair_similarity": pair_similarity,
                     "identity_similarity": identity_similarity,
                     "utility": utility,
+                    "start_descriptor": start_descriptor.clone(),
+                    "end_descriptor": end_descriptor.clone(),
+                    "direction": direction,
+                    "direction_norm": direction_norm,
                 }
             )
 
@@ -592,6 +658,11 @@ class CoherentMotionStrategy:
                 ),
             )
             pairs = self._pairs[idx]
+            bank_capacity = (
+                self.state_archive_capacity
+                if self.state_match
+                else self.pair_capacity
+            )
             pair_end_ts: list[int] = []
             for stored_end_t, record in pairs.items():
                 stored_end = int(stored_end_t)
@@ -607,7 +678,7 @@ class CoherentMotionStrategy:
                         f"record=({record_start},{record_end})"
                     )
                 pair_end_ts.append(stored_end)
-            filling = len(pairs) < self.pair_capacity
+            filling = len(pairs) < bank_capacity
             victim_end_t: int | None = None
             victim_utility: float | None = None
             victim_age: int | None = None
@@ -616,9 +687,15 @@ class CoherentMotionStrategy:
             if not filling:
                 victim_end_t, victim = min(
                     pairs.items(),
-                    key=lambda item: (
-                        float(item[1].utility),
-                        int(item[0]),
+                    key=(
+                        (lambda item: int(item[0]))
+                        if self.state_match
+                        else (
+                            lambda item: (
+                                float(item[1].utility),
+                                int(item[0]),
+                            )
+                        )
                     ),
                 )
                 if victim_end_t is None:
@@ -692,6 +769,8 @@ class CoherentMotionStrategy:
                     "utility": round(float(candidate["utility"]), 6),
                     "candidate_count": len(candidates),
                     "bank_size_before": len(pairs),
+                    "bank_capacity": int(bank_capacity),
+                    "state_match": bool(self.state_match),
                     "filling": bool(filling),
                     "victim_end_t": victim_end_t,
                     "victim_age": victim_age,
@@ -739,6 +818,10 @@ class CoherentMotionStrategy:
                     motion_score=float(candidate["motion"]),
                     semantic_score=float(candidate["semantic"]),
                     utility=float(candidate["utility"]),
+                    start_descriptor=candidate["start_descriptor"].clone(),
+                    end_descriptor=candidate["end_descriptor"].clone(),
+                    direction=candidate["direction"].clone(),
+                    direction_norm=float(candidate["direction_norm"]),
                 )
                 pairs.move_to_end(int(candidate["end_t"]))
                 self._accepted_counts[idx] += 1
@@ -763,14 +846,26 @@ class CoherentMotionStrategy:
         recent_min_t: int,
         sink_max_t: int,
     ) -> list[CollectedAnchor]:
+        records = [
+            record
+            for record in self._pairs[idx].values()
+            if int(record.start.t) > int(sink_max_t)
+            and int(record.end.t) < int(recent_min_t)
+        ]
+        if self.state_match:
+            records = self._select_state_matched_records(
+                idx,
+                records=records,
+                current_t=current_t,
+                recent_min_t=recent_min_t,
+                sink_max_t=sink_max_t,
+            )
         anchors: dict[int, FrameAnchor] = {}
-        for record in self._pairs[idx].values():
+        for record in records:
             anchors[int(record.start.t)] = record.start
             anchors[int(record.end.t)] = record.end
         result: list[CollectedAnchor] = []
         for t_val, anchor in sorted(anchors.items()):
-            if int(t_val) <= int(sink_max_t) or int(t_val) >= int(recent_min_t):
-                continue
             result.append(
                 CollectedAnchor(
                     kind="frame",
@@ -784,6 +879,112 @@ class CoherentMotionStrategy:
                 )
             )
         return result
+
+    def _select_state_matched_records(
+        self,
+        idx: int,
+        *,
+        records: list[_MotionPairRecord],
+        current_t: int,
+        recent_min_t: int,
+        sink_max_t: int,
+    ) -> list[_MotionPairRecord]:
+        query = self._state_queries[idx]
+        direction = self._state_directions[idx]
+        age_eligible = [
+            record
+            for record in records
+            if int(current_t) - int(record.end.t) <= self.state_max_read_age
+        ]
+        scored: list[tuple[float, float, int, _MotionPairRecord]] = []
+        diagnostics = []
+        for record in age_eligible:
+            state_similarity = (
+                _cosine(query, record.end_descriptor)
+                if query is not None
+                else None
+            )
+            direction_similarity = (
+                _cosine(direction, record.direction)
+                if direction is not None and record.direction_norm > 1e-8
+                else None
+            )
+            state_pass = (
+                state_similarity is not None
+                and state_similarity >= self.state_min_similarity
+            )
+            direction_pass = (
+                direction_similarity is None
+                or direction_similarity
+                >= self.state_min_direction_similarity
+            )
+            diagnostics.append(
+                {
+                    "pair": [int(record.start.t), int(record.end.t)],
+                    "age": int(current_t) - int(record.end.t),
+                    "state_similarity": (
+                        None
+                        if state_similarity is None
+                        else round(float(state_similarity), 6)
+                    ),
+                    "direction_similarity": (
+                        None
+                        if direction_similarity is None
+                        else round(float(direction_similarity), 6)
+                    ),
+                    "state_pass": bool(state_pass),
+                    "direction_pass": bool(direction_pass),
+                }
+            )
+            if state_pass and direction_pass:
+                scored.append(
+                    (
+                        (
+                            float(direction_similarity)
+                            if direction_similarity is not None
+                            else -1.0
+                        ),
+                        float(state_similarity),
+                        int(record.end.t),
+                        record,
+                    )
+                )
+        selected = max(scored, key=lambda item: item[:3])[3] if scored else None
+        reason = (
+            "selected"
+            if selected is not None
+            else "empty"
+            if not records
+            else "age_gate"
+            if not age_eligible
+            else "state_or_direction_gate"
+        )
+        self._last_retrievals[idx] = {
+            "query_t": int(current_t),
+            "eligible_before_age": len(records),
+            "eligible": len(age_eligible),
+            "state_min_similarity": float(self.state_min_similarity),
+            "state_min_direction_similarity": float(
+                self.state_min_direction_similarity
+            ),
+            "state_max_read_age": int(self.state_max_read_age),
+            "direction_available": direction is not None,
+            "candidates": diagnostics,
+            "selected": (
+                []
+                if selected is None
+                else [[int(selected.start.t), int(selected.end.t)]]
+            ),
+            "reason": reason,
+        }
+        key = (int(current_t), int(recent_min_t), int(sink_max_t))
+        if self._last_retrieval_keys[idx] != key:
+            self._last_retrieval_keys[idx] = key
+            if selected is None:
+                self._retrieval_abstain_counts[idx] += 1
+            else:
+                self._retrieval_accept_counts[idx] += 1
+        return [] if selected is None else [selected]
 
     def discard_range(self, idx: int, current_t: int, num_frames: int) -> None:
         start = int(current_t)
@@ -809,6 +1010,10 @@ class CoherentMotionStrategy:
         self._references[idx] = None
         self._motion_history[idx].clear()
         self._last_decisions[idx] = {}
+        self._state_queries[idx] = None
+        self._state_directions[idx] = None
+        self._last_retrievals[idx] = {}
+        self._last_retrieval_keys[idx] = None
         self._scene_reset_counts[idx] += 1
         return {
             "strategy": type(self).__name__,
@@ -832,6 +1037,13 @@ class CoherentMotionStrategy:
             "stale_refresh_bypass_quantile": bool(
                 self.stale_refresh_bypass_quantile
             ),
+            "state_match": bool(self.state_match),
+            "state_archive_capacity": int(self.state_archive_capacity),
+            "state_min_similarity": float(self.state_min_similarity),
+            "state_min_direction_similarity": float(
+                self.state_min_direction_similarity
+            ),
+            "state_max_read_age": int(self.state_max_read_age),
             "pair_frame_ids": [
                 [int(record.start.t), int(record.end.t)]
                 for record in self._pairs[idx].values()
@@ -848,5 +1060,12 @@ class CoherentMotionStrategy:
             "rejected_count": int(self._rejected_counts[idx]),
             "evicted_count": int(self._evicted_counts[idx]),
             "scene_reset_count": int(self._scene_reset_counts[idx]),
+            "retrieval_accept_count": int(
+                self._retrieval_accept_counts[idx]
+            ),
+            "retrieval_abstain_count": int(
+                self._retrieval_abstain_counts[idx]
+            ),
+            "last_retrieval": dict(self._last_retrievals[idx]),
             "last_decision": dict(self._last_decisions[idx]),
         }
