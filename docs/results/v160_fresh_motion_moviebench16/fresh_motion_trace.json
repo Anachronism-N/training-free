@@ -1,0 +1,2058 @@
+{
+  "aggregate": {
+    "accepted_per_prompt": {
+      "max": 15.0,
+      "mean": 12.5625,
+      "p50": 13.0,
+      "p95": 14.25
+    },
+    "early_freshness_refresh_count": 95,
+    "pair_age_max": 13.0,
+    "pair_age_p95_per_prompt": {
+      "max": 13.0,
+      "mean": 11.00625,
+      "p50": 11.0,
+      "p95": 13.0
+    },
+    "prompt_count": 16,
+    "prompts_with_stale_quantile_bypass": 16,
+    "reason_counts": {
+      "fill_motion_pair": 16,
+      "motion_quantile_gate": 300,
+      "replacement_gate": 123,
+      "stale_motion_refresh": 18,
+      "stale_quantile_refresh": 83,
+      "stronger_motion_event": 84
+    },
+    "rejected_per_prompt": {
+      "max": 29.0,
+      "mean": 26.4375,
+      "p50": 26.0,
+      "p95": 28.25
+    },
+    "stale_quantile_bypass_count": 83
+  },
+  "claim_boundary": "The mechanism gate validates execution and cache ownership only; it is not evidence of video-quality improvement.",
+  "experiment": "v160_fresh_motion_trace_audit",
+  "mechanism_gate": true,
+  "method": "ours_middle10_reservoir2_freshmotionpair1",
+  "prompts": [
+    {
+      "accepted_count": 12,
+      "early_freshness_refresh_count": 6,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            21,
+            22
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 10
+        },
+        {
+          "candidate_pair": [
+            34,
+            35
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 22
+        },
+        {
+          "candidate_pair": [
+            46,
+            47
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 35
+        },
+        {
+          "candidate_pair": [
+            66,
+            67
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 55
+        },
+        {
+          "candidate_pair": [
+            79,
+            80
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 67
+        },
+        {
+          "candidate_pair": [
+            97,
+            98
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 15,
+          "victim_end_t": 83
+        }
+      ],
+      "evicted_count": 11,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 5.435897435897436,
+        "p50": 5.0,
+        "p95": 11.0
+      },
+      "prompt_index": 0,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 18,
+        "replacement_gate": 9,
+        "stale_motion_refresh": 1,
+        "stale_quantile_refresh": 5,
+        "stronger_motion_event": 5
+      },
+      "rejected_count": 27,
+      "stale_quantile_bypass_count": 5,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            21,
+            22
+          ],
+          "motion": 0.564998,
+          "motion_threshold": 0.565831,
+          "victim_end_t": 10
+        },
+        {
+          "candidate_pair": [
+            34,
+            35
+          ],
+          "motion": 0.551291,
+          "motion_threshold": 0.563711,
+          "victim_end_t": 22
+        },
+        {
+          "candidate_pair": [
+            46,
+            47
+          ],
+          "motion": 0.515297,
+          "motion_threshold": 0.558148,
+          "victim_end_t": 35
+        },
+        {
+          "candidate_pair": [
+            79,
+            80
+          ],
+          "motion": 0.520298,
+          "motion_threshold": 0.551291,
+          "victim_end_t": 67
+        },
+        {
+          "candidate_pair": [
+            97,
+            98
+          ],
+          "motion": 0.553307,
+          "motion_threshold": 0.561959,
+          "victim_end_t": 83
+        }
+      ]
+    },
+    {
+      "accepted_count": 14,
+      "early_freshness_refresh_count": 5,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            25,
+            26
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 13
+        },
+        {
+          "candidate_pair": [
+            37,
+            38
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 26
+        },
+        {
+          "candidate_pair": [
+            49,
+            50
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 38
+        },
+        {
+          "candidate_pair": [
+            63,
+            64
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 14,
+          "victim_end_t": 50
+        },
+        {
+          "candidate_pair": [
+            106,
+            107
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 95
+        }
+      ],
+      "evicted_count": 13,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 4.9743589743589745,
+        "p50": 4.0,
+        "p95": 11.0
+      },
+      "prompt_index": 1,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 18,
+        "replacement_gate": 7,
+        "stale_quantile_refresh": 5,
+        "stronger_motion_event": 8
+      },
+      "rejected_count": 25,
+      "stale_quantile_bypass_count": 5,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            25,
+            26
+          ],
+          "motion": 0.489347,
+          "motion_threshold": 0.528306,
+          "victim_end_t": 13
+        },
+        {
+          "candidate_pair": [
+            37,
+            38
+          ],
+          "motion": 0.449245,
+          "motion_threshold": 0.521126,
+          "victim_end_t": 26
+        },
+        {
+          "candidate_pair": [
+            49,
+            50
+          ],
+          "motion": 0.410363,
+          "motion_threshold": 0.497898,
+          "victim_end_t": 38
+        },
+        {
+          "candidate_pair": [
+            63,
+            64
+          ],
+          "motion": 0.363344,
+          "motion_threshold": 0.43551,
+          "victim_end_t": 50
+        },
+        {
+          "candidate_pair": [
+            106,
+            107
+          ],
+          "motion": 0.426645,
+          "motion_threshold": 0.441472,
+          "victim_end_t": 95
+        }
+      ]
+    },
+    {
+      "accepted_count": 14,
+      "early_freshness_refresh_count": 7,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            15,
+            16
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 4
+        },
+        {
+          "candidate_pair": [
+            28,
+            29
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 16
+        },
+        {
+          "candidate_pair": [
+            49,
+            50
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 38
+        },
+        {
+          "candidate_pair": [
+            64,
+            65
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 53
+        },
+        {
+          "candidate_pair": [
+            76,
+            77
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 65
+        },
+        {
+          "candidate_pair": [
+            88,
+            89
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 77
+        },
+        {
+          "candidate_pair": [
+            109,
+            110
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 98
+        }
+      ],
+      "evicted_count": 13,
+      "pair_age": {
+        "max": 11.0,
+        "mean": 4.82051282051282,
+        "p50": 4.0,
+        "p95": 10.100000000000001
+      },
+      "prompt_index": 2,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 19,
+        "replacement_gate": 6,
+        "stale_motion_refresh": 3,
+        "stale_quantile_refresh": 4,
+        "stronger_motion_event": 6
+      },
+      "rejected_count": 25,
+      "stale_quantile_bypass_count": 4,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            15,
+            16
+          ],
+          "motion": 0.488754,
+          "motion_threshold": 0.564839,
+          "victim_end_t": 4
+        },
+        {
+          "candidate_pair": [
+            28,
+            29
+          ],
+          "motion": 0.487825,
+          "motion_threshold": 0.511823,
+          "victim_end_t": 16
+        },
+        {
+          "candidate_pair": [
+            49,
+            50
+          ],
+          "motion": 0.483105,
+          "motion_threshold": 0.508918,
+          "victim_end_t": 38
+        },
+        {
+          "candidate_pair": [
+            88,
+            89
+          ],
+          "motion": 0.458416,
+          "motion_threshold": 0.494881,
+          "victim_end_t": 77
+        }
+      ]
+    },
+    {
+      "accepted_count": 13,
+      "early_freshness_refresh_count": 7,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            28,
+            29
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 13,
+          "victim_end_t": 16
+        },
+        {
+          "candidate_pair": [
+            40,
+            41
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 29
+        },
+        {
+          "candidate_pair": [
+            52,
+            53
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 41
+        },
+        {
+          "candidate_pair": [
+            67,
+            68
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 56
+        },
+        {
+          "candidate_pair": [
+            82,
+            83
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 71
+        },
+        {
+          "candidate_pair": [
+            100,
+            101
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 89
+        },
+        {
+          "candidate_pair": [
+            112,
+            113
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 101
+        }
+      ],
+      "evicted_count": 12,
+      "pair_age": {
+        "max": 11.0,
+        "mean": 4.871794871794871,
+        "p50": 4.0,
+        "p95": 10.0
+      },
+      "prompt_index": 3,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 15,
+        "replacement_gate": 11,
+        "stale_motion_refresh": 4,
+        "stale_quantile_refresh": 3,
+        "stronger_motion_event": 5
+      },
+      "rejected_count": 26,
+      "stale_quantile_bypass_count": 3,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            52,
+            53
+          ],
+          "motion": 0.5326,
+          "motion_threshold": 0.56358,
+          "victim_end_t": 41
+        },
+        {
+          "candidate_pair": [
+            67,
+            68
+          ],
+          "motion": 0.526549,
+          "motion_threshold": 0.558143,
+          "victim_end_t": 56
+        },
+        {
+          "candidate_pair": [
+            82,
+            83
+          ],
+          "motion": 0.469045,
+          "motion_threshold": 0.551131,
+          "victim_end_t": 71
+        }
+      ]
+    },
+    {
+      "accepted_count": 11,
+      "early_freshness_refresh_count": 6,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            19,
+            20
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 7
+        },
+        {
+          "candidate_pair": [
+            34,
+            35
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 15,
+          "victim_end_t": 20
+        },
+        {
+          "candidate_pair": [
+            73,
+            74
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 62
+        },
+        {
+          "candidate_pair": [
+            85,
+            86
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 74
+        },
+        {
+          "candidate_pair": [
+            97,
+            98
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 86
+        },
+        {
+          "candidate_pair": [
+            109,
+            110
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 98
+        }
+      ],
+      "evicted_count": 10,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 5.589743589743589,
+        "p50": 4.0,
+        "p95": 11.200000000000003
+      },
+      "prompt_index": 4,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 21,
+        "replacement_gate": 7,
+        "stale_motion_refresh": 1,
+        "stale_quantile_refresh": 6,
+        "stronger_motion_event": 3
+      },
+      "rejected_count": 28,
+      "stale_quantile_bypass_count": 6,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            19,
+            20
+          ],
+          "motion": 0.581445,
+          "motion_threshold": 0.704158,
+          "victim_end_t": 7
+        },
+        {
+          "candidate_pair": [
+            34,
+            35
+          ],
+          "motion": 0.527556,
+          "motion_threshold": 0.659057,
+          "victim_end_t": 20
+        },
+        {
+          "candidate_pair": [
+            49,
+            50
+          ],
+          "motion": 0.565834,
+          "motion_threshold": 0.63892,
+          "victim_end_t": 35
+        },
+        {
+          "candidate_pair": [
+            85,
+            86
+          ],
+          "motion": 0.575275,
+          "motion_threshold": 0.576719,
+          "victim_end_t": 74
+        },
+        {
+          "candidate_pair": [
+            97,
+            98
+          ],
+          "motion": 0.539211,
+          "motion_threshold": 0.576719,
+          "victim_end_t": 86
+        },
+        {
+          "candidate_pair": [
+            109,
+            110
+          ],
+          "motion": 0.490001,
+          "motion_threshold": 0.576719,
+          "victim_end_t": 98
+        }
+      ]
+    },
+    {
+      "accepted_count": 11,
+      "early_freshness_refresh_count": 6,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            13,
+            14
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 2
+        },
+        {
+          "candidate_pair": [
+            25,
+            26
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 14
+        },
+        {
+          "candidate_pair": [
+            61,
+            62
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 50
+        },
+        {
+          "candidate_pair": [
+            75,
+            76
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 14,
+          "victim_end_t": 62
+        },
+        {
+          "candidate_pair": [
+            88,
+            89
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 76
+        },
+        {
+          "candidate_pair": [
+            103,
+            104
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 92
+        }
+      ],
+      "evicted_count": 10,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 5.487179487179487,
+        "p50": 4.0,
+        "p95": 11.200000000000003
+      },
+      "prompt_index": 5,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 21,
+        "replacement_gate": 7,
+        "stale_motion_refresh": 1,
+        "stale_quantile_refresh": 6,
+        "stronger_motion_event": 3
+      },
+      "rejected_count": 28,
+      "stale_quantile_bypass_count": 6,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            13,
+            14
+          ],
+          "motion": 0.503987,
+          "motion_threshold": 0.530911,
+          "victim_end_t": 2
+        },
+        {
+          "candidate_pair": [
+            25,
+            26
+          ],
+          "motion": 0.466913,
+          "motion_threshold": 0.525579,
+          "victim_end_t": 14
+        },
+        {
+          "candidate_pair": [
+            40,
+            41
+          ],
+          "motion": 0.500415,
+          "motion_threshold": 0.518556,
+          "victim_end_t": 26
+        },
+        {
+          "candidate_pair": [
+            75,
+            76
+          ],
+          "motion": 0.464441,
+          "motion_threshold": 0.494823,
+          "victim_end_t": 62
+        },
+        {
+          "candidate_pair": [
+            88,
+            89
+          ],
+          "motion": 0.456466,
+          "motion_threshold": 0.493427,
+          "victim_end_t": 76
+        },
+        {
+          "candidate_pair": [
+            103,
+            104
+          ],
+          "motion": 0.433639,
+          "motion_threshold": 0.474058,
+          "victim_end_t": 92
+        }
+      ]
+    },
+    {
+      "accepted_count": 13,
+      "early_freshness_refresh_count": 7,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            16,
+            17
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 5
+        },
+        {
+          "candidate_pair": [
+            31,
+            32
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 15,
+          "victim_end_t": 17
+        },
+        {
+          "candidate_pair": [
+            55,
+            56
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 44
+        },
+        {
+          "candidate_pair": [
+            67,
+            68
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 56
+        },
+        {
+          "candidate_pair": [
+            85,
+            86
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 74
+        },
+        {
+          "candidate_pair": [
+            97,
+            98
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 86
+        },
+        {
+          "candidate_pair": [
+            109,
+            110
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 98
+        }
+      ],
+      "evicted_count": 12,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 5.102564102564102,
+        "p50": 4.0,
+        "p95": 10.0
+      },
+      "prompt_index": 6,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 20,
+        "replacement_gate": 6,
+        "stale_motion_refresh": 1,
+        "stale_quantile_refresh": 7,
+        "stronger_motion_event": 4
+      },
+      "rejected_count": 26,
+      "stale_quantile_bypass_count": 7,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            16,
+            17
+          ],
+          "motion": 0.597911,
+          "motion_threshold": 0.605126,
+          "victim_end_t": 5
+        },
+        {
+          "candidate_pair": [
+            31,
+            32
+          ],
+          "motion": 0.468494,
+          "motion_threshold": 0.57867,
+          "victim_end_t": 17
+        },
+        {
+          "candidate_pair": [
+            43,
+            44
+          ],
+          "motion": 0.506928,
+          "motion_threshold": 0.571654,
+          "victim_end_t": 32
+        },
+        {
+          "candidate_pair": [
+            55,
+            56
+          ],
+          "motion": 0.452578,
+          "motion_threshold": 0.535309,
+          "victim_end_t": 44
+        },
+        {
+          "candidate_pair": [
+            67,
+            68
+          ],
+          "motion": 0.46224,
+          "motion_threshold": 0.502136,
+          "victim_end_t": 56
+        },
+        {
+          "candidate_pair": [
+            97,
+            98
+          ],
+          "motion": 0.508538,
+          "motion_threshold": 0.543578,
+          "victim_end_t": 86
+        },
+        {
+          "candidate_pair": [
+            109,
+            110
+          ],
+          "motion": 0.513403,
+          "motion_threshold": 0.543578,
+          "victim_end_t": 98
+        }
+      ]
+    },
+    {
+      "accepted_count": 13,
+      "early_freshness_refresh_count": 5,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            27,
+            28
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 16
+        },
+        {
+          "candidate_pair": [
+            40,
+            41
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 28
+        },
+        {
+          "candidate_pair": [
+            55,
+            56
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 44
+        },
+        {
+          "candidate_pair": [
+            76,
+            77
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 64
+        },
+        {
+          "candidate_pair": [
+            97,
+            98
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 86
+        }
+      ],
+      "evicted_count": 12,
+      "pair_age": {
+        "max": 11.0,
+        "mean": 5.102564102564102,
+        "p50": 5.0,
+        "p95": 11.0
+      },
+      "prompt_index": 7,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 15,
+        "replacement_gate": 11,
+        "stale_quantile_refresh": 5,
+        "stronger_motion_event": 7
+      },
+      "rejected_count": 26,
+      "stale_quantile_bypass_count": 5,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            27,
+            28
+          ],
+          "motion": 0.664568,
+          "motion_threshold": 0.705633,
+          "victim_end_t": 16
+        },
+        {
+          "candidate_pair": [
+            40,
+            41
+          ],
+          "motion": 0.668681,
+          "motion_threshold": 0.701775,
+          "victim_end_t": 28
+        },
+        {
+          "candidate_pair": [
+            55,
+            56
+          ],
+          "motion": 0.662063,
+          "motion_threshold": 0.701707,
+          "victim_end_t": 44
+        },
+        {
+          "candidate_pair": [
+            76,
+            77
+          ],
+          "motion": 0.625393,
+          "motion_threshold": 0.688921,
+          "victim_end_t": 64
+        },
+        {
+          "candidate_pair": [
+            97,
+            98
+          ],
+          "motion": 0.600895,
+          "motion_threshold": 0.709409,
+          "victim_end_t": 86
+        }
+      ]
+    },
+    {
+      "accepted_count": 12,
+      "early_freshness_refresh_count": 6,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            27,
+            28
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 14,
+          "victim_end_t": 14
+        },
+        {
+          "candidate_pair": [
+            40,
+            41
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 28
+        },
+        {
+          "candidate_pair": [
+            54,
+            55
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 14,
+          "victim_end_t": 41
+        },
+        {
+          "candidate_pair": [
+            73,
+            74
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 62
+        },
+        {
+          "candidate_pair": [
+            90,
+            91
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 79
+        },
+        {
+          "candidate_pair": [
+            102,
+            103
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 91
+        }
+      ],
+      "evicted_count": 11,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 5.641025641025641,
+        "p50": 5.0,
+        "p95": 11.200000000000003
+      },
+      "prompt_index": 8,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 16,
+        "replacement_gate": 11,
+        "stale_motion_refresh": 2,
+        "stale_quantile_refresh": 4,
+        "stronger_motion_event": 5
+      },
+      "rejected_count": 27,
+      "stale_quantile_bypass_count": 4,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            40,
+            41
+          ],
+          "motion": 0.515724,
+          "motion_threshold": 0.58912,
+          "victim_end_t": 28
+        },
+        {
+          "candidate_pair": [
+            54,
+            55
+          ],
+          "motion": 0.526639,
+          "motion_threshold": 0.577597,
+          "victim_end_t": 41
+        },
+        {
+          "candidate_pair": [
+            73,
+            74
+          ],
+          "motion": 0.546139,
+          "motion_threshold": 0.570625,
+          "victim_end_t": 62
+        },
+        {
+          "candidate_pair": [
+            102,
+            103
+          ],
+          "motion": 0.573519,
+          "motion_threshold": 0.600573,
+          "victim_end_t": 91
+        }
+      ]
+    },
+    {
+      "accepted_count": 13,
+      "early_freshness_refresh_count": 5,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            24,
+            25
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 14,
+          "victim_end_t": 11
+        },
+        {
+          "candidate_pair": [
+            42,
+            43
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 14,
+          "victim_end_t": 29
+        },
+        {
+          "candidate_pair": [
+            70,
+            71
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 59
+        },
+        {
+          "candidate_pair": [
+            88,
+            89
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 15,
+          "victim_end_t": 74
+        },
+        {
+          "candidate_pair": [
+            103,
+            104
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 91
+        }
+      ],
+      "evicted_count": 12,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 5.6923076923076925,
+        "p50": 5.0,
+        "p95": 13.0
+      },
+      "prompt_index": 9,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 16,
+        "replacement_gate": 10,
+        "stale_quantile_refresh": 5,
+        "stronger_motion_event": 7
+      },
+      "rejected_count": 26,
+      "stale_quantile_bypass_count": 5,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            24,
+            25
+          ],
+          "motion": 0.582136,
+          "motion_threshold": 0.602295,
+          "victim_end_t": 11
+        },
+        {
+          "candidate_pair": [
+            42,
+            43
+          ],
+          "motion": 0.528049,
+          "motion_threshold": 0.602295,
+          "victim_end_t": 29
+        },
+        {
+          "candidate_pair": [
+            70,
+            71
+          ],
+          "motion": 0.60739,
+          "motion_threshold": 0.625817,
+          "victim_end_t": 59
+        },
+        {
+          "candidate_pair": [
+            88,
+            89
+          ],
+          "motion": 0.580617,
+          "motion_threshold": 0.627638,
+          "victim_end_t": 74
+        },
+        {
+          "candidate_pair": [
+            103,
+            104
+          ],
+          "motion": 0.576349,
+          "motion_threshold": 0.638402,
+          "victim_end_t": 91
+        }
+      ]
+    },
+    {
+      "accepted_count": 13,
+      "early_freshness_refresh_count": 7,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            16,
+            17
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 15,
+          "victim_end_t": 2
+        },
+        {
+          "candidate_pair": [
+            28,
+            29
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 17
+        },
+        {
+          "candidate_pair": [
+            43,
+            44
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 13,
+          "victim_end_t": 31
+        },
+        {
+          "candidate_pair": [
+            55,
+            56
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 44
+        },
+        {
+          "candidate_pair": [
+            76,
+            77
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 65
+        },
+        {
+          "candidate_pair": [
+            90,
+            91
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 79
+        },
+        {
+          "candidate_pair": [
+            106,
+            107
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 95
+        }
+      ],
+      "evicted_count": 12,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 5.230769230769231,
+        "p50": 4.0,
+        "p95": 11.0
+      },
+      "prompt_index": 10,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 21,
+        "replacement_gate": 5,
+        "stale_motion_refresh": 2,
+        "stale_quantile_refresh": 5,
+        "stronger_motion_event": 5
+      },
+      "rejected_count": 26,
+      "stale_quantile_bypass_count": 5,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            16,
+            17
+          ],
+          "motion": 0.692228,
+          "motion_threshold": 0.746278,
+          "victim_end_t": 2
+        },
+        {
+          "candidate_pair": [
+            28,
+            29
+          ],
+          "motion": 0.618445,
+          "motion_threshold": 0.695223,
+          "victim_end_t": 17
+        },
+        {
+          "candidate_pair": [
+            55,
+            56
+          ],
+          "motion": 0.66112,
+          "motion_threshold": 0.678512,
+          "victim_end_t": 44
+        },
+        {
+          "candidate_pair": [
+            90,
+            91
+          ],
+          "motion": 0.666142,
+          "motion_threshold": 0.672589,
+          "victim_end_t": 79
+        },
+        {
+          "candidate_pair": [
+            106,
+            107
+          ],
+          "motion": 0.649722,
+          "motion_threshold": 0.666142,
+          "victim_end_t": 95
+        }
+      ]
+    },
+    {
+      "accepted_count": 12,
+      "early_freshness_refresh_count": 6,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            18,
+            19
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 14,
+          "victim_end_t": 5
+        },
+        {
+          "candidate_pair": [
+            31,
+            32
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 19
+        },
+        {
+          "candidate_pair": [
+            46,
+            47
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 35
+        },
+        {
+          "candidate_pair": [
+            58,
+            59
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 47
+        },
+        {
+          "candidate_pair": [
+            88,
+            89
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 77
+        },
+        {
+          "candidate_pair": [
+            100,
+            101
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 89
+        }
+      ],
+      "evicted_count": 11,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 5.487179487179487,
+        "p50": 4.0,
+        "p95": 11.200000000000003
+      },
+      "prompt_index": 11,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 22,
+        "replacement_gate": 5,
+        "stale_quantile_refresh": 7,
+        "stronger_motion_event": 4
+      },
+      "rejected_count": 27,
+      "stale_quantile_bypass_count": 7,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            18,
+            19
+          ],
+          "motion": 0.691031,
+          "motion_threshold": 0.72877,
+          "victim_end_t": 5
+        },
+        {
+          "candidate_pair": [
+            31,
+            32
+          ],
+          "motion": 0.673106,
+          "motion_threshold": 0.708313,
+          "victim_end_t": 19
+        },
+        {
+          "candidate_pair": [
+            46,
+            47
+          ],
+          "motion": 0.667677,
+          "motion_threshold": 0.699542,
+          "victim_end_t": 35
+        },
+        {
+          "candidate_pair": [
+            58,
+            59
+          ],
+          "motion": 0.586638,
+          "motion_threshold": 0.688309,
+          "victim_end_t": 47
+        },
+        {
+          "candidate_pair": [
+            88,
+            89
+          ],
+          "motion": 0.658819,
+          "motion_threshold": 0.669245,
+          "victim_end_t": 77
+        },
+        {
+          "candidate_pair": [
+            100,
+            101
+          ],
+          "motion": 0.581363,
+          "motion_threshold": 0.660584,
+          "victim_end_t": 89
+        },
+        {
+          "candidate_pair": [
+            112,
+            113
+          ],
+          "motion": 0.646573,
+          "motion_threshold": 0.660584,
+          "victim_end_t": 101
+        }
+      ]
+    },
+    {
+      "accepted_count": 10,
+      "early_freshness_refresh_count": 5,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            16,
+            17
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 15,
+          "victim_end_t": 2
+        },
+        {
+          "candidate_pair": [
+            30,
+            31
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 14,
+          "victim_end_t": 17
+        },
+        {
+          "candidate_pair": [
+            51,
+            52
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 40
+        },
+        {
+          "candidate_pair": [
+            88,
+            89
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 15,
+          "victim_end_t": 74
+        },
+        {
+          "candidate_pair": [
+            102,
+            103
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 14,
+          "victim_end_t": 89
+        }
+      ],
+      "evicted_count": 9,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 6.256410256410256,
+        "p50": 5.0,
+        "p95": 13.0
+      },
+      "prompt_index": 12,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 21,
+        "replacement_gate": 8,
+        "stale_motion_refresh": 1,
+        "stale_quantile_refresh": 4,
+        "stronger_motion_event": 4
+      },
+      "rejected_count": 29,
+      "stale_quantile_bypass_count": 4,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            16,
+            17
+          ],
+          "motion": 0.534046,
+          "motion_threshold": 0.624037,
+          "victim_end_t": 2
+        },
+        {
+          "candidate_pair": [
+            30,
+            31
+          ],
+          "motion": 0.485482,
+          "motion_threshold": 0.59862,
+          "victim_end_t": 17
+        },
+        {
+          "candidate_pair": [
+            51,
+            52
+          ],
+          "motion": 0.483241,
+          "motion_threshold": 0.554903,
+          "victim_end_t": 40
+        },
+        {
+          "candidate_pair": [
+            102,
+            103
+          ],
+          "motion": 0.527192,
+          "motion_threshold": 0.535355,
+          "victim_end_t": 89
+        }
+      ]
+    },
+    {
+      "accepted_count": 13,
+      "early_freshness_refresh_count": 6,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            15,
+            16
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 14,
+          "victim_end_t": 2
+        },
+        {
+          "candidate_pair": [
+            33,
+            34
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 22
+        },
+        {
+          "candidate_pair": [
+            48,
+            49
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 37
+        },
+        {
+          "candidate_pair": [
+            75,
+            76
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 64
+        },
+        {
+          "candidate_pair": [
+            87,
+            88
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 76
+        },
+        {
+          "candidate_pair": [
+            100,
+            101
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 88
+        }
+      ],
+      "evicted_count": 12,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 5.794871794871795,
+        "p50": 5.0,
+        "p95": 11.0
+      },
+      "prompt_index": 13,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 19,
+        "replacement_gate": 7,
+        "stale_quantile_refresh": 6,
+        "stronger_motion_event": 6
+      },
+      "rejected_count": 26,
+      "stale_quantile_bypass_count": 6,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            15,
+            16
+          ],
+          "motion": 0.559326,
+          "motion_threshold": 0.62048,
+          "victim_end_t": 2
+        },
+        {
+          "candidate_pair": [
+            33,
+            34
+          ],
+          "motion": 0.539779,
+          "motion_threshold": 0.61991,
+          "victim_end_t": 22
+        },
+        {
+          "candidate_pair": [
+            48,
+            49
+          ],
+          "motion": 0.574051,
+          "motion_threshold": 0.61991,
+          "victim_end_t": 37
+        },
+        {
+          "candidate_pair": [
+            75,
+            76
+          ],
+          "motion": 0.585729,
+          "motion_threshold": 0.587141,
+          "victim_end_t": 64
+        },
+        {
+          "candidate_pair": [
+            87,
+            88
+          ],
+          "motion": 0.571626,
+          "motion_threshold": 0.587141,
+          "victim_end_t": 76
+        },
+        {
+          "candidate_pair": [
+            100,
+            101
+          ],
+          "motion": 0.500152,
+          "motion_threshold": 0.566514,
+          "victim_end_t": 88
+        }
+      ]
+    },
+    {
+      "accepted_count": 15,
+      "early_freshness_refresh_count": 5,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            25,
+            26
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 13
+        },
+        {
+          "candidate_pair": [
+            40,
+            41
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 15,
+          "victim_end_t": 26
+        },
+        {
+          "candidate_pair": [
+            73,
+            74
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 62
+        },
+        {
+          "candidate_pair": [
+            91,
+            92
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 80
+        },
+        {
+          "candidate_pair": [
+            109,
+            110
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 98
+        }
+      ],
+      "evicted_count": 14,
+      "pair_age": {
+        "max": 13.0,
+        "mean": 4.6923076923076925,
+        "p50": 4.0,
+        "p95": 10.100000000000001
+      },
+      "prompt_index": 14,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 16,
+        "replacement_gate": 8,
+        "stale_quantile_refresh": 6,
+        "stronger_motion_event": 8
+      },
+      "rejected_count": 24,
+      "stale_quantile_bypass_count": 6,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            25,
+            26
+          ],
+          "motion": 0.535591,
+          "motion_threshold": 0.574643,
+          "victim_end_t": 13
+        },
+        {
+          "candidate_pair": [
+            40,
+            41
+          ],
+          "motion": 0.468758,
+          "motion_threshold": 0.566116,
+          "victim_end_t": 26
+        },
+        {
+          "candidate_pair": [
+            52,
+            53
+          ],
+          "motion": 0.494279,
+          "motion_threshold": 0.558724,
+          "victim_end_t": 41
+        },
+        {
+          "candidate_pair": [
+            73,
+            74
+          ],
+          "motion": 0.475367,
+          "motion_threshold": 0.497843,
+          "victim_end_t": 62
+        },
+        {
+          "candidate_pair": [
+            91,
+            92
+          ],
+          "motion": 0.475619,
+          "motion_threshold": 0.494279,
+          "victim_end_t": 80
+        },
+        {
+          "candidate_pair": [
+            109,
+            110
+          ],
+          "motion": 0.469562,
+          "motion_threshold": 0.493251,
+          "victim_end_t": 98
+        }
+      ]
+    },
+    {
+      "accepted_count": 12,
+      "early_freshness_refresh_count": 6,
+      "early_freshness_refreshes": [
+        {
+          "candidate_pair": [
+            15,
+            16
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 4
+        },
+        {
+          "candidate_pair": [
+            28,
+            29
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 13,
+          "victim_end_t": 16
+        },
+        {
+          "candidate_pair": [
+            40,
+            41
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 29
+        },
+        {
+          "candidate_pair": [
+            64,
+            65
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 53
+        },
+        {
+          "candidate_pair": [
+            97,
+            98
+          ],
+          "reason": "stale_motion_refresh",
+          "victim_age": 12,
+          "victim_end_t": 86
+        },
+        {
+          "candidate_pair": [
+            109,
+            110
+          ],
+          "reason": "stale_quantile_refresh",
+          "victim_age": 12,
+          "victim_end_t": 98
+        }
+      ],
+      "evicted_count": 11,
+      "pair_age": {
+        "max": 11.0,
+        "mean": 5.205128205128205,
+        "p50": 4.0,
+        "p95": 10.100000000000001
+      },
+      "prompt_index": 15,
+      "reason_counts": {
+        "fill_motion_pair": 1,
+        "motion_quantile_gate": 22,
+        "replacement_gate": 5,
+        "stale_motion_refresh": 2,
+        "stale_quantile_refresh": 5,
+        "stronger_motion_event": 4
+      },
+      "rejected_count": 27,
+      "stale_quantile_bypass_count": 5,
+      "stale_quantile_bypasses": [
+        {
+          "candidate_pair": [
+            28,
+            29
+          ],
+          "motion": 0.565977,
+          "motion_threshold": 0.672199,
+          "victim_end_t": 16
+        },
+        {
+          "candidate_pair": [
+            40,
+            41
+          ],
+          "motion": 0.559331,
+          "motion_threshold": 0.647916,
+          "victim_end_t": 29
+        },
+        {
+          "candidate_pair": [
+            64,
+            65
+          ],
+          "motion": 0.495456,
+          "motion_threshold": 0.582195,
+          "victim_end_t": 53
+        },
+        {
+          "candidate_pair": [
+            76,
+            77
+          ],
+          "motion": 0.550748,
+          "motion_threshold": 0.559331,
+          "victim_end_t": 65
+        },
+        {
+          "candidate_pair": [
+            109,
+            110
+          ],
+          "motion": 0.52204,
+          "motion_threshold": 0.542798,
+          "victim_end_t": 98
+        }
+      ]
+    }
+  ],
+  "representative_trace": {
+    "head": 0,
+    "layer": 15
+  },
+  "version": 1
+}
