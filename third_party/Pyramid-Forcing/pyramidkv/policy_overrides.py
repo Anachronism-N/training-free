@@ -153,6 +153,8 @@ def history_polarity_policy_overrides(
         "reservoir2_statemotion1",
         "reservoir2_freshmotion4",
         "reservoir2_statemotion1_strict",
+        "reservoir2_stateage12motion1",
+        "reservoir2_statebalancedmotion1",
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -190,6 +192,8 @@ def history_polarity_policy_overrides(
         "reservoir2_statemotion1",
         "reservoir2_freshmotion4",
         "reservoir2_statemotion1_strict",
+        "reservoir2_stateage12motion1",
+        "reservoir2_statebalancedmotion1",
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -287,6 +291,8 @@ def history_polarity_policy_overrides(
             "reservoir2_statemotion1",
             "reservoir2_freshmotion4",
             "reservoir2_statemotion1_strict",
+            "reservoir2_stateage12motion1",
+            "reservoir2_statebalancedmotion1",
         }
         else 1
         if support == "landmark_motion"
@@ -305,6 +311,8 @@ def history_polarity_policy_overrides(
             "reservoir2_statemotion1",
             "reservoir2_freshmotion4",
             "reservoir2_statemotion1_strict",
+            "reservoir2_stateage12motion1",
+            "reservoir2_statebalancedmotion1",
         }
         else 1
         if suppress == "landmark_motion"
@@ -367,6 +375,8 @@ def history_polarity_policy_overrides(
             "reservoir2_motion1",
             "reservoir2_freshmotion1",
             "reservoir2_statemotion1",
+            "reservoir2_stateage12motion1",
+            "reservoir2_statebalancedmotion1",
         }
         else 0
     )
@@ -379,6 +389,8 @@ def history_polarity_policy_overrides(
             "reservoir2_motion1",
             "reservoir2_freshmotion1",
             "reservoir2_statemotion1",
+            "reservoir2_stateage12motion1",
+            "reservoir2_statebalancedmotion1",
         }
         else 0
     )
@@ -420,6 +432,8 @@ def history_polarity_policy_overrides(
             "reservoir2_statemotion1",
             "reservoir2_freshmotion4",
             "reservoir2_statemotion1_strict",
+            "reservoir2_stateage12motion1",
+            "reservoir2_statebalancedmotion1",
             "snapshot",
             "snapshot2",
             "sparse75",
@@ -468,6 +482,8 @@ def history_polarity_policy_overrides(
             "reservoir2_statemotion1",
             "reservoir2_freshmotion4",
             "reservoir2_statemotion1_strict",
+            "reservoir2_stateage12motion1",
+            "reservoir2_statebalancedmotion1",
             "snapshot",
             "snapshot2",
             "sparse75",
@@ -553,6 +569,8 @@ def history_polarity_policy_overrides(
                     "reservoir2_statemotion1",
                     "reservoir2_freshmotion4",
                     "reservoir2_statemotion1_strict",
+                    "reservoir2_stateage12motion1",
+                    "reservoir2_statebalancedmotion1",
                 }
                 else 24
             ),
@@ -564,6 +582,8 @@ def history_polarity_policy_overrides(
                     "reservoir2_statemotion1",
                     "reservoir2_freshmotion4",
                     "reservoir2_statemotion1_strict",
+                    "reservoir2_stateage12motion1",
+                    "reservoir2_statebalancedmotion1",
                 }
                 else 24
             ),
@@ -575,6 +595,8 @@ def history_polarity_policy_overrides(
                 "reservoir2_statemotion1",
                 "reservoir2_freshmotion4",
                 "reservoir2_statemotion1_strict",
+                "reservoir2_stateage12motion1",
+                "reservoir2_statebalancedmotion1",
             },
             suppress_key: suppress
             in {
@@ -582,6 +604,8 @@ def history_polarity_policy_overrides(
                 "reservoir2_statemotion1",
                 "reservoir2_freshmotion4",
                 "reservoir2_statemotion1_strict",
+                "reservoir2_stateage12motion1",
+                "reservoir2_statebalancedmotion1",
             },
         },
         "pyramidkv_label_coherent_motion_state_match_map": {
@@ -590,12 +614,16 @@ def history_polarity_policy_overrides(
                 "reservoir2_statemotion1",
                 "reservoir2_freshmotion4",
                 "reservoir2_statemotion1_strict",
+                "reservoir2_stateage12motion1",
+                "reservoir2_statebalancedmotion1",
             },
             suppress_key: suppress
             in {
                 "reservoir2_statemotion1",
                 "reservoir2_freshmotion4",
                 "reservoir2_statemotion1_strict",
+                "reservoir2_stateage12motion1",
+                "reservoir2_statebalancedmotion1",
             },
         },
         "pyramidkv_label_coherent_motion_state_min_similarity_map": {
@@ -631,8 +659,8 @@ def history_polarity_policy_overrides(
             ),
         },
         "pyramidkv_label_coherent_motion_state_max_read_age_map": {
-            support_key: 24,
-            suppress_key: 24,
+            support_key: 12 if support == "reservoir2_stateage12motion1" else 24,
+            suppress_key: 12 if suppress == "reservoir2_stateage12motion1" else 24,
         },
         "pyramidkv_label_coherent_motion_state_archive_capacity_map": {
             support_key: (
@@ -642,6 +670,8 @@ def history_polarity_policy_overrides(
                     "reservoir2_statemotion1",
                     "reservoir2_freshmotion4",
                     "reservoir2_statemotion1_strict",
+                    "reservoir2_stateage12motion1",
+                    "reservoir2_statebalancedmotion1",
                 }
                 else 1
             ),
@@ -652,6 +682,8 @@ def history_polarity_policy_overrides(
                     "reservoir2_statemotion1",
                     "reservoir2_freshmotion4",
                     "reservoir2_statemotion1_strict",
+                    "reservoir2_stateage12motion1",
+                    "reservoir2_statebalancedmotion1",
                 }
                 else 1
             ),
@@ -674,6 +706,14 @@ def history_polarity_policy_overrides(
                     "state_similarity",
                     "recency",
                 ]
+            ),
+        },
+        "pyramidkv_label_coherent_motion_state_recency_weight_map": {
+            support_key: (
+                0.25 if support == "reservoir2_statebalancedmotion1" else 0.0
+            ),
+            suppress_key: (
+                0.25 if suppress == "reservoir2_statebalancedmotion1" else 0.0
             ),
         },
         "pyramidkv_label_semantic_retrieval_capacity_map": {
@@ -736,6 +776,10 @@ def history_polarity_policy_overrides(
             or suppress == "reservoir2_freshmotion4"
             or support == "reservoir2_statemotion1_strict"
             or suppress == "reservoir2_statemotion1_strict"
+            or support == "reservoir2_stateage12motion1"
+            or suppress == "reservoir2_stateage12motion1"
+            or support == "reservoir2_statebalancedmotion1"
+            or suppress == "reservoir2_statebalancedmotion1"
         ),
         # The neutral-label route must not inherit a second legacy dynamic
         # history path alongside its explicit middle strategy.
