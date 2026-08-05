@@ -67,6 +67,15 @@ V160_METHOD_MAP = {
     OLD_MOTION: OLD_MOTION,
     RESERVOIR: RESERVOIR,
 }
+V160_TARGET_COLUMNS = {
+    "identity": ("identity_continuity_-2_to_2",),
+    "background": ("background_continuity_-2_to_2",),
+    "motion": (
+        "motion_naturalness_-2_to_2",
+        "late_motion_stability_-2_to_2",
+    ),
+    "overall": ("overall_preference_-2_to_2",),
+}
 LAMBDA_GRID = (0.01, 0.1, 1.0, 10.0, 100.0)
 PATH_PATTERN = re.compile(
     r"(?:^|/)split_clip/(\d{6})-0/\1-0_(\d{3})\.mp4(?:/|$)"
@@ -142,6 +151,32 @@ def parse_args() -> argparse.Namespace:
             / "results"
             / "v160_fresh_motion_moviebench16"
             / "v160_wave1_review_sheet.csv"
+        ),
+    )
+    parser.add_argument(
+        "--v160-analysis",
+        type=Path,
+        default=(
+            ROOT
+            / "runs"
+            / "v160_fresh_motion_moviebench16"
+            / "full8"
+            / "automated_screen"
+            / "adaptive_review_analysis.json"
+        ),
+    )
+    parser.add_argument(
+        "--v160-wave2-review",
+        type=Path,
+        default=(
+            ROOT
+            / "runs"
+            / "v160_fresh_motion_moviebench16"
+            / "full8"
+            / "adaptive_review"
+            / "wave2"
+            / "reviewer"
+            / "v160_wave2_review_sheet.csv"
         ),
     )
     parser.add_argument(
@@ -390,6 +425,124 @@ def pair_records(
                 }
             )
     return records
+
+
+def v160_analysis_pair_records(
+    features: dict[tuple[str, int], np.ndarray],
+    path: Path,
+    target: str,
+    prompt_order: list[int],
+) -> list[dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    combined = payload.get("combined") or {}
+    prompt_set = [int(value) for value in combined.get("prompt_indices", [])]
+    stored_order = combined.get("delta_prompt_order")
+    prompts = (
+        [int(value) for value in stored_order]
+        if isinstance(stored_order, list)
+        else [int(value) for value in prompt_order]
+    )
+    comparisons = combined.get("comparisons") or {}
+    if (
+        payload.get("experiment")
+        != "v160_adaptive_blind_review_analysis"
+        or payload.get("review_complete") is not True
+        or int(combined.get("prompt_count", -1)) != 8
+        or len(prompt_set) != 8
+        or len(set(prompt_set)) != 8
+        or len(prompts) != 8
+        or set(prompts) != set(prompt_set)
+        or set(comparisons) != {OLD_MOTION, RESERVOIR}
+        or target not in V160_TARGET_COLUMNS
+    ):
+        raise ValueError("v160 combined review analysis violates the contract")
+
+    deltas: dict[str, list[float]] = {}
+    for reference in (OLD_MOTION, RESERVOIR):
+        dimensions = []
+        for column in V160_TARGET_COLUMNS[target]:
+            raw = (comparisons[reference].get(column) or {}).get("deltas")
+            if not isinstance(raw, list) or len(raw) != len(prompts):
+                raise ValueError(
+                    f"v160 {reference}:{column} delta coverage mismatch"
+                )
+            dimensions.append(
+                [finite(value, name=f"v160:{reference}:{column}") for value in raw]
+            )
+        deltas[reference] = [
+            statistics.mean(values)
+            for values in zip(*dimensions)
+        ]
+
+    records = []
+    for offset, prompt in enumerate(prompts):
+        fresh_old = deltas[OLD_MOTION][offset]
+        fresh_reservoir = deltas[RESERVOIR][offset]
+        for left, right, value in (
+            (FRESH, OLD_MOTION, fresh_old),
+            (FRESH, RESERVOIR, fresh_reservoir),
+            (OLD_MOTION, RESERVOIR, fresh_reservoir - fresh_old),
+        ):
+            left_key = (left, prompt)
+            right_key = (right, prompt)
+            if left_key not in features or right_key not in features:
+                raise ValueError(
+                    f"missing v160 transfer features for {left_key}/{right_key}"
+                )
+            records.append(
+                {
+                    "prompt": prompt,
+                    "left": left,
+                    "right": right,
+                    "x": features[left_key] - features[right_key],
+                    "y": float(value),
+                }
+            )
+    return records
+
+
+def review_prompt_order(*paths: Path) -> list[int]:
+    order = []
+    for path in paths:
+        rows = read_csv(path)
+        seen = set()
+        for row in rows:
+            prompt = int(row["prompt_index"])
+            if prompt not in seen:
+                seen.add(prompt)
+                order.append(prompt)
+        if len(rows) != 12 or len(seen) != 4:
+            raise ValueError(f"v160 review prompt order is incomplete: {path}")
+    if len(order) != 8 or len(set(order)) != 8:
+        raise ValueError("v160 combined review prompt order is not unique")
+    return order
+
+
+def validate_v160_wave1_consistency(
+    full_records: list[dict[str, Any]],
+    wave1_records: list[dict[str, Any]],
+) -> None:
+    def keyed(rows: list[dict[str, Any]]) -> dict[tuple[int, str, str], float]:
+        return {
+            (int(row["prompt"]), str(row["left"]), str(row["right"])): float(
+                row["y"]
+            )
+            for row in rows
+        }
+
+    full = keyed(full_records)
+    wave1 = keyed(wave1_records)
+    missing = sorted(set(wave1) - set(full))
+    conflicts = {
+        key: (wave1[key], full[key])
+        for key in wave1
+        if key in full and not math.isclose(wave1[key], full[key], abs_tol=1e-9)
+    }
+    if missing or conflicts:
+        raise ValueError(
+            f"v160 Wave 1/combined review mismatch: missing={missing} "
+            f"conflicts={conflicts}"
+        )
 
 
 def fit_ridge(records: list[dict[str, Any]], regularization: float) -> dict:
@@ -671,6 +824,8 @@ def main() -> None:
         args.v157_review,
         args.v160_key,
         args.v160_review,
+        args.v160_analysis,
+        args.v160_wave2_review,
         args.v161_screen,
     )
     missing = [str(path) for path in required if not path.is_file()]
@@ -691,16 +846,12 @@ def main() -> None:
     v160_human = load_reviews(
         args.v160_key,
         args.v160_review,
-        target_columns={
-            "identity": ("identity_continuity_-2_to_2",),
-            "background": ("background_continuity_-2_to_2",),
-            "motion": (
-                "motion_naturalness_-2_to_2",
-                "late_motion_stability_-2_to_2",
-            ),
-            "overall": ("overall_preference_-2_to_2",),
-        },
+        target_columns=V160_TARGET_COLUMNS,
         method_map=V160_METHOD_MAP,
+    )
+    v160_prompt_order = review_prompt_order(
+        args.v160_review,
+        args.v160_wave2_review,
     )
     if args.history_preflight:
         expected_v157 = len(V157_METHODS) * PROMPT_COUNT
@@ -708,10 +859,26 @@ def main() -> None:
             raise ValueError("v157 historical calibration coverage is incomplete")
         if len(v160_human) != 12:
             raise ValueError("v160 transfer-review coverage must contain 12 videos")
+        dummy = {
+            (method, prompt): np.zeros(len(FEATURE_NAMES), dtype=np.float64)
+            for method in (FRESH, OLD_MOTION, RESERVOIR)
+            for prompt in range(PROMPT_COUNT)
+        }
+        for target in TARGETS:
+            full_records = v160_analysis_pair_records(
+                dummy,
+                args.v160_analysis,
+                target,
+                v160_prompt_order,
+            )
+            wave1_records = pair_records(dummy, v160_human, target)
+            validate_v160_wave1_consistency(full_records, wave1_records)
+            if len(full_records) != 24:
+                raise ValueError("v160 combined transfer requires 24 pairs")
         print(
             "[v162-history-preflight] "
             f"features={len(v157_features)} v157_reviews={len(v157_human)} "
-            f"v160_reviews={len(v160_human)} "
+            f"v160_reviews=24 v160_prompts=8 "
             f"feature_sha256={feature_digest(v157_features)} status=ok",
             flush=True,
         )
@@ -733,7 +900,16 @@ def main() -> None:
         cv_metrics, outer_models = cross_validate(training_records)
         regularization = select_regularization(training_records)
         final_model = fit_ridge(training_records, regularization)
-        transfer_records = pair_records(v162_features, v160_human, target)
+        transfer_records = v160_analysis_pair_records(
+            v162_features,
+            args.v160_analysis,
+            target,
+            v160_prompt_order,
+        )
+        validate_v160_wave1_consistency(
+            transfer_records,
+            pair_records(v162_features, v160_human, target),
+        )
         transfer_predictions = [
             predict(final_model, row["x"]) for row in transfer_records
         ]
@@ -823,6 +999,8 @@ def main() -> None:
                     ("v157_review", args.v157_review),
                     ("v160_key", args.v160_key),
                     ("v160_review", args.v160_review),
+                    ("v160_analysis", args.v160_analysis),
+                    ("v160_wave2_review", args.v160_wave2_review),
                     ("v161_screen", args.v161_screen),
                 )
             },

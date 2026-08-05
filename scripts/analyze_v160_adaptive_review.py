@@ -106,13 +106,15 @@ def by_prompt(rows: list[dict]) -> dict[int, dict[str, dict]]:
 
 def paired_summary(rows: list[dict]) -> dict:
     grouped = by_prompt(rows)
+    prompt_order = sorted(grouped)
     comparisons = {}
     for reference in REFERENCES:
         dimension_rows = {}
         for dimension in DIMENSIONS:
             deltas = [
-                methods[PRIMARY][dimension] - methods[reference][dimension]
-                for methods in grouped.values()
+                grouped[prompt][PRIMARY][dimension]
+                - grouped[prompt][reference][dimension]
+                for prompt in prompt_order
             ]
             dimension_rows[dimension] = {
                 "mean_delta": statistics.mean(deltas),
@@ -124,33 +126,36 @@ def paired_summary(rows: list[dict]) -> dict:
             }
         comparisons[reference] = dimension_rows
     favorable_motion = sum(
-        methods[PRIMARY]["motion_naturalness_-2_to_2"]
+        grouped[prompt][PRIMARY]["motion_naturalness_-2_to_2"]
         >= max(
-            methods[reference]["motion_naturalness_-2_to_2"]
+            grouped[prompt][reference]["motion_naturalness_-2_to_2"]
             for reference in REFERENCES
         )
-        for methods in grouped.values()
+        for prompt in prompt_order
     )
     loses_motion_to_both = sum(
-        methods[PRIMARY]["motion_naturalness_-2_to_2"]
+        grouped[prompt][PRIMARY]["motion_naturalness_-2_to_2"]
         < min(
-            methods[reference]["motion_naturalness_-2_to_2"]
+            grouped[prompt][reference]["motion_naturalness_-2_to_2"]
             for reference in REFERENCES
         )
-        for methods in grouped.values()
+        for prompt in prompt_order
     )
     favorable_overall = sum(
-        methods[PRIMARY]["overall_preference_-2_to_2"]
+        grouped[prompt][PRIMARY]["overall_preference_-2_to_2"]
         >= max(
-            methods[reference]["overall_preference_-2_to_2"]
+            grouped[prompt][reference]["overall_preference_-2_to_2"]
             for reference in REFERENCES
         )
-        for methods in grouped.values()
+        for prompt in prompt_order
     )
-    primary_severe = sum(methods[PRIMARY][SEVERE] for methods in grouped.values())
+    primary_severe = sum(
+        grouped[prompt][PRIMARY][SEVERE] for prompt in prompt_order
+    )
     return {
         "prompt_count": len(grouped),
-        "prompt_indices": sorted(grouped),
+        "prompt_indices": prompt_order,
+        "delta_prompt_order": prompt_order,
         "comparisons": comparisons,
         "primary_favorable_motion_prompts": favorable_motion,
         "primary_loses_motion_to_both_prompts": loses_motion_to_both,

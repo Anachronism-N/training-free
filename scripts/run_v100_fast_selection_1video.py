@@ -97,6 +97,8 @@ class Cell:
                 "reservoir2_motion1",
                 "reservoir2_freshmotion1",
                 "reservoir2_statemotion1",
+                "reservoir2_stateage12motion1",
+                "reservoir2_statebalancedmotion1",
                 "profile_anchor",
                 "snapshot",
                 "snapshot2",
@@ -520,6 +522,8 @@ def expected_policy(
             "reservoir2_motion1",
             "reservoir2_freshmotion1",
             "reservoir2_statemotion1",
+            "reservoir2_stateage12motion1",
+            "reservoir2_statebalancedmotion1",
         }:
             result = (
                 ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
@@ -658,6 +662,18 @@ def expected_policy(
                 "reservoir_motion",
             ),
             "reservoir2_statemotion1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_stateage12motion1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_statebalancedmotion1": (
                 ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
                 1,
                 4,
@@ -846,6 +862,8 @@ def audit_policy_trace(
                                 "reservoir2_motion1",
                                 "reservoir2_freshmotion1",
                                 "reservoir2_statemotion1",
+                                "reservoir2_stateage12motion1",
+                                "reservoir2_statebalancedmotion1",
                             }
                             else 4
                         )
@@ -1014,6 +1032,8 @@ def audit_policy_trace(
                                     "reservoir2_motion1",
                                     "reservoir2_freshmotion1",
                                     "reservoir2_statemotion1",
+                                    "reservoir2_stateage12motion1",
+                                    "reservoir2_statebalancedmotion1",
                                 }
                                 and int(state.get("pair_capacity", -1)) != 1
                             ):
@@ -1027,6 +1047,8 @@ def audit_policy_trace(
                                 in {
                                     "reservoir2_freshmotion1",
                                     "reservoir2_statemotion1",
+                                    "reservoir2_stateage12motion1",
+                                    "reservoir2_statebalancedmotion1",
                                 }
                                 else 24
                             )
@@ -1035,6 +1057,8 @@ def audit_policy_trace(
                                 in {
                                     "reservoir2_freshmotion1",
                                     "reservoir2_statemotion1",
+                                    "reservoir2_stateage12motion1",
+                                    "reservoir2_statebalancedmotion1",
                                 }
                             )
                             if (
@@ -1056,8 +1080,13 @@ def audit_policy_trace(
                                     f"line {line_number}: stale-refresh "
                                     "quantile policy mismatch"
                                 )
+                            state_match_policies = {
+                                "reservoir2_statemotion1",
+                                "reservoir2_stateage12motion1",
+                                "reservoir2_statebalancedmotion1",
+                            }
                             expected_state_match = (
-                                active_policy == "reservoir2_statemotion1"
+                                active_policy in state_match_policies
                             )
                             if bool(state.get("state_match", False)) != (
                                 expected_state_match
@@ -1088,6 +1117,18 @@ def audit_policy_trace(
                                     f"read is not an atomic pair: {read_pair}"
                                 )
                             if expected_state_match:
+                                expected_state_read_age = (
+                                    12
+                                    if active_policy
+                                    == "reservoir2_stateage12motion1"
+                                    else 24
+                                )
+                                expected_recency_weight = (
+                                    0.25
+                                    if active_policy
+                                    == "reservoir2_statebalancedmotion1"
+                                    else 0.0
+                                )
                                 if (
                                     int(
                                         state.get(
@@ -1099,7 +1140,11 @@ def audit_policy_trace(
                                     or int(
                                         state.get("state_max_read_age", -1)
                                     )
-                                    != 24
+                                    != expected_state_read_age
+                                    or float(
+                                        state.get("state_recency_weight", -1.0)
+                                    )
+                                    != expected_recency_weight
                                     or float(
                                         state.get(
                                             "state_min_direction_similarity",
@@ -1123,6 +1168,13 @@ def audit_policy_trace(
                                         "direction_available",
                                         "candidates",
                                         "selected",
+                                        "legacy_selected",
+                                        "newest_passing",
+                                        "selection_mode",
+                                        "selection_changed_from_legacy",
+                                        "selected_age",
+                                        "selected_compatibility",
+                                        "selected_score",
                                         "reason",
                                     }
                                     missing_retrieval = sorted(
@@ -1137,7 +1189,7 @@ def audit_policy_trace(
                                         )
                             pair_bank_capacity = (
                                 int(state.get("state_archive_capacity", -1))
-                                if active_policy == "reservoir2_statemotion1"
+                                if active_policy in state_match_policies
                                 else int(state["pair_capacity"])
                             )
                             if len(pairs) > pair_bank_capacity:
@@ -1171,7 +1223,7 @@ def audit_policy_trace(
                             }
                             frame_bank_capacity = (
                                 pair_bank_capacity * 2
-                                if active_policy == "reservoir2_statemotion1"
+                                if active_policy in state_match_policies
                                 else int(state["capacity"])
                             )
                             if len(unique_frames) > frame_bank_capacity:
@@ -1222,6 +1274,8 @@ def audit_policy_trace(
                                     in {
                                         "reservoir2_freshmotion1",
                                         "reservoir2_statemotion1",
+                                        "reservoir2_stateage12motion1",
+                                        "reservoir2_statebalancedmotion1",
                                     }
                                     and "stale_quantile_bypass"
                                     not in last_decision
@@ -1537,6 +1591,8 @@ def audit_role_event_trace(
             "reservoir2_motion1",
             "reservoir2_freshmotion1",
             "reservoir2_statemotion1",
+            "reservoir2_stateage12motion1",
+            "reservoir2_statebalancedmotion1",
         }:
             routes["motion"] = 2 if policy == "motion_pair" else 1
         if policy in {

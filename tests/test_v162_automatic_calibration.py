@@ -13,6 +13,7 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 import analyze_v162_metric_human_calibration as calibration  # noqa: E402
+import analyze_v160_adaptive_review as v160_analysis  # noqa: E402
 import prepare_v162_minimal_review as review  # noqa: E402
 import run_v162_vbench_long as vbench  # noqa: E402
 
@@ -150,6 +151,73 @@ def test_frozen_human_calibration_artifacts_are_complete() -> None:
     assert len(v157) == 64
     assert len(v160) == 12
     assert {prompt for _, prompt in v160} == {1, 7, 10, 12}
+
+    dummy = {
+        (method, prompt): np.zeros(
+            len(calibration.FEATURE_NAMES), dtype=np.float64
+        )
+        for method in (
+            calibration.FRESH,
+            calibration.OLD_MOTION,
+            calibration.RESERVOIR,
+        )
+        for prompt in range(calibration.PROMPT_COUNT)
+    }
+    analysis_path = (
+        ROOT
+        / "runs"
+        / "v160_fresh_motion_moviebench16"
+        / "full8"
+        / "automated_screen"
+        / "adaptive_review_analysis.json"
+    )
+    wave2_path = (
+        ROOT
+        / "runs"
+        / "v160_fresh_motion_moviebench16"
+        / "full8"
+        / "adaptive_review"
+        / "wave2"
+        / "reviewer"
+        / "v160_wave2_review_sheet.csv"
+    )
+    prompt_order = calibration.review_prompt_order(
+        v160_root / "v160_wave1_review_sheet.csv",
+        wave2_path,
+    )
+    for target in calibration.TARGETS:
+        combined = calibration.v160_analysis_pair_records(
+            dummy,
+            analysis_path,
+            target,
+            prompt_order,
+        )
+        wave1 = calibration.pair_records(dummy, v160, target)
+        calibration.validate_v160_wave1_consistency(combined, wave1)
+        assert len(combined) == 24
+        assert len({row["prompt"] for row in combined}) == 8
+
+
+def test_v160_delta_order_matches_reported_prompt_order() -> None:
+    rows = []
+    for prompt in (12, 1):
+        for method in v160_analysis.REVIEW_METHODS:
+            row = {
+                "prompt_index": prompt,
+                "method": method,
+                v160_analysis.SEVERE: 0,
+                **{dimension: 0.0 for dimension in v160_analysis.DIMENSIONS},
+            }
+            if method == v160_analysis.PRIMARY:
+                row["identity_continuity_-2_to_2"] = float(prompt)
+            rows.append(row)
+    summary = v160_analysis.paired_summary(rows)
+    assert summary["prompt_indices"] == [1, 12]
+    assert summary["delta_prompt_order"] == [1, 12]
+    for reference in v160_analysis.REFERENCES:
+        assert summary["comparisons"][reference][
+            "identity_continuity_-2_to_2"
+        ]["deltas"] == [1.0, 12.0]
 
 
 def test_v161_screen_selects_two_sentinels_and_three_flags() -> None:

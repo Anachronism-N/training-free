@@ -1212,6 +1212,8 @@ class CausalInferencePipeline(torch.nn.Module):
                     label_coherent_motion_max_pair_age_map=hc.pyramidkv_label_coherent_motion_max_pair_age_map,
                     label_coherent_motion_stale_refresh_map=hc.pyramidkv_label_coherent_motion_stale_refresh_map,
                     label_coherent_motion_state_match_map=hc.pyramidkv_label_coherent_motion_state_match_map,
+                    label_coherent_motion_state_max_read_age_map=hc.pyramidkv_label_coherent_motion_state_max_read_age_map,
+                    label_coherent_motion_state_recency_weight_map=hc.pyramidkv_label_coherent_motion_state_recency_weight_map,
                     label_semantic_retrieval_capacity_map=hc.pyramidkv_label_semantic_retrieval_capacity_map,
                     label_semantic_retrieval_max_age_map=hc.pyramidkv_label_semantic_retrieval_max_age_map,
                     semantic_retrieval_min_similarity=hc.pyramidkv_semantic_retrieval_min_similarity,

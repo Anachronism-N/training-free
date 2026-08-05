@@ -130,9 +130,17 @@ feature scaling and model fitting happen inside nested leave-one-prompt-out
 cross-validation. Regularization is selected from
 `{0.01, 0.1, 1, 10, 100}` without exposing the held-out prompt.
 
-The final v157 model is then tested without refitting on the 12 completed v160
-reviews: 4 prompts x 3 methods. This transfer check matters because a model
+The final v157 model is then tested without refitting on all 24 completed v160
+reviews: 8 prompts x 3 methods. The transfer set contributes 24 within-prompt
+pair records per target. This transfer check matters because a model
 that only memorizes v157 method artifacts is not useful for v161 triage.
+
+The original v160 analyzer stored `prompt_indices` in sorted order but stored
+the corresponding delta arrays in review-sheet insertion order. Aggregate
+means were unaffected, but per-prompt calibration would have been wrong. v162
+now reconstructs the frozen Wave 1 and Wave 2 insertion order from both review
+sheets, checks the Wave 1 overlap exactly, and hashes both sheets. Future v160
+reports write an explicit sorted `delta_prompt_order`.
 
 Calibration passes only if all checks pass:
 
