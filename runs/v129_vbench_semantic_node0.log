@@ -1,0 +1,61 @@
+[v129-vbench] profile=semantic_extension node=0/2 jobs=32 gpus=8
+[launch] gpu=7 method=ours_prototype_retrieval_motion dimension=multiple_objects
+[launch] gpu=1 method=rolling_forcing dimension=object_class
+[launch] gpu=2 method=ours_prototype_retrieval_age24 dimension=object_class
+[launch] gpu=4 method=sf_native dimension=multiple_objects
+[launch] gpu=0 method=sf_native dimension=object_class
+[launch] gpu=3 method=ours_prototype_retrieval_motion dimension=object_class
+[launch] gpu=5 method=rolling_forcing dimension=multiple_objects
+[launch] gpu=6 method=ours_prototype_retrieval_age24 dimension=multiple_objects
+[failed] gpu=4 job=sf_native|multiple_objects
+[failed] gpu=3 job=ours_prototype_retrieval_motion|object_class
+[failed] gpu=5 job=rolling_forcing|multiple_objects
+[failed] gpu=6 job=ours_prototype_retrieval_age24|multiple_objects
+[launch] gpu=3 method=ours_prototype_retrieval_motion dimension=human_action
+[launch] gpu=4 method=sf_native dimension=color
+[launch] gpu=5 method=rolling_forcing dimension=color
+[failed] gpu=2 job=ours_prototype_retrieval_age24|object_class
+[launch] gpu=6 method=ours_prototype_retrieval_age24 dimension=color
+[failed] gpu=1 job=rolling_forcing|object_class
+[launch] gpu=2 method=ours_prototype_retrieval_age24 dimension=human_action
+[launch] gpu=1 method=rolling_forcing dimension=human_action
+[failed] gpu=7 job=ours_prototype_retrieval_motion|multiple_objects
+[failed] gpu=0 job=sf_native|object_class
+[launch] gpu=7 method=ours_prototype_retrieval_motion dimension=color
+[launch] gpu=0 method=sf_native dimension=human_action
+[failed] gpu=4 job=sf_native|color
+[failed] gpu=5 job=rolling_forcing|color
+[failed] gpu=6 job=ours_prototype_retrieval_age24|color
+[launch] gpu=4 method=sf_native dimension=scene
+[launch] gpu=5 method=rolling_forcing dimension=scene
+[launch] gpu=6 method=ours_prototype_retrieval_age24 dimension=scene
+[failed] gpu=7 job=ours_prototype_retrieval_motion|color
+[launch] gpu=7 method=ours_prototype_retrieval_motion dimension=scene
+[failed] gpu=0 job=sf_native|human_action
+[launch] gpu=0 method=sf_native dimension=spatial_relationship
+[failed] gpu=7 job=ours_prototype_retrieval_motion|scene
+[launch] gpu=7 method=ours_prototype_retrieval_motion dimension=temporal_style
+[failed] gpu=0 job=sf_native|spatial_relationship
+[launch] gpu=0 method=sf_native dimension=appearance_style
+[failed] gpu=2 job=ours_prototype_retrieval_age24|human_action
+[launch] gpu=2 method=ours_prototype_retrieval_age24 dimension=spatial_relationship
+[failed] gpu=3 job=ours_prototype_retrieval_motion|human_action
+[failed] gpu=1 job=rolling_forcing|human_action
+[launch] gpu=3 method=ours_prototype_retrieval_motion dimension=spatial_relationship
+[launch] gpu=1 method=rolling_forcing dimension=spatial_relationship
+[failed] gpu=0 job=sf_native|appearance_style
+[failed] gpu=2 job=ours_prototype_retrieval_age24|spatial_relationship
+[launch] gpu=2 method=ours_prototype_retrieval_age24 dimension=appearance_style
+[failed] gpu=3 job=ours_prototype_retrieval_motion|spatial_relationship
+[failed] gpu=1 job=rolling_forcing|spatial_relationship
+[launch] gpu=3 method=ours_prototype_retrieval_motion dimension=appearance_style
+[launch] gpu=1 method=rolling_forcing dimension=appearance_style
+[failed] gpu=2 job=ours_prototype_retrieval_age24|appearance_style
+[failed] gpu=3 job=ours_prototype_retrieval_motion|appearance_style
+[failed] gpu=1 job=rolling_forcing|appearance_style
+[failed] gpu=6 job=ours_prototype_retrieval_age24|scene
+[failed] gpu=4 job=sf_native|scene
+[launch] gpu=6 method=ours_prototype_retrieval_age24 dimension=temporal_style
+[launch] gpu=4 method=sf_native dimension=temporal_style
+[failed] gpu=5 job=rolling_forcing|scene
+[launch] gpu=5 method=rolling_forcing dimension=temporal_style

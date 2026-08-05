@@ -1,0 +1,46 @@
+[v129-vbench] profile=semantic_extension node=1/2 jobs=32 gpus=8
+[launch] gpu=0 method=deep_forcing dimension=object_class
+[launch] gpu=3 method=ours_confidence_motion dimension=object_class
+[launch] gpu=7 method=ours_confidence_motion dimension=multiple_objects
+[launch] gpu=6 method=ours_confidence_recent dimension=multiple_objects
+[launch] gpu=5 method=longlive dimension=multiple_objects
+[launch] gpu=1 method=longlive dimension=object_class
+[launch] gpu=4 method=deep_forcing dimension=multiple_objects
+[launch] gpu=2 method=ours_confidence_recent dimension=object_class
+[failed] gpu=7 job=ours_confidence_motion|multiple_objects
+[failed] gpu=2 job=ours_confidence_recent|object_class
+[failed] gpu=3 job=ours_confidence_motion|object_class
+[failed] gpu=4 job=deep_forcing|multiple_objects
+[failed] gpu=1 job=longlive|object_class
+[failed] gpu=6 job=ours_confidence_recent|multiple_objects
+[failed] gpu=0 job=deep_forcing|object_class
+[failed] gpu=5 job=longlive|multiple_objects
+[launch] gpu=6 method=ours_confidence_recent dimension=color
+[launch] gpu=1 method=longlive dimension=human_action
+[launch] gpu=3 method=ours_confidence_motion dimension=human_action
+[launch] gpu=5 method=longlive dimension=color
+[launch] gpu=7 method=ours_confidence_motion dimension=color
+[launch] gpu=4 method=deep_forcing dimension=color
+[launch] gpu=0 method=deep_forcing dimension=human_action
+[launch] gpu=2 method=ours_confidence_recent dimension=human_action
+[failed] gpu=6 job=ours_confidence_recent|color
+[failed] gpu=7 job=ours_confidence_motion|color
+[failed] gpu=4 job=deep_forcing|color
+[failed] gpu=5 job=longlive|color
+[launch] gpu=6 method=ours_confidence_recent dimension=scene
+[launch] gpu=4 method=deep_forcing dimension=scene
+[launch] gpu=7 method=ours_confidence_motion dimension=scene
+[launch] gpu=5 method=longlive dimension=scene
+[failed] gpu=1 job=longlive|human_action
+[failed] gpu=0 job=deep_forcing|human_action
+[failed] gpu=2 job=ours_confidence_recent|human_action
+[failed] gpu=3 job=ours_confidence_motion|human_action
+[launch] gpu=0 method=deep_forcing dimension=spatial_relationship
+[launch] gpu=1 method=longlive dimension=spatial_relationship
+[launch] gpu=2 method=ours_confidence_recent dimension=spatial_relationship
+[launch] gpu=3 method=ours_confidence_motion dimension=spatial_relationship
+[failed] gpu=0 job=deep_forcing|spatial_relationship
+[failed] gpu=3 job=ours_confidence_motion|spatial_relationship
+[failed] gpu=2 job=ours_confidence_recent|spatial_relationship
+[launch] gpu=0 method=deep_forcing dimension=appearance_style
+[failed] gpu=1 job=longlive|spatial_relationship
