@@ -1066,6 +1066,7 @@ class CoherentMotionStrategy:
                 self.state_min_direction_similarity
             ),
             "state_max_read_age": int(self.state_max_read_age),
+            "state_selection_order": list(self.state_selection_order) or None,
             "pair_frame_ids": [
                 [int(record.start.t), int(record.end.t)]
                 for record in self._pairs[idx].values()
