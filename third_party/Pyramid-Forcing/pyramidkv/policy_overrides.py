@@ -151,6 +151,8 @@ def history_polarity_policy_overrides(
         "reservoir2_motion1",
         "reservoir2_freshmotion1",
         "reservoir2_statemotion1",
+        "reservoir2_freshmotion4",
+        "reservoir2_statemotion1_strict",
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -186,6 +188,8 @@ def history_polarity_policy_overrides(
         "reservoir2_motion1",
         "reservoir2_freshmotion1",
         "reservoir2_statemotion1",
+        "reservoir2_freshmotion4",
+        "reservoir2_statemotion1_strict",
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -281,6 +285,8 @@ def history_polarity_policy_overrides(
             "reservoir2_motion1",
             "reservoir2_freshmotion1",
             "reservoir2_statemotion1",
+            "reservoir2_freshmotion4",
+            "reservoir2_statemotion1_strict",
         }
         else 1
         if support == "landmark_motion"
@@ -297,6 +303,8 @@ def history_polarity_policy_overrides(
             "reservoir2_motion1",
             "reservoir2_freshmotion1",
             "reservoir2_statemotion1",
+            "reservoir2_freshmotion4",
+            "reservoir2_statemotion1_strict",
         }
         else 1
         if suppress == "landmark_motion"
@@ -410,6 +418,8 @@ def history_polarity_policy_overrides(
             "reservoir2_motion1",
             "reservoir2_freshmotion1",
             "reservoir2_statemotion1",
+            "reservoir2_freshmotion4",
+            "reservoir2_statemotion1_strict",
             "snapshot",
             "snapshot2",
             "sparse75",
@@ -456,6 +466,8 @@ def history_polarity_policy_overrides(
             "reservoir2_motion1",
             "reservoir2_freshmotion1",
             "reservoir2_statemotion1",
+            "reservoir2_freshmotion4",
+            "reservoir2_statemotion1_strict",
             "snapshot",
             "snapshot2",
             "sparse75",
@@ -536,25 +548,133 @@ def history_polarity_policy_overrides(
             support_key: (
                 12
                 if support
-                in {"reservoir2_freshmotion1", "reservoir2_statemotion1"}
+                in {
+                    "reservoir2_freshmotion1",
+                    "reservoir2_statemotion1",
+                    "reservoir2_freshmotion4",
+                    "reservoir2_statemotion1_strict",
+                }
                 else 24
             ),
             suppress_key: (
                 12
                 if suppress
-                in {"reservoir2_freshmotion1", "reservoir2_statemotion1"}
+                in {
+                    "reservoir2_freshmotion1",
+                    "reservoir2_statemotion1",
+                    "reservoir2_freshmotion4",
+                    "reservoir2_statemotion1_strict",
+                }
                 else 24
             ),
         },
         "pyramidkv_label_coherent_motion_stale_refresh_map": {
             support_key: support
-            in {"reservoir2_freshmotion1", "reservoir2_statemotion1"},
+            in {
+                "reservoir2_freshmotion1",
+                "reservoir2_statemotion1",
+                "reservoir2_freshmotion4",
+                "reservoir2_statemotion1_strict",
+            },
             suppress_key: suppress
-            in {"reservoir2_freshmotion1", "reservoir2_statemotion1"},
+            in {
+                "reservoir2_freshmotion1",
+                "reservoir2_statemotion1",
+                "reservoir2_freshmotion4",
+                "reservoir2_statemotion1_strict",
+            },
         },
         "pyramidkv_label_coherent_motion_state_match_map": {
-            support_key: support == "reservoir2_statemotion1",
-            suppress_key: suppress == "reservoir2_statemotion1",
+            support_key: support
+            in {
+                "reservoir2_statemotion1",
+                "reservoir2_freshmotion4",
+                "reservoir2_statemotion1_strict",
+            },
+            suppress_key: suppress
+            in {
+                "reservoir2_statemotion1",
+                "reservoir2_freshmotion4",
+                "reservoir2_statemotion1_strict",
+            },
+        },
+        "pyramidkv_label_coherent_motion_state_min_similarity_map": {
+            support_key: (
+                -1.0
+                if support == "reservoir2_freshmotion4"
+                else 0.0
+                if support == "reservoir2_statemotion1_strict"
+                else -0.25
+            ),
+            suppress_key: (
+                -1.0
+                if suppress == "reservoir2_freshmotion4"
+                else 0.0
+                if suppress == "reservoir2_statemotion1_strict"
+                else -0.25
+            ),
+        },
+        "pyramidkv_label_coherent_motion_state_min_direction_similarity_map": {
+            support_key: (
+                -1.0
+                if support == "reservoir2_freshmotion4"
+                else 0.1
+                if support == "reservoir2_statemotion1_strict"
+                else 0.0
+            ),
+            suppress_key: (
+                -1.0
+                if suppress == "reservoir2_freshmotion4"
+                else 0.1
+                if suppress == "reservoir2_statemotion1_strict"
+                else 0.0
+            ),
+        },
+        "pyramidkv_label_coherent_motion_state_max_read_age_map": {
+            support_key: 24,
+            suppress_key: 24,
+        },
+        "pyramidkv_label_coherent_motion_state_archive_capacity_map": {
+            support_key: (
+                4
+                if support
+                in {
+                    "reservoir2_statemotion1",
+                    "reservoir2_freshmotion4",
+                    "reservoir2_statemotion1_strict",
+                }
+                else 1
+            ),
+            suppress_key: (
+                4
+                if suppress
+                in {
+                    "reservoir2_statemotion1",
+                    "reservoir2_freshmotion4",
+                    "reservoir2_statemotion1_strict",
+                }
+                else 1
+            ),
+        },
+        "pyramidkv_label_coherent_motion_state_selection_order_map": {
+            support_key: (
+                ["recency"]
+                if support == "reservoir2_freshmotion4"
+                else [
+                    "direction_similarity",
+                    "state_similarity",
+                    "recency",
+                ]
+            ),
+            suppress_key: (
+                ["recency"]
+                if suppress == "reservoir2_freshmotion4"
+                else [
+                    "direction_similarity",
+                    "state_similarity",
+                    "recency",
+                ]
+            ),
         },
         "pyramidkv_label_semantic_retrieval_capacity_map": {
             support_key: support_retrieval_capacity,
@@ -612,6 +732,10 @@ def history_polarity_policy_overrides(
             or suppress == "reservoir2_freshmotion1"
             or support == "reservoir2_statemotion1"
             or suppress == "reservoir2_statemotion1"
+            or support == "reservoir2_freshmotion4"
+            or suppress == "reservoir2_freshmotion4"
+            or support == "reservoir2_statemotion1_strict"
+            or suppress == "reservoir2_statemotion1_strict"
         ),
         # The neutral-label route must not inherit a second legacy dynamic
         # history path alongside its explicit middle strategy.

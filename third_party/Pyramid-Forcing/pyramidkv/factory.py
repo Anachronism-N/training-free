@@ -316,6 +316,11 @@ def build_compositions(
     label_coherent_motion_max_pair_age_map: dict | None = None,
     label_coherent_motion_stale_refresh_map: dict | None = None,
     label_coherent_motion_state_match_map: dict | None = None,
+    label_coherent_motion_state_min_similarity_map: dict | None = None,
+    label_coherent_motion_state_min_direction_similarity_map: dict | None = None,
+    label_coherent_motion_state_max_read_age_map: dict | None = None,
+    label_coherent_motion_state_archive_capacity_map: dict | None = None,
+    label_coherent_motion_state_selection_order_map: dict | None = None,
     label_semantic_retrieval_capacity_map: dict | None = None,
     label_semantic_retrieval_max_age_map: dict | None = None,
     semantic_retrieval_min_similarity: float = -0.25,
@@ -371,6 +376,27 @@ def build_compositions(
     )
     coherent_motion_state_match_map = _build_bool_map(
         label_coherent_motion_state_match_map
+    )
+    coherent_motion_state_min_similarity_map = _build_float_map(
+        label_coherent_motion_state_min_similarity_map,
+        min_value=-1.0,
+        max_value=1.0,
+    )
+    coherent_motion_state_min_direction_similarity_map = _build_float_map(
+        label_coherent_motion_state_min_direction_similarity_map,
+        min_value=-1.0,
+        max_value=1.0,
+    )
+    coherent_motion_state_max_read_age_map = _build_int_map(
+        label_coherent_motion_state_max_read_age_map,
+        min_value=1,
+    )
+    coherent_motion_state_archive_capacity_map = _build_int_map(
+        label_coherent_motion_state_archive_capacity_map,
+        min_value=1,
+    )
+    coherent_motion_state_selection_order_map = dict(
+        label_coherent_motion_state_selection_order_map or {}
     )
     semantic_retrieval_capacity_map = _build_int_map(
         label_semantic_retrieval_capacity_map,
@@ -701,6 +727,31 @@ def build_compositions(
                         state_match=coherent_motion_state_match_map.get(
                             label_key,
                             False,
+                        ),
+                        state_min_similarity=(
+                            coherent_motion_state_min_similarity_map.get(
+                                label_key, -0.25
+                            )
+                        ),
+                        state_min_direction_similarity=(
+                            coherent_motion_state_min_direction_similarity_map.get(
+                                label_key, 0.0
+                            )
+                        ),
+                        state_max_read_age=(
+                            coherent_motion_state_max_read_age_map.get(
+                                label_key, 24
+                            )
+                        ),
+                        state_archive_capacity=(
+                            coherent_motion_state_archive_capacity_map.get(
+                                label_key, 4
+                            )
+                        ),
+                        state_selection_order=(
+                            coherent_motion_state_selection_order_map.get(
+                                label_key
+                            )
                         ),
                         dynamic_rope=True,
                     )

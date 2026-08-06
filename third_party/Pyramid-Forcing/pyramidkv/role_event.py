@@ -464,6 +464,7 @@ class CoherentMotionStrategy:
         state_min_similarity: float = -0.25,
         state_min_direction_similarity: float = 0.0,
         state_max_read_age: int = 24,
+        state_selection_order: list[str] | None = None,
         dynamic_rope: bool = True,
     ):
         self.pair_capacity = max(1, int(pair_capacity))
@@ -490,6 +491,7 @@ class CoherentMotionStrategy:
             state_min_direction_similarity
         )
         self.state_max_read_age = max(1, int(state_max_read_age))
+        self.state_selection_order = list(state_selection_order or [])
         if not -1.0 <= self.state_min_similarity <= 1.0:
             raise ValueError("state_min_similarity must be within [-1, 1]")
         if not -1.0 <= self.state_min_direction_similarity <= 1.0:
@@ -949,7 +951,27 @@ class CoherentMotionStrategy:
                         record,
                     )
                 )
-        selected = max(scored, key=lambda item: item[:3])[3] if scored else None
+        if self.state_selection_order:
+            order = [
+                key
+                for key in self.state_selection_order
+                if key in ("direction_similarity", "state_similarity", "recency")
+            ] or ["direction_similarity", "state_similarity", "recency"]
+            key_indices = {
+                "direction_similarity": 0,
+                "state_similarity": 1,
+                "recency": 2,
+            }
+            selected = (
+                max(
+                    scored,
+                    key=lambda item: tuple(item[key_indices[k]] for k in order),
+                )[3]
+                if scored
+                else None
+            )
+        else:
+            selected = max(scored, key=lambda item: item[:3])[3] if scored else None
         reason = (
             "selected"
             if selected is not None
