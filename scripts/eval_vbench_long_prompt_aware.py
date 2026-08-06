@@ -68,10 +68,25 @@ def _folder_stem(video_path: str) -> str:
 def rewrite_full_info_prompts(
     full_info_path: Path,
     prompts: list[str],
+    vbench_full_info_path: Path | None = None,
 ) -> dict[str, Any]:
     payload = json.loads(full_info_path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
         raise ValueError("VBench full-info artifact is not a list")
+    # Load auxiliary_info templates from VBench_full_info.json for dims
+    # that require it (object_class, multiple_objects, color, scene,
+    # spatial_relationship, appearance_style).
+    aux_templates: dict[str, list] = {}
+    if vbench_full_info_path is not None and vbench_full_info_path.exists():
+        full_info = json.loads(vbench_full_info_path.read_text(encoding="utf-8"))
+        for item in full_info:
+            if not isinstance(item, dict) or "auxiliary_info" not in item:
+                continue
+            dims = item.get("dimension")
+            dims_list = dims if isinstance(dims, list) else [dims]
+            for d in dims_list:
+                if d and d in item["auxiliary_info"]:
+                    aux_templates.setdefault(d, []).append(item["auxiliary_info"][d])
     observed: set[int] = set()
     for row in payload:
         if not isinstance(row, dict):
@@ -91,6 +106,17 @@ def rewrite_full_info_prompts(
         row["prompt_en"] = prompts[index]
         row["v129_prompt_index"] = index
         observed.add(index)
+        # VBench build_full_info_json does not carry auxiliary_info when
+        # using custom prompts. Cycle through VBench's own auxiliary_info
+        # templates so dimensions that need it (object_class, color, etc.)
+        # can compute their metrics.
+        dims = row.get("dimension")
+        dims_list = dims if isinstance(dims, list) else [dims]
+        if "auxiliary_info" not in row:
+            for d in dims_list:
+                if d and d in aux_templates and aux_templates[d]:
+                    template = aux_templates[d][index % len(aux_templates[d])]
+                    row.setdefault("auxiliary_info", {})[d] = template
     expected = set(range(len(prompts)))
     if observed != expected:
         raise ValueError(
@@ -166,7 +192,8 @@ def main() -> None:
                 **kwargs,
             )
             if mode == "long_custom_input":
-                report = rewrite_full_info_prompts(Path(path), prompts)
+                vbench_full_info = Path(self.full_info_dir)
+                report = rewrite_full_info_prompts(Path(path), prompts, vbench_full_info)
                 report.update(
                     {
                         "version": 1,
