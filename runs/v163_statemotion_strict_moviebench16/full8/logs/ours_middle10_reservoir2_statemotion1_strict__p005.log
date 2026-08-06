@@ -4,7 +4,7 @@
 Running on a single GPU (cuda); skipping NCCL initialization.
 Free VRAM 94.68743896484375 GB
 Loading CUDA extension (first run compiles ~60s; cached run ~3s)...
-CUDA extension ready in 9.0s.
+CUDA extension ready in 125.5s.
 [HistoryPolarityPolicy] support_label=10 suppress_label=11 support=reservoir2_statemotion1_strict suppress=recent8_sink1 budget=default counts=10:120,11:240 support_sink=1 suppress_sink=1 support_recent=4 suppress_recent=8 retrieval_abstain=False retrieval_min_similarity=-0.2500 retrieval_min_margin=0.0000 legacy_pf_labels=false exclusive_owner=true
 KV inference with 3 frames per block
 Number of prompts: 16
@@ -12,46 +12,46 @@ Prompt index range: [5, 6)
 Loading PyramidKV config from /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/configs/head_maps/v157_layer_middle10_reservoir.csv
 [PyramidKVHeadMap] path=/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/configs/head_maps/v157_layer_middle10_reservoir.csv heads=360 labels={10: 120, 11: 240} policies={'stride': 360} sink_frames={1: 360} recent_frames={4: 360}
 [PyramidKVRuntimePolicy] path=/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/configs/head_maps/v157_layer_middle10_reservoir.csv heads=360 labels={10: 120, 11: 240} policies={'coherent_motion': 120, 'stride': 240} middle={'CoherentMotionStrategy': 120, 'none': 240} sinks={1: 360} recent={4: 120, 8: 240} exclusive_dynamic=True
-block 1/40 - 1/120  31625.0 ms
-block 2/40 - 4/120   2287.1 ms
-block 3/40 - 7/120   2663.9 ms
-block 4/40 - 10/120   2738.4 ms
-block 5/40 - 13/120   2651.0 ms
-block 6/40 - 16/120   2773.6 ms
-block 7/40 - 19/120   2702.2 ms
-block 8/40 - 22/120   2826.4 ms
-block 9/40 - 25/120   2715.3 ms
-block 10/40 - 28/120   2624.8 ms
-block 11/40 - 31/120   2627.7 ms
-block 12/40 - 34/120   2607.5 ms
-block 13/40 - 37/120   2655.1 ms
-block 14/40 - 40/120   2593.9 ms
-block 15/40 - 43/120   2709.4 ms
-block 16/40 - 46/120   2618.5 ms
-block 17/40 - 49/120   2602.1 ms
-block 18/40 - 52/120   2611.2 ms
-block 19/40 - 55/120   2836.9 ms
-block 20/40 - 58/120   2682.1 ms
-block 21/40 - 61/120   2622.4 ms
-block 22/40 - 64/120   2667.6 ms
-block 23/40 - 67/120   2655.4 ms
-block 24/40 - 70/120   2666.7 ms
-block 25/40 - 73/120   2678.7 ms
-block 26/40 - 76/120   2668.1 ms
-block 27/40 - 79/120   2668.5 ms
-block 28/40 - 82/120   2665.0 ms
-block 29/40 - 85/120   2739.3 ms
-block 30/40 - 88/120   2694.8 ms
-block 31/40 - 91/120   2716.2 ms
-block 32/40 - 94/120   2654.0 ms
-block 33/40 - 97/120   2671.4 ms
-block 34/40 - 100/120   2702.3 ms
-block 35/40 - 103/120   2663.1 ms
-block 36/40 - 106/120   2653.0 ms
-block 37/40 - 109/120   2688.7 ms
-block 38/40 - 112/120   2678.4 ms
-block 39/40 - 115/120   2660.6 ms
-block 40/40 - 118/120   2652.3 ms
+block 1/40 - 1/120  193686.9 ms
+block 2/40 - 4/120   2439.8 ms
+block 3/40 - 7/120   2759.0 ms
+block 4/40 - 10/120   2754.3 ms
+block 5/40 - 13/120   2704.2 ms
+block 6/40 - 16/120   2804.2 ms
+block 7/40 - 19/120   2818.7 ms
+block 8/40 - 22/120   3013.4 ms
+block 9/40 - 25/120   2967.7 ms
+block 10/40 - 28/120   3076.5 ms
+block 11/40 - 31/120   2828.2 ms
+block 12/40 - 34/120   2835.9 ms
+block 13/40 - 37/120   2791.9 ms
+block 14/40 - 40/120   2836.0 ms
+block 15/40 - 43/120   2825.5 ms
+block 16/40 - 46/120   2700.2 ms
+block 17/40 - 49/120   2660.3 ms
+block 18/40 - 52/120   2686.5 ms
+block 19/40 - 55/120   2663.7 ms
+block 20/40 - 58/120   2666.6 ms
+block 21/40 - 61/120   2731.7 ms
+block 22/40 - 64/120   2657.7 ms
+block 23/40 - 67/120   2738.9 ms
+block 24/40 - 70/120   2678.6 ms
+block 25/40 - 73/120   2850.5 ms
+block 26/40 - 76/120   2777.7 ms
+block 27/40 - 79/120   2673.7 ms
+block 28/40 - 82/120   2700.3 ms
+block 29/40 - 85/120   2738.7 ms
+block 30/40 - 88/120   2681.6 ms
+block 31/40 - 91/120   2731.5 ms
+block 32/40 - 94/120   2680.6 ms
+block 33/40 - 97/120   2723.8 ms
+block 34/40 - 100/120   2682.0 ms
+block 35/40 - 103/120   2687.3 ms
+block 36/40 - 106/120   2678.7 ms
+block 37/40 - 109/120   2700.2 ms
+block 38/40 - 112/120   2649.2 ms
+block 39/40 - 115/120   2685.7 ms
+block 40/40 - 118/120   2681.8 ms
 /apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/lib/python3.10/site-packages/torchvision/io/_video_deprecation_warning.py:9: UserWarning: The video decoding and encoding capabilities of torchvision are deprecated from version 0.22 and will be removed in version 0.24. We recommend that you migrate to TorchCodec, where we'll consolidate the future decoding/encoding capabilities of PyTorch: https://github.com/pytorch/torchcodec
   warnings.warn(
-[6/16] elapsed=2.3m  avg=22.8s/prompt  eta=3.8m
+[6/16] elapsed=5.3m  avg=53.1s/prompt  eta=8.8m
