@@ -466,6 +466,8 @@ class CoherentMotionStrategy:
         state_max_read_age: int = 24,
         state_selection_order: list[str] | None = None,
         state_recency_weight: float = 0.0,
+        state_similarity_weight: float = 0.5,
+        state_fallback_to_newest: bool = False,
         dynamic_rope: bool = True,
     ):
         self.pair_capacity = max(1, int(pair_capacity))
@@ -494,12 +496,16 @@ class CoherentMotionStrategy:
         self.state_max_read_age = max(1, int(state_max_read_age))
         self.state_selection_order = list(state_selection_order or [])
         self.state_recency_weight = max(0.0, float(state_recency_weight))
+        self.state_similarity_weight = float(state_similarity_weight)
+        self.state_fallback_to_newest = bool(state_fallback_to_newest)
         if not -1.0 <= self.state_min_similarity <= 1.0:
             raise ValueError("state_min_similarity must be within [-1, 1]")
         if not -1.0 <= self.state_min_direction_similarity <= 1.0:
             raise ValueError(
                 "state_min_direction_similarity must be within [-1, 1]"
             )
+        if not 0.0 <= self.state_similarity_weight <= 1.0:
+            raise ValueError("state_similarity_weight must be within [0, 1]")
         self.dynamic_rope = bool(dynamic_rope)
         self._pairs: list[OrderedDict[int, _MotionPairRecord]] = []
         self._references: list[torch.Tensor | None] = []
@@ -935,12 +941,19 @@ class CoherentMotionStrategy:
             compatibility = None
             selection_score = None
             if state_similarity is not None:
-                compatibility = (
-                    float(state_similarity)
-                    if direction_similarity is None
-                    else 0.5
-                    * (float(state_similarity) + float(direction_similarity))
-                )
+                if direction_similarity is None:
+                    compatibility = (
+                        float(state_similarity)
+                        if self.state_similarity_weight > 0.0
+                        else None
+                    )
+                else:
+                    compatibility = (
+                        self.state_similarity_weight * float(state_similarity)
+                        + (1.0 - self.state_similarity_weight)
+                        * float(direction_similarity)
+                    )
+            if compatibility is not None:
                 selection_score = compatibility - self.state_recency_weight * (
                     float(age) / float(self.state_max_read_age)
                 )
@@ -972,7 +985,7 @@ class CoherentMotionStrategy:
                     ),
                 }
             )
-            if state_pass and direction_pass:
+            if state_pass and direction_pass and compatibility is not None:
                 scored.append(
                     (
                         (
@@ -1006,6 +1019,11 @@ class CoherentMotionStrategy:
             else None
         )
         newest = max(scored, key=lambda item: item[2]) if scored else None
+        newest_age_eligible = (
+            max(age_eligible, key=lambda record: int(record.end.t))
+            if age_eligible
+            else None
+        )
         if not scored:
             selected_row = None
         elif self.state_recency_weight > 0.0:
@@ -1015,10 +1033,31 @@ class CoherentMotionStrategy:
             )
         else:
             selected_row = legacy
-        selected = selected_row[5] if selected_row is not None else None
+        fallback_used = bool(
+            selected_row is None
+            and newest_age_eligible is not None
+            and self.state_fallback_to_newest
+        )
+        selected = (
+            selected_row[5]
+            if selected_row is not None
+            else newest_age_eligible
+            if fallback_used
+            else None
+        )
+        diagnostic_by_end = {
+            int(item["pair"][1]): item for item in diagnostics
+        }
+        selected_diagnostic = (
+            diagnostic_by_end.get(int(selected.end.t))
+            if selected is not None
+            else None
+        )
         reason = (
             "selected"
-            if selected is not None
+            if selected_row is not None
+            else "fallback_newest_age_eligible"
+            if fallback_used
             else "empty"
             if not records
             else "age_gate"
@@ -1036,9 +1075,16 @@ class CoherentMotionStrategy:
             "state_max_read_age": int(self.state_max_read_age),
             "state_selection_order": list(order),
             "state_recency_weight": float(self.state_recency_weight),
+            "state_similarity_weight": float(self.state_similarity_weight),
+            "state_fallback_to_newest": bool(self.state_fallback_to_newest),
             "selection_mode": (
-                "recency_regularized"
+                "direction_recency_regularized"
                 if self.state_recency_weight > 0.0
+                and self.state_similarity_weight == 0.0
+                else "recency_regularized"
+                if self.state_recency_weight > 0.0
+                else "direction_lexicographic"
+                if self.state_similarity_weight == 0.0
                 else "configured_recency"
                 if order == ["recency"]
                 else "legacy_lexicographic"
@@ -1060,6 +1106,22 @@ class CoherentMotionStrategy:
                 if newest is None
                 else [[int(newest[5].start.t), int(newest[5].end.t)]]
             ),
+            "newest_age_eligible": (
+                []
+                if newest_age_eligible is None
+                else [[
+                    int(newest_age_eligible.start.t),
+                    int(newest_age_eligible.end.t),
+                ]]
+            ),
+            "compatible_candidate_count": len(scored),
+            "fallback_used": fallback_used,
+            "fallback_reason": (
+                "no_compatible_candidate" if fallback_used else None
+            ),
+            "read_budget_preserved": bool(
+                not age_eligible or selected is not None
+            ),
             "selection_changed_from_legacy": bool(
                 selected_row is not None
                 and legacy is not None
@@ -1075,11 +1137,22 @@ class CoherentMotionStrategy:
                 and newest is not None
                 and int(selected.end.t) == int(newest[5].end.t)
             ),
+            "selected_is_newest_age_eligible": bool(
+                selected is not None
+                and newest_age_eligible is not None
+                and int(selected.end.t) == int(newest_age_eligible.end.t)
+            ),
             "selected_compatibility": (
-                None if selected_row is None else round(selected_row[3], 6)
+                None
+                if selected_diagnostic is None
+                or selected_diagnostic.get("compatibility") is None
+                else selected_diagnostic["compatibility"]
             ),
             "selected_score": (
-                None if selected_row is None else round(selected_row[4], 6)
+                None
+                if selected_diagnostic is None
+                or selected_diagnostic.get("selection_score") is None
+                else selected_diagnostic["selection_score"]
             ),
             "selected_vs_newest_compatibility_gain": (
                 None
@@ -1090,6 +1163,11 @@ class CoherentMotionStrategy:
                 None
                 if selected_row is None or newest is None
                 else int(newest[5].end.t) - int(selected_row[5].end.t)
+            ),
+            "selected_vs_newest_age_eligible_gap": (
+                None
+                if selected is None or newest_age_eligible is None
+                else int(newest_age_eligible.end.t) - int(selected.end.t)
             ),
             "reason": reason,
         }
@@ -1162,6 +1240,8 @@ class CoherentMotionStrategy:
             "state_max_read_age": int(self.state_max_read_age),
             "state_selection_order": list(self.state_selection_order) or None,
             "state_recency_weight": float(self.state_recency_weight),
+            "state_similarity_weight": float(self.state_similarity_weight),
+            "state_fallback_to_newest": bool(self.state_fallback_to_newest),
             "pair_frame_ids": [
                 [int(record.start.t), int(record.end.t)]
                 for record in self._pairs[idx].values()

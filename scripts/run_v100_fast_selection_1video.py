@@ -41,6 +41,94 @@ LEGACY_PF_CROSS_TAB = {
     "veil": {10: 2, 11: 30},
 }
 
+RESERVOIR_MOTION_POLICIES = {
+    "reservoir2_motion1",
+    "reservoir2_freshmotion1",
+    "reservoir2_statemotion1",
+    "reservoir2_freshmotion4",
+    "reservoir2_statemotion1_strict",
+    "reservoir2_stateage12motion1",
+    "reservoir2_statebalancedmotion1",
+    "reservoir2_directionmatch1",
+    "reservoir2_directionfresh1",
+}
+FRESH_MOTION_POLICIES = {
+    "reservoir2_freshmotion1",
+    "reservoir2_statemotion1",
+    "reservoir2_freshmotion4",
+    "reservoir2_statemotion1_strict",
+    "reservoir2_stateage12motion1",
+    "reservoir2_statebalancedmotion1",
+    "reservoir2_directionmatch1",
+    "reservoir2_directionfresh1",
+}
+STATE_MATCH_POLICIES = {
+    "reservoir2_statemotion1",
+    "reservoir2_freshmotion4",
+    "reservoir2_statemotion1_strict",
+    "reservoir2_stateage12motion1",
+    "reservoir2_statebalancedmotion1",
+    "reservoir2_directionmatch1",
+    "reservoir2_directionfresh1",
+}
+
+
+def expected_state_match_contract(policy: str) -> dict[str, Any] | None:
+    if policy not in STATE_MATCH_POLICIES:
+        return None
+    direction_only = policy in {
+        "reservoir2_directionmatch1",
+        "reservoir2_directionfresh1",
+    }
+    return {
+        "state_archive_capacity": 4,
+        "state_max_read_age": (
+            12 if policy == "reservoir2_stateage12motion1" else 24
+        ),
+        "state_min_similarity": (
+            -1.0
+            if policy
+            in {
+                "reservoir2_freshmotion4",
+                "reservoir2_directionmatch1",
+                "reservoir2_directionfresh1",
+            }
+            else 0.0
+            if policy == "reservoir2_statemotion1_strict"
+            else -0.25
+        ),
+        "state_min_direction_similarity": (
+            -1.0
+            if policy == "reservoir2_freshmotion4"
+            else 0.1
+            if policy
+            in {
+                "reservoir2_statemotion1_strict",
+                "reservoir2_directionmatch1",
+                "reservoir2_directionfresh1",
+            }
+            else 0.0
+        ),
+        "state_selection_order": (
+            ["recency"]
+            if policy == "reservoir2_freshmotion4"
+            else ["direction_similarity", "recency"]
+            if direction_only
+            else ["direction_similarity", "state_similarity", "recency"]
+        ),
+        "state_recency_weight": (
+            0.25
+            if policy
+            in {
+                "reservoir2_statebalancedmotion1",
+                "reservoir2_directionfresh1",
+            }
+            else 0.0
+        ),
+        "state_similarity_weight": 0.0 if direction_only else 0.5,
+        "state_fallback_to_newest": direction_only,
+    }
+
 
 @dataclass(frozen=True)
 class Cell:
@@ -97,8 +185,12 @@ class Cell:
                 "reservoir2_motion1",
                 "reservoir2_freshmotion1",
                 "reservoir2_statemotion1",
+                "reservoir2_freshmotion4",
+                "reservoir2_statemotion1_strict",
                 "reservoir2_stateage12motion1",
                 "reservoir2_statebalancedmotion1",
+                "reservoir2_directionmatch1",
+                "reservoir2_directionfresh1",
                 "profile_anchor",
                 "snapshot",
                 "snapshot2",
@@ -518,13 +610,7 @@ def expected_policy(
                 4,
                 "temporal_reservoir",
             )
-        elif cell.support_policy in {
-            "reservoir2_motion1",
-            "reservoir2_freshmotion1",
-            "reservoir2_statemotion1",
-            "reservoir2_stateage12motion1",
-            "reservoir2_statebalancedmotion1",
-        }:
+        elif cell.support_policy in RESERVOIR_MOTION_POLICIES:
             result = (
                 ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
                 1,
@@ -667,6 +753,18 @@ def expected_policy(
                 4,
                 "reservoir_motion",
             ),
+            "reservoir2_freshmotion4": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_statemotion1_strict": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
             "reservoir2_stateage12motion1": (
                 ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
                 1,
@@ -674,6 +772,18 @@ def expected_policy(
                 "reservoir_motion",
             ),
             "reservoir2_statebalancedmotion1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_directionmatch1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_directionfresh1": (
                 ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
                 1,
                 4,
@@ -857,14 +967,7 @@ def audit_policy_trace(
                         )
                         expected_capacity = (
                             2
-                            if active_policy
-                            in {
-                                "reservoir2_motion1",
-                                "reservoir2_freshmotion1",
-                                "reservoir2_statemotion1",
-                                "reservoir2_stateage12motion1",
-                                "reservoir2_statebalancedmotion1",
-                            }
+                            if active_policy in RESERVOIR_MOTION_POLICIES
                             else 4
                         )
                         if int(state.get("capacity", -1)) != expected_capacity:
@@ -1027,14 +1130,7 @@ def audit_policy_trace(
                                 else cell.suppress_policy
                             )
                             if (
-                                active_policy
-                                in {
-                                    "reservoir2_motion1",
-                                    "reservoir2_freshmotion1",
-                                    "reservoir2_statemotion1",
-                                    "reservoir2_stateage12motion1",
-                                    "reservoir2_statebalancedmotion1",
-                                }
+                                active_policy in RESERVOIR_MOTION_POLICIES
                                 and int(state.get("pair_capacity", -1)) != 1
                             ):
                                 failures.append(
@@ -1043,23 +1139,11 @@ def audit_policy_trace(
                                 )
                             expected_pair_age = (
                                 12
-                                if active_policy
-                                in {
-                                    "reservoir2_freshmotion1",
-                                    "reservoir2_statemotion1",
-                                    "reservoir2_stateage12motion1",
-                                    "reservoir2_statebalancedmotion1",
-                                }
+                                if active_policy in FRESH_MOTION_POLICIES
                                 else 24
                             )
                             expected_stale_refresh = (
-                                active_policy
-                                in {
-                                    "reservoir2_freshmotion1",
-                                    "reservoir2_statemotion1",
-                                    "reservoir2_stateage12motion1",
-                                    "reservoir2_statebalancedmotion1",
-                                }
+                                active_policy in FRESH_MOTION_POLICIES
                             )
                             if (
                                 int(state.get("max_pair_age", -1))
@@ -1080,13 +1164,11 @@ def audit_policy_trace(
                                     f"line {line_number}: stale-refresh "
                                     "quantile policy mismatch"
                                 )
-                            state_match_policies = {
-                                "reservoir2_statemotion1",
-                                "reservoir2_stateage12motion1",
-                                "reservoir2_statebalancedmotion1",
-                            }
+                            expected_state_contract = (
+                                expected_state_match_contract(active_policy)
+                            )
                             expected_state_match = (
-                                active_policy in state_match_policies
+                                expected_state_contract is not None
                             )
                             if bool(state.get("state_match", False)) != (
                                 expected_state_match
@@ -1117,45 +1199,17 @@ def audit_policy_trace(
                                     f"read is not an atomic pair: {read_pair}"
                                 )
                             if expected_state_match:
-                                expected_state_read_age = (
-                                    12
-                                    if active_policy
-                                    == "reservoir2_stateage12motion1"
-                                    else 24
-                                )
-                                expected_recency_weight = (
-                                    0.25
-                                    if active_policy
-                                    == "reservoir2_statebalancedmotion1"
-                                    else 0.0
-                                )
-                                if (
-                                    int(
-                                        state.get(
-                                            "state_archive_capacity",
-                                            -1,
-                                        )
-                                    )
-                                    != 4
-                                    or int(
-                                        state.get("state_max_read_age", -1)
-                                    )
-                                    != expected_state_read_age
-                                    or float(
-                                        state.get("state_recency_weight", -1.0)
-                                    )
-                                    != expected_recency_weight
-                                    or float(
-                                        state.get(
-                                            "state_min_direction_similarity",
-                                            -2.0,
-                                        )
-                                    )
-                                    != 0.0
-                                ):
+                                assert expected_state_contract is not None
+                                actual_state_contract = {
+                                    key: state.get(key)
+                                    for key in expected_state_contract
+                                }
+                                if actual_state_contract != expected_state_contract:
                                     failures.append(
                                         f"line {line_number}: state-match "
-                                        "frozen parameters changed"
+                                        "frozen parameters changed: "
+                                        f"{actual_state_contract} != "
+                                        f"{expected_state_contract}"
                                     )
                                 last_retrieval = state.get(
                                     "last_retrieval",
@@ -1170,6 +1224,11 @@ def audit_policy_trace(
                                         "selected",
                                         "legacy_selected",
                                         "newest_passing",
+                                        "newest_age_eligible",
+                                        "compatible_candidate_count",
+                                        "fallback_used",
+                                        "fallback_reason",
+                                        "read_budget_preserved",
                                         "selection_mode",
                                         "selection_changed_from_legacy",
                                         "selected_age",
@@ -1189,7 +1248,7 @@ def audit_policy_trace(
                                         )
                             pair_bank_capacity = (
                                 int(state.get("state_archive_capacity", -1))
-                                if active_policy in state_match_policies
+                                if active_policy in STATE_MATCH_POLICIES
                                 else int(state["pair_capacity"])
                             )
                             if len(pairs) > pair_bank_capacity:
@@ -1223,7 +1282,7 @@ def audit_policy_trace(
                             }
                             frame_bank_capacity = (
                                 pair_bank_capacity * 2
-                                if active_policy in state_match_policies
+                                if active_policy in STATE_MATCH_POLICIES
                                 else int(state["capacity"])
                             )
                             if len(unique_frames) > frame_bank_capacity:
@@ -1270,13 +1329,7 @@ def audit_policy_trace(
                                         f"{missing}"
                                     )
                                 if (
-                                    active_policy
-                                    in {
-                                        "reservoir2_freshmotion1",
-                                        "reservoir2_statemotion1",
-                                        "reservoir2_stateage12motion1",
-                                        "reservoir2_statebalancedmotion1",
-                                    }
+                                    active_policy in FRESH_MOTION_POLICIES
                                     and "stale_quantile_bypass"
                                     not in last_decision
                                 ):
@@ -1588,12 +1641,7 @@ def audit_role_event_trace(
             "motion_pair1",
             "landmark_motion",
             "retrieval1_motion1_age24",
-            "reservoir2_motion1",
-            "reservoir2_freshmotion1",
-            "reservoir2_statemotion1",
-            "reservoir2_stateage12motion1",
-            "reservoir2_statebalancedmotion1",
-        }:
+        } | RESERVOIR_MOTION_POLICIES:
             routes["motion"] = 2 if policy == "motion_pair" else 1
         if policy in {
             "retrieval",
