@@ -65,7 +65,10 @@ def test_state_motion_policy_changes_only_read_selection_from_v160() -> None:
     differing = {
         key for key in state_config if state_config[key] != fresh_config[key]
     }
-    assert differing == {"pyramidkv_label_coherent_motion_state_match_map"}
+    assert differing == {
+        "pyramidkv_label_coherent_motion_state_archive_capacity_map",
+        "pyramidkv_label_coherent_motion_state_match_map",
+    }
     assert state_config["pyramidkv_label_coherent_motion_state_match_map"] == {
         "10": True,
         "11": False,
@@ -126,7 +129,8 @@ def test_role_event_source_enforces_atomic_pairs_and_lexicographic_selection() -
     assert selector is not None and collect is not None
     assert "state_min_similarity" in selector
     assert "state_min_direction_similarity" in selector
-    assert "max(scored, key=lambda item: item[:3])" in selector
+    assert "state_selection_order" in selector
+    assert "tuple(item[key_indices[key]] for key in order)" in selector
     assert "record.start.t" in collect and "record.end.t" in collect
     assert "_select_state_matched_records" in collect
 

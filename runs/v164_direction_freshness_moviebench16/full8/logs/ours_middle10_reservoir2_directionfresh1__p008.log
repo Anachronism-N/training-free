@@ -1,0 +1,97 @@
+[command] /apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/bin/python inference.py --config_path /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/configs/pyramid-forcing.yaml --checkpoint_path /apdcephfs_gy2/share_302533218/cedricnie/model_cache/self_forcing_dmd.pt --data_path /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/prompts/moviegen_128_qwen_v154_diverse16.txt --output_folder /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v164_direction_freshness_moviebench16/full8/videos/ours_middle10_reservoir2_directionfresh1__p008 --num_output_frames 120 --seed 0 --num_samples 1 --use_ema --save_with_index --start_idx 8 --end_idx 9 --reseed_per_prompt --pyramidkv_head_config_path /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/configs/head_maps/v157_layer_middle10_reservoir.csv --pyramidkv_history_polarity --pyramidkv_history_support_policy reservoir2_directionfresh1 --pyramidkv_history_suppress_policy recent8_sink1 --pyramidkv_history_budget_profile default --pyramidkv_motion_event_top_k 1 --pyramidkv_motion_event_sample_tokens 64
+/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/lib/python3.10/site-packages/transformers/utils/generic.py:441: FutureWarning: `torch.utils._pytree._register_pytree_node` is deprecated. Please use `torch.utils._pytree.register_pytree_node` instead.
+  _torch_pytree._register_pytree_node(
+Running on a single GPU (cuda); skipping NCCL initialization.
+Free VRAM 94.68743896484375 GB
+Loading CUDA extension (first run compiles ~60s; cached run ~3s)...
+CUDA extension ready in 137.7s.
+[HistoryPolarityPolicy] support_label=10 suppress_label=11 support=reservoir2_directionfresh1 suppress=recent8_sink1 budget=default counts=10:120,11:240 support_sink=1 suppress_sink=1 support_recent=4 suppress_recent=8 retrieval_abstain=False retrieval_min_similarity=-0.2500 retrieval_min_margin=0.0000 legacy_pf_labels=false exclusive_owner=true
+KV inference with 3 frames per block
+Number of prompts: 16
+Prompt index range: [8, 9)
+Loading PyramidKV config from /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/configs/head_maps/v157_layer_middle10_reservoir.csv
+[PyramidKVHeadMap] path=/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/configs/head_maps/v157_layer_middle10_reservoir.csv heads=360 labels={10: 120, 11: 240} policies={'stride': 360} sink_frames={1: 360} recent_frames={4: 360}
+[PyramidKVRuntimePolicy] path=/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/configs/head_maps/v157_layer_middle10_reservoir.csv heads=360 labels={10: 120, 11: 240} policies={'reservoir_motion': 120, 'stride': 240} middle={'CoherentMotionStrategy+TemporalReservoirStrategy': 120, 'none': 240} sinks={1: 360} recent={4: 120, 8: 240} exclusive_dynamic=True
+[PyramidKVRoleEvent] layer=15 block=0 group=motion:10 heads=12 motion=[0.0, 0.55505508, 0.59650058] semantic=[0.99562216, 0.99606818]
+block 1/40 - 1/120  32893.5 ms
+[PyramidKVRoleEvent] layer=15 block=3 group=motion:10 heads=12 motion=[0.5908218, 0.5232054, 0.52594674] semantic=[0.99801219, 0.99617434]
+block 2/40 - 4/120   2306.4 ms
+[PyramidKVRoleEvent] layer=15 block=6 group=motion:10 heads=12 motion=[0.50030452, 0.57830954, 0.55123073] semantic=[0.99740911, 0.9975431]
+block 3/40 - 7/120   2771.6 ms
+[PyramidKVRoleEvent] layer=15 block=9 group=motion:10 heads=12 motion=[0.50193661, 0.58788723, 0.49859688] semantic=[0.99790061, 0.9972533]
+block 4/40 - 10/120   2760.5 ms
+[PyramidKVRoleEvent] layer=15 block=12 group=motion:10 heads=12 motion=[0.5020299, 0.55670363, 0.67183203] semantic=[0.99770021, 0.9965902]
+block 5/40 - 13/120   2873.0 ms
+[PyramidKVRoleEvent] layer=15 block=15 group=motion:10 heads=12 motion=[0.6530273, 0.66096193, 0.68072987] semantic=[0.99677992, 0.99652946]
+block 6/40 - 16/120   2801.5 ms
+[PyramidKVRoleEvent] layer=15 block=18 group=motion:10 heads=12 motion=[0.61837995, 0.51292121, 0.53497767] semantic=[0.9985078, 0.99703491]
+block 7/40 - 19/120   2875.7 ms
+[PyramidKVRoleEvent] layer=15 block=21 group=motion:10 heads=12 motion=[0.55127323, 0.51248622, 0.5482614] semantic=[0.99822545, 0.99730915]
+block 8/40 - 22/120   2902.1 ms
+[PyramidKVRoleEvent] layer=15 block=24 group=motion:10 heads=12 motion=[0.54614967, 0.61828071, 0.42870855] semantic=[0.99712598, 0.99776375]
+block 9/40 - 25/120   3193.7 ms
+[PyramidKVRoleEvent] layer=15 block=27 group=motion:10 heads=12 motion=[0.5478124, 0.51307279, 0.52395803] semantic=[0.99770534, 0.99759829]
+block 10/40 - 28/120   2952.3 ms
+[PyramidKVRoleEvent] layer=15 block=30 group=motion:10 heads=12 motion=[0.6681177, 0.63405746, 0.53333318] semantic=[0.99761182, 0.99743086]
+block 11/40 - 31/120   3082.5 ms
+[PyramidKVRoleEvent] layer=15 block=33 group=motion:10 heads=12 motion=[0.60185885, 0.59780037, 0.59705067] semantic=[0.99754715, 0.99768943]
+block 12/40 - 34/120   3109.0 ms
+[PyramidKVRoleEvent] layer=15 block=36 group=motion:10 heads=12 motion=[0.59572679, 0.59265554, 0.58623046] semantic=[0.99794263, 0.99731952]
+block 13/40 - 37/120   2973.0 ms
+[PyramidKVRoleEvent] layer=15 block=39 group=motion:10 heads=12 motion=[0.55088478, 0.51548725, 0.51312476] semantic=[0.99793231, 0.99733961]
+block 14/40 - 40/120   2937.4 ms
+[PyramidKVRoleEvent] layer=15 block=42 group=motion:10 heads=12 motion=[0.56525952, 0.62116849, 0.60044974] semantic=[0.99631053, 0.99691999]
+block 15/40 - 43/120   2837.7 ms
+[PyramidKVRoleEvent] layer=15 block=45 group=motion:10 heads=12 motion=[0.53758335, 0.56137985, 0.55302221] semantic=[0.99711597, 0.99771774]
+block 16/40 - 46/120   2813.1 ms
+[PyramidKVRoleEvent] layer=15 block=48 group=motion:10 heads=12 motion=[0.59349668, 0.56093276, 0.58292943] semantic=[0.99784386, 0.99701136]
+block 17/40 - 49/120   2711.1 ms
+[PyramidKVRoleEvent] layer=15 block=51 group=motion:10 heads=12 motion=[0.63036299, 0.55389035, 0.59116244] semantic=[0.9975068, 0.99671555]
+block 18/40 - 52/120   2689.5 ms
+[PyramidKVRoleEvent] layer=15 block=54 group=motion:10 heads=12 motion=[0.55523461, 0.59009469, 0.57226002] semantic=[0.99748546, 0.99667567]
+block 19/40 - 55/120   2744.9 ms
+[PyramidKVRoleEvent] layer=15 block=57 group=motion:10 heads=12 motion=[0.6013602, 0.50557262, 0.50404114] semantic=[0.99764204, 0.99709773]
+block 20/40 - 58/120   2714.9 ms
+[PyramidKVRoleEvent] layer=15 block=60 group=motion:10 heads=12 motion=[0.60063607, 0.63013685, 0.59889978] semantic=[0.99664235, 0.99676579]
+block 21/40 - 61/120   2774.2 ms
+[PyramidKVRoleEvent] layer=15 block=63 group=motion:10 heads=12 motion=[0.60206032, 0.58657509, 0.59845817] semantic=[0.99698007, 0.99679297]
+block 22/40 - 64/120   2721.4 ms
+[PyramidKVRoleEvent] layer=15 block=66 group=motion:10 heads=12 motion=[0.57002825, 0.60955811, 0.55425948] semantic=[0.99697542, 0.99704558]
+block 23/40 - 67/120   2726.3 ms
+[PyramidKVRoleEvent] layer=15 block=69 group=motion:10 heads=12 motion=[0.57739365, 0.48650414, 0.53771001] semantic=[0.99816096, 0.99742293]
+block 24/40 - 70/120   2780.7 ms
+[PyramidKVRoleEvent] layer=15 block=72 group=motion:10 heads=12 motion=[0.62093365, 0.61007512, 0.5833621] semantic=[0.99765587, 0.99705046]
+block 25/40 - 73/120   2716.1 ms
+[PyramidKVRoleEvent] layer=15 block=75 group=motion:10 heads=12 motion=[0.54959428, 0.58591515, 0.53802449] semantic=[0.997298, 0.99580353]
+block 26/40 - 76/120   2751.3 ms
+[PyramidKVRoleEvent] layer=15 block=78 group=motion:10 heads=12 motion=[0.61689168, 0.50502509, 0.57818931] semantic=[0.99736494, 0.99767351]
+block 27/40 - 79/120   2723.0 ms
+[PyramidKVRoleEvent] layer=15 block=81 group=motion:10 heads=12 motion=[0.63666123, 0.57793254, 0.58080196] semantic=[0.99739826, 0.99689925]
+block 28/40 - 82/120   2744.8 ms
+[PyramidKVRoleEvent] layer=15 block=84 group=motion:10 heads=12 motion=[0.52482319, 0.53845978, 0.51990801] semantic=[0.99772382, 0.99755812]
+block 29/40 - 85/120   2751.1 ms
+[PyramidKVRoleEvent] layer=15 block=87 group=motion:10 heads=12 motion=[0.58108687, 0.61981547, 0.53812629] semantic=[0.9969632, 0.99699748]
+block 30/40 - 88/120   2715.2 ms
+[PyramidKVRoleEvent] layer=15 block=90 group=motion:10 heads=12 motion=[0.48980123, 0.51029193, 0.549456] semantic=[0.99820232, 0.99750638]
+block 31/40 - 91/120   2769.0 ms
+[PyramidKVRoleEvent] layer=15 block=93 group=motion:10 heads=12 motion=[0.55292237, 0.50884157, 0.51535672] semantic=[0.99848104, 0.99780524]
+block 32/40 - 94/120   2775.7 ms
+[PyramidKVRoleEvent] layer=15 block=96 group=motion:10 heads=12 motion=[0.66681379, 0.57091606, 0.54747248] semantic=[0.99787003, 0.997742]
+block 33/40 - 97/120   2738.8 ms
+[PyramidKVRoleEvent] layer=15 block=99 group=motion:10 heads=12 motion=[0.53440511, 0.56115627, 0.53036839] semantic=[0.99819583, 0.99733746]
+block 34/40 - 100/120   2699.7 ms
+[PyramidKVRoleEvent] layer=15 block=102 group=motion:10 heads=12 motion=[0.51968282, 0.54371184, 0.56193644] semantic=[0.99805498, 0.9971838]
+block 35/40 - 103/120   2743.9 ms
+[PyramidKVRoleEvent] layer=15 block=105 group=motion:10 heads=12 motion=[0.62512803, 0.66409844, 0.60651481] semantic=[0.99713701, 0.99690306]
+block 36/40 - 106/120   2866.8 ms
+[PyramidKVRoleEvent] layer=15 block=108 group=motion:10 heads=12 motion=[0.63179344, 0.64077562, 0.5958935] semantic=[0.99753249, 0.99727917]
+block 37/40 - 109/120   2761.7 ms
+[PyramidKVRoleEvent] layer=15 block=111 group=motion:10 heads=12 motion=[0.57379019, 0.56658077, 0.57551658] semantic=[0.99829507, 0.99789333]
+block 38/40 - 112/120   2720.6 ms
+[PyramidKVRoleEvent] layer=15 block=114 group=motion:10 heads=12 motion=[0.57797664, 0.5570215, 0.50254494] semantic=[0.99771738, 0.99753606]
+block 39/40 - 115/120   2754.2 ms
+[PyramidKVRoleEvent] layer=15 block=117 group=motion:10 heads=12 motion=[0.65743196, 0.55148429, 0.51987404] semantic=[0.99785018, 0.99783176]
+block 40/40 - 118/120   2779.0 ms
+[9/16] elapsed=2.4m  avg=15.9s/prompt  eta=1.9m
+/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/lib/python3.10/site-packages/torchvision/io/_video_deprecation_warning.py:9: UserWarning: The video decoding and encoding capabilities of torchvision are deprecated from version 0.22 and will be removed in version 0.24. We recommend that you migrate to TorchCodec, where we'll consolidate the future decoding/encoding capabilities of PyTorch: https://github.com/pytorch/torchcodec
+  warnings.warn(
