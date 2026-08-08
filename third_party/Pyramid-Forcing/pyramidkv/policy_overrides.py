@@ -10,6 +10,14 @@ DIRECTION_STALE_TIE_MARGINS = {
     "reservoir2_dirstaletie005": 0.05,
 }
 DIRECTION_STALE_TIE_POLICIES = set(DIRECTION_STALE_TIE_MARGINS)
+MOTION_SIGNATURE_POLICY_MODES = {
+    "reservoir2_multiscaledir1": "multiscale_direction",
+    "reservoir2_multiscalemotion1": "multiscale_magnitude",
+}
+MOTION_SIGNATURE_POLICIES = set(MOTION_SIGNATURE_POLICY_MODES)
+STATE_DIRECTION_POLICIES = (
+    DIRECTION_STALE_TIE_POLICIES | MOTION_SIGNATURE_POLICIES
+)
 
 
 def binary_head_policy_overrides(
@@ -162,7 +170,7 @@ def history_polarity_policy_overrides(
         "reservoir2_statebalancedmotion1",
         "reservoir2_directionmatch1",
         "reservoir2_directionfresh1",
-        *DIRECTION_STALE_TIE_POLICIES,
+        *STATE_DIRECTION_POLICIES,
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -204,7 +212,7 @@ def history_polarity_policy_overrides(
         "reservoir2_statebalancedmotion1",
         "reservoir2_directionmatch1",
         "reservoir2_directionfresh1",
-        *DIRECTION_STALE_TIE_POLICIES,
+        *STATE_DIRECTION_POLICIES,
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -307,7 +315,7 @@ def history_polarity_policy_overrides(
             "reservoir2_directionmatch1",
             "reservoir2_directionfresh1",
         }
-        or support in DIRECTION_STALE_TIE_POLICIES
+        or support in STATE_DIRECTION_POLICIES
         else 1
         if support == "landmark_motion"
         else 0
@@ -330,7 +338,7 @@ def history_polarity_policy_overrides(
             "reservoir2_directionmatch1",
             "reservoir2_directionfresh1",
         }
-        or suppress in DIRECTION_STALE_TIE_POLICIES
+        or suppress in STATE_DIRECTION_POLICIES
         else 1
         if suppress == "landmark_motion"
         else 0
@@ -399,7 +407,7 @@ def history_polarity_policy_overrides(
             "reservoir2_directionmatch1",
             "reservoir2_directionfresh1",
         }
-        or support in DIRECTION_STALE_TIE_POLICIES
+        or support in STATE_DIRECTION_POLICIES
         else 0
     )
     suppress_reservoir_capacity = (
@@ -418,7 +426,7 @@ def history_polarity_policy_overrides(
             "reservoir2_directionmatch1",
             "reservoir2_directionfresh1",
         }
-        or suppress in DIRECTION_STALE_TIE_POLICIES
+        or suppress in STATE_DIRECTION_POLICIES
         else 0
     )
     support_profile_anchor_capacity = 4 if support == "profile_anchor" else 0
@@ -467,7 +475,7 @@ def history_polarity_policy_overrides(
             "snapshot2",
             "sparse75",
         }
-        or suppress in DIRECTION_STALE_TIE_POLICIES
+        or suppress in STATE_DIRECTION_POLICIES
         else 3
     )
     suppress_recent = (
@@ -520,7 +528,7 @@ def history_polarity_policy_overrides(
             "snapshot2",
             "sparse75",
         }
-        or support in DIRECTION_STALE_TIE_POLICIES
+        or support in STATE_DIRECTION_POLICIES
         else 3
     )
     support_recent = (
@@ -607,7 +615,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or support in DIRECTION_STALE_TIE_POLICIES
+                or support in STATE_DIRECTION_POLICIES
                 else 24
             ),
             suppress_key: (
@@ -623,7 +631,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or suppress in DIRECTION_STALE_TIE_POLICIES
+                or suppress in STATE_DIRECTION_POLICIES
                 else 24
             ),
         },
@@ -639,7 +647,7 @@ def history_polarity_policy_overrides(
                 "reservoir2_directionmatch1",
                 "reservoir2_directionfresh1",
             }
-            or support in DIRECTION_STALE_TIE_POLICIES,
+            or support in STATE_DIRECTION_POLICIES,
             suppress_key: suppress
             in {
                 "reservoir2_freshmotion1",
@@ -651,7 +659,7 @@ def history_polarity_policy_overrides(
                 "reservoir2_directionmatch1",
                 "reservoir2_directionfresh1",
             }
-            or suppress in DIRECTION_STALE_TIE_POLICIES,
+            or suppress in STATE_DIRECTION_POLICIES,
         },
         "pyramidkv_label_coherent_motion_state_match_map": {
             support_key: support
@@ -664,7 +672,7 @@ def history_polarity_policy_overrides(
                 "reservoir2_directionmatch1",
                 "reservoir2_directionfresh1",
             }
-            or support in DIRECTION_STALE_TIE_POLICIES,
+            or support in STATE_DIRECTION_POLICIES,
             suppress_key: suppress
             in {
                 "reservoir2_statemotion1",
@@ -675,7 +683,7 @@ def history_polarity_policy_overrides(
                 "reservoir2_directionmatch1",
                 "reservoir2_directionfresh1",
             }
-            or suppress in DIRECTION_STALE_TIE_POLICIES,
+            or suppress in STATE_DIRECTION_POLICIES,
         },
         "pyramidkv_label_coherent_motion_state_min_similarity_map": {
             support_key: (
@@ -686,7 +694,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or support in DIRECTION_STALE_TIE_POLICIES
+                or support in STATE_DIRECTION_POLICIES
                 else 0.0
                 if support == "reservoir2_statemotion1_strict"
                 else -0.25
@@ -699,7 +707,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or suppress in DIRECTION_STALE_TIE_POLICIES
+                or suppress in STATE_DIRECTION_POLICIES
                 else 0.0
                 if suppress == "reservoir2_statemotion1_strict"
                 else -0.25
@@ -716,7 +724,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or support in DIRECTION_STALE_TIE_POLICIES
+                or support in STATE_DIRECTION_POLICIES
                 else 0.0
             ),
             suppress_key: (
@@ -729,7 +737,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or suppress in DIRECTION_STALE_TIE_POLICIES
+                or suppress in STATE_DIRECTION_POLICIES
                 else 0.0
             ),
         },
@@ -750,7 +758,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or support in DIRECTION_STALE_TIE_POLICIES
+                or support in STATE_DIRECTION_POLICIES
                 else 1
             ),
             suppress_key: (
@@ -765,7 +773,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or suppress in DIRECTION_STALE_TIE_POLICIES
+                or suppress in STATE_DIRECTION_POLICIES
                 else 1
             ),
         },
@@ -779,7 +787,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or support in DIRECTION_STALE_TIE_POLICIES
+                or support in STATE_DIRECTION_POLICIES
                 else [
                     "direction_similarity",
                     "state_similarity",
@@ -795,7 +803,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or suppress in DIRECTION_STALE_TIE_POLICIES
+                or suppress in STATE_DIRECTION_POLICIES
                 else [
                     "direction_similarity",
                     "state_similarity",
@@ -831,7 +839,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or support in DIRECTION_STALE_TIE_POLICIES
+                or support in STATE_DIRECTION_POLICIES
                 else 0.5
             ),
             suppress_key: (
@@ -841,7 +849,7 @@ def history_polarity_policy_overrides(
                     "reservoir2_directionmatch1",
                     "reservoir2_directionfresh1",
                 }
-                or suppress in DIRECTION_STALE_TIE_POLICIES
+                or suppress in STATE_DIRECTION_POLICIES
                 else 0.5
             ),
         },
@@ -851,13 +859,13 @@ def history_polarity_policy_overrides(
                 "reservoir2_directionmatch1",
                 "reservoir2_directionfresh1",
             }
-            or support in DIRECTION_STALE_TIE_POLICIES,
+            or support in STATE_DIRECTION_POLICIES,
             suppress_key: suppress
             in {
                 "reservoir2_directionmatch1",
                 "reservoir2_directionfresh1",
             }
-            or suppress in DIRECTION_STALE_TIE_POLICIES,
+            or suppress in STATE_DIRECTION_POLICIES,
         },
         "pyramidkv_label_coherent_motion_state_direction_tie_margin_map": {
             support_key: DIRECTION_STALE_TIE_MARGINS.get(support, 0.0),
@@ -866,6 +874,13 @@ def history_polarity_policy_overrides(
         "pyramidkv_label_coherent_motion_state_stale_tie_age_map": {
             support_key: 12 if support in DIRECTION_STALE_TIE_POLICIES else 0,
             suppress_key: 12 if suppress in DIRECTION_STALE_TIE_POLICIES else 0,
+        },
+        "pyramidkv_label_coherent_motion_state_motion_signature_mode_map": {
+            support_key: MOTION_SIGNATURE_POLICY_MODES.get(support, "none"),
+            suppress_key: MOTION_SIGNATURE_POLICY_MODES.get(
+                suppress,
+                "none",
+            ),
         },
         "pyramidkv_label_semantic_retrieval_capacity_map": {
             support_key: support_retrieval_capacity,
@@ -935,8 +950,8 @@ def history_polarity_policy_overrides(
             or suppress == "reservoir2_directionmatch1"
             or support == "reservoir2_directionfresh1"
             or suppress == "reservoir2_directionfresh1"
-            or support in DIRECTION_STALE_TIE_POLICIES
-            or suppress in DIRECTION_STALE_TIE_POLICIES
+            or support in STATE_DIRECTION_POLICIES
+            or suppress in STATE_DIRECTION_POLICIES
         ),
         # The neutral-label route must not inherit a second legacy dynamic
         # history path alongside its explicit middle strategy.

@@ -40,6 +40,10 @@ LEGACY_PF_CROSS_TAB = {
     "anchor": {10: 169, 11: 3},
     "veil": {10: 2, 11: 30},
 }
+MOTION_SIGNATURE_POLICY_MODES = {
+    "reservoir2_multiscaledir1": "multiscale_direction",
+    "reservoir2_multiscalemotion1": "multiscale_magnitude",
+}
 
 RESERVOIR_MOTION_POLICIES = {
     "reservoir2_motion1",
@@ -53,6 +57,7 @@ RESERVOIR_MOTION_POLICIES = {
     "reservoir2_directionfresh1",
     "reservoir2_dirstaletie003",
     "reservoir2_dirstaletie005",
+    *MOTION_SIGNATURE_POLICY_MODES,
 }
 FRESH_MOTION_POLICIES = {
     "reservoir2_freshmotion1",
@@ -65,6 +70,7 @@ FRESH_MOTION_POLICIES = {
     "reservoir2_directionfresh1",
     "reservoir2_dirstaletie003",
     "reservoir2_dirstaletie005",
+    *MOTION_SIGNATURE_POLICY_MODES,
 }
 STATE_MATCH_POLICIES = {
     "reservoir2_statemotion1",
@@ -76,12 +82,14 @@ STATE_MATCH_POLICIES = {
     "reservoir2_directionfresh1",
     "reservoir2_dirstaletie003",
     "reservoir2_dirstaletie005",
+    *MOTION_SIGNATURE_POLICY_MODES,
 }
 DIRECTION_ONLY_POLICIES = {
     "reservoir2_directionmatch1",
     "reservoir2_directionfresh1",
     "reservoir2_dirstaletie003",
     "reservoir2_dirstaletie005",
+    *MOTION_SIGNATURE_POLICY_MODES,
 }
 DIRECTION_STALE_TIE_MARGINS = {
     "reservoir2_dirstaletie003": 0.03,
@@ -106,6 +114,7 @@ def expected_state_match_contract(policy: str) -> dict[str, Any] | None:
                 "reservoir2_directionmatch1",
                 "reservoir2_directionfresh1",
                 *DIRECTION_STALE_TIE_MARGINS,
+                *MOTION_SIGNATURE_POLICY_MODES,
             }
             else 0.0
             if policy == "reservoir2_statemotion1_strict"
@@ -121,6 +130,7 @@ def expected_state_match_contract(policy: str) -> dict[str, Any] | None:
                 "reservoir2_directionmatch1",
                 "reservoir2_directionfresh1",
                 *DIRECTION_STALE_TIE_MARGINS,
+                *MOTION_SIGNATURE_POLICY_MODES,
             }
             else 0.0
         ),
@@ -148,6 +158,10 @@ def expected_state_match_contract(policy: str) -> dict[str, Any] | None:
         ),
         "state_stale_tie_age": (
             12 if policy in DIRECTION_STALE_TIE_MARGINS else 0
+        ),
+        "state_motion_signature_mode": MOTION_SIGNATURE_POLICY_MODES.get(
+            policy,
+            "none",
         ),
     }
 
@@ -818,6 +832,18 @@ def expected_policy(
                 "reservoir_motion",
             ),
             "reservoir2_dirstaletie005": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_multiscaledir1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_multiscalemotion1": (
                 ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
                 1,
                 4,

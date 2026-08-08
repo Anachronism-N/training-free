@@ -114,6 +114,15 @@ def _build_float_map(
     return out
 
 
+def _build_string_map(user_map: Mapping | None) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for key, val in _map_items(user_map):
+        norm = _normalize_label_key(key)
+        if norm:
+            out[norm] = str(val).strip().lower()
+    return out
+
+
 def _build_offsets_map(user_map: Mapping | None) -> dict[str, list[int]]:
     out: dict[str, list[int]] = {}
     for key, val in _map_items(user_map):
@@ -326,6 +335,7 @@ def build_compositions(
     label_coherent_motion_state_fallback_to_newest_map: dict | None = None,
     label_coherent_motion_state_direction_tie_margin_map: dict | None = None,
     label_coherent_motion_state_stale_tie_age_map: dict | None = None,
+    label_coherent_motion_state_motion_signature_mode_map: dict | None = None,
     label_semantic_retrieval_capacity_map: dict | None = None,
     label_semantic_retrieval_max_age_map: dict | None = None,
     semantic_retrieval_min_similarity: float = -0.25,
@@ -424,6 +434,9 @@ def build_compositions(
     coherent_motion_state_stale_tie_age_map = _build_int_map(
         label_coherent_motion_state_stale_tie_age_map,
         min_value=0,
+    )
+    coherent_motion_state_motion_signature_mode_map = _build_string_map(
+        label_coherent_motion_state_motion_signature_mode_map
     )
     semantic_retrieval_capacity_map = _build_int_map(
         label_semantic_retrieval_capacity_map,
@@ -808,6 +821,12 @@ def build_compositions(
                             coherent_motion_state_stale_tie_age_map.get(
                                 label_key,
                                 0,
+                            )
+                        ),
+                        state_motion_signature_mode=(
+                            coherent_motion_state_motion_signature_mode_map.get(
+                                label_key,
+                                "none",
                             )
                         ),
                         dynamic_rope=True,

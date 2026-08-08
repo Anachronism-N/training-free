@@ -72,6 +72,7 @@ class PyramidKVPipelineConfig:
     pyramidkv_label_coherent_motion_state_fallback_to_newest_map: Optional[dict] = None
     pyramidkv_label_coherent_motion_state_direction_tie_margin_map: Optional[dict] = None
     pyramidkv_label_coherent_motion_state_stale_tie_age_map: Optional[dict] = None
+    pyramidkv_label_coherent_motion_state_motion_signature_mode_map: Optional[dict] = None
     pyramidkv_label_semantic_retrieval_capacity_map: Optional[dict] = None
     pyramidkv_label_semantic_retrieval_max_age_map: Optional[dict] = None
     pyramidkv_semantic_retrieval_min_similarity: float = -0.25
@@ -392,6 +393,11 @@ class PyramidKVPipelineConfig:
             pyramidkv_label_coherent_motion_state_stale_tie_age_map=getattr(
                 args,
                 "pyramidkv_label_coherent_motion_state_stale_tie_age_map",
+                None,
+            ),
+            pyramidkv_label_coherent_motion_state_motion_signature_mode_map=getattr(
+                args,
+                "pyramidkv_label_coherent_motion_state_motion_signature_mode_map",
                 None,
             ),
             pyramidkv_label_semantic_retrieval_capacity_map=getattr(

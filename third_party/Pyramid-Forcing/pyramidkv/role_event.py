@@ -35,6 +35,17 @@ def _normalized_delta(
     return delta / norm, norm
 
 
+def _magnitude_similarity(left: float, right: float) -> float:
+    """Return a scale-free speed match in [0, 1]."""
+    left = max(0.0, float(left))
+    right = max(0.0, float(right))
+    if left <= 1e-8 and right <= 1e-8:
+        return 1.0
+    if left <= 1e-8 or right <= 1e-8:
+        return 0.0
+    return min(left, right) / max(left, right)
+
+
 def _quantile(values: deque[float], fraction: float) -> float:
     if not values:
         return 0.0
@@ -440,6 +451,8 @@ class _MotionPairRecord:
     end_descriptor: torch.Tensor
     direction: torch.Tensor
     direction_norm: float
+    context_direction: torch.Tensor | None = None
+    context_direction_norm: float = 0.0
 
 
 class CoherentMotionStrategy:
@@ -470,6 +483,7 @@ class CoherentMotionStrategy:
         state_fallback_to_newest: bool = False,
         state_direction_tie_margin: float = 0.0,
         state_stale_tie_age: int = 0,
+        state_motion_signature_mode: str = "none",
         dynamic_rope: bool = True,
     ):
         self.pair_capacity = max(1, int(pair_capacity))
@@ -502,6 +516,9 @@ class CoherentMotionStrategy:
         self.state_fallback_to_newest = bool(state_fallback_to_newest)
         self.state_direction_tie_margin = float(state_direction_tie_margin)
         self.state_stale_tie_age = max(0, int(state_stale_tie_age))
+        self.state_motion_signature_mode = str(
+            state_motion_signature_mode
+        ).strip().lower()
         if not -1.0 <= self.state_min_similarity <= 1.0:
             raise ValueError("state_min_similarity must be within [-1, 1]")
         if not -1.0 <= self.state_min_direction_similarity <= 1.0:
@@ -513,6 +530,23 @@ class CoherentMotionStrategy:
         if not 0.0 <= self.state_direction_tie_margin <= 2.0:
             raise ValueError(
                 "state_direction_tie_margin must be within [0, 2]"
+            )
+        if self.state_motion_signature_mode not in {
+            "none",
+            "multiscale_direction",
+            "multiscale_magnitude",
+        }:
+            raise ValueError(
+                "state_motion_signature_mode must be none, "
+                "multiscale_direction, or multiscale_magnitude"
+            )
+        if (
+            self.state_motion_signature_mode != "none"
+            and self.state_direction_tie_margin > 0.0
+        ):
+            raise ValueError(
+                "motion-signature selection and stale direction ties are "
+                "mutually exclusive"
             )
         self.dynamic_rope = bool(dynamic_rope)
         self._pairs: list[OrderedDict[int, _MotionPairRecord]] = []
@@ -526,6 +560,9 @@ class CoherentMotionStrategy:
         self._scene_reset_counts: list[int] = []
         self._state_queries: list[torch.Tensor | None] = []
         self._state_directions: list[torch.Tensor | None] = []
+        self._state_local_directions: list[torch.Tensor | None] = []
+        self._state_local_direction_norms: list[float] = []
+        self._state_context_direction_norms: list[float] = []
         self._last_retrievals: list[dict[str, Any]] = []
         self._last_retrieval_keys: list[tuple[int, int, int] | None] = []
         self._retrieval_accept_counts: list[int] = []
@@ -545,6 +582,9 @@ class CoherentMotionStrategy:
         self._scene_reset_counts = [0 for _ in range(num_seq)]
         self._state_queries = [None for _ in range(num_seq)]
         self._state_directions = [None for _ in range(num_seq)]
+        self._state_local_directions = [None for _ in range(num_seq)]
+        self._state_local_direction_norms = [0.0 for _ in range(num_seq)]
+        self._state_context_direction_norms = [0.0 for _ in range(num_seq)]
         self._last_retrievals = [{} for _ in range(num_seq)]
         self._last_retrieval_keys = [None for _ in range(num_seq)]
         self._retrieval_accept_counts = [0 for _ in range(num_seq)]
@@ -599,6 +639,21 @@ class CoherentMotionStrategy:
         self._state_directions[idx] = (
             state_direction if state_direction_norm > 1e-8 else None
         )
+        if num_frames >= 2:
+            local_direction, local_direction_norm = _normalized_delta(
+                descriptors[-2].detach().cpu(),
+                descriptors[-1].detach().cpu(),
+            )
+        else:
+            local_direction = torch.zeros_like(state_query.reshape(-1))
+            local_direction_norm = 0.0
+        self._state_local_directions[idx] = (
+            local_direction if local_direction_norm > 1e-8 else None
+        )
+        self._state_local_direction_norms[idx] = float(local_direction_norm)
+        self._state_context_direction_norms[idx] = float(
+            state_direction_norm / max(1, num_frames - 1)
+        )
 
         reference = self._references[idx]
         if reference is None:
@@ -650,6 +705,10 @@ class CoherentMotionStrategy:
                     "end_descriptor": end_descriptor.clone(),
                     "direction": direction,
                     "direction_norm": direction_norm,
+                    "context_direction": state_direction.clone(),
+                    "context_direction_norm": float(
+                        state_direction_norm / max(1, num_frames - 1)
+                    ),
                 }
             )
 
@@ -840,6 +899,12 @@ class CoherentMotionStrategy:
                     end_descriptor=candidate["end_descriptor"].clone(),
                     direction=candidate["direction"].clone(),
                     direction_norm=float(candidate["direction_norm"]),
+                    context_direction=candidate[
+                        "context_direction"
+                    ].clone(),
+                    context_direction_norm=float(
+                        candidate["context_direction_norm"]
+                    ),
                 )
                 pairs.move_to_end(int(candidate["end_t"]))
                 self._accepted_counts[idx] += 1
@@ -909,12 +974,26 @@ class CoherentMotionStrategy:
     ) -> list[_MotionPairRecord]:
         query = self._state_queries[idx]
         direction = self._state_directions[idx]
+        local_direction = self._state_local_directions[idx]
+        local_direction_norm = self._state_local_direction_norms[idx]
+        context_direction_norm = self._state_context_direction_norms[idx]
+        signature_mode = self.state_motion_signature_mode
         age_eligible = [
             record
             for record in records
             if int(current_t) - int(record.end.t) <= self.state_max_read_age
         ]
         scored: list[
+            tuple[
+                float,
+                float,
+                int,
+                float,
+                float,
+                _MotionPairRecord,
+            ]
+        ] = []
+        legacy_scored: list[
             tuple[
                 float,
                 float,
@@ -937,18 +1016,101 @@ class CoherentMotionStrategy:
                 if direction is not None and record.direction_norm > 1e-8
                 else None
             )
+            local_direction_similarity = (
+                _cosine(local_direction, record.direction)
+                if local_direction is not None
+                and record.direction_norm > 1e-8
+                else None
+            )
+            context_direction_similarity = (
+                _cosine(direction, record.context_direction)
+                if direction is not None
+                and record.context_direction is not None
+                and record.context_direction_norm > 1e-8
+                else None
+            )
+            direction_components = [
+                value
+                for value in (
+                    local_direction_similarity,
+                    context_direction_similarity,
+                )
+                if value is not None
+            ]
+            multiscale_direction_similarity = (
+                sum(direction_components) / len(direction_components)
+                if direction_components
+                else None
+            )
+            local_magnitude_similarity = (
+                _magnitude_similarity(
+                    local_direction_norm,
+                    record.direction_norm,
+                )
+                if local_direction is not None
+                and record.direction_norm > 1e-8
+                else None
+            )
+            context_magnitude_similarity = (
+                _magnitude_similarity(
+                    context_direction_norm,
+                    record.context_direction_norm,
+                )
+                if direction is not None
+                and record.context_direction is not None
+                and record.context_direction_norm > 1e-8
+                else None
+            )
+            magnitude_components = [
+                value
+                for value in (
+                    local_magnitude_similarity,
+                    context_magnitude_similarity,
+                )
+                if value is not None
+            ]
+            magnitude_similarity = (
+                (
+                    magnitude_components[0]
+                    if len(magnitude_components) == 1
+                    else (
+                        magnitude_components[0] * magnitude_components[1]
+                    ) ** 0.5
+                )
+                if magnitude_components
+                else None
+            )
+            effective_direction_similarity = (
+                multiscale_direction_similarity
+                if signature_mode != "none"
+                else direction_similarity
+            )
             state_pass = (
                 state_similarity is not None
                 and state_similarity >= self.state_min_similarity
             )
             direction_pass = (
-                direction_similarity is None
-                or direction_similarity
+                effective_direction_similarity is None
+                or effective_direction_similarity
                 >= self.state_min_direction_similarity
             )
             compatibility = None
             selection_score = None
-            if state_similarity is not None:
+            if (
+                signature_mode == "multiscale_direction"
+                and multiscale_direction_similarity is not None
+            ):
+                compatibility = float(multiscale_direction_similarity)
+            elif (
+                signature_mode == "multiscale_magnitude"
+                and multiscale_direction_similarity is not None
+                and magnitude_similarity is not None
+            ):
+                compatibility = (
+                    float(multiscale_direction_similarity)
+                    * float(magnitude_similarity)
+                )
+            elif state_similarity is not None:
                 if direction_similarity is None:
                     compatibility = (
                         float(state_similarity)
@@ -965,6 +1127,36 @@ class CoherentMotionStrategy:
                 selection_score = compatibility - self.state_recency_weight * (
                     float(age) / float(self.state_max_read_age)
                 )
+            if signature_mode != "none" and state_pass:
+                legacy_direction_pass = (
+                    direction_similarity is None
+                    or direction_similarity
+                    >= self.state_min_direction_similarity
+                )
+                legacy_compatibility = (
+                    None
+                    if direction_similarity is None
+                    else self.state_similarity_weight
+                    * float(state_similarity)
+                    + (1.0 - self.state_similarity_weight)
+                    * float(direction_similarity)
+                )
+                if legacy_direction_pass and legacy_compatibility is not None:
+                    legacy_selection_score = (
+                        legacy_compatibility
+                        - self.state_recency_weight
+                        * (float(age) / float(self.state_max_read_age))
+                    )
+                    legacy_scored.append(
+                        (
+                            float(direction_similarity),
+                            float(state_similarity),
+                            int(record.end.t),
+                            float(legacy_compatibility),
+                            float(legacy_selection_score),
+                            record,
+                        )
+                    )
             diagnostics.append(
                 {
                     "pair": [int(record.start.t), int(record.end.t)],
@@ -972,24 +1164,67 @@ class CoherentMotionStrategy:
                     "state_similarity": (
                         None
                         if state_similarity is None
-                        else round(float(state_similarity), 6)
+                        else float(state_similarity)
                     ),
                     "direction_similarity": (
                         None
                         if direction_similarity is None
-                        else round(float(direction_similarity), 6)
+                        else float(direction_similarity)
+                    ),
+                    "local_direction_similarity": (
+                        None
+                        if local_direction_similarity is None
+                        else float(local_direction_similarity)
+                    ),
+                    "context_direction_similarity": (
+                        None
+                        if context_direction_similarity is None
+                        else float(context_direction_similarity)
+                    ),
+                    "multiscale_direction_similarity": (
+                        None
+                        if multiscale_direction_similarity is None
+                        else float(multiscale_direction_similarity)
+                    ),
+                    "query_local_magnitude": float(local_direction_norm),
+                    "candidate_local_magnitude": float(record.direction_norm),
+                    "local_magnitude_similarity": (
+                        None
+                        if local_magnitude_similarity is None
+                        else float(local_magnitude_similarity)
+                    ),
+                    "query_context_magnitude_per_step": float(
+                        context_direction_norm
+                    ),
+                    "candidate_context_magnitude_per_step": float(
+                        record.context_direction_norm
+                    ),
+                    "context_magnitude_similarity": (
+                        None
+                        if context_magnitude_similarity is None
+                        else float(context_magnitude_similarity)
+                    ),
+                    "magnitude_similarity": (
+                        None
+                        if magnitude_similarity is None
+                        else float(magnitude_similarity)
+                    ),
+                    "motion_signature_score": (
+                        None
+                        if signature_mode == "none" or compatibility is None
+                        else float(compatibility)
                     ),
                     "state_pass": bool(state_pass),
                     "direction_pass": bool(direction_pass),
                     "compatibility": (
                         None
                         if compatibility is None
-                        else round(float(compatibility), 6)
+                        else float(compatibility)
                     ),
                     "selection_score": (
                         None
                         if selection_score is None
-                        else round(float(selection_score), 6)
+                        else float(selection_score)
                     ),
                 }
             )
@@ -1018,12 +1253,15 @@ class CoherentMotionStrategy:
             "state_similarity": 1,
             "recency": 2,
         }
+        legacy_pool = (
+            legacy_scored if signature_mode != "none" else scored
+        )
         legacy = (
             max(
-                scored,
+                legacy_pool,
                 key=lambda item: tuple(item[key_indices[key]] for key in order),
             )
-            if scored
+            if legacy_pool
             else None
         )
         newest = max(scored, key=lambda item: item[2]) if scored else None
@@ -1032,11 +1270,28 @@ class CoherentMotionStrategy:
             if age_eligible
             else None
         )
+        legacy_fallback_used = bool(
+            legacy is None
+            and newest_age_eligible is not None
+            and self.state_fallback_to_newest
+        )
+        legacy_selected = (
+            legacy[5]
+            if legacy is not None
+            else newest_age_eligible
+            if legacy_fallback_used
+            else None
+        )
         direction_tie_candidates = []
         direction_best_age = None
         direction_tie_applied = False
         if not scored:
             selected_row = None
+        elif signature_mode != "none":
+            selected_row = max(
+                scored,
+                key=lambda item: (item[4], item[3], item[2]),
+            )
         elif self.state_recency_weight > 0.0:
             selected_row = max(
                 scored,
@@ -1114,8 +1369,11 @@ class CoherentMotionStrategy:
                 self.state_direction_tie_margin
             ),
             "state_stale_tie_age": int(self.state_stale_tie_age),
+            "state_motion_signature_mode": signature_mode,
             "selection_mode": (
-                "direction_recency_regularized"
+                signature_mode
+                if signature_mode != "none"
+                else "direction_recency_regularized"
                 if self.state_recency_weight > 0.0
                 and self.state_similarity_weight == 0.0
                 else "recency_regularized"
@@ -1129,6 +1387,14 @@ class CoherentMotionStrategy:
                 else "legacy_lexicographic"
             ),
             "direction_available": direction is not None,
+            "local_direction_available": local_direction is not None,
+            "context_direction_available": direction is not None,
+            "query_local_magnitude": round(
+                float(local_direction_norm), 6
+            ),
+            "query_context_magnitude_per_step": round(
+                float(context_direction_norm), 6
+            ),
             "candidates": diagnostics,
             "selected": (
                 []
@@ -1137,9 +1403,18 @@ class CoherentMotionStrategy:
             ),
             "legacy_selected": (
                 []
+                if legacy_selected is None
+                else [[
+                    int(legacy_selected.start.t),
+                    int(legacy_selected.end.t),
+                ]]
+            ),
+            "legacy_passing_selected": (
+                []
                 if legacy is None
                 else [[int(legacy[5].start.t), int(legacy[5].end.t)]]
             ),
+            "legacy_fallback_used": legacy_fallback_used,
             "newest_passing": (
                 []
                 if newest is None
@@ -1162,9 +1437,9 @@ class CoherentMotionStrategy:
                 not age_eligible or selected is not None
             ),
             "selection_changed_from_legacy": bool(
-                selected_row is not None
-                and legacy is not None
-                and int(selected_row[5].end.t) != int(legacy[5].end.t)
+                selected is not None
+                and legacy_selected is not None
+                and int(selected.end.t) != int(legacy_selected.end.t)
             ),
             "direction_best": (
                 []
@@ -1269,6 +1544,9 @@ class CoherentMotionStrategy:
         self._last_decisions[idx] = {}
         self._state_queries[idx] = None
         self._state_directions[idx] = None
+        self._state_local_directions[idx] = None
+        self._state_local_direction_norms[idx] = 0.0
+        self._state_context_direction_norms[idx] = 0.0
         self._last_retrievals[idx] = {}
         self._last_retrieval_keys[idx] = None
         self._scene_reset_counts[idx] += 1
@@ -1309,6 +1587,7 @@ class CoherentMotionStrategy:
                 self.state_direction_tie_margin
             ),
             "state_stale_tie_age": int(self.state_stale_tie_age),
+            "state_motion_signature_mode": self.state_motion_signature_mode,
             "pair_frame_ids": [
                 [int(record.start.t), int(record.end.t)]
                 for record in self._pairs[idx].values()
