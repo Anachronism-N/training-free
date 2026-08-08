@@ -324,6 +324,8 @@ def build_compositions(
     label_coherent_motion_state_recency_weight_map: dict | None = None,
     label_coherent_motion_state_similarity_weight_map: dict | None = None,
     label_coherent_motion_state_fallback_to_newest_map: dict | None = None,
+    label_coherent_motion_state_direction_tie_margin_map: dict | None = None,
+    label_coherent_motion_state_stale_tie_age_map: dict | None = None,
     label_semantic_retrieval_capacity_map: dict | None = None,
     label_semantic_retrieval_max_age_map: dict | None = None,
     semantic_retrieval_min_similarity: float = -0.25,
@@ -413,6 +415,15 @@ def build_compositions(
     )
     coherent_motion_state_fallback_to_newest_map = _build_bool_map(
         label_coherent_motion_state_fallback_to_newest_map
+    )
+    coherent_motion_state_direction_tie_margin_map = _build_float_map(
+        label_coherent_motion_state_direction_tie_margin_map,
+        min_value=0.0,
+        max_value=2.0,
+    )
+    coherent_motion_state_stale_tie_age_map = _build_int_map(
+        label_coherent_motion_state_stale_tie_age_map,
+        min_value=0,
     )
     semantic_retrieval_capacity_map = _build_int_map(
         label_semantic_retrieval_capacity_map,
@@ -785,6 +796,18 @@ def build_compositions(
                             coherent_motion_state_fallback_to_newest_map.get(
                                 label_key,
                                 False,
+                            )
+                        ),
+                        state_direction_tie_margin=(
+                            coherent_motion_state_direction_tie_margin_map.get(
+                                label_key,
+                                0.0,
+                            )
+                        ),
+                        state_stale_tie_age=(
+                            coherent_motion_state_stale_tie_age_map.get(
+                                label_key,
+                                0,
                             )
                         ),
                         dynamic_rope=True,

@@ -51,6 +51,8 @@ RESERVOIR_MOTION_POLICIES = {
     "reservoir2_statebalancedmotion1",
     "reservoir2_directionmatch1",
     "reservoir2_directionfresh1",
+    "reservoir2_dirstaletie003",
+    "reservoir2_dirstaletie005",
 }
 FRESH_MOTION_POLICIES = {
     "reservoir2_freshmotion1",
@@ -61,6 +63,8 @@ FRESH_MOTION_POLICIES = {
     "reservoir2_statebalancedmotion1",
     "reservoir2_directionmatch1",
     "reservoir2_directionfresh1",
+    "reservoir2_dirstaletie003",
+    "reservoir2_dirstaletie005",
 }
 STATE_MATCH_POLICIES = {
     "reservoir2_statemotion1",
@@ -70,16 +74,25 @@ STATE_MATCH_POLICIES = {
     "reservoir2_statebalancedmotion1",
     "reservoir2_directionmatch1",
     "reservoir2_directionfresh1",
+    "reservoir2_dirstaletie003",
+    "reservoir2_dirstaletie005",
+}
+DIRECTION_ONLY_POLICIES = {
+    "reservoir2_directionmatch1",
+    "reservoir2_directionfresh1",
+    "reservoir2_dirstaletie003",
+    "reservoir2_dirstaletie005",
+}
+DIRECTION_STALE_TIE_MARGINS = {
+    "reservoir2_dirstaletie003": 0.03,
+    "reservoir2_dirstaletie005": 0.05,
 }
 
 
 def expected_state_match_contract(policy: str) -> dict[str, Any] | None:
     if policy not in STATE_MATCH_POLICIES:
         return None
-    direction_only = policy in {
-        "reservoir2_directionmatch1",
-        "reservoir2_directionfresh1",
-    }
+    direction_only = policy in DIRECTION_ONLY_POLICIES
     return {
         "state_archive_capacity": 4,
         "state_max_read_age": (
@@ -92,6 +105,7 @@ def expected_state_match_contract(policy: str) -> dict[str, Any] | None:
                 "reservoir2_freshmotion4",
                 "reservoir2_directionmatch1",
                 "reservoir2_directionfresh1",
+                *DIRECTION_STALE_TIE_MARGINS,
             }
             else 0.0
             if policy == "reservoir2_statemotion1_strict"
@@ -106,6 +120,7 @@ def expected_state_match_contract(policy: str) -> dict[str, Any] | None:
                 "reservoir2_statemotion1_strict",
                 "reservoir2_directionmatch1",
                 "reservoir2_directionfresh1",
+                *DIRECTION_STALE_TIE_MARGINS,
             }
             else 0.0
         ),
@@ -127,6 +142,13 @@ def expected_state_match_contract(policy: str) -> dict[str, Any] | None:
         ),
         "state_similarity_weight": 0.0 if direction_only else 0.5,
         "state_fallback_to_newest": direction_only,
+        "state_direction_tie_margin": DIRECTION_STALE_TIE_MARGINS.get(
+            policy,
+            0.0,
+        ),
+        "state_stale_tie_age": (
+            12 if policy in DIRECTION_STALE_TIE_MARGINS else 0
+        ),
     }
 
 
@@ -784,6 +806,18 @@ def expected_policy(
                 "reservoir_motion",
             ),
             "reservoir2_directionfresh1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_dirstaletie003": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_dirstaletie005": (
                 ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
                 1,
                 4,

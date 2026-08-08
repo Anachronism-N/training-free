@@ -468,6 +468,8 @@ class CoherentMotionStrategy:
         state_recency_weight: float = 0.0,
         state_similarity_weight: float = 0.5,
         state_fallback_to_newest: bool = False,
+        state_direction_tie_margin: float = 0.0,
+        state_stale_tie_age: int = 0,
         dynamic_rope: bool = True,
     ):
         self.pair_capacity = max(1, int(pair_capacity))
@@ -498,6 +500,8 @@ class CoherentMotionStrategy:
         self.state_recency_weight = max(0.0, float(state_recency_weight))
         self.state_similarity_weight = float(state_similarity_weight)
         self.state_fallback_to_newest = bool(state_fallback_to_newest)
+        self.state_direction_tie_margin = float(state_direction_tie_margin)
+        self.state_stale_tie_age = max(0, int(state_stale_tie_age))
         if not -1.0 <= self.state_min_similarity <= 1.0:
             raise ValueError("state_min_similarity must be within [-1, 1]")
         if not -1.0 <= self.state_min_direction_similarity <= 1.0:
@@ -506,6 +510,10 @@ class CoherentMotionStrategy:
             )
         if not 0.0 <= self.state_similarity_weight <= 1.0:
             raise ValueError("state_similarity_weight must be within [0, 1]")
+        if not 0.0 <= self.state_direction_tie_margin <= 2.0:
+            raise ValueError(
+                "state_direction_tie_margin must be within [0, 2]"
+            )
         self.dynamic_rope = bool(dynamic_rope)
         self._pairs: list[OrderedDict[int, _MotionPairRecord]] = []
         self._references: list[torch.Tensor | None] = []
@@ -1024,12 +1032,37 @@ class CoherentMotionStrategy:
             if age_eligible
             else None
         )
+        direction_tie_candidates = []
+        direction_best_age = None
+        direction_tie_applied = False
         if not scored:
             selected_row = None
         elif self.state_recency_weight > 0.0:
             selected_row = max(
                 scored,
                 key=lambda item: (item[4], item[3], item[2]),
+            )
+        elif self.state_direction_tie_margin > 0.0:
+            if legacy is None:
+                raise RuntimeError("direction-tie selection has no baseline")
+            direction_best_age = int(current_t) - int(legacy[5].end.t)
+            direction_tie_candidates = [
+                item
+                for item in scored
+                if legacy[0] - item[0]
+                <= self.state_direction_tie_margin + 1e-12
+            ]
+            direction_tie_applied = bool(
+                direction_best_age > self.state_stale_tie_age
+                and len(direction_tie_candidates) > 1
+            )
+            selected_row = (
+                max(
+                    direction_tie_candidates,
+                    key=lambda item: (item[2], item[0]),
+                )
+                if direction_tie_applied
+                else legacy
             )
         else:
             selected_row = legacy
@@ -1077,12 +1110,18 @@ class CoherentMotionStrategy:
             "state_recency_weight": float(self.state_recency_weight),
             "state_similarity_weight": float(self.state_similarity_weight),
             "state_fallback_to_newest": bool(self.state_fallback_to_newest),
+            "state_direction_tie_margin": float(
+                self.state_direction_tie_margin
+            ),
+            "state_stale_tie_age": int(self.state_stale_tie_age),
             "selection_mode": (
                 "direction_recency_regularized"
                 if self.state_recency_weight > 0.0
                 and self.state_similarity_weight == 0.0
                 else "recency_regularized"
                 if self.state_recency_weight > 0.0
+                else "direction_stale_tie"
+                if self.state_direction_tie_margin > 0.0
                 else "direction_lexicographic"
                 if self.state_similarity_weight == 0.0
                 else "configured_recency"
@@ -1126,6 +1165,30 @@ class CoherentMotionStrategy:
                 selected_row is not None
                 and legacy is not None
                 and int(selected_row[5].end.t) != int(legacy[5].end.t)
+            ),
+            "direction_best": (
+                []
+                if legacy is None
+                else [[int(legacy[5].start.t), int(legacy[5].end.t)]]
+            ),
+            "direction_best_age": direction_best_age,
+            "direction_tie_candidate_count": len(
+                direction_tie_candidates
+            ),
+            "direction_tie_candidates": [
+                [int(item[5].start.t), int(item[5].end.t)]
+                for item in direction_tie_candidates
+            ],
+            "direction_tie_applied": direction_tie_applied,
+            "selected_direction_loss": (
+                None
+                if selected_row is None or legacy is None
+                else round(float(legacy[0] - selected_row[0]), 6)
+            ),
+            "selected_age_gain_vs_direction_best": (
+                None
+                if selected_row is None or legacy is None
+                else int(selected_row[5].end.t) - int(legacy[5].end.t)
             ),
             "selected_age": (
                 None
@@ -1242,6 +1305,10 @@ class CoherentMotionStrategy:
             "state_recency_weight": float(self.state_recency_weight),
             "state_similarity_weight": float(self.state_similarity_weight),
             "state_fallback_to_newest": bool(self.state_fallback_to_newest),
+            "state_direction_tie_margin": float(
+                self.state_direction_tie_margin
+            ),
+            "state_stale_tie_age": int(self.state_stale_tie_age),
             "pair_frame_ids": [
                 [int(record.start.t), int(record.end.t)]
                 for record in self._pairs[idx].values()
