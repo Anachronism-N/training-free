@@ -1,5 +1,9 @@
 # v165 Stale-Aware Direction-Tie Retrieval
 
+Post-generation VBench collection, frozen decision gates, and the four-video
+review protocol are documented in
+`docs/180_v165_vbench_decision_and_next_stage.md`.
+
 ## 1. Decision from v164
 
 v164 established three useful facts on the 16-prompt development suite:

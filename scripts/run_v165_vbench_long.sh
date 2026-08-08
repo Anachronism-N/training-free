@@ -5,8 +5,10 @@ ACTION="${1:-}"
 if [[ "${ACTION}" != "prepare" && "${ACTION}" != "split" && \
       "${ACTION}" != "preflight" && "${ACTION}" != "eval" && \
       "${ACTION}" != "resume-missing" && "${ACTION}" != "status" && \
-      "${ACTION}" != "collect" ]]; then
-  echo "usage: $0 {prepare|split|preflight|eval|resume-missing|status|collect}" >&2
+      "${ACTION}" != "collect" && "${ACTION}" != "decide" && \
+      "${ACTION}" != "prepare-review" ]]; then
+  echo "usage: $0 {prepare|split|preflight|eval|resume-missing|status|collect|decide|prepare-review}" \
+    >&2
   exit 2
 fi
 
@@ -18,6 +20,8 @@ VBENCH_CACHE_DIR="${VBENCH_CACHE_DIR:-${ROOT}/runs/vbench_cache}"
 PARTS_ROOT="${PARTS_ROOT:-${RUN_ROOT}/metrics/vbench_long_parts}"
 SUMMARY_ROOT="${SUMMARY_ROOT:-${RUN_ROOT}/metrics}"
 ANALYSIS_ROOT="${ANALYSIS_ROOT:-${RUN_ROOT}/analysis}"
+DECISION_JSON="${DECISION_JSON:-${ANALYSIS_ROOT}/v165_final_decision.json}"
+REVIEW_ROOT="${REVIEW_ROOT:-${RUN_ROOT}/minimal_review}"
 CONDA_SH="${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}"
 CONDA_ENV="${CONDA_ENV:-longlive}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
@@ -28,6 +32,42 @@ GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7}"
 if (( NUM_NODES <= 0 || NODE_RANK < 0 || NODE_RANK >= NUM_NODES )); then
   echo "[error] require 0 <= NODE_RANK < NUM_NODES" >&2
   exit 2
+fi
+
+run_decision() {
+  "${PYTHON_BIN}" "${ROOT}/scripts/analyze_v165_final_decision.py" \
+    --vbench-parts-root "${PARTS_ROOT}" \
+    --vbench-summary "${SUMMARY_ROOT}/vbench_core9_summary.json" \
+    --temporal-csv "${RUN_ROOT}/automated_screen/temporal_diagnostics.csv" \
+    --comprehensive-json "${RUN_ROOT}/automated_screen/comprehensive.json" \
+    --trace-report "${RUN_ROOT}/automated_screen/direction_stale_tie_trace.json" \
+    --published-manifest "${RUN_ROOT}/published_manifest.json" \
+    --output "${DECISION_JSON}"
+}
+
+if [[ "${ACTION}" == "decide" ]]; then
+  [[ "${NODE_RANK}" == "0" ]] || {
+    echo "decide requires rank 0" >&2
+    exit 2
+  }
+  run_decision
+  exit $?
+fi
+
+if [[ "${ACTION}" == "prepare-review" ]]; then
+  [[ "${NODE_RANK}" == "0" ]] || {
+    echo "prepare-review requires rank 0" >&2
+    exit 2
+  }
+  [[ -f "${DECISION_JSON}" ]] || {
+    echo "missing ${DECISION_JSON}; run collect or decide first" >&2
+    exit 2
+  }
+  "${PYTHON_BIN}" "${ROOT}/scripts/prepare_v165_minimal_review.py" \
+    --decision "${DECISION_JSON}" \
+    --run-root "${RUN_ROOT}" \
+    --output-root "${REVIEW_ROOT}"
+  exit $?
 fi
 
 if [[ "${ACTION}" == "prepare" ]]; then
@@ -96,3 +136,7 @@ fi
   --analysis-stem "v165_vbench_analysis" \
   --summary-title "v165 Direction Stale-Tie VBench-Long Core-9" \
   "${EXTRA_ARGS[@]}"
+
+if [[ "${ACTION}" == "collect" ]]; then
+  run_decision
+fi

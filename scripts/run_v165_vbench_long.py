@@ -10,10 +10,17 @@ from prepare_v165_vbench_comparison import (
     PROMPT_COUNT,
     comparison_name,
 )
-
-
-def mean(row: dict[str, float], names: tuple[str, ...]) -> float:
-    return sum(float(row[name]) for name in names) / len(names)
+from v165_decision_contract import (
+    DIRECTION_FRESH,
+    DIRECTION_MATCH,
+    PRIMARY,
+    SF,
+    STATE_MOTION,
+    TIE_003,
+    derive_scores,
+    evaluate_development_gates,
+    oriented_comparison,
+)
 
 
 def analyze(payload: dict) -> dict:
@@ -21,40 +28,43 @@ def analyze(payload: dict) -> dict:
     dimensions = tuple(payload.get("dimensions") or ())
     if tuple(rows) != METHODS or dimensions != DIMENSIONS or payload.get("missing"):
         raise ValueError("v165 VBench summary violates the frozen grid")
-    derived = {}
     for method in METHODS:
         row = rows[method]
         if set(row) != set(DIMENSIONS):
             raise ValueError(f"{method}: incomplete v165 VBench dimensions")
-        derived[method] = {
-            "history_consistency": mean(
-                row,
-                (
-                    "subject_consistency",
-                    "background_consistency",
-                    "overall_consistency",
-                ),
-            ),
-            "temporal_quality": mean(
-                row,
-                (
-                    "temporal_flickering",
-                    "motion_smoothness",
-                    "temporal_style",
-                ),
-            ),
-            "visual_quality": mean(row, ("aesthetic_quality", "imaging_quality")),
-            "dynamic_degree": float(row["dynamic_degree"]),
-        }
+    derived = derive_scores(rows)
+    gate_rows, candidate_gate = evaluate_development_gates(derived)
+    comparisons = {
+        reference: oriented_comparison(
+            derived,
+            candidate=PRIMARY,
+            reference=reference,
+        )
+        for reference in (
+            DIRECTION_MATCH,
+            SF,
+            TIE_003,
+            DIRECTION_FRESH,
+            STATE_MOTION,
+        )
+    }
     return {
-        "version": 1,
+        "version": 2,
         "experiment": COMPARISON_EXPERIMENT,
         "methods": list(METHODS),
         "dimensions": list(DIMENSIONS),
         "derived_scores": derived,
+        "primary_candidate": PRIMARY,
+        "primary_comparisons": comparisons,
+        "development_gates": gate_rows,
+        "development_candidate_gate": candidate_gate,
+        # run_v154_vbench_long expects this compatibility field after collect.
+        # It means only "continue development", never paper promotion.
+        "metric_promotion_gate": candidate_gate,
         "claim_boundary": (
-            "VBench is an automatic development diagnostic; v165 is not a "
-            "held-out paper comparison."
+            "The metric_promotion_gate is a compatibility field for the "
+            "shared collector. It selects a v165 development candidate only; "
+            "the 16 prompts are not a held-out paper comparison."
         ),
     }
 
@@ -74,7 +84,30 @@ def render_markdown(report: dict) -> str:
             f"{row['visual_quality']:.5f} | "
             f"{row['dynamic_degree']:.5f} |"
         )
-    lines.extend(["", "These values are engineering diagnostics.", ""])
+    lines.extend(
+        [
+            "",
+            "## Frozen development gates",
+            "",
+            "| Gate | Metric | Delta | Minimum | Pass |",
+            "|---|---|---:|---:|---:|",
+        ]
+    )
+    for row in report["development_gates"]:
+        lines.append(
+            f"| {row['name']} | {row['metric']} | {row['delta']:+.5f} | "
+            f"{row['minimum_delta']:+.5f} | {row['pass']} |"
+        )
+    lines.extend(
+        [
+            "",
+            "Development candidate gate: "
+            f"**{report['development_candidate_gate']}**",
+            "",
+            report["claim_boundary"],
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 
