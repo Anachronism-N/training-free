@@ -1,0 +1,179 @@
+{
+  "claim_boundary": "The metric_promotion_gate is a compatibility field for the shared collector. It selects a v165 development candidate only; the 16 prompts are not a held-out paper comparison.",
+  "derived_scores": {
+    "ours_middle10_reservoir2_directionfresh1": {
+      "dynamic_degree": 0.7625,
+      "history_consistency": 0.7245405456447611,
+      "temporal_quality": 0.7266032406601322,
+      "visual_quality": 0.6691903489778439
+    },
+    "ours_middle10_reservoir2_directionmatch1": {
+      "dynamic_degree": 0.7708333333333334,
+      "history_consistency": 0.723562789415514,
+      "temporal_quality": 0.7260974323574484,
+      "visual_quality": 0.6676439059476058
+    },
+    "ours_middle10_reservoir2_dirstaletie003": {
+      "dynamic_degree": 0.75,
+      "history_consistency": 0.7237124763408721,
+      "temporal_quality": 0.7262677936347712,
+      "visual_quality": 0.6674694882159432
+    },
+    "ours_middle10_reservoir2_dirstaletie005": {
+      "dynamic_degree": 0.7666666666666667,
+      "history_consistency": 0.7237180129312465,
+      "temporal_quality": 0.726178502769638,
+      "visual_quality": 0.6721135842924317
+    },
+    "ours_middle10_reservoir2_statemotionpair1_reference": {
+      "dynamic_degree": 0.7625,
+      "history_consistency": 0.7247766705152473,
+      "temporal_quality": 0.7270013282617578,
+      "visual_quality": 0.6670762626106541
+    },
+    "sf_native": {
+      "dynamic_degree": 0.6416666666666667,
+      "history_consistency": 0.7209377876771597,
+      "temporal_quality": 0.7277954909306469,
+      "visual_quality": 0.6524523201112946
+    }
+  },
+  "development_candidate_gate": false,
+  "development_gates": [
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 0.00015522351573249438,
+      "metric": "history_consistency",
+      "minimum_delta": -0.003,
+      "name": "history_vs_directionmatch",
+      "pass": true,
+      "purpose": "retain the direction-only history benefit",
+      "reference": "ours_middle10_reservoir2_directionmatch1"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 8.107041218963218e-05,
+      "metric": "temporal_quality",
+      "minimum_delta": 0.001,
+      "name": "temporal_vs_directionmatch",
+      "pass": false,
+      "purpose": "improve the temporal weakness that motivated stale tie-breaking",
+      "reference": "ours_middle10_reservoir2_directionmatch1"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 0.0044696783448259225,
+      "metric": "visual_quality",
+      "minimum_delta": -0.006,
+      "name": "visual_vs_directionmatch",
+      "pass": true,
+      "purpose": "avoid buying temporal stability with visible quality loss",
+      "reference": "ours_middle10_reservoir2_directionmatch1"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": -0.004166666666666652,
+      "metric": "dynamic_degree",
+      "minimum_delta": -0.02,
+      "name": "dynamic_vs_directionmatch",
+      "pass": true,
+      "purpose": "preserve motion amount relative to direction-only recall",
+      "reference": "ours_middle10_reservoir2_directionmatch1"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 0.002780225254086832,
+      "metric": "history_consistency",
+      "minimum_delta": 0.002,
+      "name": "history_vs_sf",
+      "pass": true,
+      "purpose": "improve long-history consistency over native Self-Forcing",
+      "reference": "sf_native"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 0.125,
+      "metric": "dynamic_degree",
+      "minimum_delta": 0.02,
+      "name": "dynamic_vs_sf",
+      "pass": true,
+      "purpose": "retain a meaningful motion gain over native Self-Forcing",
+      "reference": "sf_native"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": -0.0016169881610088588,
+      "metric": "temporal_quality",
+      "minimum_delta": -0.004,
+      "name": "temporal_vs_sf",
+      "pass": true,
+      "purpose": "bound temporal-quality regression relative to Self-Forcing",
+      "reference": "sf_native"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 0.019661264181137117,
+      "metric": "visual_quality",
+      "minimum_delta": -0.006,
+      "name": "visual_vs_sf",
+      "pass": true,
+      "purpose": "bound visual-quality regression relative to Self-Forcing",
+      "reference": "sf_native"
+    }
+  ],
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "experiment": "v165_direction_stale_tie_vbench16",
+  "methods": [
+    "sf_native",
+    "ours_middle10_reservoir2_directionmatch1",
+    "ours_middle10_reservoir2_dirstaletie003",
+    "ours_middle10_reservoir2_dirstaletie005",
+    "ours_middle10_reservoir2_directionfresh1",
+    "ours_middle10_reservoir2_statemotionpair1_reference"
+  ],
+  "metric_promotion_gate": false,
+  "primary_candidate": "ours_middle10_reservoir2_dirstaletie005",
+  "primary_comparisons": {
+    "ours_middle10_reservoir2_directionfresh1": {
+      "dynamic_degree": 0.004166666666666763,
+      "history_consistency": -0.0008225327135146232,
+      "temporal_quality": -0.00042473789049413124,
+      "visual_quality": 0.0029232353145878243
+    },
+    "ours_middle10_reservoir2_directionmatch1": {
+      "dynamic_degree": -0.004166666666666652,
+      "history_consistency": 0.00015522351573249438,
+      "temporal_quality": 8.107041218963218e-05,
+      "visual_quality": 0.0044696783448259225
+    },
+    "ours_middle10_reservoir2_dirstaletie003": {
+      "dynamic_degree": 0.01666666666666672,
+      "history_consistency": 5.536590374388695e-06,
+      "temporal_quality": -8.929086513320694e-05,
+      "visual_quality": 0.004644096076488524
+    },
+    "ours_middle10_reservoir2_statemotionpair1_reference": {
+      "dynamic_degree": 0.004166666666666763,
+      "history_consistency": -0.0010586575840008106,
+      "temporal_quality": -0.0008228254921197609,
+      "visual_quality": 0.005037321681777618
+    },
+    "sf_native": {
+      "dynamic_degree": 0.125,
+      "history_consistency": 0.002780225254086832,
+      "temporal_quality": -0.0016169881610088588,
+      "visual_quality": 0.019661264181137117
+    }
+  },
+  "version": 2
+}

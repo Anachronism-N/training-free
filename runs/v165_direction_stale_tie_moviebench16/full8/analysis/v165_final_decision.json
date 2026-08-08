@@ -1,0 +1,1841 @@
+{
+  "aggregate_development_gates": [
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 0.00015522351573249438,
+      "metric": "history_consistency",
+      "minimum_delta": -0.003,
+      "name": "history_vs_directionmatch",
+      "pass": true,
+      "purpose": "retain the direction-only history benefit",
+      "reference": "ours_middle10_reservoir2_directionmatch1"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 8.107041218963218e-05,
+      "metric": "temporal_quality",
+      "minimum_delta": 0.001,
+      "name": "temporal_vs_directionmatch",
+      "pass": false,
+      "purpose": "improve the temporal weakness that motivated stale tie-breaking",
+      "reference": "ours_middle10_reservoir2_directionmatch1"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 0.0044696783448259225,
+      "metric": "visual_quality",
+      "minimum_delta": -0.006,
+      "name": "visual_vs_directionmatch",
+      "pass": true,
+      "purpose": "avoid buying temporal stability with visible quality loss",
+      "reference": "ours_middle10_reservoir2_directionmatch1"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": -0.004166666666666652,
+      "metric": "dynamic_degree",
+      "minimum_delta": -0.02,
+      "name": "dynamic_vs_directionmatch",
+      "pass": true,
+      "purpose": "preserve motion amount relative to direction-only recall",
+      "reference": "ours_middle10_reservoir2_directionmatch1"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 0.002780225254086832,
+      "metric": "history_consistency",
+      "minimum_delta": 0.002,
+      "name": "history_vs_sf",
+      "pass": true,
+      "purpose": "improve long-history consistency over native Self-Forcing",
+      "reference": "sf_native"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 0.125,
+      "metric": "dynamic_degree",
+      "minimum_delta": 0.02,
+      "name": "dynamic_vs_sf",
+      "pass": true,
+      "purpose": "retain a meaningful motion gain over native Self-Forcing",
+      "reference": "sf_native"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": -0.0016169881610088588,
+      "metric": "temporal_quality",
+      "minimum_delta": -0.004,
+      "name": "temporal_vs_sf",
+      "pass": true,
+      "purpose": "bound temporal-quality regression relative to Self-Forcing",
+      "reference": "sf_native"
+    },
+    {
+      "candidate": "ours_middle10_reservoir2_dirstaletie005",
+      "delta": 0.019661264181137117,
+      "metric": "visual_quality",
+      "minimum_delta": -0.006,
+      "name": "visual_vs_sf",
+      "pass": true,
+      "purpose": "bound visual-quality regression relative to Self-Forcing",
+      "reference": "sf_native"
+    }
+  ],
+  "aggregate_gate": false,
+  "aggregate_scores": {
+    "ours_middle10_reservoir2_directionfresh1": {
+      "dynamic_degree": 0.7625,
+      "history_consistency": 0.7245405456447611,
+      "temporal_quality": 0.7266032406601322,
+      "visual_quality": 0.6691903489778439
+    },
+    "ours_middle10_reservoir2_directionmatch1": {
+      "dynamic_degree": 0.7708333333333334,
+      "history_consistency": 0.723562789415514,
+      "temporal_quality": 0.7260974323574484,
+      "visual_quality": 0.6676439059476058
+    },
+    "ours_middle10_reservoir2_dirstaletie003": {
+      "dynamic_degree": 0.75,
+      "history_consistency": 0.7237124763408721,
+      "temporal_quality": 0.7262677936347712,
+      "visual_quality": 0.6674694882159432
+    },
+    "ours_middle10_reservoir2_dirstaletie005": {
+      "dynamic_degree": 0.7666666666666667,
+      "history_consistency": 0.7237180129312465,
+      "temporal_quality": 0.726178502769638,
+      "visual_quality": 0.6721135842924317
+    },
+    "ours_middle10_reservoir2_statemotionpair1_reference": {
+      "dynamic_degree": 0.7625,
+      "history_consistency": 0.7247766705152473,
+      "temporal_quality": 0.7270013282617578,
+      "visual_quality": 0.6670762626106541
+    },
+    "sf_native": {
+      "dynamic_degree": 0.6416666666666667,
+      "history_consistency": 0.7209377876771597,
+      "temporal_quality": 0.7277954909306469,
+      "visual_quality": 0.6524523201112946
+    }
+  },
+  "candidate_specific_safety_flags": [
+    {
+      "flags": [
+        "edge_density_failure"
+      ],
+      "prompt_index": 1
+    },
+    {
+      "flags": [
+        "late_motion_collapse"
+      ],
+      "prompt_index": 10
+    },
+    {
+      "flags": [
+        "background_drift"
+      ],
+      "prompt_index": 11
+    }
+  ],
+  "candidate_specific_safety_gate": false,
+  "claim_boundary": "This adaptive 16-prompt analysis chooses the next development step. It is not held-out evidence, and its selected review clips cannot be reported as an unbiased human comparison.",
+  "development_candidate_gate": false,
+  "experiment": "v165_final_development_decision",
+  "inputs": {
+    "comprehensive_json": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v165_direction_stale_tie_moviebench16/full8/automated_screen/comprehensive.json",
+    "comprehensive_json_sha256": "9dc6ca355afbfdecf13ad6a887f0ca9f167dfe60c8098578b272332cce0cb89a",
+    "published_experiment": "v165_direction_stale_tie_moviebench16",
+    "published_manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v165_direction_stale_tie_moviebench16/full8/published_manifest.json",
+    "published_manifest_sha256": "ed5254378274e6a76ded001d7c3192d7392ee314df99e1952cc3d897f18b8db5",
+    "temporal_csv": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v165_direction_stale_tie_moviebench16/full8/automated_screen/temporal_diagnostics.csv",
+    "temporal_csv_sha256": "513dcd407a142498acda66a0ac937dea6c49fa2efe2f03a8e3a35482bb7f3d89",
+    "trace_experiment": "v165_direction_stale_tie_trace",
+    "trace_report": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v165_direction_stale_tie_moviebench16/full8/automated_screen/direction_stale_tie_trace.json",
+    "trace_report_sha256": "6438a3911609d11aacdc9071e6491511b533489fc6b229f9088b9d77770c9f9f",
+    "vbench_summary": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v165_direction_stale_tie_moviebench16/full8/metrics/vbench_core9_summary.json",
+    "vbench_summary_sha256": "439a532ac433e76cb9cdd85abfaa70b6e934d5e4fcb9145780fd2a540be53c2b"
+  },
+  "mechanism_gate": true,
+  "paired_support_checks": [
+    {
+      "metric": "temporal_quality",
+      "minimum_positive_prompts": 9,
+      "name": "temporal_majority_vs_directionmatch",
+      "pass": false,
+      "positive_prompts": 7,
+      "reference": "ours_middle10_reservoir2_directionmatch1"
+    },
+    {
+      "metric": "history_consistency",
+      "minimum_positive_prompts": 9,
+      "name": "history_majority_vs_sf",
+      "pass": true,
+      "positive_prompts": 11,
+      "reference": "sf_native"
+    },
+    {
+      "metric": "dynamic_degree",
+      "minimum_positive_prompts": 9,
+      "name": "dynamic_majority_vs_sf",
+      "pass": false,
+      "positive_prompts": 7,
+      "reference": "sf_native"
+    }
+  ],
+  "paired_support_gate": false,
+  "paired_vbench_comparisons": {
+    "ours_middle10_reservoir2_directionfresh1": {
+      "dynamic_degree": {
+        "bootstrap_mean_ci95": [
+          -0.029166666666666653,
+          0.041666666666666664
+        ],
+        "mean_delta": 0.004166666666666673,
+        "median_delta": 0.0,
+        "negative_prompts": 3,
+        "per_prompt": [
+          {
+            "delta": 0.0,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.19999999999999996,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 2
+          },
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.06666666666666665,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.06666666666666676,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.1333333333333333,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 3
+      },
+      "history_consistency": {
+        "bootstrap_mean_ci95": [
+          -0.002499957905782335,
+          0.0008163739420355837
+        ],
+        "mean_delta": -0.0008225327135144775,
+        "median_delta": -0.0007576048016550985,
+        "negative_prompts": 10,
+        "per_prompt": [
+          {
+            "delta": 0.0036396030679473057,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.0004556673417284163,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.0007573148139604635,
+            "prompt_index": 2
+          },
+          {
+            "delta": 5.015905820560107e-05,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.007561467884839579,
+            "prompt_index": 4
+          },
+          {
+            "delta": -0.0012914593865256396,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.002276761329747523,
+            "prompt_index": 6
+          },
+          {
+            "delta": -0.001027255526412807,
+            "prompt_index": 7
+          },
+          {
+            "delta": -0.00048795407689739,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.003241725622074809,
+            "prompt_index": 9
+          },
+          {
+            "delta": -0.0015732584309836595,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0066006969591349,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0015158769445315912,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.007255285788697496,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.0011827660700809428,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.0006294271979767618,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 6
+      },
+      "temporal_quality": {
+        "bootstrap_mean_ci95": [
+          -0.0014926746968489946,
+          0.0005369679507603448
+        ],
+        "mean_delta": -0.0004247378904940688,
+        "median_delta": -0.00034342114927038425,
+        "negative_prompts": 10,
+        "per_prompt": [
+          {
+            "delta": 0.0018026286248511436,
+            "prompt_index": 0
+          },
+          {
+            "delta": -3.4023216166634285e-05,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.00024699475923395386,
+            "prompt_index": 2
+          },
+          {
+            "delta": -0.0008176035214652044,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.0036690027654856516,
+            "prompt_index": 4
+          },
+          {
+            "delta": -0.00010840638410014591,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.005774369782431732,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0012822290252445523,
+            "prompt_index": 7
+          },
+          {
+            "delta": -0.000919606875925183,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.0015356999128797177,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.0023266939304663614,
+            "prompt_index": 10
+          },
+          {
+            "delta": -0.0005784359144406226,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.002237156635991666,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.0012948221394610826,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.0009595562479653985,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.0010000175366285946,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 6
+      },
+      "visual_quality": {
+        "bootstrap_mean_ci95": [
+          -0.0019164688164989563,
+          0.007551326202849519
+        ],
+        "mean_delta": 0.00292323531458772,
+        "median_delta": 0.001745372792084976,
+        "negative_prompts": 7,
+        "per_prompt": [
+          {
+            "delta": 0.0029268228610356273,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.019125056664148987,
+            "prompt_index": 1
+          },
+          {
+            "delta": -0.0013723053137461028,
+            "prompt_index": 2
+          },
+          {
+            "delta": -0.002176976998647051,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.014855578541755676,
+            "prompt_index": 4
+          },
+          {
+            "delta": -0.0012857197920481678,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.0035217307011286003,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0012131081422168677,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.010663799683252817,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.00037071232000995824,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.019139408787091527,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.004187974890073054,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0022776374419530843,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.02170475796858473,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.0014030681451162597,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.004217649261156753,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 9
+      }
+    },
+    "ours_middle10_reservoir2_directionmatch1": {
+      "dynamic_degree": {
+        "bootstrap_mean_ci95": [
+          -0.02083333333333333,
+          0.012500000000000018
+        ],
+        "mean_delta": -0.004166666666666659,
+        "median_delta": 0.0,
+        "negative_prompts": 3,
+        "per_prompt": [
+          {
+            "delta": 0.0,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.06666666666666665,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.06666666666666676,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 2
+      },
+      "history_consistency": {
+        "bootstrap_mean_ci95": [
+          -0.0011336534243318597,
+          0.001318286955126105
+        ],
+        "mean_delta": 0.00015522351573279275,
+        "median_delta": -0.00012718885099127775,
+        "negative_prompts": 9,
+        "per_prompt": [
+          {
+            "delta": -0.0004919739842581539,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.0007672317868065992,
+            "prompt_index": 1
+          },
+          {
+            "delta": -0.00025349324594514666,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0011566931447332118,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.00688675087583146,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0012104949313962443,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.002291600032978236,
+            "prompt_index": 6
+          },
+          {
+            "delta": -0.0002567759857388108,
+            "prompt_index": 7
+          },
+          {
+            "delta": -3.335023785222546e-05,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.001712017102841079,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.00284631924120049,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.004716893511147124,
+            "prompt_index": 11
+          },
+          {
+            "delta": -0.0018382944628191344,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.0027183167222005755,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.00022102746413033003,
+            "prompt_index": 14
+          },
+          {
+            "delta": 4.173814291741351e-06,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 7
+      },
+      "temporal_quality": {
+        "bootstrap_mean_ci95": [
+          -0.0013999859200740858,
+          0.0013606979540043834
+        ],
+        "mean_delta": 8.107041218958361e-05,
+        "median_delta": -6.386988819212513e-05,
+        "negative_prompts": 9,
+        "per_prompt": [
+          {
+            "delta": -0.0009105548207292147,
+            "prompt_index": 0
+          },
+          {
+            "delta": 7.213968065544751e-05,
+            "prompt_index": 1
+          },
+          {
+            "delta": -0.0004828650322243888,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0009796931497167982,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.008663616688439846,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.001969468972262356,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.002097517837983731,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0024507153873052356,
+            "prompt_index": 7
+          },
+          {
+            "delta": -1.3714979917756054e-05,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.00030317372467369985,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.003816996727053268,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0013553311689072922,
+            "prompt_index": 11
+          },
+          {
+            "delta": -0.0007238009921248789,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.004367643215832273,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.00040559283413932334,
+            "prompt_index": 14
+          },
+          {
+            "delta": -0.00011402479646649422,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 7
+      },
+      "visual_quality": {
+        "bootstrap_mean_ci95": [
+          -0.0007976967493693449,
+          0.010605415041247991
+        ],
+        "mean_delta": 0.004469678344825874,
+        "median_delta": 0.0025630779067674636,
+        "negative_prompts": 4,
+        "per_prompt": [
+          {
+            "delta": 0.01928722321987153,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.0008489358425139981,
+            "prompt_index": 1
+          },
+          {
+            "delta": -0.0006833061377208294,
+            "prompt_index": 2
+          },
+          {
+            "delta": 1.934369405109937e-05,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.01122630214691167,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.03829659450054168,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.0022370732227960932,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.002889082590738834,
+            "prompt_index": 7
+          },
+          {
+            "delta": -0.0025897961060207253,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.003728063027063855,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.005102889021237678,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.008142256776491719,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0030108445882798263,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.018611967603365587,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.0017574190298716985,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.00036873376369483957,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 12
+      }
+    },
+    "ours_middle10_reservoir2_dirstaletie003": {
+      "dynamic_degree": {
+        "bootstrap_mean_ci95": [
+          -0.004166666666666666,
+          0.03750000000000001
+        ],
+        "mean_delta": 0.01666666666666667,
+        "median_delta": 0.0,
+        "negative_prompts": 1,
+        "per_prompt": [
+          {
+            "delta": 0.0,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.1333333333333333,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 2
+          },
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.06666666666666665,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.06666666666666676,
+            "prompt_index": 13
+          },
+          {
+            "delta": 0.06666666666666665,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 4
+      },
+      "history_consistency": {
+        "bootstrap_mean_ci95": [
+          -0.0014240764061178787,
+          0.001346745661840336
+        ],
+        "mean_delta": 5.536590374499717e-06,
+        "median_delta": 0.00034849106137380126,
+        "negative_prompts": 6,
+        "per_prompt": [
+          {
+            "delta": -0.0004676606652289639,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.0026439619353710864,
+            "prompt_index": 1
+          },
+          {
+            "delta": 1.1666813515387453e-05,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.000699896311278092,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.007825252947205596,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0011118305274201434,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.0008957969239449248,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0013004444831443696,
+            "prompt_index": 7
+          },
+          {
+            "delta": -0.0015855575750749473,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.0008666452668085745,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.0018313286296645082,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.006550626007980842,
+            "prompt_index": 11
+          },
+          {
+            "delta": 9.093122191838887e-05,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.001009753315868056,
+            "prompt_index": 13
+          },
+          {
+            "delta": 0.0006060509008292136,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.0011609325480070876,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 10
+      },
+      "temporal_quality": {
+        "bootstrap_mean_ci95": [
+          -0.0013159354815014748,
+          0.0010988547966972878
+        ],
+        "mean_delta": -8.929086513316531e-05,
+        "median_delta": 0.00019495164019039946,
+        "negative_prompts": 7,
+        "per_prompt": [
+          {
+            "delta": -5.652992888904862e-06,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.0027254238166353195,
+            "prompt_index": 1
+          },
+          {
+            "delta": 3.93736265874578e-05,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0004378255682724319,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.005810346415476064,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.001401378197910641,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.003996465816875627,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.004858473834912669,
+            "prompt_index": 7
+          },
+          {
+            "delta": -0.0018192809677877175,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.0008965671967540167,
+            "prompt_index": 9
+          },
+          {
+            "delta": -0.00010265670735187804,
+            "prompt_index": 10
+          },
+          {
+            "delta": -0.00011478421230715075,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0008415319764978335,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.0031406151033274154,
+            "prompt_index": 13
+          },
+          {
+            "delta": 0.0003505296537933411,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.001179661929136211,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 9
+      },
+      "visual_quality": {
+        "bootstrap_mean_ci95": [
+          -0.00113556468983491,
+          0.011253523245453818
+        ],
+        "mean_delta": 0.0046440960764884895,
+        "median_delta": 0.0029278127551079502,
+        "negative_prompts": 5,
+        "per_prompt": [
+          {
+            "delta": 0.028327832142512,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.00828889807065325,
+            "prompt_index": 1
+          },
+          {
+            "delta": -7.847825686135845e-05,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0009385561943053844,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.009439045031865434,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.03649861816565192,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.010212058663368162,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.007682201266288713,
+            "prompt_index": 7
+          },
+          {
+            "delta": -0.0059162906805674265,
+            "prompt_index": 8
+          },
+          {
+            "delta": 9.429450829812058e-05,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.005780527353286713,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.005846402128537487,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.004779961864153526,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.015433435519536354,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.0028062000274657883,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.0010756636460623747,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 11
+      }
+    },
+    "ours_middle10_reservoir2_statemotionpair1_reference": {
+      "dynamic_degree": {
+        "bootstrap_mean_ci95": [
+          -0.037500000000000006,
+          0.04166666666666666
+        ],
+        "mean_delta": 0.004166666666666659,
+        "median_delta": 0.0,
+        "negative_prompts": 3,
+        "per_prompt": [
+          {
+            "delta": 0.06666666666666665,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.19999999999999996,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.06666666666666665,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.06666666666666665,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 14
+          },
+          {
+            "delta": -0.20000000000000007,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 4
+      },
+      "history_consistency": {
+        "bootstrap_mean_ci95": [
+          -0.0026661841105425424,
+          0.0004064050589045812
+        ],
+        "mean_delta": -0.0010586575840007342,
+        "median_delta": -0.0005394708180210817,
+        "negative_prompts": 9,
+        "per_prompt": [
+          {
+            "delta": -0.0004997731692832907,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.003639372609231417,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.00034864798651146334,
+            "prompt_index": 2
+          },
+          {
+            "delta": -0.0006834406224606182,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.009152914595597972,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0019249953907471973,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.002206971117167722,
+            "prompt_index": 6
+          },
+          {
+            "delta": -0.002868181296531991,
+            "prompt_index": 7
+          },
+          {
+            "delta": 2.665253985556504e-05,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.0012657239631113093,
+            "prompt_index": 9
+          },
+          {
+            "delta": -0.0059934487652432145,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0005234154576062577,
+            "prompt_index": 11
+          },
+          {
+            "delta": -0.0027346200447947444,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.0016768152129755798,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.0005791684667588726,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.0037706244841378966,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 7
+      },
+      "temporal_quality": {
+        "bootstrap_mean_ci95": [
+          -0.0025217844216542523,
+          0.0007282721730023992
+        ],
+        "mean_delta": -0.0008228254921197053,
+        "median_delta": -0.00043416623831149526,
+        "negative_prompts": 10,
+        "per_prompt": [
+          {
+            "delta": -0.000711085933411848,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.0015337472869753066,
+            "prompt_index": 1
+          },
+          {
+            "delta": 6.736143452235055e-05,
+            "prompt_index": 2
+          },
+          {
+            "delta": -0.0011803471733238258,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.008333497252896449,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.003970813648818239,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.0021526477270288336,
+            "prompt_index": 6
+          },
+          {
+            "delta": -0.0002900057324153327,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.0011908848899992996,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.003736849422047883,
+            "prompt_index": 9
+          },
+          {
+            "delta": -0.007335016170610054,
+            "prompt_index": 10
+          },
+          {
+            "delta": -0.00029779415605801773,
+            "prompt_index": 11
+          },
+          {
+            "delta": -0.003729811100654956,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.0009893149922484135,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.0005705383205649728,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.0030140585923881247,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 6
+      },
+      "visual_quality": {
+        "bootstrap_mean_ci95": [
+          -0.0008023403336604451,
+          0.010881559121112022
+        ],
+        "mean_delta": 0.005037321681777611,
+        "median_delta": 0.003105666438738497,
+        "negative_prompts": 6,
+        "per_prompt": [
+          {
+            "delta": 0.022103077530860826,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.007107278585434029,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.00420460295677183,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0020067299207051637,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.02816203304131837,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.025055043617884243,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.0015465002059936728,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.004217779954274414,
+            "prompt_index": 7
+          },
+          {
+            "delta": -0.004855146050453341,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.0008384770154953314,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.007213725924491765,
+            "prompt_index": 10
+          },
+          {
+            "delta": -0.0037766666014990014,
+            "prompt_index": 11
+          },
+          {
+            "delta": -0.0034652469555536136,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.012342253367106037,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.001145505189895757,
+            "prompt_index": 14
+          },
+          {
+            "delta": -0.01928083638350153,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 10
+      }
+    },
+    "sf_native": {
+      "dynamic_degree": {
+        "bootstrap_mean_ci95": [
+          0.004166666666666654,
+          0.2625
+        ],
+        "mean_delta": 0.125,
+        "median_delta": 0.0,
+        "negative_prompts": 3,
+        "per_prompt": [
+          {
+            "delta": 0.8,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.6,
+            "prompt_index": 1
+          },
+          {
+            "delta": -0.06666666666666667,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.26666666666666666,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.19999999999999996,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.06666666666666665,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.33333333333333337,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.33333333333333337,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.19999999999999996,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 7
+      },
+      "history_consistency": {
+        "bootstrap_mean_ci95": [
+          3.320833573650095e-05,
+          0.005519191391890915
+        ],
+        "mean_delta": 0.0027802252540866657,
+        "median_delta": 0.003471160050219524,
+        "negative_prompts": 5,
+        "per_prompt": [
+          {
+            "delta": 0.004290331520860113,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.00557216737359445,
+            "prompt_index": 1
+          },
+          {
+            "delta": -0.0010615337699885208,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0026791713024483244,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.002147367423861346,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0016377802791687213,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.006398077468741881,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.005442107868518953,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.007675889417065207,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.004745514064448786,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.0129853218059659,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.011550815698148198,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0042631487979907234,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.008592065935505766,
+            "prompt_index": 13
+          },
+          {
+            "delta": 0.0020136380240201035,
+            "prompt_index": 14
+          },
+          {
+            "delta": -0.0034783642973315043,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 11
+      },
+      "temporal_quality": {
+        "bootstrap_mean_ci95": [
+          -0.0050978839173498325,
+          0.001522609455959112
+        ],
+        "mean_delta": -0.001616988161008949,
+        "median_delta": -0.0013954148296180802,
+        "negative_prompts": 9,
+        "per_prompt": [
+          {
+            "delta": -0.001514550374360768,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.005403520158250519,
+            "prompt_index": 1
+          },
+          {
+            "delta": -0.0030286087443530674,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0005190037899944766,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.007410133292914178,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0009122001577538397,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.002518843309203267,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.008880124811006973,
+            "prompt_index": 7
+          },
+          {
+            "delta": -0.0012762792848753923,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.018731142170109738,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.006709173540239366,
+            "prompt_index": 10
+          },
+          {
+            "delta": -0.00621575137865138,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.006890708521493316,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.008149290781501839,
+            "prompt_index": 13
+          },
+          {
+            "delta": 0.001522572918280285,
+            "prompt_index": 14
+          },
+          {
+            "delta": -0.00786451513719233,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 7
+      },
+      "visual_quality": {
+        "bootstrap_mean_ci95": [
+          0.012508295165995713,
+          0.027871794673303724
+        ],
+        "mean_delta": 0.019661264181137054,
+        "median_delta": 0.015205728014310083,
+        "negative_prompts": 0,
+        "per_prompt": [
+          {
+            "delta": 0.01824692312876386,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.01208311160405473,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.028471069494883205,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.023909350951512698,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.0075414919058481855,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.009686837991078612,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.029821943600972567,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0076569122473397755,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.029820712924003567,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.003752342303593781,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.018233448664347174,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.06378493968645726,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0027744501034419056,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.004943021376927703,
+            "prompt_index": 13
+          },
+          {
+            "delta": 0.012178007364272991,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.04167566355069485,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 16
+      }
+    }
+  },
+  "primary_candidate": "ours_middle10_reservoir2_dirstaletie005",
+  "recommendation": "targeted_review_before_keep_or_reject",
+  "review_plan": {
+    "maximum_video_count": 4,
+    "methods": [
+      "ours_middle10_reservoir2_dirstaletie005",
+      "ours_middle10_reservoir2_directionmatch1"
+    ],
+    "mode": "two_prompt_blind",
+    "prompt_count": 2,
+    "rows": [
+      {
+        "automatic_flags": [
+          "late_motion_collapse"
+        ],
+        "deltas_vs_directionmatch": {
+          "dynamic_degree": 0.0,
+          "history_consistency": 0.00284631924120049,
+          "temporal_quality": 0.003816996727053268,
+          "visual_quality": 0.005102889021237678
+        },
+        "frontier_delta_mean": 0.002941551247372859,
+        "metric_disagreement": 0.005102889021237678,
+        "prompt": "A dynamic series of shots capturing a little boy with curly brown hair and a joyful smile riding his bike through a garden that transitions through the changing seasons. Fall leaves crunch underfoot, winter snow blankets the ground, spring flowers bloom, and summer sunshine sparkles through the foliage. The boy pedals energetically, his arms outstretched in excitement. Wide shots show him entering the garden in spring, biking through colorful autumn leaves, riding through a snowy path, and enjoying warm summer sun. Mid-shots and close-ups capture his natural movements and the vibrant colors. Natural, documentary style.",
+        "prompt_index": 10,
+        "reasons": [
+          "candidate_safety_flag"
+        ]
+      },
+      {
+        "automatic_flags": [
+          "background_drift"
+        ],
+        "deltas_vs_directionmatch": {
+          "dynamic_degree": 0.0,
+          "history_consistency": 0.004716893511147124,
+          "temporal_quality": 0.0013553311689072922,
+          "visual_quality": 0.008142256776491719
+        },
+        "frontier_delta_mean": 0.003553620364136534,
+        "metric_disagreement": 0.008142256776491719,
+        "prompt": "A sleek, vibrant red rally car with black accents speeds through a tight turn on a winding track, tires screeching. The driver, a determined man with focused eyes, grips the steering wheel tightly as he navigates with precision. The car's headlights glow brightly in the night, and the background shows blurred glimpses of the track with wet pavement reflections. The camera angle is from slightly above, capturing the intense energy and movement.",
+        "prompt_index": 11,
+        "reasons": [
+          "candidate_safety_flag"
+        ]
+      }
+    ],
+    "selection_is_diagnostic_only": true,
+    "video_count": 4
+  },
+  "vbench_detail_scale_factors": {
+    "ours_middle10_reservoir2_directionfresh1": {
+      "aesthetic_quality": 1.0,
+      "background_consistency": 1.0,
+      "dynamic_degree": 1.0,
+      "imaging_quality": 0.01,
+      "motion_smoothness": 1.0,
+      "overall_consistency": 1.0,
+      "subject_consistency": 1.0,
+      "temporal_flickering": 1.0,
+      "temporal_style": 1.0
+    },
+    "ours_middle10_reservoir2_directionmatch1": {
+      "aesthetic_quality": 1.0,
+      "background_consistency": 1.0,
+      "dynamic_degree": 1.0,
+      "imaging_quality": 0.01,
+      "motion_smoothness": 1.0,
+      "overall_consistency": 1.0,
+      "subject_consistency": 1.0,
+      "temporal_flickering": 1.0,
+      "temporal_style": 1.0
+    },
+    "ours_middle10_reservoir2_dirstaletie003": {
+      "aesthetic_quality": 1.0,
+      "background_consistency": 1.0,
+      "dynamic_degree": 1.0,
+      "imaging_quality": 0.01,
+      "motion_smoothness": 1.0,
+      "overall_consistency": 1.0,
+      "subject_consistency": 1.0,
+      "temporal_flickering": 1.0,
+      "temporal_style": 1.0
+    },
+    "ours_middle10_reservoir2_dirstaletie005": {
+      "aesthetic_quality": 1.0,
+      "background_consistency": 1.0,
+      "dynamic_degree": 1.0,
+      "imaging_quality": 0.01,
+      "motion_smoothness": 1.0,
+      "overall_consistency": 1.0,
+      "subject_consistency": 1.0,
+      "temporal_flickering": 1.0,
+      "temporal_style": 1.0
+    },
+    "ours_middle10_reservoir2_statemotionpair1_reference": {
+      "aesthetic_quality": 1.0,
+      "background_consistency": 1.0,
+      "dynamic_degree": 1.0,
+      "imaging_quality": 0.01,
+      "motion_smoothness": 1.0,
+      "overall_consistency": 1.0,
+      "subject_consistency": 1.0,
+      "temporal_flickering": 1.0,
+      "temporal_style": 1.0
+    },
+    "sf_native": {
+      "aesthetic_quality": 1.0,
+      "background_consistency": 1.0,
+      "dynamic_degree": 1.0,
+      "imaging_quality": 0.01,
+      "motion_smoothness": 1.0,
+      "overall_consistency": 1.0,
+      "subject_consistency": 1.0,
+      "temporal_flickering": 1.0,
+      "temporal_style": 1.0
+    }
+  },
+  "version": 1
+}
