@@ -1,0 +1,94 @@
+{
+  "experiment": "v166_multiscale_motion_moviebench16",
+  "experiment_contract_sha256": "5d6039675e7b6b594ff1219cc1bc7a2acca38ec4b847e4e9e4e3e382e4cd58c2",
+  "failures": [
+    "ours_middle10_reservoir2_multiscalemotion1: missing=['000000.mp4', '000002.mp4', '000004.mp4', '000006.mp4', '000008.mp4', '000010.mp4', '000012.mp4', '000014.mp4'] extra=[]",
+    "ours_middle10_reservoir2_multiscalemotion1: indexed_missing=['000000-0_v166.mp4', '000002-0_v166.mp4', '000004-0_v166.mp4', '000006-0_v166.mp4', '000008-0_v166.mp4', '000010-0_v166.mp4', '000012-0_v166.mp4', '000014-0_v166.mp4'] indexed_extra=[]",
+    "ours_middle10_reservoir2_multiscalemotion1:0: missing artifact",
+    "ours_middle10_reservoir2_multiscalemotion1:2: missing artifact",
+    "ours_middle10_reservoir2_multiscalemotion1:4: missing artifact",
+    "ours_middle10_reservoir2_multiscalemotion1:6: missing artifact",
+    "ours_middle10_reservoir2_multiscalemotion1:8: missing artifact",
+    "ours_middle10_reservoir2_multiscalemotion1:10: missing artifact",
+    "ours_middle10_reservoir2_multiscalemotion1:12: missing artifact",
+    "ours_middle10_reservoir2_multiscalemotion1:14: missing artifact",
+    "ours_middle10_reservoir2_statemotionpair1_reference: missing=['000000.mp4', '000002.mp4', '000004.mp4', '000006.mp4', '000008.mp4', '000010.mp4', '000012.mp4', '000014.mp4'] extra=[]",
+    "ours_middle10_reservoir2_statemotionpair1_reference: indexed_missing=['000000-0_v166.mp4', '000002-0_v166.mp4', '000004-0_v166.mp4', '000006-0_v166.mp4', '000008-0_v166.mp4', '000010-0_v166.mp4', '000012-0_v166.mp4', '000014-0_v166.mp4'] indexed_extra=[]",
+    "ours_middle10_reservoir2_statemotionpair1_reference:0: missing artifact",
+    "ours_middle10_reservoir2_statemotionpair1_reference:2: missing artifact",
+    "ours_middle10_reservoir2_statemotionpair1_reference:4: missing artifact",
+    "ours_middle10_reservoir2_statemotionpair1_reference:6: missing artifact",
+    "ours_middle10_reservoir2_statemotionpair1_reference:8: missing artifact",
+    "ours_middle10_reservoir2_statemotionpair1_reference:10: missing artifact",
+    "ours_middle10_reservoir2_statemotionpair1_reference:12: missing artifact",
+    "ours_middle10_reservoir2_statemotionpair1_reference:14: missing artifact"
+  ],
+  "method_set_id": "ours5_aa7e8513475e",
+  "methods": [
+    {
+      "engine": "sf",
+      "indexed_video_count": 16,
+      "indexed_video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published_indexed/sf_native",
+      "key": "sf_native",
+      "role": "baseline",
+      "total_bytes": 59500654,
+      "video_count": 16,
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published/sf_native"
+    },
+    {
+      "engine": "pf",
+      "indexed_video_count": 16,
+      "indexed_video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published_indexed/ours_middle10_reservoir2_directionmatch1",
+      "key": "ours_middle10_reservoir2_directionmatch1",
+      "role": "v165_direction_match_reference",
+      "total_bytes": 60564911,
+      "video_count": 16,
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published/ours_middle10_reservoir2_directionmatch1"
+    },
+    {
+      "engine": "pf",
+      "indexed_video_count": 16,
+      "indexed_video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published_indexed/ours_middle10_reservoir2_dirstaletie005",
+      "key": "ours_middle10_reservoir2_dirstaletie005",
+      "role": "v165_direction_stale_tie_reference",
+      "total_bytes": 60412421,
+      "video_count": 16,
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published/ours_middle10_reservoir2_dirstaletie005"
+    },
+    {
+      "engine": "pf",
+      "indexed_video_count": 16,
+      "indexed_video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published_indexed/ours_middle10_reservoir2_multiscaledir1",
+      "key": "ours_middle10_reservoir2_multiscaledir1",
+      "role": "multiscale_direction",
+      "total_bytes": 60649600,
+      "video_count": 16,
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published/ours_middle10_reservoir2_multiscaledir1"
+    },
+    {
+      "engine": "pf",
+      "indexed_video_count": 8,
+      "indexed_video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published_indexed/ours_middle10_reservoir2_multiscalemotion1",
+      "key": "ours_middle10_reservoir2_multiscalemotion1",
+      "role": "multiscale_motion_signature",
+      "total_bytes": 29924911,
+      "video_count": 8,
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published/ours_middle10_reservoir2_multiscalemotion1"
+    },
+    {
+      "engine": "pf",
+      "indexed_video_count": 8,
+      "indexed_video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published_indexed/ours_middle10_reservoir2_statemotionpair1_reference",
+      "key": "ours_middle10_reservoir2_statemotionpair1_reference",
+      "role": "v161_state_motion_reference",
+      "total_bytes": 30319752,
+      "video_count": 8,
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v166_multiscale_motion_moviebench16/full8/published/ours_middle10_reservoir2_statemotionpair1_reference"
+    }
+  ],
+  "ok": false,
+  "prompt_count": 16,
+  "prompt_file": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/prompts/moviegen_128_qwen_v154_diverse16.txt",
+  "prompt_file_sha256": "3d85d29bba6500db570909aa1c5b4364687d21d7c15980e7ed3c3f6b607829d8",
+  "version": 1
+}
