@@ -69,6 +69,11 @@ case "${ACTION}" in
       --trace-dir "${OUT_ROOT}/traces" \
       --output "${OUT_ROOT}/automated_screen/cross_scale_consensus_trace.json"
     ;;
+  offline)
+    "${PYTHON_BIN}" \
+      "${ROOT}/scripts/analyze_v168_offline_counterfactual.py" \
+      --output "${OUT_ROOT}/offline_counterfactual.json"
+    ;;
   status)
     find "${OUT_ROOT}/status" -maxdepth 1 -name 'node*.summary.json' \
       -print -exec cat {} \;
@@ -81,7 +86,7 @@ case "${ACTION}" in
     echo "${package_path}"
     ;;
   *)
-    echo "usage: $0 {smoke|preflight|generate|audit|mechanism|status|package}" >&2
+    echo "usage: $0 {offline|smoke|preflight|generate|audit|mechanism|status|package}" >&2
     exit 2
     ;;
 esac

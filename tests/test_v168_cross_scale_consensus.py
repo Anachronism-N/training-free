@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 from pathlib import Path
@@ -155,6 +156,129 @@ def test_offline_recomputation_distinguishes_pareto_and_consensus() -> None:
     assert pareto["selected"] == [21, 22]
     assert consensus["agreement"] is False
     assert consensus["selected"] == [21, 22]
+
+
+def _trace_candidate(
+    candidate_pair: list[int],
+    *,
+    local: float,
+    context: float,
+    local_rank: int,
+    context_rank: int,
+) -> dict:
+    row = _candidate(candidate_pair, local=local, context=context)
+    score = (local + context) / 2.0
+    row.update(
+        {
+            "age": 26 - candidate_pair[1],
+            "direction_similarity": local,
+            "multiscale_direction_similarity": score,
+            "local_magnitude_similarity": 1.0,
+            "context_magnitude_similarity": 1.0,
+            "magnitude_similarity": 1.0,
+            "motion_signature_score": score,
+            "local_motion_component": local,
+            "context_motion_component": context,
+            "local_component_rank": local_rank,
+            "context_component_rank": context_rank,
+        }
+    )
+    return row
+
+
+def _trace_row(method: str) -> dict:
+    mode = trace.EXPECTED_MODE[method]
+    reason = (
+        "pareto_newest_dominance_reject"
+        if method == trace.PARETO_MOTION
+        else "scale_conflict_newest"
+    )
+    return {
+        "event": "middle_selection",
+        "branch": "cond",
+        "label": 10,
+        "layer": 15,
+        "head": 0,
+        "sync_t": 26,
+        "strategies": [
+            {
+                "name": "CoherentMotionStrategy",
+                "frame_ids": [21, 22],
+                "state": {
+                    "state_match": True,
+                    "state_archive_capacity": 4,
+                    "state_max_read_age": 24,
+                    "state_min_similarity": -1.0,
+                    "state_min_direction_similarity": 0.1,
+                    "state_selection_order": [
+                        "direction_similarity",
+                        "recency",
+                    ],
+                    "state_recency_weight": 0.0,
+                    "state_similarity_weight": 0.0,
+                    "state_fallback_to_newest": True,
+                    "state_direction_tie_margin": 0.0,
+                    "state_stale_tie_age": 0,
+                    "state_motion_signature_mode": mode,
+                    "pair_frame_ids": [[2, 3], [21, 22]],
+                    "last_retrieval": {
+                        "eligible": 2,
+                        "selection_mode": mode,
+                        "state_filter_mode": "none",
+                        "motion_deficit_gate_enabled": False,
+                        "candidates": [
+                            _trace_candidate(
+                                [2, 3],
+                                local=0.95,
+                                context=0.75,
+                                local_rank=1,
+                                context_rank=2,
+                            ),
+                            _trace_candidate(
+                                [21, 22],
+                                local=0.70,
+                                context=0.90,
+                                local_rank=2,
+                                context_rank=1,
+                            ),
+                        ],
+                        "selected": [[21, 22]],
+                        "motion_signature_selected": [[2, 3]],
+                        "pareto_candidate": [[2, 3]],
+                        "newest_passing": [[21, 22]],
+                        "local_component_best": [[2, 3]],
+                        "context_component_best": [[21, 22]],
+                        "scale_argmax_agreement": False,
+                        "cross_scale_conflict": True,
+                        "pareto_pass": False,
+                        "pareto_component_delta": {
+                            "local": 0.25,
+                            "context": -0.15,
+                        },
+                        "component_numeric_tolerance": 1e-12,
+                        "selection_reason": reason,
+                        "fallback_used": False,
+                        "read_budget_preserved": True,
+                        "selection_changed_from_motion_signature": True,
+                    },
+                },
+            }
+        ],
+    }
+
+
+def test_trace_audit_recomputes_both_new_selectors(tmp_path: Path) -> None:
+    for method in trace.METHODS:
+        path = tmp_path / f"{method}__p007.policy.jsonl"
+        path.write_text(
+            json.dumps(_trace_row(method)) + "\n",
+            encoding="utf-8",
+        )
+        report = trace.analyze_prompt(path, method=method)
+        assert report["failures"] == []
+        assert report["conflict_count"] == 1
+        assert report["changed_from_motion_count"] == 1
+        assert report["read_budget_violation_count"] == 0
 
 
 def test_shell_exposes_smoke_full_audit_and_mechanism() -> None:
