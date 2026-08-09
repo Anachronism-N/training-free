@@ -43,6 +43,10 @@ LEGACY_PF_CROSS_TAB = {
 MOTION_SIGNATURE_POLICY_MODES = {
     "reservoir2_multiscaledir1": "multiscale_direction",
     "reservoir2_multiscalemotion1": "multiscale_magnitude",
+    "reservoir2_multiscalepareto1": "pareto_multiscale_magnitude",
+    "reservoir2_multiscaleconsensus1": (
+        "consensus_multiscale_magnitude"
+    ),
     "reservoir2_staterankmotion1": (
         "state_ranked_multiscale_magnitude"
     ),
@@ -850,6 +854,30 @@ def expected_policy(
                 "reservoir_motion",
             ),
             "reservoir2_multiscalemotion1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_staterankmotion1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_deficitstaterankmotion1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_multiscalepareto1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_multiscaleconsensus1": (
                 ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
                 1,
                 4,

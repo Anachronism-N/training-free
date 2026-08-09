@@ -535,12 +535,16 @@ class CoherentMotionStrategy:
             "none",
             "multiscale_direction",
             "multiscale_magnitude",
+            "pareto_multiscale_magnitude",
+            "consensus_multiscale_magnitude",
             "state_ranked_multiscale_magnitude",
             "deficit_state_ranked_multiscale_magnitude",
         }:
             raise ValueError(
                 "state_motion_signature_mode must be none, "
                 "multiscale_direction, multiscale_magnitude, "
+                "pareto_multiscale_magnitude, "
+                "consensus_multiscale_magnitude, "
                 "state_ranked_multiscale_magnitude, or "
                 "deficit_state_ranked_multiscale_magnitude"
             )
@@ -1041,6 +1045,10 @@ class CoherentMotionStrategy:
         local_direction_norm = self._state_local_direction_norms[idx]
         context_direction_norm = self._state_context_direction_norms[idx]
         signature_mode = self.state_motion_signature_mode
+        pareto_mode = signature_mode == "pareto_multiscale_magnitude"
+        consensus_mode = (
+            signature_mode == "consensus_multiscale_magnitude"
+        )
         state_ranked_mode = signature_mode in {
             "state_ranked_multiscale_magnitude",
             "deficit_state_ranked_multiscale_magnitude",
@@ -1179,6 +1187,20 @@ class CoherentMotionStrategy:
                 if magnitude_components
                 else None
             )
+            local_motion_component = (
+                float(local_direction_similarity)
+                * float(local_magnitude_similarity)
+                if local_direction_similarity is not None
+                and local_magnitude_similarity is not None
+                else None
+            )
+            context_motion_component = (
+                float(context_direction_similarity)
+                * float(context_magnitude_similarity)
+                if context_direction_similarity is not None
+                and context_magnitude_similarity is not None
+                else None
+            )
             effective_direction_similarity = (
                 multiscale_direction_similarity
                 if signature_mode != "none"
@@ -1204,6 +1226,8 @@ class CoherentMotionStrategy:
                 signature_mode
                 in {
                     "multiscale_magnitude",
+                    "pareto_multiscale_magnitude",
+                    "consensus_multiscale_magnitude",
                     "state_ranked_multiscale_magnitude",
                     "deficit_state_ranked_multiscale_magnitude",
                 }
@@ -1326,6 +1350,10 @@ class CoherentMotionStrategy:
                         if context_magnitude_similarity is None
                         else float(context_magnitude_similarity)
                     ),
+                    "local_motion_component": local_motion_component,
+                    "context_motion_component": context_motion_component,
+                    "local_component_rank": None,
+                    "context_component_rank": None,
                     "magnitude_similarity": (
                         None
                         if magnitude_similarity is None
@@ -1396,6 +1424,119 @@ class CoherentMotionStrategy:
             if scored
             else None
         )
+        diagnostic_by_end = {
+            int(item["pair"][1]): item for item in diagnostics
+        }
+
+        def component_value(row, name: str) -> float | None:
+            diagnostic = diagnostic_by_end.get(int(row[5].end.t))
+            if diagnostic is None or diagnostic.get(name) is None:
+                return None
+            return float(diagnostic[name])
+
+        for component_name, rank_name in (
+            ("local_motion_component", "local_component_rank"),
+            ("context_motion_component", "context_component_rank"),
+        ):
+            ranked = sorted(
+                (
+                    row
+                    for row in scored
+                    if component_value(row, component_name) is not None
+                ),
+                key=lambda row: (
+                    float(component_value(row, component_name)),
+                    int(row[2]),
+                ),
+                reverse=True,
+            )
+            for rank, row in enumerate(ranked, start=1):
+                diagnostic_by_end[int(row[5].end.t)][rank_name] = rank
+
+        local_component_rows = [
+            row
+            for row in scored
+            if component_value(row, "local_motion_component") is not None
+        ]
+        context_component_rows = [
+            row
+            for row in scored
+            if component_value(row, "context_motion_component") is not None
+        ]
+        local_component_best = (
+            max(
+                local_component_rows,
+                key=lambda row: (
+                    float(component_value(row, "local_motion_component")),
+                    int(row[2]),
+                ),
+            )
+            if local_component_rows
+            else None
+        )
+        context_component_best = (
+            max(
+                context_component_rows,
+                key=lambda row: (
+                    float(
+                        component_value(row, "context_motion_component")
+                    ),
+                    int(row[2]),
+                ),
+            )
+            if context_component_rows
+            else None
+        )
+        scale_argmax_agreement = (
+            int(local_component_best[2]) == int(context_component_best[2])
+            if local_component_best is not None
+            and context_component_best is not None
+            else None
+        )
+        cross_scale_conflict = scale_argmax_agreement is False
+
+        component_tolerance = 1e-12
+        pareto_pass = None
+        pareto_local_delta = None
+        pareto_context_delta = None
+        pareto_selected = newest
+        if motion_signature_best is not None and newest is not None:
+            motion_local = component_value(
+                motion_signature_best,
+                "local_motion_component",
+            )
+            motion_context = component_value(
+                motion_signature_best,
+                "context_motion_component",
+            )
+            newest_local = component_value(
+                newest,
+                "local_motion_component",
+            )
+            newest_context = component_value(
+                newest,
+                "context_motion_component",
+            )
+            if motion_local is not None and newest_local is not None:
+                pareto_local_delta = motion_local - newest_local
+            if motion_context is not None and newest_context is not None:
+                pareto_context_delta = motion_context - newest_context
+            pareto_pass = bool(
+                int(motion_signature_best[2]) == int(newest[2])
+                or (
+                    pareto_local_delta is not None
+                    and pareto_context_delta is not None
+                    and pareto_local_delta >= -component_tolerance
+                    and pareto_context_delta >= -component_tolerance
+                )
+            )
+            pareto_selected = (
+                motion_signature_best if pareto_pass else newest
+            )
+
+        consensus_selected = newest
+        if scale_argmax_agreement:
+            consensus_selected = local_component_best
         state_shortlist = list(scored)
         if state_ranked_mode and scored:
             shortlist_size = max(1, (len(scored) + 1) // 2)
@@ -1460,6 +1601,29 @@ class CoherentMotionStrategy:
                     if deficit_mode
                     else "state_ranked_motion_recall"
                 )
+        elif pareto_mode:
+            selected_row = pareto_selected
+            if selected_row is None:
+                selection_reason = "pareto_no_compatible_candidate"
+            elif newest is not None and int(selected_row[2]) == int(newest[2]):
+                selection_reason = (
+                    "pareto_newest_motion_winner"
+                    if motion_signature_best is not None
+                    and int(motion_signature_best[2]) == int(newest[2])
+                    else "pareto_newest_dominance_reject"
+                )
+            else:
+                selection_reason = "pareto_motion_recall"
+        elif consensus_mode:
+            selected_row = consensus_selected
+            if scale_argmax_agreement is None:
+                selection_reason = "scale_component_unavailable_newest"
+            elif not scale_argmax_agreement:
+                selection_reason = "scale_conflict_newest"
+            elif newest is not None and int(selected_row[2]) == int(newest[2]):
+                selection_reason = "scale_consensus_newest"
+            else:
+                selection_reason = "scale_consensus_recall"
         elif signature_mode != "none":
             selected_row = motion_signature_best
             selection_reason = "motion_signature_recall"
@@ -1509,9 +1673,6 @@ class CoherentMotionStrategy:
             if fallback_used
             else None
         )
-        diagnostic_by_end = {
-            int(item["pair"][1]): item for item in diagnostics
-        }
         selected_diagnostic = (
             diagnostic_by_end.get(int(selected.end.t))
             if selected is not None
@@ -1610,6 +1771,46 @@ class CoherentMotionStrategy:
                     int(motion_signature_best[5].end.t),
                 ]]
             ),
+            "pareto_candidate": (
+                []
+                if motion_signature_best is None
+                else [[
+                    int(motion_signature_best[5].start.t),
+                    int(motion_signature_best[5].end.t),
+                ]]
+            ),
+            "pareto_pass": pareto_pass,
+            "pareto_component_delta": {
+                "local": (
+                    None
+                    if pareto_local_delta is None
+                    else round(float(pareto_local_delta), 6)
+                ),
+                "context": (
+                    None
+                    if pareto_context_delta is None
+                    else round(float(pareto_context_delta), 6)
+                ),
+            },
+            "component_numeric_tolerance": component_tolerance,
+            "local_component_best": (
+                []
+                if local_component_best is None
+                else [[
+                    int(local_component_best[5].start.t),
+                    int(local_component_best[5].end.t),
+                ]]
+            ),
+            "context_component_best": (
+                []
+                if context_component_best is None
+                else [[
+                    int(context_component_best[5].start.t),
+                    int(context_component_best[5].end.t),
+                ]]
+            ),
+            "scale_argmax_agreement": scale_argmax_agreement,
+            "cross_scale_conflict": cross_scale_conflict,
             "state_rank_selected": (
                 []
                 if state_rank_best is None
@@ -1710,6 +1911,32 @@ class CoherentMotionStrategy:
                 or selected_diagnostic.get("selection_score") is None
                 else selected_diagnostic["selection_score"]
             ),
+            "selected_component_scores": {
+                "local": (
+                    None
+                    if selected_diagnostic is None
+                    else selected_diagnostic.get("local_motion_component")
+                ),
+                "context": (
+                    None
+                    if selected_diagnostic is None
+                    else selected_diagnostic.get(
+                        "context_motion_component"
+                    )
+                ),
+            },
+            "newest_component_scores": {
+                "local": (
+                    None
+                    if newest is None
+                    else component_value(newest, "local_motion_component")
+                ),
+                "context": (
+                    None
+                    if newest is None
+                    else component_value(newest, "context_motion_component")
+                ),
+            },
             "selected_vs_newest_compatibility_gain": (
                 None
                 if selected_row is None or newest is None
