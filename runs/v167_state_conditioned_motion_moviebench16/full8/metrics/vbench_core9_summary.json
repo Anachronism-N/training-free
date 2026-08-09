@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "experiment": "v167_state_conditioned_motion_vbench16",
+  "comparison_manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/vbench_comparison/comparison_manifest.json",
+  "comparison_manifest_sha256": "b8ba4ad379f94511050d30fb211c7a70909db685d1c3fabafff04b798dff3f87",
+  "methods": {
+    "sf_native": {
+      "subject_consistency": 0.96870463527342,
+      "background_consistency": 0.9610411183941313,
+      "temporal_flickering": 0.9680375241181421,
+      "motion_smoothness": 0.9821807750761783,
+      "overall_consistency": 0.23313398441920677,
+      "dynamic_degree": 0.65,
+      "aesthetic_quality": 0.6160467151552439,
+      "imaging_quality": 0.6892002715915442,
+      "temporal_style": 0.23313398441920677
+    },
+    "ours_middle10_reservoir2_directionmatch1": {
+      "subject_consistency": 0.971675673167779,
+      "background_consistency": 0.9621818606228166,
+      "temporal_flickering": 0.9609930759902097,
+      "motion_smoothness": 0.980516070505837,
+      "overall_consistency": 0.23681632353303333,
+      "dynamic_degree": 0.775,
+      "aesthetic_quality": 0.6273895399024089,
+      "imaging_quality": 0.7078236433714628,
+      "temporal_style": 0.23681632353303333
+    },
+    "ours_middle10_reservoir2_multiscalemotion1": {
+      "subject_consistency": 0.9731592501638349,
+      "background_consistency": 0.9638633161256304,
+      "temporal_flickering": 0.9615108405355538,
+      "motion_smoothness": 0.9807447639753016,
+      "overall_consistency": 0.2348706679729124,
+      "dynamic_degree": 0.7875,
+      "aesthetic_quality": 0.6265689067542553,
+      "imaging_quality": 0.7118876474002996,
+      "temporal_style": 0.2348706679729124
+    },
+    "ours_middle10_reservoir2_statemotionpair1_reference": {
+      "subject_consistency": 0.9724227781891843,
+      "background_consistency": 0.9636359289616955,
+      "temporal_flickering": 0.9620610100556832,
+      "motion_smoothness": 0.9805537499150786,
+      "overall_consistency": 0.23838935950770973,
+      "dynamic_degree": 0.7666666666666667,
+      "aesthetic_quality": 0.6243316379686197,
+      "imaging_quality": 0.70942205071946,
+      "temporal_style": 0.23838935950770973
+    },
+    "ours_middle10_reservoir2_staterankmotion1": {
+      "subject_consistency": 0.9729181293016491,
+      "background_consistency": 0.9636274668972197,
+      "temporal_flickering": 0.9609131835605587,
+      "motion_smoothness": 0.9806541494741263,
+      "overall_consistency": 0.23719287275647125,
+      "dynamic_degree": 0.7791666666666667,
+      "aesthetic_quality": 0.6268656792740027,
+      "imaging_quality": 0.7100901386539141,
+      "temporal_style": 0.23719287275647125
+    },
+    "ours_middle10_reservoir2_deficitstaterankmotion1": {
+      "subject_consistency": 0.9723226507852971,
+      "background_consistency": 0.963221903690707,
+      "temporal_flickering": 0.9614549378592986,
+      "motion_smoothness": 0.980906739024996,
+      "overall_consistency": 0.23800538467864196,
+      "dynamic_degree": 0.7666666666666667,
+      "aesthetic_quality": 0.6250644385814667,
+      "imaging_quality": 0.7117391751855613,
+      "temporal_style": 0.23800538467864196
+    }
+  },
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "sources": {
+    "sf_native": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/sf_native/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/sf_native/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/sf_native/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/sf_native/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/sf_native/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/sf_native/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/sf_native/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/sf_native/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/sf_native/temporal_style/results.json"
+    },
+    "ours_middle10_reservoir2_directionmatch1": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_directionmatch1/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_directionmatch1/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_directionmatch1/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_directionmatch1/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_directionmatch1/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_directionmatch1/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_directionmatch1/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_directionmatch1/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_directionmatch1/temporal_style/results.json"
+    },
+    "ours_middle10_reservoir2_multiscalemotion1": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_multiscalemotion1/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_multiscalemotion1/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_multiscalemotion1/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_multiscalemotion1/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_multiscalemotion1/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_multiscalemotion1/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_multiscalemotion1/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_multiscalemotion1/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_multiscalemotion1/temporal_style/results.json"
+    },
+    "ours_middle10_reservoir2_statemotionpair1_reference": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_statemotionpair1_reference/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_statemotionpair1_reference/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_statemotionpair1_reference/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_statemotionpair1_reference/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_statemotionpair1_reference/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_statemotionpair1_reference/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_statemotionpair1_reference/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_statemotionpair1_reference/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_statemotionpair1_reference/temporal_style/results.json"
+    },
+    "ours_middle10_reservoir2_staterankmotion1": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_staterankmotion1/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_staterankmotion1/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_staterankmotion1/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_staterankmotion1/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_staterankmotion1/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_staterankmotion1/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_staterankmotion1/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_staterankmotion1/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_staterankmotion1/temporal_style/results.json"
+    },
+    "ours_middle10_reservoir2_deficitstaterankmotion1": {
+      "subject_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_deficitstaterankmotion1/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_deficitstaterankmotion1/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_deficitstaterankmotion1/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_deficitstaterankmotion1/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_deficitstaterankmotion1/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_deficitstaterankmotion1/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_deficitstaterankmotion1/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_deficitstaterankmotion1/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/metrics/vbench_long_parts/ours_middle10_reservoir2_deficitstaterankmotion1/temporal_style/results.json"
+    }
+  },
+  "missing": []
+}

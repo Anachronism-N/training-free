@@ -1,0 +1,159 @@
+{
+  "claim_boundary": "Aggregate collection does not promote a method. Run the paired v167 corrected analysis; these 16 prompts remain development evidence and are not a held-out paper comparison.",
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "duplicate_metric_audit": {
+    "action": "count once as semantic_alignment",
+    "aggregate_exact_within_1e-12": true,
+    "pair": [
+      "overall_consistency",
+      "temporal_style"
+    ]
+  },
+  "exclusive_groups": {
+    "dynamic_degree": [
+      "dynamic_degree"
+    ],
+    "identity_background": [
+      "subject_consistency",
+      "background_consistency"
+    ],
+    "semantic_alignment": [
+      "overall_consistency"
+    ],
+    "temporal_mechanics": [
+      "temporal_flickering",
+      "motion_smoothness"
+    ],
+    "visual_quality": [
+      "aesthetic_quality",
+      "imaging_quality"
+    ]
+  },
+  "exclusive_scores": {
+    "ours_middle10_reservoir2_deficitstaterankmotion1": {
+      "dynamic_degree": 0.7666666666666667,
+      "identity_background": 0.9677722772380021,
+      "semantic_alignment": 0.23800538467864196,
+      "temporal_mechanics": 0.9711808384421473,
+      "visual_quality": 0.668401806883514
+    },
+    "ours_middle10_reservoir2_directionmatch1": {
+      "dynamic_degree": 0.775,
+      "identity_background": 0.9669287668952978,
+      "semantic_alignment": 0.23681632353303333,
+      "temporal_mechanics": 0.9707545732480234,
+      "visual_quality": 0.6676065916369358
+    },
+    "ours_middle10_reservoir2_multiscalemotion1": {
+      "dynamic_degree": 0.7875,
+      "identity_background": 0.9685112831447327,
+      "semantic_alignment": 0.2348706679729124,
+      "temporal_mechanics": 0.9711278022554277,
+      "visual_quality": 0.6692282770772775
+    },
+    "ours_middle10_reservoir2_statemotionpair1_reference": {
+      "dynamic_degree": 0.7666666666666667,
+      "identity_background": 0.9680293535754398,
+      "semantic_alignment": 0.23838935950770973,
+      "temporal_mechanics": 0.9713073799853809,
+      "visual_quality": 0.6668768443440398
+    },
+    "ours_middle10_reservoir2_staterankmotion1": {
+      "dynamic_degree": 0.7791666666666667,
+      "identity_background": 0.9682727980994343,
+      "semantic_alignment": 0.23719287275647125,
+      "temporal_mechanics": 0.9707836665173425,
+      "visual_quality": 0.6684779089639584
+    },
+    "sf_native": {
+      "dynamic_degree": 0.65,
+      "identity_background": 0.9648728768337757,
+      "semantic_alignment": 0.23313398441920677,
+      "temporal_mechanics": 0.9751091495971602,
+      "visual_quality": 0.6526234933733941
+    }
+  },
+  "experiment": "v167_state_conditioned_motion_vbench16",
+  "methods": [
+    "sf_native",
+    "ours_middle10_reservoir2_directionmatch1",
+    "ours_middle10_reservoir2_multiscalemotion1",
+    "ours_middle10_reservoir2_statemotionpair1_reference",
+    "ours_middle10_reservoir2_staterankmotion1",
+    "ours_middle10_reservoir2_deficitstaterankmotion1"
+  ],
+  "metric_promotion_gate": false,
+  "official_constants_source": "https://github.com/Vchitect/VBench/blob/master/scripts/constant.py",
+  "official_quality_score": {
+    "ours_middle10_reservoir2_deficitstaterankmotion1": 84.26179028304048,
+    "ours_middle10_reservoir2_directionmatch1": 84.2283139206348,
+    "ours_middle10_reservoir2_multiscalemotion1": 84.46968470857003,
+    "ours_middle10_reservoir2_statemotionpair1_reference": 84.23182069998909,
+    "ours_middle10_reservoir2_staterankmotion1": 84.3436497954507,
+    "sf_native": 83.108671856624
+  },
+  "primary_candidate": "ours_middle10_reservoir2_deficitstaterankmotion1",
+  "primary_comparisons": {
+    "ours_middle10_reservoir2_directionmatch1": {
+      "exclusive_delta": {
+        "dynamic_degree": -0.008333333333333304,
+        "identity_background": 0.0008435103427042456,
+        "semantic_alignment": 0.0011890611456086275,
+        "temporal_mechanics": 0.0004262651941239204,
+        "visual_quality": 0.0007952152465782181
+      },
+      "official_quality_delta": 0.03347636240567908
+    },
+    "ours_middle10_reservoir2_multiscalemotion1": {
+      "exclusive_delta": {
+        "dynamic_degree": -0.02083333333333326,
+        "identity_background": -0.0007390059067305943,
+        "semantic_alignment": 0.0031347167057295677,
+        "temporal_mechanics": 5.303618671959054e-05,
+        "visual_quality": -0.0008264701937634733
+      },
+      "official_quality_delta": -0.2078944255295454
+    },
+    "ours_middle10_reservoir2_statemotionpair1_reference": {
+      "exclusive_delta": {
+        "dynamic_degree": 0.0,
+        "identity_background": -0.00025707633743776714,
+        "semantic_alignment": -0.00038397482906776803,
+        "temporal_mechanics": -0.00012654154323354927,
+        "visual_quality": 0.0015249625394742061
+      },
+      "official_quality_delta": 0.029969583051396853
+    },
+    "ours_middle10_reservoir2_staterankmotion1": {
+      "exclusive_delta": {
+        "dynamic_degree": -0.012499999999999956,
+        "identity_background": -0.0005005208614322632,
+        "semantic_alignment": 0.0008125119221707167,
+        "temporal_mechanics": 0.0003971719248048178,
+        "visual_quality": -7.61020804443957e-05
+      },
+      "official_quality_delta": -0.08185951241021883
+    },
+    "sf_native": {
+      "exclusive_delta": {
+        "dynamic_degree": 0.1166666666666667,
+        "identity_background": 0.0028994004042264265,
+        "semantic_alignment": 0.0048714002594351935,
+        "temporal_mechanics": -0.003928311155012909,
+        "visual_quality": 0.015778313510119935
+      },
+      "official_quality_delta": 1.1531184264164835
+    }
+  },
+  "version": 1
+}
