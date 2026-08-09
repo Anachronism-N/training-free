@@ -535,10 +535,14 @@ class CoherentMotionStrategy:
             "none",
             "multiscale_direction",
             "multiscale_magnitude",
+            "state_ranked_multiscale_magnitude",
+            "deficit_state_ranked_multiscale_magnitude",
         }:
             raise ValueError(
                 "state_motion_signature_mode must be none, "
-                "multiscale_direction, or multiscale_magnitude"
+                "multiscale_direction, multiscale_magnitude, "
+                "state_ranked_multiscale_magnitude, or "
+                "deficit_state_ranked_multiscale_magnitude"
             )
         if (
             self.state_motion_signature_mode != "none"
@@ -552,6 +556,9 @@ class CoherentMotionStrategy:
         self._pairs: list[OrderedDict[int, _MotionPairRecord]] = []
         self._references: list[torch.Tensor | None] = []
         self._motion_history: list[deque[float]] = []
+        self._query_local_magnitude_history: list[deque[float]] = []
+        self._query_context_magnitude_history: list[deque[float]] = []
+        self._motion_deficit_states: list[dict[str, Any]] = []
         self._last_context: dict[str, Any] | None = None
         self._last_decisions: list[dict[str, Any]] = []
         self._accepted_counts: list[int] = []
@@ -574,6 +581,13 @@ class CoherentMotionStrategy:
         self._motion_history = [
             deque(maxlen=self.history_size) for _ in range(num_seq)
         ]
+        self._query_local_magnitude_history = [
+            deque(maxlen=self.history_size) for _ in range(num_seq)
+        ]
+        self._query_context_magnitude_history = [
+            deque(maxlen=self.history_size) for _ in range(num_seq)
+        ]
+        self._motion_deficit_states = [{} for _ in range(num_seq)]
         self._last_context = None
         self._last_decisions = [{} for _ in range(num_seq)]
         self._accepted_counts = [0 for _ in range(num_seq)]
@@ -654,6 +668,55 @@ class CoherentMotionStrategy:
         self._state_context_direction_norms[idx] = float(
             state_direction_norm / max(1, num_frames - 1)
         )
+
+        local_history = self._query_local_magnitude_history[idx]
+        context_history = self._query_context_magnitude_history[idx]
+        local_baseline = (
+            _quantile(local_history, 0.5)
+            if len(local_history) >= self.warmup_edges
+            else None
+        )
+        context_baseline = (
+            _quantile(context_history, 0.5)
+            if len(context_history) >= self.warmup_edges
+            else None
+        )
+        local_ratio = (
+            float(local_direction_norm) / float(local_baseline)
+            if local_baseline is not None and local_baseline > 1e-8
+            else None
+        )
+        context_ratio = (
+            float(self._state_context_direction_norms[idx])
+            / float(context_baseline)
+            if context_baseline is not None and context_baseline > 1e-8
+            else None
+        )
+        deficit_ready = local_ratio is not None and context_ratio is not None
+        deficit_triggered = bool(
+            deficit_ready and local_ratio < 1.0 and context_ratio < 1.0
+        )
+        self._motion_deficit_states[idx] = {
+            "ready": bool(deficit_ready),
+            "triggered": deficit_triggered,
+            "history_count": min(len(local_history), len(context_history)),
+            "warmup_edges": int(self.warmup_edges),
+            "local_magnitude": float(local_direction_norm),
+            "context_magnitude_per_step": float(
+                self._state_context_direction_norms[idx]
+            ),
+            "local_median": (
+                None if local_baseline is None else float(local_baseline)
+            ),
+            "context_median_per_step": (
+                None if context_baseline is None else float(context_baseline)
+            ),
+            "local_ratio": local_ratio,
+            "context_ratio": context_ratio,
+            "rule": "both_scales_below_online_median",
+        }
+        local_history.append(float(local_direction_norm))
+        context_history.append(float(self._state_context_direction_norms[idx]))
 
         reference = self._references[idx]
         if reference is None:
@@ -978,6 +1041,21 @@ class CoherentMotionStrategy:
         local_direction_norm = self._state_local_direction_norms[idx]
         context_direction_norm = self._state_context_direction_norms[idx]
         signature_mode = self.state_motion_signature_mode
+        state_ranked_mode = signature_mode in {
+            "state_ranked_multiscale_magnitude",
+            "deficit_state_ranked_multiscale_magnitude",
+        }
+        deficit_mode = (
+            signature_mode == "deficit_state_ranked_multiscale_magnitude"
+        )
+        reference = self._references[idx]
+        query_state_residual = None
+        query_state_residual_norm = 0.0
+        if query is not None and reference is not None:
+            residual, residual_norm = _normalized_delta(reference, query)
+            query_state_residual_norm = float(residual_norm)
+            if residual_norm > 1e-8:
+                query_state_residual = residual
         age_eligible = [
             record
             for record in records
@@ -1010,6 +1088,27 @@ class CoherentMotionStrategy:
                 _cosine(query, record.end_descriptor)
                 if query is not None
                 else None
+            )
+            candidate_state_residual = None
+            candidate_state_residual_norm = 0.0
+            if reference is not None:
+                residual, residual_norm = _normalized_delta(
+                    reference,
+                    record.end_descriptor,
+                )
+                candidate_state_residual_norm = float(residual_norm)
+                if residual_norm > 1e-8:
+                    candidate_state_residual = residual
+            residual_state_similarity = (
+                _cosine(query_state_residual, candidate_state_residual)
+                if query_state_residual is not None
+                and candidate_state_residual is not None
+                else None
+            )
+            state_filter_similarity = (
+                residual_state_similarity
+                if state_ranked_mode and residual_state_similarity is not None
+                else state_similarity
             )
             direction_similarity = (
                 _cosine(direction, record.direction)
@@ -1102,7 +1201,12 @@ class CoherentMotionStrategy:
             ):
                 compatibility = float(multiscale_direction_similarity)
             elif (
-                signature_mode == "multiscale_magnitude"
+                signature_mode
+                in {
+                    "multiscale_magnitude",
+                    "state_ranked_multiscale_magnitude",
+                    "deficit_state_ranked_multiscale_magnitude",
+                }
                 and multiscale_direction_similarity is not None
                 and magnitude_similarity is not None
             ):
@@ -1166,6 +1270,24 @@ class CoherentMotionStrategy:
                         if state_similarity is None
                         else float(state_similarity)
                     ),
+                    "query_state_residual_norm": float(
+                        query_state_residual_norm
+                    ),
+                    "candidate_state_residual_norm": float(
+                        candidate_state_residual_norm
+                    ),
+                    "residual_state_similarity": (
+                        None
+                        if residual_state_similarity is None
+                        else float(residual_state_similarity)
+                    ),
+                    "state_filter_similarity": (
+                        None
+                        if state_filter_similarity is None
+                        else float(state_filter_similarity)
+                    ),
+                    "state_filter_rank": None,
+                    "state_filter_pass": None,
                     "direction_similarity": (
                         None
                         if direction_similarity is None
@@ -1236,7 +1358,11 @@ class CoherentMotionStrategy:
                             if direction_similarity is not None
                             else -1.0
                         ),
-                        float(state_similarity),
+                        float(
+                            state_filter_similarity
+                            if state_filter_similarity is not None
+                            else state_similarity
+                        ),
                         int(record.end.t),
                         float(compatibility),
                         float(selection_score),
@@ -1265,6 +1391,41 @@ class CoherentMotionStrategy:
             else None
         )
         newest = max(scored, key=lambda item: item[2]) if scored else None
+        motion_signature_best = (
+            max(scored, key=lambda item: (item[4], item[3], item[2]))
+            if scored
+            else None
+        )
+        state_shortlist = list(scored)
+        if state_ranked_mode and scored:
+            shortlist_size = max(1, (len(scored) + 1) // 2)
+            state_ordered = sorted(
+                scored,
+                key=lambda item: (item[1], item[2]),
+                reverse=True,
+            )
+            state_shortlist = state_ordered[:shortlist_size]
+            state_rank_by_end = {
+                int(item[5].end.t): rank
+                for rank, item in enumerate(state_ordered, start=1)
+            }
+            passing_ends = {
+                int(item[5].end.t) for item in state_shortlist
+            }
+            for item in diagnostics:
+                end_t = int(item["pair"][1])
+                item["state_filter_rank"] = state_rank_by_end.get(end_t)
+                item["state_filter_pass"] = end_t in passing_ends
+        state_rank_best = (
+            max(
+                state_shortlist,
+                key=lambda item: (item[4], item[3], item[2]),
+            )
+            if state_shortlist
+            else None
+        )
+        motion_deficit = dict(self._motion_deficit_states[idx])
+        deficit_triggered = bool(motion_deficit.get("triggered", False))
         newest_age_eligible = (
             max(age_eligible, key=lambda record: int(record.end.t))
             if age_eligible
@@ -1285,18 +1446,29 @@ class CoherentMotionStrategy:
         direction_tie_candidates = []
         direction_best_age = None
         direction_tie_applied = False
+        selection_reason = "no_passing_candidate"
         if not scored:
             selected_row = None
+        elif state_ranked_mode:
+            if deficit_mode and not deficit_triggered:
+                selected_row = newest
+                selection_reason = "healthy_motion_newest_pair"
+            else:
+                selected_row = state_rank_best
+                selection_reason = (
+                    "motion_deficit_state_ranked_recall"
+                    if deficit_mode
+                    else "state_ranked_motion_recall"
+                )
         elif signature_mode != "none":
-            selected_row = max(
-                scored,
-                key=lambda item: (item[4], item[3], item[2]),
-            )
+            selected_row = motion_signature_best
+            selection_reason = "motion_signature_recall"
         elif self.state_recency_weight > 0.0:
             selected_row = max(
                 scored,
                 key=lambda item: (item[4], item[3], item[2]),
             )
+            selection_reason = "recency_regularized_recall"
         elif self.state_direction_tie_margin > 0.0:
             if legacy is None:
                 raise RuntimeError("direction-tie selection has no baseline")
@@ -1319,8 +1491,12 @@ class CoherentMotionStrategy:
                 if direction_tie_applied
                 else legacy
             )
+            selection_reason = (
+                "direction_stale_tie" if direction_tie_applied else "legacy"
+            )
         else:
             selected_row = legacy
+            selection_reason = "legacy"
         fallback_used = bool(
             selected_row is None
             and newest_age_eligible is not None
@@ -1370,6 +1546,17 @@ class CoherentMotionStrategy:
             ),
             "state_stale_tie_age": int(self.state_stale_tie_age),
             "state_motion_signature_mode": signature_mode,
+            "state_filter_mode": (
+                "reference_residual_top_half" if state_ranked_mode else "none"
+            ),
+            "query_state_residual_norm": round(
+                float(query_state_residual_norm), 6
+            ),
+            "motion_deficit": motion_deficit,
+            "motion_deficit_gate_enabled": bool(deficit_mode),
+            "motion_deficit_gate_triggered": bool(
+                deficit_mode and deficit_triggered
+            ),
             "selection_mode": (
                 signature_mode
                 if signature_mode != "none"
@@ -1415,6 +1602,22 @@ class CoherentMotionStrategy:
                 else [[int(legacy[5].start.t), int(legacy[5].end.t)]]
             ),
             "legacy_fallback_used": legacy_fallback_used,
+            "motion_signature_selected": (
+                []
+                if motion_signature_best is None
+                else [[
+                    int(motion_signature_best[5].start.t),
+                    int(motion_signature_best[5].end.t),
+                ]]
+            ),
+            "state_rank_selected": (
+                []
+                if state_rank_best is None
+                else [[
+                    int(state_rank_best[5].start.t),
+                    int(state_rank_best[5].end.t),
+                ]]
+            ),
             "newest_passing": (
                 []
                 if newest is None
@@ -1429,6 +1632,9 @@ class CoherentMotionStrategy:
                 ]]
             ),
             "compatible_candidate_count": len(scored),
+            "state_shortlist_count": (
+                len(state_shortlist) if state_ranked_mode else len(scored)
+            ),
             "fallback_used": fallback_used,
             "fallback_reason": (
                 "no_compatible_candidate" if fallback_used else None
@@ -1440,6 +1646,18 @@ class CoherentMotionStrategy:
                 selected is not None
                 and legacy_selected is not None
                 and int(selected.end.t) != int(legacy_selected.end.t)
+            ),
+            "selection_changed_from_motion_signature": bool(
+                selected is not None
+                and motion_signature_best is not None
+                and int(selected.end.t)
+                != int(motion_signature_best[5].end.t)
+            ),
+            "state_rank_changed_from_motion_signature": bool(
+                state_rank_best is not None
+                and motion_signature_best is not None
+                and int(state_rank_best[5].end.t)
+                != int(motion_signature_best[5].end.t)
             ),
             "direction_best": (
                 []
@@ -1507,6 +1725,7 @@ class CoherentMotionStrategy:
                 if selected is None or newest_age_eligible is None
                 else int(newest_age_eligible.end.t) - int(selected.end.t)
             ),
+            "selection_reason": selection_reason,
             "reason": reason,
         }
         key = (int(current_t), int(recent_min_t), int(sink_max_t))
@@ -1541,6 +1760,9 @@ class CoherentMotionStrategy:
         self._pairs[idx].clear()
         self._references[idx] = None
         self._motion_history[idx].clear()
+        self._query_local_magnitude_history[idx].clear()
+        self._query_context_magnitude_history[idx].clear()
+        self._motion_deficit_states[idx] = {}
         self._last_decisions[idx] = {}
         self._state_queries[idx] = None
         self._state_directions[idx] = None
@@ -1593,6 +1815,13 @@ class CoherentMotionStrategy:
                 for record in self._pairs[idx].values()
             ],
             "motion_history_count": len(self._motion_history[idx]),
+            "query_local_magnitude_history_count": len(
+                self._query_local_magnitude_history[idx]
+            ),
+            "query_context_magnitude_history_count": len(
+                self._query_context_magnitude_history[idx]
+            ),
+            "motion_deficit": dict(self._motion_deficit_states[idx]),
             "motion_threshold": round(
                 _quantile(
                     self._motion_history[idx],

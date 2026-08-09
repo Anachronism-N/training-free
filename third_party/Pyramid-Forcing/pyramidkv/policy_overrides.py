@@ -13,6 +13,12 @@ DIRECTION_STALE_TIE_POLICIES = set(DIRECTION_STALE_TIE_MARGINS)
 MOTION_SIGNATURE_POLICY_MODES = {
     "reservoir2_multiscaledir1": "multiscale_direction",
     "reservoir2_multiscalemotion1": "multiscale_magnitude",
+    "reservoir2_staterankmotion1": (
+        "state_ranked_multiscale_magnitude"
+    ),
+    "reservoir2_deficitstaterankmotion1": (
+        "deficit_state_ranked_multiscale_magnitude"
+    ),
 }
 MOTION_SIGNATURE_POLICIES = set(MOTION_SIGNATURE_POLICY_MODES)
 STATE_DIRECTION_POLICIES = (
