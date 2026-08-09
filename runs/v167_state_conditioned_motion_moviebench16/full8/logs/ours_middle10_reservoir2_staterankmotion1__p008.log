@@ -1,0 +1,55 @@
+[command] /apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/bin/python inference.py --config_path /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/configs/pyramid-forcing.yaml --checkpoint_path /apdcephfs_gy2/share_302533218/cedricnie/model_cache/self_forcing_dmd.pt --data_path /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/prompts/moviegen_128_qwen_v154_diverse16.txt --output_folder /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v167_state_conditioned_motion_moviebench16/full8/videos/ours_middle10_reservoir2_staterankmotion1__p008 --num_output_frames 120 --seed 0 --num_samples 1 --use_ema --save_with_index --start_idx 8 --end_idx 9 --reseed_per_prompt --pyramidkv_head_config_path /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/configs/head_maps/v157_layer_middle10_reservoir.csv --pyramidkv_history_polarity --pyramidkv_history_support_policy reservoir2_staterankmotion1 --pyramidkv_history_suppress_policy recent8_sink1 --pyramidkv_history_budget_profile default --pyramidkv_motion_event_top_k 1 --pyramidkv_motion_event_sample_tokens 64
+Running on a single GPU (cuda); skipping NCCL initialization.
+Free VRAM 94.68743896484375 GB
+Loading CUDA extension (first run compiles ~60s; cached run ~3s)...
+CUDA extension ready in 137.7s.
+[HistoryPolarityPolicy] support_label=10 suppress_label=11 support=reservoir2_staterankmotion1 suppress=recent8_sink1 budget=default counts=10:120,11:240 support_sink=1 suppress_sink=1 support_recent=4 suppress_recent=8 retrieval_abstain=False retrieval_min_similarity=-0.2500 retrieval_min_margin=0.0000 legacy_pf_labels=false exclusive_owner=true
+KV inference with 3 frames per block
+Number of prompts: 16
+Prompt index range: [8, 9)
+Loading PyramidKV config from /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/configs/head_maps/v157_layer_middle10_reservoir.csv
+[PyramidKVHeadMap] path=/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/configs/head_maps/v157_layer_middle10_reservoir.csv heads=360 labels={10: 120, 11: 240} policies={'stride': 360} sink_frames={1: 360} recent_frames={4: 360}
+[PyramidKVRuntimePolicy] path=/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/configs/head_maps/v157_layer_middle10_reservoir.csv heads=360 labels={10: 120, 11: 240} policies={'reservoir_motion': 120, 'stride': 240} middle={'CoherentMotionStrategy+TemporalReservoirStrategy': 120, 'none': 240} sinks={1: 360} recent={4: 120, 8: 240} exclusive_dynamic=True
+block 1/40 - 1/120  194459.5 ms
+block 2/40 - 4/120   2319.8 ms
+block 3/40 - 7/120   2680.3 ms
+block 4/40 - 10/120   2803.5 ms
+block 5/40 - 13/120   2739.8 ms
+block 6/40 - 16/120   2785.6 ms
+block 7/40 - 19/120   2726.3 ms
+block 8/40 - 22/120   2747.6 ms
+block 9/40 - 25/120   2776.6 ms
+block 10/40 - 28/120   2730.2 ms
+block 11/40 - 31/120   2779.8 ms
+block 12/40 - 34/120   2770.9 ms
+block 13/40 - 37/120   2752.3 ms
+block 14/40 - 40/120   2741.6 ms
+block 15/40 - 43/120   2764.5 ms
+block 16/40 - 46/120   2758.5 ms
+block 17/40 - 49/120   2806.3 ms
+block 18/40 - 52/120   2721.2 ms
+block 19/40 - 55/120   2792.7 ms
+block 20/40 - 58/120   2739.5 ms
+block 21/40 - 61/120   2771.0 ms
+block 22/40 - 64/120   2776.0 ms
+block 23/40 - 67/120   2883.9 ms
+block 24/40 - 70/120   2806.5 ms
+block 25/40 - 73/120   2929.0 ms
+block 26/40 - 76/120   2973.7 ms
+block 27/40 - 79/120   2902.8 ms
+block 28/40 - 82/120   2968.1 ms
+block 29/40 - 85/120   2778.4 ms
+block 30/40 - 88/120   2757.4 ms
+block 31/40 - 91/120   2816.6 ms
+block 32/40 - 94/120   2795.3 ms
+block 33/40 - 97/120   2812.1 ms
+block 34/40 - 100/120   2798.5 ms
+block 35/40 - 103/120   2768.3 ms
+block 36/40 - 106/120   2776.0 ms
+block 37/40 - 109/120   2768.9 ms
+block 38/40 - 112/120   2783.2 ms
+block 39/40 - 115/120   2861.5 ms
+block 40/40 - 118/120   2823.6 ms
+[9/16] elapsed=5.3m  avg=35.4s/prompt  eta=4.1m
+/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/lib/python3.10/site-packages/torchvision/io/_video_deprecation_warning.py:9: UserWarning: The video decoding and encoding capabilities of torchvision are deprecated from version 0.22 and will be removed in version 0.24. We recommend that you migrate to TorchCodec, where we'll consolidate the future decoding/encoding capabilities of PyTorch: https://github.com/pytorch/torchcodec
+  warnings.warn(
