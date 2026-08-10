@@ -29,6 +29,12 @@ MOTION_SIGNATURE_POLICY_MODES = {
     "reservoir2_deficitstaterankmotion1": (
         "deficit_state_ranked_multiscale_magnitude"
     ),
+    "reservoir2_deficitquery1": (
+        "deficit_query_weighted_multiscale_magnitude"
+    ),
+    "reservoir2_deficitbaseline1": (
+        "deficit_baseline_multiscale_magnitude"
+    ),
 }
 MOTION_SIGNATURE_POLICIES = set(MOTION_SIGNATURE_POLICY_MODES)
 STATE_DIRECTION_POLICIES = (

@@ -541,6 +541,8 @@ class CoherentMotionStrategy:
             "bottleneck_multiscale_magnitude",
             "state_ranked_multiscale_magnitude",
             "deficit_state_ranked_multiscale_magnitude",
+            "deficit_query_weighted_multiscale_magnitude",
+            "deficit_baseline_multiscale_magnitude",
         }:
             raise ValueError(
                 "state_motion_signature_mode must be none, "
@@ -550,7 +552,9 @@ class CoherentMotionStrategy:
                 "query_weighted_multiscale_magnitude, "
                 "bottleneck_multiscale_magnitude, "
                 "state_ranked_multiscale_magnitude, or "
-                "deficit_state_ranked_multiscale_magnitude"
+                "deficit_state_ranked_multiscale_magnitude, "
+                "deficit_query_weighted_multiscale_magnitude, or "
+                "deficit_baseline_multiscale_magnitude"
             )
         if (
             self.state_motion_signature_mode != "none"
@@ -1053,8 +1057,16 @@ class CoherentMotionStrategy:
         consensus_mode = (
             signature_mode == "consensus_multiscale_magnitude"
         )
-        query_weighted_mode = (
-            signature_mode == "query_weighted_multiscale_magnitude"
+        query_weighted_mode = signature_mode in {
+            "query_weighted_multiscale_magnitude",
+            "deficit_query_weighted_multiscale_magnitude",
+        }
+        deficit_query_weighted_mode = (
+            signature_mode
+            == "deficit_query_weighted_multiscale_magnitude"
+        )
+        deficit_baseline_mode = (
+            signature_mode == "deficit_baseline_multiscale_magnitude"
         )
         bottleneck_mode = (
             signature_mode == "bottleneck_multiscale_magnitude"
@@ -1063,8 +1075,18 @@ class CoherentMotionStrategy:
             "state_ranked_multiscale_magnitude",
             "deficit_state_ranked_multiscale_magnitude",
         }
-        deficit_mode = (
+        deficit_state_ranked_mode = (
             signature_mode == "deficit_state_ranked_multiscale_magnitude"
+        )
+        demand_gated_mode = bool(
+            deficit_query_weighted_mode or deficit_baseline_mode
+        )
+        deficit_mode = bool(deficit_state_ranked_mode or demand_gated_mode)
+        motion_deficit = dict(self._motion_deficit_states[idx])
+        deficit_triggered = bool(motion_deficit.get("triggered", False))
+        baseline_local_target = motion_deficit.get("local_median")
+        baseline_context_target = motion_deficit.get(
+            "context_median_per_step"
         )
         reference = self._references[idx]
         query_state_residual = None
@@ -1226,6 +1248,10 @@ class CoherentMotionStrategy:
             ]
             query_weighted_motion_score = None
             bottleneck_motion_score = None
+            deficit_baseline_motion_score = None
+            baseline_local_magnitude_similarity = None
+            baseline_context_magnitude_similarity = None
+            baseline_magnitude_similarity = None
             query_weighted_component_weights = {
                 "local": 0.0,
                 "context": 0.0,
@@ -1258,6 +1284,48 @@ class CoherentMotionStrategy:
                 bottleneck_motion_score = min(
                     float(item[1]) for item in available_motion_components
                 )
+            if baseline_local_target is not None:
+                baseline_local_magnitude_similarity = _magnitude_similarity(
+                    float(baseline_local_target),
+                    record.direction_norm,
+                )
+            if (
+                baseline_context_target is not None
+                and record.context_direction is not None
+                and record.context_direction_norm > 1e-8
+            ):
+                baseline_context_magnitude_similarity = (
+                    _magnitude_similarity(
+                        float(baseline_context_target),
+                        record.context_direction_norm,
+                    )
+                )
+            baseline_magnitude_components = [
+                value
+                for value in (
+                    baseline_local_magnitude_similarity,
+                    baseline_context_magnitude_similarity,
+                )
+                if value is not None
+            ]
+            if baseline_magnitude_components:
+                baseline_magnitude_similarity = (
+                    baseline_magnitude_components[0]
+                    if len(baseline_magnitude_components) == 1
+                    else (
+                        baseline_magnitude_components[0]
+                        * baseline_magnitude_components[1]
+                    )
+                    ** 0.5
+                )
+            if (
+                multiscale_direction_similarity is not None
+                and baseline_magnitude_similarity is not None
+            ):
+                deficit_baseline_motion_score = (
+                    float(multiscale_direction_similarity)
+                    * float(baseline_magnitude_similarity)
+                )
             effective_direction_similarity = (
                 multiscale_direction_similarity
                 if signature_mode != "none"
@@ -1289,6 +1357,8 @@ class CoherentMotionStrategy:
                     "bottleneck_multiscale_magnitude",
                     "state_ranked_multiscale_magnitude",
                     "deficit_state_ranked_multiscale_magnitude",
+                    "deficit_query_weighted_multiscale_magnitude",
+                    "deficit_baseline_multiscale_magnitude",
                 }
                 and multiscale_direction_similarity is not None
                 and magnitude_similarity is not None
@@ -1418,6 +1488,28 @@ class CoherentMotionStrategy:
                         query_weighted_component_weights
                     ),
                     "bottleneck_motion_score": bottleneck_motion_score,
+                    "baseline_local_magnitude_target": (
+                        None
+                        if baseline_local_target is None
+                        else float(baseline_local_target)
+                    ),
+                    "baseline_context_magnitude_target_per_step": (
+                        None
+                        if baseline_context_target is None
+                        else float(baseline_context_target)
+                    ),
+                    "baseline_local_magnitude_similarity": (
+                        baseline_local_magnitude_similarity
+                    ),
+                    "baseline_context_magnitude_similarity": (
+                        baseline_context_magnitude_similarity
+                    ),
+                    "baseline_magnitude_similarity": (
+                        baseline_magnitude_similarity
+                    ),
+                    "deficit_baseline_motion_score": (
+                        deficit_baseline_motion_score
+                    ),
                     "local_component_rank": None,
                     "context_component_rank": None,
                     "magnitude_similarity": (
@@ -1584,6 +1676,9 @@ class CoherentMotionStrategy:
             "query_weighted_motion_score"
         )
         bottleneck_best = aggregation_best("bottleneck_motion_score")
+        deficit_baseline_best = aggregation_best(
+            "deficit_baseline_motion_score"
+        )
 
         component_tolerance = 1e-12
         pareto_pass = None
@@ -1655,8 +1750,6 @@ class CoherentMotionStrategy:
             if state_shortlist
             else None
         )
-        motion_deficit = dict(self._motion_deficit_states[idx])
-        deficit_triggered = bool(motion_deficit.get("triggered", False))
         newest_age_eligible = (
             max(age_eligible, key=lambda record: int(record.end.t))
             if age_eligible
@@ -1681,14 +1774,14 @@ class CoherentMotionStrategy:
         if not scored:
             selected_row = None
         elif state_ranked_mode:
-            if deficit_mode and not deficit_triggered:
+            if deficit_state_ranked_mode and not deficit_triggered:
                 selected_row = newest
                 selection_reason = "healthy_motion_newest_pair"
             else:
                 selected_row = state_rank_best
                 selection_reason = (
                     "motion_deficit_state_ranked_recall"
-                    if deficit_mode
+                    if deficit_state_ranked_mode
                     else "state_ranked_motion_recall"
                 )
         elif pareto_mode:
@@ -1714,6 +1807,30 @@ class CoherentMotionStrategy:
                 selection_reason = "scale_consensus_newest"
             else:
                 selection_reason = "scale_consensus_recall"
+        elif deficit_query_weighted_mode:
+            selected_row = (
+                query_weighted_best
+                if deficit_triggered
+                else motion_signature_best
+            )
+            selection_reason = (
+                "motion_deficit_query_weighted_recall"
+                if deficit_triggered
+                else "healthy_motion_signature_recall"
+            )
+        elif deficit_baseline_mode:
+            selected_row = (
+                deficit_baseline_best
+                if deficit_triggered and deficit_baseline_best is not None
+                else motion_signature_best
+            )
+            selection_reason = (
+                "motion_deficit_baseline_calibrated_recall"
+                if deficit_triggered and deficit_baseline_best is not None
+                else "motion_deficit_baseline_unavailable_fallback"
+                if deficit_triggered
+                else "healthy_motion_signature_recall"
+            )
         elif query_weighted_mode:
             selected_row = query_weighted_best
             selection_reason = "query_weighted_motion_recall"
@@ -1814,6 +1931,20 @@ class CoherentMotionStrategy:
             "motion_deficit_gate_triggered": bool(
                 deficit_mode and deficit_triggered
             ),
+            "demand_gate_enabled": bool(demand_gated_mode),
+            "demand_gate_triggered": bool(
+                demand_gated_mode and deficit_triggered
+            ),
+            "baseline_local_magnitude_target": (
+                None
+                if baseline_local_target is None
+                else round(float(baseline_local_target), 6)
+            ),
+            "baseline_context_magnitude_target_per_step": (
+                None
+                if baseline_context_target is None
+                else round(float(baseline_context_target), 6)
+            ),
             "selection_mode": (
                 signature_mode
                 if signature_mode != "none"
@@ -1913,6 +2044,14 @@ class CoherentMotionStrategy:
                 else [[
                     int(query_weighted_best[5].start.t),
                     int(query_weighted_best[5].end.t),
+                ]]
+            ),
+            "deficit_baseline_selected": (
+                []
+                if deficit_baseline_best is None
+                else [[
+                    int(deficit_baseline_best[5].start.t),
+                    int(deficit_baseline_best[5].end.t),
                 ]]
             ),
             "bottleneck_selected": (

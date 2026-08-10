@@ -1,0 +1,311 @@
+{
+  "claim_boundary": "Counterfactual replay proves branch activity and selector sparsity, not video quality; autoregressive generation must be rerun.",
+  "coverage": {
+    "full_query_weighted_changes": 258,
+    "gate_ready": 5600,
+    "gate_triggered": 1890,
+    "heads": [
+      0
+    ],
+    "layers": [
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "read_events": 6400,
+    "retrieval_events": 6400
+  },
+  "experiment": "v171_demand_gated_offline_counterfactual",
+  "failures": [],
+  "methods": {
+    "ours_middle10_reservoir2_deficitbaseline1": {
+      "age_delta": {
+        "count": 180,
+        "max": 18,
+        "mean": 0.9555555555555556,
+        "meaning": "positive means v171 selected an older pair than v166",
+        "median": 6.0,
+        "min": -18
+      },
+      "change_rate_over_retrievals": 0.028125,
+      "changed": 180,
+      "changed_candidate_amplitude_delta": {
+        "context_mean": 0.005531462468206882,
+        "context_median": 0.005127670243382454,
+        "local_mean": 0.007984496673776044,
+        "local_median": 0.007071036845445633,
+        "meaning": "candidate magnitude selected by v171 minus v166"
+      },
+      "deficit_changed": 180,
+      "healthy_changed": 0,
+      "per_layer": {
+        "10": {
+          "changed": 28,
+          "triggered": 178
+        },
+        "11": {
+          "changed": 31,
+          "triggered": 202
+        },
+        "12": {
+          "changed": 17,
+          "triggered": 195
+        },
+        "13": {
+          "changed": 11,
+          "triggered": 192
+        },
+        "14": {
+          "changed": 23,
+          "triggered": 176
+        },
+        "15": {
+          "changed": 14,
+          "triggered": 197
+        },
+        "16": {
+          "changed": 12,
+          "triggered": 195
+        },
+        "17": {
+          "changed": 21,
+          "triggered": 195
+        },
+        "18": {
+          "changed": 10,
+          "triggered": 184
+        },
+        "19": {
+          "changed": 13,
+          "triggered": 176
+        }
+      },
+      "per_prompt": {
+        "0": {
+          "changed": 7,
+          "triggered": 103
+        },
+        "1": {
+          "changed": 20,
+          "triggered": 141
+        },
+        "10": {
+          "changed": 3,
+          "triggered": 103
+        },
+        "11": {
+          "changed": 4,
+          "triggered": 137
+        },
+        "12": {
+          "changed": 2,
+          "triggered": 87
+        },
+        "13": {
+          "changed": 18,
+          "triggered": 212
+        },
+        "14": {
+          "changed": 27,
+          "triggered": 140
+        },
+        "15": {
+          "changed": 5,
+          "triggered": 105
+        },
+        "2": {
+          "changed": 12,
+          "triggered": 66
+        },
+        "3": {
+          "changed": 23,
+          "triggered": 137
+        },
+        "4": {
+          "changed": 10,
+          "triggered": 112
+        },
+        "5": {
+          "changed": 3,
+          "triggered": 68
+        },
+        "6": {
+          "changed": 19,
+          "triggered": 110
+        },
+        "7": {
+          "changed": 5,
+          "triggered": 100
+        },
+        "8": {
+          "changed": 12,
+          "triggered": 133
+        },
+        "9": {
+          "changed": 10,
+          "triggered": 136
+        }
+      },
+      "ready": 5600,
+      "retrievals": 6400,
+      "triggered": 1890
+    },
+    "ours_middle10_reservoir2_deficitquery1": {
+      "age_delta": {
+        "count": 86,
+        "max": 18,
+        "mean": 1.4767441860465116,
+        "meaning": "positive means v171 selected an older pair than v166",
+        "median": 5.0,
+        "min": -18
+      },
+      "change_rate_over_retrievals": 0.0134375,
+      "changed": 86,
+      "deficit_changed": 86,
+      "healthy_changed": 0,
+      "per_layer": {
+        "10": {
+          "changed": 12,
+          "triggered": 178
+        },
+        "11": {
+          "changed": 7,
+          "triggered": 202
+        },
+        "12": {
+          "changed": 10,
+          "triggered": 195
+        },
+        "13": {
+          "changed": 6,
+          "triggered": 192
+        },
+        "14": {
+          "changed": 11,
+          "triggered": 176
+        },
+        "15": {
+          "changed": 12,
+          "triggered": 197
+        },
+        "16": {
+          "changed": 5,
+          "triggered": 195
+        },
+        "17": {
+          "changed": 12,
+          "triggered": 195
+        },
+        "18": {
+          "changed": 3,
+          "triggered": 184
+        },
+        "19": {
+          "changed": 8,
+          "triggered": 176
+        }
+      },
+      "per_prompt": {
+        "0": {
+          "changed": 6,
+          "triggered": 103
+        },
+        "1": {
+          "changed": 3,
+          "triggered": 141
+        },
+        "10": {
+          "changed": 4,
+          "triggered": 103
+        },
+        "11": {
+          "changed": 4,
+          "triggered": 137
+        },
+        "12": {
+          "changed": 7,
+          "triggered": 87
+        },
+        "13": {
+          "changed": 8,
+          "triggered": 212
+        },
+        "14": {
+          "changed": 4,
+          "triggered": 140
+        },
+        "15": {
+          "changed": 4,
+          "triggered": 105
+        },
+        "2": {
+          "changed": 3,
+          "triggered": 66
+        },
+        "3": {
+          "changed": 9,
+          "triggered": 137
+        },
+        "4": {
+          "changed": 1,
+          "triggered": 112
+        },
+        "5": {
+          "changed": 2,
+          "triggered": 68
+        },
+        "6": {
+          "changed": 5,
+          "triggered": 110
+        },
+        "7": {
+          "changed": 6,
+          "triggered": 100
+        },
+        "8": {
+          "changed": 9,
+          "triggered": 133
+        },
+        "9": {
+          "changed": 11,
+          "triggered": 136
+        }
+      },
+      "ready": 5600,
+      "retrievals": 6400,
+      "triggered": 1890
+    }
+  },
+  "offline_gate": true,
+  "source": {
+    "method": "ours_v170_queryweighted_a",
+    "trace_count": 16,
+    "trace_dir": "runs/v170_matched_attribution_moviebench16/full8/traces",
+    "trace_sha256": {
+      "ours_v170_queryweighted_a__p000.policy.jsonl": "ab63266fce0ebcdde53f98a83426792bfc98e089ee34640828d8df6d23eab974",
+      "ours_v170_queryweighted_a__p001.policy.jsonl": "7930c2a68d47c18860f221a85ac498eae11efb762a956620384769e01561552a",
+      "ours_v170_queryweighted_a__p002.policy.jsonl": "92fa1bf677c1961c21b5599dbe9391b5acbe7118d4e2c8f1387c4495231785d7",
+      "ours_v170_queryweighted_a__p003.policy.jsonl": "c74a4b4b88c7e56a1db138fde741affbdcff683d2f3ed65843aa31fecb9bff34",
+      "ours_v170_queryweighted_a__p004.policy.jsonl": "09a00af84df5f40d0f35323e0396a2e92faac332826017b6c0477f6caaf4fef9",
+      "ours_v170_queryweighted_a__p005.policy.jsonl": "877e0e7d4e6af1c886eb2e1ab52ffd3373da935f576fabd734317a57e3dfe4af",
+      "ours_v170_queryweighted_a__p006.policy.jsonl": "4d23fd62ab614fde9eb8eea6eaba1a75ee4fb0da18f02941634b26d98c375d96",
+      "ours_v170_queryweighted_a__p007.policy.jsonl": "861d20567294fa252c84ea287b0cc9b242c4a0fbd4ef58cf5d6c0e65a195b8ff",
+      "ours_v170_queryweighted_a__p008.policy.jsonl": "bc6156d5a5050f49529794c9589cc4c26700f05cd82053be989235fec9defd6a",
+      "ours_v170_queryweighted_a__p009.policy.jsonl": "788f50be2a61fe26727d6df14f742296dd8ad85c6f5e56116684d7adf8fd1045",
+      "ours_v170_queryweighted_a__p010.policy.jsonl": "7c666f789922d3038f987919ed7dc8981e0414c8dbb116e667fb3fea750abb67",
+      "ours_v170_queryweighted_a__p011.policy.jsonl": "98f79153fa0c4f5f3a4c06713d9f5346d7475a24b266aa4ead6e56613d721404",
+      "ours_v170_queryweighted_a__p012.policy.jsonl": "ae2bb17a859fbdccf52db3e649c34b0d407cb4bc72ce99e67e3cf81d5e44fbc5",
+      "ours_v170_queryweighted_a__p013.policy.jsonl": "4428e377d5c116d1f58483a342d3721880dca59b78ca0a3a179a7312dadd8e70",
+      "ours_v170_queryweighted_a__p014.policy.jsonl": "b5a9702b5a1a97c40ceb00bd047aa3e83f97b76909b543d6059766d1007ebb69",
+      "ours_v170_queryweighted_a__p015.policy.jsonl": "d8362790412ecc3a54102c86084c3e3ae96cdd3df8955cf208569e740afc689d"
+    }
+  },
+  "version": 1
+}
