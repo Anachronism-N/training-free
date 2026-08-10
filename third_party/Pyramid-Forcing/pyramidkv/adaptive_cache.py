@@ -323,6 +323,16 @@ class AdaptiveKVCache(PyramidKVCache):
             for value in trace_layers.split(",")
             if value.strip()
         }
+        trace_heads = os.environ.get("PYRAMIDKV_POLICY_TRACE_HEADS", "").strip()
+        self._policy_trace_heads = (
+            {
+                int(value.strip())
+                for value in trace_heads.split(",")
+                if value.strip()
+            }
+            if trace_heads
+            else None
+        )
         self._policy_trace_stride = max(
             1, int(os.environ.get("PYRAMIDKV_POLICY_TRACE_STRIDE", "3"))
         )
@@ -1009,6 +1019,10 @@ class AdaptiveKVCache(PyramidKVCache):
         if (
             not self._policy_trace_path
             or self.layer_idx not in self._policy_trace_layers
+            or (
+                self._policy_trace_heads is not None
+                and head_idx not in self._policy_trace_heads
+            )
             or sync_t_raw % self._policy_trace_stride != 0
             or self._policy_trace_records >= self._policy_trace_max_records
         ):

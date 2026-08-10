@@ -192,8 +192,15 @@ def expected_legacy_selection(candidates: list[dict]) -> dict:
     }
 
 
-def analyze_prompt(path: Path, *, method: str) -> dict:
-    rows = common.load_representative(path)
+def analyze_prompt(
+    path: Path,
+    *,
+    method: str,
+    rows: list[dict] | None = None,
+) -> dict:
+    rows = common.load_representative(path) if rows is None else rows
+    if not rows:
+        raise ValueError(f"no rows supplied for {path}")
     mode = EXPECTED_MODE[method]
     failures: list[str] = []
     archive_sizes: list[int] = []

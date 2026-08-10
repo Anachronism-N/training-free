@@ -24,8 +24,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def analyze_prompt(path: Path, *, method: str) -> dict:
-    rows = common.load_representative(path)
+def analyze_prompt(
+    path: Path,
+    *,
+    method: str,
+    rows: list[dict] | None = None,
+) -> dict:
+    rows = common.load_representative(path) if rows is None else rows
+    if not rows:
+        raise ValueError(f"no rows supplied for {path}")
     mode = contract.EXPECTED_MODE[method]
     failures: list[str] = []
     reason_counts: Counter[str] = Counter()
