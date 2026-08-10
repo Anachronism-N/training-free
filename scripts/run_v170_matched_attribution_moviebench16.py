@@ -297,7 +297,7 @@ def main() -> None:
     if len(gpus) != required_gpus or len(gpus) != len(set(gpus)):
         raise SystemExit(f"v170 requires exactly {required_gpus} unique GPUs")
     if not smoke and args.num_nodes != contract.NUM_NODES:
-        raise SystemExit("v170 full run requires NUM_NODES=4")
+        raise SystemExit("v170 full run requires NUM_NODES=2")
     plans = worker_plan(
         methods,
         node_rank=args.node_rank,

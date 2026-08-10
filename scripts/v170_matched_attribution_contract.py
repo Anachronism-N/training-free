@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 PROMPT_COUNT = 16
-NUM_NODES = 4
+NUM_NODES = 2
 GPUS_PER_NODE = 8
 ACTIVE_LAYERS = tuple(range(10, 20))
 TRACE_HEADS = (0,)
@@ -33,7 +33,7 @@ ANALYZER_KIND = {
 
 def prompt_indices(node_rank: int, num_nodes: int = NUM_NODES) -> tuple[int, ...]:
     if num_nodes != NUM_NODES or not 0 <= node_rank < num_nodes:
-        raise ValueError("v170 requires four nodes with ranks 0..3")
+        raise ValueError("v170 requires two nodes with ranks 0..1")
     per_node = PROMPT_COUNT // NUM_NODES
     start = node_rank * per_node
     return tuple(range(start, start + per_node))
@@ -56,7 +56,7 @@ def node_schedule(
     rows = []
     for local_index, prompt_index in enumerate(prompt_indices(node_rank, num_nodes)):
         for lane_offset, lane in enumerate(("a", "b")):
-            gpu_slot = 2 * local_index + lane_offset
+            gpu_slot = (2 * local_index + lane_offset) % GPUS_PER_NODE
             for order, method in enumerate(lane_methods(prompt_index, lane)):
                 rows.append(
                     {
