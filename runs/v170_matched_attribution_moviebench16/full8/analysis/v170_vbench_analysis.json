@@ -1,0 +1,88 @@
+{
+  "claim_boundary": "This aggregate is not a method ranking. Run the matched v170 analysis to separate policy effects from replica noise.",
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "duplicate_metric_audit": {
+    "action": "count once as semantic_alignment",
+    "aggregate_exact_within_1e-12": true,
+    "pair": [
+      "overall_consistency",
+      "temporal_style"
+    ]
+  },
+  "exclusive_groups": {
+    "dynamic_degree": [
+      "dynamic_degree"
+    ],
+    "identity_background": [
+      "subject_consistency",
+      "background_consistency"
+    ],
+    "semantic_alignment": [
+      "overall_consistency"
+    ],
+    "temporal_mechanics": [
+      "temporal_flickering",
+      "motion_smoothness"
+    ],
+    "visual_quality": [
+      "aesthetic_quality",
+      "imaging_quality"
+    ]
+  },
+  "exclusive_scores": {
+    "ours_v170_queryweighted_a": {
+      "dynamic_degree": 0.8083333333333333,
+      "identity_background": 0.9676641396229079,
+      "semantic_alignment": 0.23396219777253766,
+      "temporal_mechanics": 0.970585118923778,
+      "visual_quality": 0.6713690443485976
+    },
+    "ours_v170_queryweighted_b": {
+      "dynamic_degree": 0.8041666666666667,
+      "identity_background": 0.9677655553747351,
+      "semantic_alignment": 0.2338825445001324,
+      "temporal_mechanics": 0.970588564351947,
+      "visual_quality": 0.6714080260619522
+    },
+    "ours_v170_v166_a": {
+      "dynamic_degree": 0.7833333333333333,
+      "identity_background": 0.9685041271463756,
+      "semantic_alignment": 0.23469802079101404,
+      "temporal_mechanics": 0.9711380692315316,
+      "visual_quality": 0.6693607940971851
+    },
+    "ours_v170_v166_b": {
+      "dynamic_degree": 0.775,
+      "identity_background": 0.9684341211140861,
+      "semantic_alignment": 0.23497419906780123,
+      "temporal_mechanics": 0.9711244639469682,
+      "visual_quality": 0.6692499449352424
+    }
+  },
+  "experiment": "v170_matched_attribution_vbench16",
+  "methods": [
+    "ours_v170_v166_a",
+    "ours_v170_queryweighted_a",
+    "ours_v170_v166_b",
+    "ours_v170_queryweighted_b"
+  ],
+  "metric_promotion_gate": false,
+  "official_constants_source": "https://github.com/Vchitect/VBench/blob/master/scripts/constant.py",
+  "official_quality_score": {
+    "ours_v170_queryweighted_a": 84.61335102158097,
+    "ours_v170_queryweighted_b": 84.58623075797863,
+    "ours_v170_v166_a": 84.44185076320929,
+    "ours_v170_v166_b": 84.37066417298703
+  },
+  "version": 1
+}
