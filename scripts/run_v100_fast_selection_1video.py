@@ -47,6 +47,12 @@ MOTION_SIGNATURE_POLICY_MODES = {
     "reservoir2_multiscaleconsensus1": (
         "consensus_multiscale_magnitude"
     ),
+    "reservoir2_multiscalequeryweighted1": (
+        "query_weighted_multiscale_magnitude"
+    ),
+    "reservoir2_multiscalebottleneck1": (
+        "bottleneck_multiscale_magnitude"
+    ),
     "reservoir2_staterankmotion1": (
         "state_ranked_multiscale_magnitude"
     ),
@@ -878,6 +884,18 @@ def expected_policy(
                 "reservoir_motion",
             ),
             "reservoir2_multiscaleconsensus1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_multiscalequeryweighted1": (
+                ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
+                1,
+                4,
+                "reservoir_motion",
+            ),
+            "reservoir2_multiscalebottleneck1": (
                 ("CoherentMotionStrategy", "TemporalReservoirStrategy"),
                 1,
                 4,

@@ -155,7 +155,7 @@ def expected_selection(candidates: list[dict], *, method: str) -> dict:
             "pareto_pass": None,
             "local_delta": None,
             "context_delta": None,
-            "reason": "no_compatible_candidate",
+            "reason": "no_passing_candidate",
             "rows": rows,
         }
     newest = max(rows, key=lambda item: int(item[0]["pair"][1]))

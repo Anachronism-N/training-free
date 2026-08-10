@@ -537,6 +537,8 @@ class CoherentMotionStrategy:
             "multiscale_magnitude",
             "pareto_multiscale_magnitude",
             "consensus_multiscale_magnitude",
+            "query_weighted_multiscale_magnitude",
+            "bottleneck_multiscale_magnitude",
             "state_ranked_multiscale_magnitude",
             "deficit_state_ranked_multiscale_magnitude",
         }:
@@ -545,6 +547,8 @@ class CoherentMotionStrategy:
                 "multiscale_direction, multiscale_magnitude, "
                 "pareto_multiscale_magnitude, "
                 "consensus_multiscale_magnitude, "
+                "query_weighted_multiscale_magnitude, "
+                "bottleneck_multiscale_magnitude, "
                 "state_ranked_multiscale_magnitude, or "
                 "deficit_state_ranked_multiscale_magnitude"
             )
@@ -1049,6 +1053,12 @@ class CoherentMotionStrategy:
         consensus_mode = (
             signature_mode == "consensus_multiscale_magnitude"
         )
+        query_weighted_mode = (
+            signature_mode == "query_weighted_multiscale_magnitude"
+        )
+        bottleneck_mode = (
+            signature_mode == "bottleneck_multiscale_magnitude"
+        )
         state_ranked_mode = signature_mode in {
             "state_ranked_multiscale_magnitude",
             "deficit_state_ranked_multiscale_magnitude",
@@ -1201,6 +1211,53 @@ class CoherentMotionStrategy:
                 and context_magnitude_similarity is not None
                 else None
             )
+            available_motion_components = [
+                ("local", local_motion_component, local_direction_norm),
+                (
+                    "context",
+                    context_motion_component,
+                    context_direction_norm,
+                ),
+            ]
+            available_motion_components = [
+                item
+                for item in available_motion_components
+                if item[1] is not None
+            ]
+            query_weighted_motion_score = None
+            bottleneck_motion_score = None
+            query_weighted_component_weights = {
+                "local": 0.0,
+                "context": 0.0,
+            }
+            if available_motion_components:
+                raw_weights = [
+                    max(0.0, float(item[2]))
+                    for item in available_motion_components
+                ]
+                weight_total = sum(raw_weights)
+                if weight_total <= 1e-12:
+                    weights = [
+                        1.0 / len(available_motion_components)
+                    ] * len(available_motion_components)
+                else:
+                    weights = [value / weight_total for value in raw_weights]
+                query_weighted_component_weights.update(
+                    {
+                        item[0]: float(weight)
+                        for weight, item in zip(
+                            weights,
+                            available_motion_components,
+                        )
+                    }
+                )
+                query_weighted_motion_score = sum(
+                    weight * float(item[1])
+                    for weight, item in zip(weights, available_motion_components)
+                )
+                bottleneck_motion_score = min(
+                    float(item[1]) for item in available_motion_components
+                )
             effective_direction_similarity = (
                 multiscale_direction_similarity
                 if signature_mode != "none"
@@ -1228,6 +1285,8 @@ class CoherentMotionStrategy:
                     "multiscale_magnitude",
                     "pareto_multiscale_magnitude",
                     "consensus_multiscale_magnitude",
+                    "query_weighted_multiscale_magnitude",
+                    "bottleneck_multiscale_magnitude",
                     "state_ranked_multiscale_magnitude",
                     "deficit_state_ranked_multiscale_magnitude",
                 }
@@ -1352,6 +1411,13 @@ class CoherentMotionStrategy:
                     ),
                     "local_motion_component": local_motion_component,
                     "context_motion_component": context_motion_component,
+                    "query_weighted_motion_score": (
+                        query_weighted_motion_score
+                    ),
+                    "query_weighted_component_weights": dict(
+                        query_weighted_component_weights
+                    ),
+                    "bottleneck_motion_score": bottleneck_motion_score,
                     "local_component_rank": None,
                     "context_component_rank": None,
                     "magnitude_similarity": (
@@ -1495,6 +1561,30 @@ class CoherentMotionStrategy:
         )
         cross_scale_conflict = scale_argmax_agreement is False
 
+        def aggregation_best(name: str):
+            available = [
+                row
+                for row in scored
+                if component_value(row, name) is not None
+            ]
+            return (
+                max(
+                    available,
+                    key=lambda row: (
+                        float(component_value(row, name)),
+                        float(row[4]),
+                        int(row[2]),
+                    ),
+                )
+                if available
+                else None
+            )
+
+        query_weighted_best = aggregation_best(
+            "query_weighted_motion_score"
+        )
+        bottleneck_best = aggregation_best("bottleneck_motion_score")
+
         component_tolerance = 1e-12
         pareto_pass = None
         pareto_local_delta = None
@@ -1624,6 +1714,12 @@ class CoherentMotionStrategy:
                 selection_reason = "scale_consensus_newest"
             else:
                 selection_reason = "scale_consensus_recall"
+        elif query_weighted_mode:
+            selected_row = query_weighted_best
+            selection_reason = "query_weighted_motion_recall"
+        elif bottleneck_mode:
+            selected_row = bottleneck_best
+            selection_reason = "bottleneck_motion_recall"
         elif signature_mode != "none":
             selected_row = motion_signature_best
             selection_reason = "motion_signature_recall"
@@ -1811,6 +1907,22 @@ class CoherentMotionStrategy:
             ),
             "scale_argmax_agreement": scale_argmax_agreement,
             "cross_scale_conflict": cross_scale_conflict,
+            "query_weighted_selected": (
+                []
+                if query_weighted_best is None
+                else [[
+                    int(query_weighted_best[5].start.t),
+                    int(query_weighted_best[5].end.t),
+                ]]
+            ),
+            "bottleneck_selected": (
+                []
+                if bottleneck_best is None
+                else [[
+                    int(bottleneck_best[5].start.t),
+                    int(bottleneck_best[5].end.t),
+                ]]
+            ),
             "state_rank_selected": (
                 []
                 if state_rank_best is None
