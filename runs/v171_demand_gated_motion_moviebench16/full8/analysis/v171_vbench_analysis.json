@@ -1,0 +1,103 @@
+{
+  "candidate_comparisons": {
+    "ours_middle10_reservoir2_deficitbaseline1": {
+      "exclusive_delta_vs_v166": {
+        "dynamic_degree": 0.008333333333333304,
+        "identity_background": -0.0006578296362551583,
+        "semantic_alignment": 0.0009850754092136926,
+        "temporal_mechanics": -0.0011734621392436306,
+        "visual_quality": -0.0029277845174073835
+      },
+      "official_quality_delta_vs_v166": -0.15989978202554767
+    },
+    "ours_middle10_reservoir2_deficitquery1": {
+      "exclusive_delta_vs_v166": {
+        "dynamic_degree": -0.008333333333333415,
+        "identity_background": 0.00021917322301767683,
+        "semantic_alignment": 0.0014828441509356083,
+        "temporal_mechanics": -0.0001706816209600115,
+        "visual_quality": 0.0017404803385336898
+      },
+      "official_quality_delta_vs_v166": -0.018331712012951584
+    }
+  },
+  "claim_boundary": "Aggregate collection does not promote a method. Run paired corrected analysis and the full-layer mechanism audit.",
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "duplicate_metric_audit": {
+    "action": "count once as semantic_alignment",
+    "aggregate_exact_within_1e-12": true,
+    "pair": [
+      "overall_consistency",
+      "temporal_style"
+    ]
+  },
+  "exclusive_groups": {
+    "dynamic_degree": [
+      "dynamic_degree"
+    ],
+    "identity_background": [
+      "subject_consistency",
+      "background_consistency"
+    ],
+    "semantic_alignment": [
+      "overall_consistency"
+    ],
+    "temporal_mechanics": [
+      "temporal_flickering",
+      "motion_smoothness"
+    ],
+    "visual_quality": [
+      "aesthetic_quality",
+      "imaging_quality"
+    ]
+  },
+  "exclusive_scores": {
+    "ours_middle10_reservoir2_deficitbaseline1": {
+      "dynamic_degree": 0.7791666666666667,
+      "identity_background": 0.9678360047259666,
+      "semantic_alignment": 0.23586045744207998,
+      "temporal_mechanics": 0.9699640421061577,
+      "visual_quality": 0.6663354316179951
+    },
+    "ours_middle10_reservoir2_deficitquery1": {
+      "dynamic_degree": 0.7625,
+      "identity_background": 0.9687130075852395,
+      "semantic_alignment": 0.2363582261838019,
+      "temporal_mechanics": 0.9709668226244413,
+      "visual_quality": 0.6710036964739362
+    },
+    "ours_middle10_reservoir2_multiscalemotion1": {
+      "dynamic_degree": 0.7708333333333334,
+      "identity_background": 0.9684938343622218,
+      "semantic_alignment": 0.2348753820328663,
+      "temporal_mechanics": 0.9711375042454014,
+      "visual_quality": 0.6692632161354025
+    }
+  },
+  "experiment": "v171_demand_gated_motion_vbench16",
+  "methods": [
+    "ours_middle10_reservoir2_multiscalemotion1",
+    "ours_middle10_reservoir2_deficitquery1",
+    "ours_middle10_reservoir2_deficitbaseline1"
+  ],
+  "metric_promotion_gate": false,
+  "official_constants_source": "https://github.com/Vchitect/VBench/blob/master/scripts/constant.py",
+  "official_quality_score": {
+    "ours_middle10_reservoir2_deficitbaseline1": 84.18262568501972,
+    "ours_middle10_reservoir2_deficitquery1": 84.32419375503231,
+    "ours_middle10_reservoir2_multiscalemotion1": 84.34252546704526
+  },
+  "primary_candidate": "ours_middle10_reservoir2_deficitbaseline1",
+  "primary_reference": "ours_middle10_reservoir2_multiscalemotion1",
+  "version": 1
+}

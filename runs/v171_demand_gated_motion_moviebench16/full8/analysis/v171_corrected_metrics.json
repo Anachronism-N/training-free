@@ -1,0 +1,1266 @@
+{
+  "aggregate_exclusive_scores": {
+    "ours_middle10_reservoir2_deficitbaseline1": {
+      "dynamic_degree": 0.7791666666666667,
+      "identity_background": 0.967836004725966,
+      "semantic_alignment": 0.23586045744207998,
+      "temporal_mechanics": 0.9699640421061575,
+      "visual_quality": 0.6663354316179951
+    },
+    "ours_middle10_reservoir2_deficitquery1": {
+      "dynamic_degree": 0.7625,
+      "identity_background": 0.9687130075852395,
+      "semantic_alignment": 0.2363582261838019,
+      "temporal_mechanics": 0.9709668226244417,
+      "visual_quality": 0.6710036964739362
+    },
+    "ours_middle10_reservoir2_multiscalemotion1": {
+      "dynamic_degree": 0.7708333333333334,
+      "identity_background": 0.9684938343622218,
+      "semantic_alignment": 0.2348753820328663,
+      "temporal_mechanics": 0.9711375042454014,
+      "visual_quality": 0.6692632161354025
+    }
+  },
+  "aggregate_official_quality_score": {
+    "ours_middle10_reservoir2_deficitbaseline1": {
+      "official_quality_score": 84.18262568501967
+    },
+    "ours_middle10_reservoir2_deficitquery1": {
+      "official_quality_score": 84.32419375503234
+    },
+    "ours_middle10_reservoir2_multiscalemotion1": {
+      "official_quality_score": 84.34252546704525
+    }
+  },
+  "claim_boundary": "The 16-prompt suite is adaptive development evidence only.",
+  "development_decision": {
+    "candidates": {
+      "ours_middle10_reservoir2_deficitbaseline1": {
+        "aggregate_delta_vs_v166": {
+          "dynamic_degree": 0.008333333333333304,
+          "identity_background": -0.0006578296362558245,
+          "official_quality_score": -0.1598997820255761,
+          "semantic_alignment": 0.0009850754092136926,
+          "temporal_mechanics": -0.0011734621392438527,
+          "visual_quality": -0.0029277845174073835
+        },
+        "eligible_for_matched_confirmation": false,
+        "mechanism_gate": true,
+        "noise_aware_confirmation_frontier": {
+          "dynamic_degree": true,
+          "identity_background": false,
+          "official_quality_score": false,
+          "temporal_mechanics": false
+        },
+        "strict_gate": false,
+        "strict_nonnegative_frontier": {
+          "dynamic_degree": true,
+          "identity_background": false,
+          "official_quality_score": false,
+          "temporal_mechanics": false
+        }
+      },
+      "ours_middle10_reservoir2_deficitquery1": {
+        "aggregate_delta_vs_v166": {
+          "dynamic_degree": -0.008333333333333415,
+          "identity_background": 0.00021917322301767683,
+          "official_quality_score": -0.01833171201290895,
+          "semantic_alignment": 0.0014828441509356083,
+          "temporal_mechanics": -0.00017068162095967843,
+          "visual_quality": 0.0017404803385336898
+        },
+        "eligible_for_matched_confirmation": false,
+        "mechanism_gate": true,
+        "noise_aware_confirmation_frontier": {
+          "dynamic_degree": false,
+          "identity_background": true,
+          "official_quality_score": false,
+          "temporal_mechanics": false
+        },
+        "strict_gate": false,
+        "strict_nonnegative_frontier": {
+          "dynamic_degree": false,
+          "identity_background": true,
+          "official_quality_score": false,
+          "temporal_mechanics": false
+        }
+      }
+    },
+    "claim_boundary": "Noise margins choose the next attribution experiment; they are not paper non-inferiority margins.",
+    "manual_review_requested": false,
+    "recommendation": "reject_both_without_manual_review",
+    "reference": "ours_middle10_reservoir2_multiscalemotion1",
+    "replica_noise_source": {
+      "dynamic_degree": 0.006250000000000002,
+      "identity_background": 0.0002684705055202158,
+      "official_quality_score": 0.06155735293678122,
+      "temporal_mechanics": 1.3897077525484858e-05
+    },
+    "rule": "A candidate reaches matched confirmation only with a passing mechanism gate, nonnegative Quality, positive Dynamic Degree, and identity/temporal losses no larger than v170 same-policy replica noise. Strict nonnegative checks are reported separately.",
+    "selected_candidate": null
+  },
+  "duplicate_metric_audit": {
+    "action": "retain overall_consistency once as semantic_alignment and exclude temporal_style from diagnostic group averages",
+    "checked_clip_pairs": 720,
+    "exact_within_1e-12": true,
+    "mismatch_count": 0,
+    "mismatches": [],
+    "pair": [
+      "overall_consistency",
+      "temporal_style"
+    ]
+  },
+  "dynamic_win_tie_loss_vs_v166": {
+    "ours_middle10_reservoir2_deficitbaseline1": {
+      "candidate": "ours_middle10_reservoir2_deficitbaseline1",
+      "losses": 1,
+      "mean_delta": 0.008333333333333338,
+      "per_prompt": [
+        {
+          "delta": 0.0,
+          "prompt_index": 0
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 1
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 2
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 3
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 4
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 5
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 6
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 7
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 8
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 9
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 10
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 11
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 12
+        },
+        {
+          "delta": -0.06666666666666665,
+          "prompt_index": 13
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 14
+        },
+        {
+          "delta": 0.20000000000000007,
+          "prompt_index": 15
+        }
+      ],
+      "reference": "ours_middle10_reservoir2_multiscalemotion1",
+      "ties": 14,
+      "wins": 1
+    },
+    "ours_middle10_reservoir2_deficitquery1": {
+      "candidate": "ours_middle10_reservoir2_deficitquery1",
+      "losses": 4,
+      "mean_delta": -0.008333333333333345,
+      "per_prompt": [
+        {
+          "delta": -0.06666666666666665,
+          "prompt_index": 0
+        },
+        {
+          "delta": 0.06666666666666665,
+          "prompt_index": 1
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 2
+        },
+        {
+          "delta": -0.06666666666666676,
+          "prompt_index": 3
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 4
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 5
+        },
+        {
+          "delta": -0.06666666666666676,
+          "prompt_index": 6
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 7
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 8
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 9
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 10
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 11
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 12
+        },
+        {
+          "delta": -0.06666666666666665,
+          "prompt_index": 13
+        },
+        {
+          "delta": 0.0,
+          "prompt_index": 14
+        },
+        {
+          "delta": 0.06666666666666665,
+          "prompt_index": 15
+        }
+      ],
+      "reference": "ours_middle10_reservoir2_multiscalemotion1",
+      "ties": 10,
+      "wins": 2
+    }
+  },
+  "exclusive_groups": {
+    "dynamic_degree": [
+      "dynamic_degree"
+    ],
+    "identity_background": [
+      "subject_consistency",
+      "background_consistency"
+    ],
+    "semantic_alignment": [
+      "overall_consistency"
+    ],
+    "temporal_mechanics": [
+      "temporal_flickering",
+      "motion_smoothness"
+    ],
+    "visual_quality": [
+      "aesthetic_quality",
+      "imaging_quality"
+    ]
+  },
+  "experiment": "v171_corrected_metric_analysis",
+  "inputs": {
+    "mechanism_trace": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v171_demand_gated_motion_moviebench16/full8/automated_screen/full_layer_trace.json",
+    "mechanism_trace_sha256": "d0c60775f7de5bed370093b26de132f66447f627db437ca12208d904148e1eed",
+    "v170_matched_metrics": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v170_matched_attribution_moviebench16/full8/analysis/v170_matched_metrics.json",
+    "v170_matched_metrics_sha256": "4018d1cb1481c2633da6be9e7bbd0bfc764672c76816a53aba49f73da822dee1",
+    "vbench_parts_root": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v171_demand_gated_motion_moviebench16/full8/metrics/vbench_long_parts",
+    "vbench_summary": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v171_demand_gated_motion_moviebench16/full8/metrics/vbench_core9_summary.json",
+    "vbench_summary_sha256": "6adcbce22755baac3b58ff134795aa2901988235478c9365c03cd39419f27860"
+  },
+  "mechanism_gate": true,
+  "official_constants_source": "https://github.com/Vchitect/VBench/blob/master/scripts/constant.py",
+  "official_quality_dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "aesthetic_quality",
+    "imaging_quality",
+    "dynamic_degree"
+  ],
+  "paired_exclusive_vs_v166": {
+    "ours_middle10_reservoir2_deficitbaseline1": {
+      "dynamic_degree": {
+        "bootstrap_mean_ci95": [
+          -0.012499999999999997,
+          0.03750000000000001
+        ],
+        "mean_delta": 0.008333333333333338,
+        "median_delta": 0.0,
+        "negative_prompts": 1,
+        "per_prompt": [
+          {
+            "delta": 0.0,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 13
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.20000000000000007,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 1
+      },
+      "identity_background": {
+        "bootstrap_mean_ci95": [
+          -0.0015409167593950154,
+          2.4680895825433813e-05
+        ],
+        "mean_delta": -0.0006578296362557481,
+        "median_delta": -0.0001763807761960834,
+        "negative_prompts": 9,
+        "per_prompt": [
+          {
+            "delta": -0.0015725805128491421,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.0007704695231447456,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.000283084851083637,
+            "prompt_index": 2
+          },
+          {
+            "delta": -0.0002722276729902884,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.00022729348516914438,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0002357457940642682,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.0018774232068946572,
+            "prompt_index": 6
+          },
+          {
+            "delta": -0.00022230980385229415,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.0007726967396356477,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.0004212466124751124,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.000703060140138767,
+            "prompt_index": 10
+          },
+          {
+            "delta": -0.0059850461188099,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0006518205389257625,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.0020800846362014624,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.0009096291183019467,
+            "prompt_index": 14
+          },
+          {
+            "delta": -0.00013045174853987263,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 7
+      },
+      "semantic_alignment": {
+        "bootstrap_mean_ci95": [
+          -0.0018596973891059597,
+          0.004059131940205901
+        ],
+        "mean_delta": 0.0009850754092137004,
+        "median_delta": 0.00019972473382948164,
+        "negative_prompts": 6,
+        "per_prompt": [
+          {
+            "delta": -0.0045864591995875,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.006499519944190957,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.00014495452245075202,
+            "prompt_index": 2
+          },
+          {
+            "delta": -0.0020391821861267534,
+            "prompt_index": 3
+          },
+          {
+            "delta": -2.545416355134722e-05,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.00025449494520821125,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.00834871133168541,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0004941125710805627,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.015483595927556354,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.006194090843200717,
+            "prompt_index": 9
+          },
+          {
+            "delta": -0.0052099794149398915,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0061530490716298625,
+            "prompt_index": 11
+          },
+          {
+            "delta": 2.4239222208677358e-05,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.010138456026713052,
+            "prompt_index": 13
+          },
+          {
+            "delta": 0.0031896799802779985,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.00039383967717487867,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 10
+      },
+      "temporal_mechanics": {
+        "bootstrap_mean_ci95": [
+          -0.002720660205656103,
+          -5.889274445289999e-05
+        ],
+        "mean_delta": -0.0011734621392437902,
+        "median_delta": 3.8681794724215735e-05,
+        "negative_prompts": 7,
+        "per_prompt": [
+          {
+            "delta": -0.0037182223949344673,
+            "prompt_index": 0
+          },
+          {
+            "delta": 8.5500815164119e-05,
+            "prompt_index": 1
+          },
+          {
+            "delta": 6.0246744804759444e-05,
+            "prompt_index": 2
+          },
+          {
+            "delta": -0.000528042382360816,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.0003627903196156135,
+            "prompt_index": 4
+          },
+          {
+            "delta": 7.47085812127235e-05,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.0021821490115151443,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0007739795776802172,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.0011108441410470071,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.011147884038378741,
+            "prompt_index": 9
+          },
+          {
+            "delta": -0.0026084699429251845,
+            "prompt_index": 10
+          },
+          {
+            "delta": -0.0011274965992786878,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0002433640724200936,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.0002889058556043711,
+            "prompt_index": 13
+          },
+          {
+            "delta": 1.7116844643672025e-05,
+            "prompt_index": 14
+          },
+          {
+            "delta": 9.722490050856347e-05,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 9
+      },
+      "visual_quality": {
+        "bootstrap_mean_ci95": [
+          -0.007813134846587945,
+          0.001113976818819834
+        ],
+        "mean_delta": -0.0029277845174074182,
+        "median_delta": -0.000639970004558621,
+        "negative_prompts": 9,
+        "per_prompt": [
+          {
+            "delta": -0.024678341587384467,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.001193806966145905,
+            "prompt_index": 1
+          },
+          {
+            "delta": -0.0019038676420848333,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.004242406288782696,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.002652741909026979,
+            "prompt_index": 4
+          },
+          {
+            "delta": -8.613304297133695e-05,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.009328776756922341,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0035019882122676593,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.004176848371823638,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.004695351084073374,
+            "prompt_index": 9
+          },
+          {
+            "delta": -0.0019420890410741798,
+            "prompt_index": 10
+          },
+          {
+            "delta": -0.01820562175909668,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0005118574698765865,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.017372153759002695,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.006604559103647878,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.0013375343481699664,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 7
+      }
+    },
+    "ours_middle10_reservoir2_deficitquery1": {
+      "dynamic_degree": {
+        "bootstrap_mean_ci95": [
+          -0.02916666666666668,
+          0.01249999999999999
+        ],
+        "mean_delta": -0.008333333333333345,
+        "median_delta": 0.0,
+        "negative_prompts": 4,
+        "per_prompt": [
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.06666666666666665,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 2
+          },
+          {
+            "delta": -0.06666666666666676,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.06666666666666676,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.06666666666666665,
+            "prompt_index": 13
+          },
+          {
+            "delta": 0.0,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.06666666666666665,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 2
+      },
+      "identity_background": {
+        "bootstrap_mean_ci95": [
+          -0.00027265013229146873,
+          0.00086392109219674
+        ],
+        "mean_delta": 0.00021917322301771153,
+        "median_delta": 9.768135673837719e-05,
+        "negative_prompts": 6,
+        "per_prompt": [
+          {
+            "delta": -0.0005539173931732311,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.0006239114829564851,
+            "prompt_index": 1
+          },
+          {
+            "delta": 3.9529653828473954e-05,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.00045521383625501954,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.0003792426849915653,
+            "prompt_index": 4
+          },
+          {
+            "delta": -0.0004667930426115463,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.00037175249732335214,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0007053237555670888,
+            "prompt_index": 7
+          },
+          {
+            "delta": -4.6614067373274004e-05,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.000985957527758874,
+            "prompt_index": 9
+          },
+          {
+            "delta": 0.0001142846658142016,
+            "prompt_index": 10
+          },
+          {
+            "delta": -0.001190778069988463,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0003861431361752432,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.0041112078800054075,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.001240948060995395,
+            "prompt_index": 14
+          },
+          {
+            "delta": 8.107804766255278e-05,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 10
+      },
+      "semantic_alignment": {
+        "bootstrap_mean_ci95": [
+          -0.000872791946555174,
+          0.004133790809040272
+        ],
+        "mean_delta": 0.00148284415093561,
+        "median_delta": 0.000581189493338255,
+        "negative_prompts": 4,
+        "per_prompt": [
+          {
+            "delta": -0.0035882433255513546,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.002311941981315596,
+            "prompt_index": 1
+          },
+          {
+            "delta": 0.0004903306563695253,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0006720483303069846,
+            "prompt_index": 3
+          },
+          {
+            "delta": 2.5233626365639417e-05,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.0028634270032246723,
+            "prompt_index": 5
+          },
+          {
+            "delta": -0.0010245511929194429,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0010169466336568678,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.015714423855145793,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.001568983991940831,
+            "prompt_index": 9
+          },
+          {
+            "delta": -0.008456317583719897,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.0025081882874171124,
+            "prompt_index": 11
+          },
+          {
+            "delta": 0.0003921985626220703,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.009717216839392973,
+            "prompt_index": 13
+          },
+          {
+            "delta": 0.0037090728680292673,
+            "prompt_index": 14
+          },
+          {
+            "delta": 0.000428489844004315,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 12
+      },
+      "temporal_mechanics": {
+        "bootstrap_mean_ci95": [
+          -0.0010557252090456978,
+          0.0007212576578758192
+        ],
+        "mean_delta": -0.0001706816209596368,
+        "median_delta": -0.0001827095200406803,
+        "negative_prompts": 11,
+        "per_prompt": [
+          {
+            "delta": -0.002364283619019747,
+            "prompt_index": 0
+          },
+          {
+            "delta": -0.0004741585986781649,
+            "prompt_index": 1
+          },
+          {
+            "delta": -3.845305711225322e-05,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.0006719750558339399,
+            "prompt_index": 3
+          },
+          {
+            "delta": 0.00016529898003037058,
+            "prompt_index": 4
+          },
+          {
+            "delta": -7.884097214994057e-05,
+            "prompt_index": 5
+          },
+          {
+            "delta": 0.0012086918029279303,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.0037011222340701533,
+            "prompt_index": 7
+          },
+          {
+            "delta": -0.0013112384557258938,
+            "prompt_index": 8
+          },
+          {
+            "delta": -0.004567820110817911,
+            "prompt_index": 9
+          },
+          {
+            "delta": -0.00028657806793142004,
+            "prompt_index": 10
+          },
+          {
+            "delta": -0.0011898037657033234,
+            "prompt_index": 11
+          },
+          {
+            "delta": -6.736000583418278e-05,
+            "prompt_index": 12
+          },
+          {
+            "delta": 0.002896356481547069,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.0005801675983112542,
+            "prompt_index": 14
+          },
+          {
+            "delta": -0.00041564623847956117,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 5
+      },
+      "visual_quality": {
+        "bootstrap_mean_ci95": [
+          -0.00022519442439080523,
+          0.00392891605446738
+        ],
+        "mean_delta": 0.0017404803385337106,
+        "median_delta": 0.00023024004697802525,
+        "negative_prompts": 8,
+        "per_prompt": [
+          {
+            "delta": 0.01027902098496758,
+            "prompt_index": 0
+          },
+          {
+            "delta": 0.0005974103609720505,
+            "prompt_index": 1
+          },
+          {
+            "delta": -0.002157739718755103,
+            "prompt_index": 2
+          },
+          {
+            "delta": 0.005142560720443612,
+            "prompt_index": 3
+          },
+          {
+            "delta": -0.0011782211462655345,
+            "prompt_index": 4
+          },
+          {
+            "delta": 0.009402272343635554,
+            "prompt_index": 5
+          },
+          {
+            "delta": -8.246858914695565e-05,
+            "prompt_index": 6
+          },
+          {
+            "delta": 0.002400259812672889,
+            "prompt_index": 7
+          },
+          {
+            "delta": 0.0005429486831030061,
+            "prompt_index": 8
+          },
+          {
+            "delta": 0.008633444865544626,
+            "prompt_index": 9
+          },
+          {
+            "delta": -0.0030756392876307714,
+            "prompt_index": 10
+          },
+          {
+            "delta": 0.002054190158844005,
+            "prompt_index": 11
+          },
+          {
+            "delta": -0.00044251306851705863,
+            "prompt_index": 12
+          },
+          {
+            "delta": -0.0003523040612538608,
+            "prompt_index": 13
+          },
+          {
+            "delta": -0.0038142652511596875,
+            "prompt_index": 14
+          },
+          {
+            "delta": -0.00010127139091498094,
+            "prompt_index": 15
+          }
+        ],
+        "positive_prompts": 8
+      }
+    }
+  },
+  "paired_official_quality_vs_v166": {
+    "ours_middle10_reservoir2_deficitbaseline1": {
+      "bootstrap_mean_ci95": [
+        -0.464427890613333,
+        0.1610424956747103
+      ],
+      "mean_delta": -0.1598997820255832,
+      "median_delta": -0.04040751418978772,
+      "negative_prompts": 9,
+      "per_prompt": [
+        {
+          "delta": -1.1486243298190146,
+          "prompt_index": 0
+        },
+        {
+          "delta": -0.06184247320737768,
+          "prompt_index": 1
+        },
+        {
+          "delta": -0.04220152181250114,
+          "prompt_index": 2
+        },
+        {
+          "delta": 0.07139192350943802,
+          "prompt_index": 3
+        },
+        {
+          "delta": -0.038613506567074296,
+          "prompt_index": 4
+        },
+        {
+          "delta": 0.01331816988403034,
+          "prompt_index": 5
+        },
+        {
+          "delta": 0.015157041661296944,
+          "prompt_index": 6
+        },
+        {
+          "delta": 0.16742600050127976,
+          "prompt_index": 7
+        },
+        {
+          "delta": 0.2587849324009426,
+          "prompt_index": 8
+        },
+        {
+          "delta": -0.8720444534201732,
+          "prompt_index": 9
+        },
+        {
+          "delta": -0.2805610519840229,
+          "prompt_index": 10
+        },
+        {
+          "delta": -0.8952936787096633,
+          "prompt_index": 11
+        },
+        {
+          "delta": 0.0660835287658017,
+          "prompt_index": 12
+        },
+        {
+          "delta": -1.157619715904147,
+          "prompt_index": 13
+        },
+        {
+          "delta": -0.23738289353067898,
+          "prompt_index": 14
+        },
+        {
+          "delta": 1.5836255158225327,
+          "prompt_index": 15
+        }
+      ],
+      "positive_prompts": 7
+    },
+    "ours_middle10_reservoir2_deficitquery1": {
+      "bootstrap_mean_ci95": [
+        -0.14496732232920895,
+        0.12029317285931729
+      ],
+      "mean_delta": -0.018331712012917833,
+      "median_delta": -0.0934606488928793,
+      "negative_prompts": 12,
+      "per_prompt": [
+        {
+          "delta": -0.41967027963052317,
+          "prompt_index": 0
+        },
+        {
+          "delta": 0.4654874481869342,
+          "prompt_index": 1
+        },
+        {
+          "delta": -0.068038376593762,
+          "prompt_index": 2
+        },
+        {
+          "delta": -0.2758450615136354,
+          "prompt_index": 3
+        },
+        {
+          "delta": -0.004084765051018735,
+          "prompt_index": 4
+        },
+        {
+          "delta": 0.2600302080445829,
+          "prompt_index": 5
+        },
+        {
+          "delta": -0.3930078985734582,
+          "prompt_index": 6
+        },
+        {
+          "delta": 0.4310246739214847,
+          "prompt_index": 7
+        },
+        {
+          "delta": -0.10495902324738893,
+          "prompt_index": 8
+        },
+        {
+          "delta": -0.1274172228817605,
+          "prompt_index": 9
+        },
+        {
+          "delta": -0.12068622574922472,
+          "prompt_index": 10
+        },
+        {
+          "delta": -0.08196227453836968,
+          "prompt_index": 11
+        },
+        {
+          "delta": -0.002661425532295425,
+          "prompt_index": 12
+        },
+        {
+          "delta": -0.10573114605546152,
+          "prompt_index": 13
+        },
+        {
+          "delta": -0.2204116108411256,
+          "prompt_index": 14
+        },
+        {
+          "delta": 0.47462558784833675,
+          "prompt_index": 15
+        }
+      ],
+      "positive_prompts": 4
+    }
+  },
+  "quality_ranking": [
+    "ours_middle10_reservoir2_multiscalemotion1",
+    "ours_middle10_reservoir2_deficitquery1",
+    "ours_middle10_reservoir2_deficitbaseline1"
+  ],
+  "vbench_detail_scales": {
+    "ours_middle10_reservoir2_deficitbaseline1": {
+      "aesthetic_quality": 1.0,
+      "background_consistency": 1.0,
+      "dynamic_degree": 1.0,
+      "imaging_quality": 0.01,
+      "motion_smoothness": 1.0,
+      "overall_consistency": 1.0,
+      "subject_consistency": 1.0,
+      "temporal_flickering": 1.0,
+      "temporal_style": 1.0
+    },
+    "ours_middle10_reservoir2_deficitquery1": {
+      "aesthetic_quality": 1.0,
+      "background_consistency": 1.0,
+      "dynamic_degree": 1.0,
+      "imaging_quality": 0.01,
+      "motion_smoothness": 1.0,
+      "overall_consistency": 1.0,
+      "subject_consistency": 1.0,
+      "temporal_flickering": 1.0,
+      "temporal_style": 1.0
+    },
+    "ours_middle10_reservoir2_multiscalemotion1": {
+      "aesthetic_quality": 1.0,
+      "background_consistency": 1.0,
+      "dynamic_degree": 1.0,
+      "imaging_quality": 0.01,
+      "motion_smoothness": 1.0,
+      "overall_consistency": 1.0,
+      "subject_consistency": 1.0,
+      "temporal_flickering": 1.0,
+      "temporal_style": 1.0
+    }
+  },
+  "version": 1
+}
