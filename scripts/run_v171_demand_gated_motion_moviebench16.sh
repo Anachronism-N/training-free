@@ -70,8 +70,8 @@ case "${ACTION}" in
       "${runner[@]}" generate
     ;;
   preflight|generate)
-    [[ "${NUM_NODES}" == "4" ]] || {
-      echo "v171 full ${ACTION} requires NUM_NODES=4" >&2
+    [[ "${NUM_NODES}" -ge 2 ]] || {
+      echo "v171 full ${ACTION} requires NUM_NODES>=2" >&2
       exit 2
     }
     "${PYTHON_BIN}" "${ROOT}/scripts/build_v157_layer_gate_maps.py" --check

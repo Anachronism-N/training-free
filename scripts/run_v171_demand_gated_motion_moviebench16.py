@@ -74,7 +74,7 @@ def configure_parent_runner() -> None:
     runner.RUN_LABEL = "v171"
     runner.DEFAULT_PROMPT_PATH = str(ROOT / "prompts" / v155.PROMPT_FILENAME)
     runner.INCLUDE_PF_BASELINE = False
-    runner.ALLOW_PARTIAL_SCOPE = False
+    runner.ALLOW_PARTIAL_SCOPE = True
     runner.MAX_CANDIDATES = len(contract.METHODS)
     runner.DEFAULT_CANDIDATES = (
         "middle10_reservoir2_multiscalemotion1",
