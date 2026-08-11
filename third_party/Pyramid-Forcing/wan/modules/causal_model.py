@@ -240,6 +240,7 @@ class CausalWanSelfAttention(nn.Module):
                         prompt_v=prompt_v,
                         cache_update_mode=cache_update_mode,
                         causal=False,
+                        output_projection_weight=self.o.weight,
                     )
                 else:
                     roped_key = causal_rope_apply(
@@ -254,6 +255,7 @@ class CausalWanSelfAttention(nn.Module):
                         prompt_v=prompt_v,
                         cache_update_mode=cache_update_mode,
                         causal=False,
+                        output_projection_weight=self.o.weight,
                     )
             else:
                 roped_key = causal_rope_apply(

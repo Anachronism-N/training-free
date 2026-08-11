@@ -5,12 +5,17 @@ from __future__ import annotations
 
 HISTORY_SUPPORT_LABEL = 10
 HISTORY_SUPPRESS_LABEL = 11
+CACHE_COMPAT_PROFILE_POLICY = "reservoir4_multiscalemotion1"
+CACHE_COMPAT_RECENT_LABEL = 20
+CACHE_COMPAT_COVERAGE_LABEL = 21
+CACHE_COMPAT_EPISODE_LABEL = 22
 DIRECTION_STALE_TIE_MARGINS = {
     "reservoir2_dirstaletie003": 0.03,
     "reservoir2_dirstaletie005": 0.05,
 }
 DIRECTION_STALE_TIE_POLICIES = set(DIRECTION_STALE_TIE_MARGINS)
 MOTION_SIGNATURE_POLICY_MODES = {
+    CACHE_COMPAT_PROFILE_POLICY: "multiscale_magnitude",
     "reservoir2_multiscaledir1": "multiscale_direction",
     "reservoir2_multiscalemotion1": "multiscale_magnitude",
     "reservoir2_multiscalepareto1": "pareto_multiscale_magnitude",
@@ -415,7 +420,7 @@ def history_polarity_policy_overrides(
     )
     support_reservoir_capacity = (
         4
-        if support == "reservoir"
+        if support in {"reservoir", CACHE_COMPAT_PROFILE_POLICY}
         else 2
         if support
         in {
@@ -434,7 +439,7 @@ def history_polarity_policy_overrides(
     )
     suppress_reservoir_capacity = (
         4
-        if suppress == "reservoir"
+        if suppress in {"reservoir", CACHE_COMPAT_PROFILE_POLICY}
         else 2
         if suppress
         in {
@@ -986,6 +991,69 @@ def binary_responsive_policy_overrides(policy: str) -> dict[str, object]:
     """Backward-compatible stride/responsive override."""
 
     return binary_head_policy_overrides("stride", policy)
+
+
+def cache_compatibility_policy_overrides(
+    *,
+    capacity: int = 32760,
+) -> dict[str, object]:
+    """Build the three equal-budget v173 cache-operator routes.
+
+    Labels deliberately use a new namespace so no PF class semantics leak
+    into the generated maps:
+
+    * 20: sink1 + recent8 (local evidence),
+    * 21: sink1 + reservoir4 + recent4 (temporal coverage),
+    * 22: sink1 + reservoir2 + coherent motion pair + recent4 (episode).
+    """
+
+    recent_key = str(CACHE_COMPAT_RECENT_LABEL)
+    coverage_key = str(CACHE_COMPAT_COVERAGE_LABEL)
+    episode_key = str(CACHE_COMPAT_EPISODE_LABEL)
+    fields = history_polarity_policy_overrides(
+        "reservoir",
+        "reservoir2_multiscalemotion1",
+        support_label=CACHE_COMPAT_COVERAGE_LABEL,
+        suppress_label=CACHE_COMPAT_EPISODE_LABEL,
+        capacity=capacity,
+    )
+
+    # Copy inert defaults from the coverage route, then explicitly remove
+    # every middle-memory capacity for the recent-only control.
+    for field_name, field_value in fields.items():
+        if not field_name.startswith("pyramidkv_label_"):
+            continue
+        if not isinstance(field_value, dict) or coverage_key not in field_value:
+            continue
+        source = field_value[coverage_key]
+        field_value[recent_key] = list(source) if isinstance(source, list) else source
+
+    zero_fields = {
+        "pyramidkv_label_phase_bucket_map": 0,
+        "pyramidkv_label_stride_enabled_map": False,
+        "pyramidkv_label_merge_enabled_map": False,
+        "pyramidkv_label_motion_event_enabled_map": False,
+        "pyramidkv_label_motion_event_capacity_map": 0,
+        "pyramidkv_label_semantic_landmark_capacity_map": 0,
+        "pyramidkv_label_coherent_motion_pair_capacity_map": 0,
+        "pyramidkv_label_semantic_retrieval_capacity_map": 0,
+        "pyramidkv_label_temporal_prototype_capacity_map": 0,
+        "pyramidkv_label_temporal_reservoir_capacity_map": 0,
+        "pyramidkv_label_temporal_profile_anchor_capacity_map": 0,
+        "pyramidkv_label_unique_snapshot_capacity_map": 0,
+        "pyramidkv_label_sparse_snapshot_capacity_map": 0,
+    }
+    for field_name, value in zero_fields.items():
+        fields.setdefault(field_name, {})[recent_key] = value
+    fields["pyramidkv_code_map"][recent_key] = max(1, int(capacity))
+    fields["pyramidkv_label_sink_frames_map"][recent_key] = 1
+    fields["pyramidkv_label_recent_frames_map"][recent_key] = 8
+
+    expected = {recent_key, coverage_key, episode_key}
+    if set(fields["pyramidkv_code_map"]) != expected:
+        raise RuntimeError("cache compatibility policy labels are incomplete")
+    fields["pyramidkv_composition_owns_dynamic"] = True
+    return fields
 
 
 def pf_class_extended_recent_overrides(

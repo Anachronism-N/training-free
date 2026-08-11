@@ -1465,6 +1465,8 @@ class CausalInferencePipeline(torch.nn.Module):
                         probecache_trace_selection_stride=hc.pyramidkv_probecache_trace_selection_stride,
                         probecache_debug=hc.pyramidkv_probecache_debug,
                         probecache_profile_recent_only=hc.pyramidkv_probecache_profile_recent_only,
+                        cache_compat_profile_enabled=hc.pyramidkv_cache_compat_profile_enabled,
+                        cache_compat_profile_recent_frames=hc.pyramidkv_cache_compat_profile_recent_frames,
                         motion_event_top_k=hc.motion_event_top_k,
                         motion_event_sample_tokens=hc.motion_event_sample_tokens,
                     )

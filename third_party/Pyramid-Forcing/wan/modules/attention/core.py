@@ -754,6 +754,7 @@ def pyramidkv_attention(
     deterministic=False,
     dtype=torch.bfloat16,
     fa_version=None,
+    output_projection_weight=None,
 ):
     """
     PyramidKV attention using FlashAttention varlen interface.
@@ -1361,6 +1362,96 @@ def pyramidkv_attention(
             out[:, :, drop_head_mask, :] = 0
         return out
 
+    def _maybe_record_cache_compatibility(
+        active_out: torch.Tensor,
+        q_chunk: torch.Tensor,
+        chunk_start: int,
+    ) -> None:
+        if cache_compat_capture is None:
+            return
+        if int(chunk_start) != int(cache_compat_capture["current_start"]):
+            return
+        from .cache_compat_profile import record_cache_compatibility_outputs
+        if output_projection_weight is None:
+            raise RuntimeError(
+                "cache compatibility profiling requires the attention W_O weight"
+            )
+        if grid_sizes is None or freqs is None:
+            raise RuntimeError(
+                "cache compatibility profiling requires grid_sizes and freqs"
+            )
+        if not hasattr(kv_cache, "get_cache_compatibility_readout"):
+            raise RuntimeError(
+                "cache does not implement cache compatibility shadow readouts"
+            )
+
+        outputs = {"recent": active_out.detach()}
+        budgets = {}
+        try:
+            # Re-materialize Recent only to audit its actual frame budget.  Its
+            # attention output is the already-computed active output above.
+            recent_readout = kv_cache.get_cache_compatibility_readout(
+                "recent",
+                current_start=int(chunk_start),
+                grid_sizes=grid_sizes,
+                freqs=freqs,
+            )
+            budgets["recent"] = recent_readout[-1]
+            del recent_readout
+
+            for policy in ("coverage", "episode", "union"):
+                (
+                    k_shadow,
+                    v_shadow,
+                    cu_shadow,
+                    max_k_shadow,
+                    frame_ids_shadow,
+                    metadata,
+                ) = kv_cache.get_cache_compatibility_readout(
+                    policy,
+                    current_start=int(chunk_start),
+                    grid_sizes=grid_sizes,
+                    freqs=freqs,
+                )
+                k_shadow = _apply_soft_ablate_to_k_flat(
+                    k_flat_chunk=k_shadow,
+                    cu_seqlens_k_chunk=cu_shadow,
+                    k_frame_ids_flat=frame_ids_shadow,
+                    chunk_start_token=int(chunk_start),
+                )
+                v_shadow = _refresh_stale_history_values(
+                    v_shadow,
+                    cu_shadow,
+                    frame_ids_shadow,
+                    int(chunk_start) // int(frame_seqlen),
+                )
+                outputs[policy] = run_varlen(
+                    q_chunk,
+                    k_shadow,
+                    v_shadow,
+                    cu_shadow,
+                    max_k_shadow,
+                ).detach()
+                budgets[policy] = metadata
+            record_cache_compatibility_outputs(
+                outputs=outputs,
+                output_projection_weight=output_projection_weight,
+                capture=cache_compat_capture,
+                budget_metadata=budgets,
+            )
+        finally:
+            kv_cache.finish_cache_compatibility_readouts()
+
+    cache_compat_capture = None
+    if os.environ.get("CACHE_COMPAT_PROFILE", "0") == "1":
+        from .cache_compat_profile import claim_cache_compatibility_capture
+
+        cache_compat_capture = claim_cache_compatibility_capture(
+            kv_cache,
+            current_start=int(current_start or 0),
+            cache_update_mode=cache_update_mode,
+        )
+
     try:
         use_decoupled = (
             getattr(kv_cache, "post_prune_rope", False)
@@ -1393,6 +1484,7 @@ def pyramidkv_attention(
                 and hasattr(kv_cache, "get_decoupled_flat_kv_and_frames_multi")
                 and not capture_this
                 and not _has_ablate
+                and cache_compat_capture is None
             )
             if use_merged:
                 current_starts = [base_start + c * frame_seqlen for c in range(num_chunks)]
@@ -1488,7 +1580,20 @@ def pyramidkv_attention(
                     chunk_start_token=base_start + offset,
                     k_frame_ids_flat=k_frame_ids_flat,
                 )
-                out_buf[:, offset:offset + frame_seqlen] = run_varlen(q_chunk, k_flat, v_flat, cu_seqlens_k, max_seqlen_k, cu_seqlens_q_override=cu_seqlens_q_fixed)
+                active_chunk = run_varlen(
+                    q_chunk,
+                    k_flat,
+                    v_flat,
+                    cu_seqlens_k,
+                    max_seqlen_k,
+                    cu_seqlens_q_override=cu_seqlens_q_fixed,
+                )
+                out_buf[:, offset:offset + frame_seqlen] = active_chunk
+                _maybe_record_cache_compatibility(
+                    active_chunk,
+                    q_chunk,
+                    base_start + offset,
+                )
             return _fuse_structured_memory(out_buf)
 
         k_frame_ids_flat = None

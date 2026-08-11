@@ -47,6 +47,7 @@ from .role_memory import (
     TemporalPrototypeStrategy,
     UniqueSnapshotStrategy,
 )
+from .temporal_reservoir import TemporalReservoirStrategy
 from .safety import validate_exclusive_opening_partition
 
 
@@ -299,6 +300,8 @@ class AdaptiveKVCache(PyramidKVCache):
         probecache_trace_selection_stride: int = 1,
         probecache_debug: bool = False,
         probecache_profile_recent_only: bool = False,
+        cache_compat_profile_enabled: bool = False,
+        cache_compat_profile_recent_frames: int = 8,
         motion_event_top_k: int = 1,
         motion_event_sample_tokens: int = 64,
     ):
@@ -726,6 +729,26 @@ class AdaptiveKVCache(PyramidKVCache):
             else None
         )
         self.probecache_profile_recent_only = bool(probecache_profile_recent_only)
+        self.cache_compat_profile_enabled = bool(cache_compat_profile_enabled)
+        self.cache_compat_profile_recent_frames = max(
+            1, int(cache_compat_profile_recent_frames)
+        )
+        # The profiling composition owns the four-frame coverage reservoir
+        # and coherent motion pair.  Keep a separate two-frame reservoir for
+        # the episode candidate so every shadow policy is derived from the
+        # same committed clean updates without mutating the active readout.
+        self._cache_compat_reservoir2 = (
+            TemporalReservoirStrategy(
+                capacity=2,
+                min_frame_t=1,
+                defer_frames=4,
+                seed=2026,
+                dynamic_rope=True,
+            )
+            if self.cache_compat_profile_enabled
+            else None
+        )
+        self._cache_compat_last_readout_metadata: dict[str, dict] = {}
         self.motion_event_top_k = max(1, int(motion_event_top_k))
         self.motion_event_sample_tokens = max(
             1, int(motion_event_sample_tokens)
@@ -882,6 +905,8 @@ class AdaptiveKVCache(PyramidKVCache):
             for comp in self.compositions_row:
                 if comp.has_middle:
                     comp.reset_all(num_seq)
+        if self._cache_compat_reservoir2 is not None:
+            self._cache_compat_reservoir2.reset(batch_size * num_heads)
 
         # Optional C++ shadow validator gated by PYRAMIDKV_USE_CPP_PACK=1. Lazy-
         # built on first update() once _frame_seqlen is known. Default off.
@@ -2934,6 +2959,11 @@ class AdaptiveKVCache(PyramidKVCache):
             for comp in self.compositions_row:
                 if comp.has_middle:
                     comp.reset_all(num_seq)
+        if self._cache_compat_reservoir2 is not None:
+            self._cache_compat_reservoir2.reset(
+                self.batch_size * self.num_heads
+            )
+        self._cache_compat_last_readout_metadata.clear()
 
     def _update_steady_state(self, cu_seqlens_k: torch.Tensor) -> None:
         """Steady-state detection via pure-Python _dyn_store_len comparison.
@@ -3286,7 +3316,10 @@ class AdaptiveKVCache(PyramidKVCache):
         6. l_in > 0
         7. For clean+osc mode: no i2v sink capture (context_len already captured)
         """
-        if os.environ.get("PYRAMIDKV_DISABLE_M6_FASTPATH") == "1":
+        if (
+            self.cache_compat_profile_enabled
+            or os.environ.get("PYRAMIDKV_DISABLE_M6_FASTPATH") == "1"
+        ):
             return False
         if cache_update_mode not in ("noisy", "clean"):
             return False
@@ -3598,6 +3631,29 @@ class AdaptiveKVCache(PyramidKVCache):
                         t_start=frame_start_t,
                     )
 
+                if self._cache_compat_reservoir2 is not None:
+                    num_frames = (
+                        int(new_k_flat[i].shape[0]) // frame_seqlen
+                        if frame_seqlen > 0
+                        and int(new_k_flat[i].shape[0]) % frame_seqlen == 0
+                        else 0
+                    )
+                    if allow_middle_commit:
+                        self._cache_compat_reservoir2.update(
+                            i,
+                            new_k_flat[i],
+                            new_v_flat[i],
+                            pos_flat[i],
+                            frame_seqlen,
+                            frame_start_t,
+                        )
+                    else:
+                        self._cache_compat_reservoir2.discard_range(
+                            i,
+                            frame_start_t,
+                            num_frames,
+                        )
+
             if self.is_i2v and self.static_k[i] is None:
                 if l_new >= self.context_len:
                     self.static_k[i] = new_k_flat[i, :self.context_len].clone()
@@ -3707,6 +3763,11 @@ class AdaptiveKVCache(PyramidKVCache):
             else:
                 stable_kind = self._stable_strategy_kind(head_idx)
                 dynamic_recent_frames = self._head_recent_frames(head_idx)
+            if self.cache_compat_profile_enabled:
+                dynamic_recent_frames = max(
+                    dynamic_recent_frames,
+                    self.cache_compat_profile_recent_frames,
+                )
             probecache_managed = (
                 self.probecache is not None
                 and self.probecache.manages_head(head_idx)
@@ -4043,7 +4104,13 @@ class AdaptiveKVCache(PyramidKVCache):
         """
         # Build a fresh spec for the new sync_t / sync_t_raw. This pays the
         # spec-build cost (~150us per call) but gates everything below.
-        spec = self._build_readout_spec(sync_t_raw=sync_t_raw, sync_t=sync_t)
+        spec = self._build_readout_spec(
+            sync_t_raw=sync_t_raw,
+            sync_t=sync_t,
+            compatibility_policy=(
+                "recent" if self.cache_compat_profile_enabled else None
+            ),
+        )
 
         # Shape mismatch → caller must do a full cold pack to rebuild K_RAW/V.
         if spec.shape_key != self._readout_cache_shape_key:
@@ -5010,12 +5077,128 @@ class AdaptiveKVCache(PyramidKVCache):
             out_frame_ids[offset:offset + n] = mapped_t
         return offset + n
 
+    def _cache_compatibility_middle_anchors(
+        self,
+        *,
+        seq_idx: int,
+        head_idx: int,
+        sync_t_raw: int,
+        has_stat: bool,
+        policy: str,
+    ) -> list:
+        """Collect one v173 shadow policy without changing cache state."""
+
+        if not self.cache_compat_profile_enabled:
+            raise RuntimeError("cache compatibility shadow bank is disabled")
+        if policy not in {"coverage", "episode", "union"}:
+            raise ValueError(f"unsupported cache compatibility policy: {policy}")
+        composition = (
+            self.compositions_row[head_idx]
+            if self.compositions_row is not None
+            and head_idx < len(self.compositions_row)
+            else None
+        )
+        if composition is None:
+            raise RuntimeError(
+                "cache compatibility profiling requires explicit compositions"
+            )
+        reservoir4 = [
+            strategy
+            for strategy in composition.middle_strategies
+            if isinstance(strategy, TemporalReservoirStrategy)
+            and int(strategy.capacity) == 4
+        ]
+        motion = [
+            strategy
+            for strategy in composition.middle_strategies
+            if isinstance(strategy, CoherentMotionStrategy)
+            and int(strategy.pair_capacity) == 1
+        ]
+        if len(reservoir4) != 1 or len(motion) != 1:
+            raise RuntimeError(
+                "v173 profiling composition must contain exactly one "
+                "reservoir4 and one coherent-motion pair: "
+                f"layer={self.layer_idx} head={head_idx} "
+                f"reservoir4={len(reservoir4)} motion={len(motion)}"
+            )
+        if self._cache_compat_reservoir2 is None:
+            raise RuntimeError("v173 episode reservoir2 is unavailable")
+
+        recent_frames = 8 if policy == "union" else 4
+        recent_min_t = sync_t_raw - recent_frames + 1
+        sink_max_t = self._middle_sink_max_t(
+            seq_idx=seq_idx,
+            head_idx=head_idx,
+            has_stat=has_stat,
+            composition=composition,
+        )
+        collected = []
+        if policy in {"coverage", "union"}:
+            collected.extend(
+                reservoir4[0].collect(
+                    seq_idx,
+                    sync_t_raw,
+                    recent_min_t,
+                    sink_max_t,
+                )
+            )
+        if policy == "episode":
+            collected.extend(
+                self._cache_compat_reservoir2.collect(
+                    seq_idx,
+                    sync_t_raw,
+                    recent_min_t,
+                    sink_max_t,
+                )
+            )
+        if policy in {"episode", "union"}:
+            motion_anchors = motion[0].collect(
+                seq_idx,
+                sync_t_raw,
+                recent_min_t,
+                sink_max_t,
+            )
+            if len(motion_anchors) not in {0, 2}:
+                raise RuntimeError(
+                    "coherent-motion readout must preserve an atomic pair"
+                )
+            collected.extend(motion_anchors)
+
+        # A physical frame may be selected by both coverage and motion.  One
+        # copy is sufficient; prefer the motion annotation for diagnostics.
+        by_t = {}
+        for anchor in collected:
+            t_val = int(anchor.t)
+            previous = by_t.get(t_val)
+            if previous is None or anchor.source_kind == "coherent_motion":
+                by_t[t_val] = anchor
+        result = [by_t[t_val] for t_val in sorted(by_t)]
+        max_middle = {"coverage": 4, "episode": 4, "union": 6}[policy]
+        if len(result) > max_middle:
+            raise RuntimeError(
+                f"cache compatibility middle budget exceeded for {policy}: "
+                f"{len(result)} > {max_middle}"
+            )
+        return result
+
     def _build_readout_spec(
         self,
         *,
         sync_t_raw: int,
         sync_t: int,
+        compatibility_policy: str | None = None,
     ) -> _ReadoutSpec:
+        if compatibility_policy is not None and compatibility_policy not in {
+            "recent",
+            "coverage",
+            "episode",
+            "union",
+        }:
+            raise ValueError(
+                "invalid cache compatibility readout policy: "
+                f"{compatibility_policy}"
+            )
+        compatibility_mode = compatibility_policy is not None
         num_seq = self.batch_size * self.num_heads
         capture_physical = self.capture_frame_id_mode == "physical"
         has_dynamic_time_mapping = self.history_time_mapping_mode != "none"
@@ -5045,7 +5228,7 @@ class AdaptiveKVCache(PyramidKVCache):
             seq_start = offset
             stat_k = self.static_k[i]
             has_stat = (
-                not self.probecache_profile_recent_only
+                (compatibility_mode or not self.probecache_profile_recent_only)
                 and stat_k is not None
                 and stat_k.shape[0] > 0
                 and not shield_sink
@@ -5078,10 +5261,19 @@ class AdaptiveKVCache(PyramidKVCache):
             if dyn_k is not None and dyn_k.shape[0] > 0:
                 dyn_v = self.dynamic_v[i]
                 dyn_pos = self.dynamic_pos[i]
-                if self.probecache_profile_recent_only and self._frame_seqlen:
-                    recent_tokens = (
-                        self._head_recent_frames(head_idx) * self._frame_seqlen
-                    )
+                if (
+                    (compatibility_mode or self.probecache_profile_recent_only)
+                    and self._frame_seqlen
+                ):
+                    if compatibility_mode:
+                        recent_frames = (
+                            self.cache_compat_profile_recent_frames
+                            if compatibility_policy in {"recent", "union"}
+                            else 4
+                        )
+                    else:
+                        recent_frames = self._head_recent_frames(head_idx)
+                    recent_tokens = recent_frames * self._frame_seqlen
                     recent_tokens = min(int(dyn_k.shape[0]), int(recent_tokens))
                     dyn_k = dyn_k[-recent_tokens:]
                     dyn_v = dyn_v[-recent_tokens:]
@@ -5107,6 +5299,51 @@ class AdaptiveKVCache(PyramidKVCache):
                 if tail_len > 0:
                     tail_specs[i] = (dyn_offset + n_d - tail_len, tail_len)
                 offset += n_d
+
+            if compatibility_mode:
+                if compatibility_policy != "recent":
+                    anchors = self._cache_compatibility_middle_anchors(
+                        seq_idx=i,
+                        head_idx=head_idx,
+                        sync_t_raw=sync_t_raw,
+                        has_stat=has_stat,
+                        policy=str(compatibility_policy),
+                    )
+                    for anchor_idx, anchor in enumerate(anchors):
+                        n_a = int(anchor.k.shape[0])
+                        dynamic_rope_t = sync_t if anchor.dynamic_rope else None
+                        source_kind = str(
+                            getattr(anchor, "source_kind", "tensor")
+                        )
+                        segments.append(
+                            _ReadoutSegment(
+                                kind=f"anchor:{source_kind}",
+                                seq_idx=i,
+                                offset=offset,
+                                length=n_a,
+                                k=anchor.k,
+                                v=anchor.v,
+                                pos=anchor.pos,
+                                dynamic_rope_t=dynamic_rope_t,
+                                dynamic_time_map=False,
+                                frame_ids_physical=capture_physical,
+                            )
+                        )
+                        part = (
+                            i,
+                            "cache_compat_anchor",
+                            source_kind,
+                            anchor_idx,
+                            n_a,
+                            dynamic_rope_t is not None,
+                            capture_physical,
+                        )
+                        shape_parts.append(part)
+                        anchor_shape_parts.append(part)
+                        offset += n_a
+                lengths[i] = offset - seq_start
+                cu_cpu[i + 1] = offset
+                continue
 
             if self.probecache_profile_recent_only:
                 lengths[i] = offset - seq_start
@@ -5532,7 +5769,13 @@ class AdaptiveKVCache(PyramidKVCache):
             if refreshed is not None:
                 return refreshed
 
-        spec = self._build_readout_spec(sync_t_raw=sync_t_raw, sync_t=sync_t)
+        spec = self._build_readout_spec(
+            sync_t_raw=sync_t_raw,
+            sync_t=sync_t,
+            compatibility_policy=(
+                "recent" if self.cache_compat_profile_enabled else None
+            ),
+        )
         shape_matches_previous = (
             self._last_readout_shape_key is not None
             and spec.shape_key == self._last_readout_shape_key
@@ -5564,6 +5807,152 @@ class AdaptiveKVCache(PyramidKVCache):
             self._update_steady_state(cu_seqlens_k)
 
         return k_flat, v_flat, cu_seqlens_k, max_seqlen_k, frame_ids_flat
+
+    def get_cache_compatibility_readout(
+        self,
+        policy: str,
+        *,
+        current_start: int,
+        grid_sizes: torch.Tensor,
+        freqs: torch.Tensor,
+    ) -> tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        int,
+        torch.Tensor,
+        dict,
+    ]:
+        """Materialize one v173 shadow readout and its strict budget audit."""
+
+        if not self.cache_compat_profile_enabled:
+            raise RuntimeError("cache compatibility profiling is disabled")
+        if not self.sink_grid_decoupling:
+            raise RuntimeError(
+                "cache compatibility profiling requires sink-grid decoupling"
+            )
+        if grid_sizes.ndim != 2 or grid_sizes.shape[1] != 3:
+            raise ValueError(
+                f"grid_sizes must be [B,3], got {tuple(grid_sizes.shape)}"
+            )
+        frame_seqlen = int(self._frame_seqlen or 0)
+        if frame_seqlen <= 0:
+            frame_tokens = _as_long_tensor(grid_sizes[:, 1] * grid_sizes[:, 2])
+            if torch.unique(frame_tokens).numel() != 1:
+                raise ValueError("cache compatibility profile requires one grid")
+            frame_seqlen = int(frame_tokens[0].item())
+            self._frame_seqlen = frame_seqlen
+        sync_t_raw = int(current_start) // frame_seqlen
+        sync_t = self._map_sink_time(sync_t_raw)
+        c = self.head_dim // 2
+        split_sizes = [c - 2 * (c // 3), c // 3, c // 3]
+        freq_parts = tuple(freqs.split(split_sizes, dim=1))
+        spec = self._build_readout_spec(
+            sync_t_raw=sync_t_raw,
+            sync_t=sync_t,
+            compatibility_policy=str(policy),
+        )
+
+        frame_equivalents = []
+        source_frames_by_sequence: dict[str, list[int]] = {}
+        debug_layers = {
+            int(value.strip())
+            for value in os.environ.get(
+                "CACHE_COMPAT_PROFILE_FRAME_ID_LAYERS",
+                "0,10,20,29",
+            ).split(",")
+            if value.strip()
+        }
+        capture_frame_ids = int(self.layer_idx) in debug_layers
+        physical_parts: list[torch.Tensor] = []
+        physical_descriptors: list[tuple[int, str, int]] = []
+        for length in spec.lengths:
+            if int(length) % frame_seqlen != 0:
+                raise RuntimeError(
+                    "cache compatibility readout contains a partial frame: "
+                    f"policy={policy} tokens={length} frame={frame_seqlen}"
+                )
+            frame_equivalents.append(int(length) // frame_seqlen)
+        for segment in spec.segments:
+            if int(segment.length) % frame_seqlen != 0:
+                raise RuntimeError(
+                    f"partial segment in {policy}: {segment.kind}"
+                )
+            counts = source_frames_by_sequence.setdefault(
+                segment.kind,
+                [0 for _ in spec.lengths],
+            )
+            counts[int(segment.seq_idx)] += int(segment.length) // frame_seqlen
+            if capture_frame_ids:
+                frame_ids = _as_long_tensor(
+                    segment.pos[::frame_seqlen, 0]
+                )
+                physical_parts.append(frame_ids)
+                physical_descriptors.append(
+                    (int(segment.seq_idx), str(segment.kind), int(frame_ids.numel()))
+                )
+        max_budget = 15 if policy == "union" else 9
+        observed_max = max(frame_equivalents, default=0)
+        if observed_max > max_budget:
+            raise RuntimeError(
+                f"cache compatibility budget exceeded for {policy}: "
+                f"{observed_max} > {max_budget}"
+            )
+        selected_physical_frames = None
+        source_codebook = None
+        if capture_frame_ids:
+            selected_physical_frames = [list() for _ in spec.lengths]
+            source_codebook = sorted(
+                {source_kind for _, source_kind, _ in physical_descriptors}
+            )
+            source_codes = {
+                source_kind: index
+                for index, source_kind in enumerate(source_codebook)
+            }
+            packed_ids = (
+                torch.cat(physical_parts).detach().cpu().tolist()
+                if physical_parts
+                else []
+            )
+            cursor = 0
+            for seq_idx, source_kind, count in physical_descriptors:
+                for frame_id in packed_ids[cursor : cursor + count]:
+                    selected_physical_frames[seq_idx].append(
+                        [int(frame_id), int(source_codes[source_kind])]
+                    )
+                cursor += count
+        metadata = {
+            "policy": str(policy),
+            "max_budget_frame_equivalents": int(max_budget),
+            "min_frame_equivalents": min(frame_equivalents, default=0),
+            "max_frame_equivalents": int(observed_max),
+            "mean_frame_equivalents": (
+                sum(frame_equivalents) / max(1, len(frame_equivalents))
+            ),
+            "per_sequence_frame_equivalents": frame_equivalents,
+            "max_source_frames_per_sequence": {
+                kind: max(counts, default=0)
+                for kind, counts in source_frames_by_sequence.items()
+            },
+            "selected_physical_frames_per_sequence": selected_physical_frames,
+            "selected_source_codebook": source_codebook,
+            "current_frame": int(sync_t_raw),
+        }
+        result = self._materialize_readout_spec(
+            spec,
+            current_start=int(current_start),
+            sync_t_raw=sync_t_raw,
+            frame_seqlen=frame_seqlen,
+            freqs=freqs,
+            freq_parts=freq_parts,
+        )
+        self._cache_compat_last_readout_metadata[str(policy)] = metadata
+        return (*result, metadata)
+
+    def finish_cache_compatibility_readouts(self) -> None:
+        """Drop shadow workspace layout metadata before normal inference."""
+
+        self._invalidate_readout_cache()
 
     def get_decoupled_flat_kv_and_frames_multi(
         self,

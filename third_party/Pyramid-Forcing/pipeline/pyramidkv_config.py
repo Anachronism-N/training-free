@@ -221,6 +221,8 @@ class PyramidKVPipelineConfig:
     pyramidkv_probecache_trace_selection_stride: int = 1
     pyramidkv_probecache_debug: bool = False
     pyramidkv_probecache_profile_recent_only: bool = False
+    pyramidkv_cache_compat_profile_enabled: bool = False
+    pyramidkv_cache_compat_profile_recent_frames: int = 8
 
     # --- Role-aware scene episodes for segmented A || B || A prompts ---
     pyramidkv_scene_cache_enabled: bool = False
@@ -824,6 +826,12 @@ class PyramidKVPipelineConfig:
             ),
             pyramidkv_probecache_profile_recent_only=bool(
                 getattr(args, "pyramidkv_probecache_profile_recent_only", False)
+            ),
+            pyramidkv_cache_compat_profile_enabled=bool(
+                getattr(args, "pyramidkv_cache_compat_profile_enabled", False)
+            ),
+            pyramidkv_cache_compat_profile_recent_frames=int(
+                getattr(args, "pyramidkv_cache_compat_profile_recent_frames", 8)
             ),
             pyramidkv_scene_cache_enabled=bool(
                 getattr(args, "pyramidkv_scene_cache_enabled", False)

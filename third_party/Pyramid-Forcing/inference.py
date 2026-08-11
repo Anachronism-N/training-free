@@ -431,6 +431,7 @@ parser.add_argument(
         "reservoir2_deficitstaterankmotion1",
         "reservoir2_deficitquery1",
         "reservoir2_deficitbaseline1",
+        "reservoir4_multiscalemotion1",
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -483,6 +484,7 @@ parser.add_argument(
         "reservoir2_deficitstaterankmotion1",
         "reservoir2_deficitquery1",
         "reservoir2_deficitbaseline1",
+        "reservoir4_multiscalemotion1",
         "profile_anchor",
         "recent8_exact",
         "snapshot",
@@ -662,6 +664,53 @@ parser.add_argument(
     "--head_qk_profile_max_records_per_layer_branch",
     type=int,
     default=256,
+)
+parser.add_argument(
+    "--cache_compat_profile_output",
+    type=str,
+    default=None,
+    help=(
+        "Save v173 equal-budget cache-operator compatibility records. "
+        "Requires the reservoir4_multiscalemotion1 profiling composition."
+    ),
+)
+parser.add_argument(
+    "--pyramidkv_cache_compatibility_policy",
+    action="store_true",
+    help=(
+        "Route neutral labels 20/21/22 as Recent/Coverage/Episode using "
+        "the v173 equal-budget cache operators."
+    ),
+)
+parser.add_argument(
+    "--cache_compat_profile_kind",
+    type=str,
+    default="moviegen128_discovery",
+)
+parser.add_argument(
+    "--cache_compat_profile_call_indices",
+    type=str,
+    default="0,2",
+)
+parser.add_argument(
+    "--cache_compat_profile_ar_stride",
+    type=int,
+    default=3,
+)
+parser.add_argument(
+    "--cache_compat_profile_query_stride",
+    type=int,
+    default=8,
+)
+parser.add_argument(
+    "--cache_compat_profile_min_frame",
+    type=int,
+    default=12,
+)
+parser.add_argument(
+    "--cache_compat_profile_chunk_offsets",
+    type=str,
+    default="0",
 )
 parser.add_argument("--dynamic_cfg_enabled", action="store_true", default=False)
 parser.add_argument("--dynamic_cfg_min_scale", type=float, default=1.0)
@@ -955,13 +1004,14 @@ selected_policy_overrides = sum(
     (
         args.pyramidkv_binary_responsive_policy is not None,
         args.pyramidkv_history_polarity,
+        args.pyramidkv_cache_compatibility_policy,
         args.pyramidkv_pf_extended_recent_ablation is not None,
     )
 )
 if selected_policy_overrides > 1:
     parser.error(
-        "binary, history-polarity, and PF extended-recent policy overrides "
-        "are mutually exclusive"
+        "binary, history-polarity, cache-compatibility, and PF "
+        "extended-recent policy overrides are mutually exclusive"
     )
 if args.pyramidkv_binary_responsive_policy is not None:
     from pyramidkv.policy_overrides import binary_head_policy_overrides
@@ -1063,6 +1113,62 @@ if args.pyramidkv_history_polarity:
         f"retrieval_min_similarity={float(getattr(config, 'pyramidkv_semantic_retrieval_min_similarity', -0.25)):.4f} "
         f"retrieval_min_margin={float(getattr(config, 'pyramidkv_semantic_retrieval_min_margin', 0.0)):.4f} "
         "legacy_pf_labels=false exclusive_owner=true",
+        flush=True,
+    )
+if args.pyramidkv_cache_compatibility_policy:
+    if args.pyramidkv_head_config_path is None:
+        parser.error(
+            "--pyramidkv_cache_compatibility_policy requires "
+            "--pyramidkv_head_config_path"
+        )
+    try:
+        with open(
+            args.pyramidkv_head_config_path,
+            "r",
+            encoding="utf-8",
+            newline="",
+        ) as handle:
+            compatibility_rows = [
+                [int(value.strip()) for value in row]
+                for row in csv.reader(handle)
+                if row
+            ]
+    except (OSError, ValueError) as error:
+        parser.error(f"invalid cache-compatibility head map: {error}")
+    if len(compatibility_rows) != 30 or any(
+        len(row) != 12 for row in compatibility_rows
+    ):
+        parser.error(
+            "cache-compatibility head map must be a complete 30x12 matrix"
+        )
+    compatibility_labels = {
+        value for row in compatibility_rows for value in row
+    }
+    if not compatibility_labels.issubset({20, 21, 22}):
+        parser.error(
+            "cache-compatibility head map may contain only labels 20/21/22"
+        )
+    from pyramidkv.policy_overrides import (
+        CACHE_COMPAT_COVERAGE_LABEL,
+        CACHE_COMPAT_EPISODE_LABEL,
+        CACHE_COMPAT_RECENT_LABEL,
+        cache_compatibility_policy_overrides,
+    )
+
+    policy_overrides = cache_compatibility_policy_overrides(
+        capacity=int(config.pyramidkv_default_capacity or 32760),
+    )
+    for field_name, field_value in policy_overrides.items():
+        setattr(config, field_name, field_value)
+    print(
+        "[CacheCompatibilityPolicy] "
+        f"recent={CACHE_COMPAT_RECENT_LABEL}:"
+        f"{sum(row.count(CACHE_COMPAT_RECENT_LABEL) for row in compatibility_rows)} "
+        f"coverage={CACHE_COMPAT_COVERAGE_LABEL}:"
+        f"{sum(row.count(CACHE_COMPAT_COVERAGE_LABEL) for row in compatibility_rows)} "
+        f"episode={CACHE_COMPAT_EPISODE_LABEL}:"
+        f"{sum(row.count(CACHE_COMPAT_EPISODE_LABEL) for row in compatibility_rows)} "
+        "budget=9FFE owner=HeadComposition",
         flush=True,
     )
 if args.pyramidkv_pf_extended_recent_ablation is not None:
@@ -1197,6 +1303,61 @@ if args.head_qk_profile_output:
             value.strip()
             for value in args.head_qk_profile_branches.split(",")
         ),
+    )
+if args.cache_compat_profile_output:
+    if args.probecache_profile_output or args.head_qk_profile_output:
+        parser.error(
+            "cache compatibility profiling cannot share a run with other "
+            "attention profilers"
+        )
+    if not args.pyramidkv_history_polarity or (
+        args.pyramidkv_history_support_policy
+        != "reservoir4_multiscalemotion1"
+        or args.pyramidkv_history_suppress_policy
+        != "reservoir4_multiscalemotion1"
+    ):
+        parser.error(
+            "cache compatibility profiling requires history-polarity with "
+            "both routes set to reservoir4_multiscalemotion1"
+        )
+    if args.cache_compat_profile_ar_stride <= 0:
+        parser.error("--cache_compat_profile_ar_stride must be positive")
+    if args.cache_compat_profile_query_stride <= 0:
+        parser.error("--cache_compat_profile_query_stride must be positive")
+    if args.cache_compat_profile_min_frame < 0:
+        parser.error("--cache_compat_profile_min_frame must be non-negative")
+    if not bool(getattr(config, "use_adaptive_pyramidkv", False)):
+        parser.error("cache compatibility profiling requires AdaptiveKVCache")
+    if not bool(getattr(config, "sink_grid_decoupling", False)):
+        parser.error("cache compatibility profiling requires sink-grid decoupling")
+    config.pyramidkv_cache_compat_profile_enabled = True
+    config.pyramidkv_cache_compat_profile_recent_frames = 8
+    os.environ["CACHE_COMPAT_PROFILE"] = "1"
+    os.environ["CACHE_COMPAT_PROFILE_CALL_INDICES"] = (
+        args.cache_compat_profile_call_indices
+    )
+    os.environ["CACHE_COMPAT_PROFILE_AR_STRIDE"] = str(
+        args.cache_compat_profile_ar_stride
+    )
+    os.environ["CACHE_COMPAT_PROFILE_QUERY_STRIDE"] = str(
+        args.cache_compat_profile_query_stride
+    )
+    os.environ["CACHE_COMPAT_PROFILE_MIN_FRAME"] = str(
+        args.cache_compat_profile_min_frame
+    )
+    os.environ["CACHE_COMPAT_PROFILE_CHUNK_OFFSETS"] = (
+        args.cache_compat_profile_chunk_offsets
+    )
+    os.environ["PYRAMIDKV_DISABLE_M6_FASTPATH"] = "1"
+    print(
+        "[CacheCompatProfileConfig] active=recent8 "
+        "candidates=coverage4,episode2+motion_pair reference=union "
+        f"calls={args.cache_compat_profile_call_indices} "
+        f"ar_stride={args.cache_compat_profile_ar_stride} "
+        f"query_stride={args.cache_compat_profile_query_stride} "
+        f"min_frame={args.cache_compat_profile_min_frame} "
+        f"chunk_offsets={args.cache_compat_profile_chunk_offsets}",
+        flush=True,
     )
 
 # Initialize pipeline
@@ -1405,6 +1566,11 @@ try:
                     set_head_qk_profile_prompt_id,
                 )
                 set_head_qk_profile_prompt_id(idx)
+            if args.cache_compat_profile_output:
+                from wan.modules.attention.cache_compat_profile import (
+                    set_cache_compat_profile_prompt_id,
+                )
+                set_cache_compat_profile_prompt_id(idx)
 
             # Generate video frames
             video, latents = pipeline.inference(
@@ -1523,6 +1689,35 @@ if args.head_qk_profile_output:
         )
     except Exception as e:
         print(f"[HeadQKProfile] Failed to save profile: {e}")
+
+if args.cache_compat_profile_output:
+    from wan.modules.attention.cache_compat_profile import (
+        save_cache_compatibility_profile,
+    )
+
+    profile_path = args.cache_compat_profile_output.format(
+        rank=int(os.environ.get("RANK", "0")),
+        pid=os.getpid(),
+    )
+    save_cache_compatibility_profile(
+        profile_path,
+        {
+            "kind": args.cache_compat_profile_kind,
+            "seed": int(args.seed),
+            "data_path": os.path.abspath(args.data_path),
+            "num_output_frames": int(args.num_output_frames),
+            "call_indices": args.cache_compat_profile_call_indices,
+            "ar_stride": int(args.cache_compat_profile_ar_stride),
+            "query_stride": int(args.cache_compat_profile_query_stride),
+            "min_frame": int(args.cache_compat_profile_min_frame),
+            "chunk_offsets": args.cache_compat_profile_chunk_offsets,
+            "head_config_path": (
+                None
+                if args.pyramidkv_head_config_path is None
+                else os.path.abspath(args.pyramidkv_head_config_path)
+            ),
+        },
+    )
 
 # Persist memory-admission statistics for every run.
 try:
