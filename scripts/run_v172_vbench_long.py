@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Run prompt-correct VBench-Long core-9 for v172."""
+from __future__ import annotations
+
+import run_v154_vbench_long as base
+from prepare_v172_vbench_comparison import (
+    COMPARISON_EXPERIMENT,
+    DIMENSIONS,
+    METHODS,
+    PROMPT_COUNT,
+    comparison_name,
+)
+from vbench_quality_contract import (
+    EXCLUSIVE_GROUPS,
+    OFFICIAL_CONSTANTS_SOURCE,
+    exclusive_scores,
+    official_quality_score,
+)
+
+
+def analyze(payload: dict) -> dict:
+    rows = payload.get("methods") or {}
+    dimensions = tuple(payload.get("dimensions") or ())
+    if tuple(rows) != METHODS or dimensions != DIMENSIONS or payload.get("missing"):
+        raise ValueError("v172 VBench summary violates the frozen grid")
+    for method in METHODS:
+        row = rows[method]
+        if set(row) != set(DIMENSIONS):
+            raise ValueError(f"{method}: incomplete v172 VBench dimensions")
+        if abs(float(row["overall_consistency"]) - float(row["temporal_style"])) > 1e-12:
+            raise ValueError(
+                f"{method}: expected duplicate custom-prompt ViCLIP scores"
+            )
+    derived = {method: exclusive_scores(rows[method]) for method in METHODS}
+    quality = {method: official_quality_score(rows[method]) for method in METHODS}
+    return {
+        "version": 1,
+        "experiment": COMPARISON_EXPERIMENT,
+        "methods": list(METHODS),
+        "dimensions": list(DIMENSIONS),
+        "exclusive_groups": EXCLUSIVE_GROUPS,
+        "exclusive_scores": derived,
+        "official_quality_score": quality,
+        "official_constants_source": OFFICIAL_CONSTANTS_SOURCE,
+        "duplicate_metric_audit": {
+            "pair": ["overall_consistency", "temporal_style"],
+            "aggregate_exact_within_1e-12": True,
+            "action": "count once as semantic_alignment",
+        },
+        "metric_promotion_gate": False,
+        "claim_boundary": (
+            "Aggregate collection does not select a universal depth. Run "
+            "the paired v172 dose/placement analysis and then a frozen "
+            "cross-backbone transfer experiment."
+        ),
+    }
+
+
+def render_markdown(report: dict) -> str:
+    lines = [
+        "# v172 Relative-Depth VBench-Long Core-9",
+        "",
+        "| Method | Quality | Identity/background | Temporal mechanics | "
+        "Semantic | Visual | Dynamic |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for method in report["methods"]:
+        row = report["exclusive_scores"][method]
+        lines.append(
+            f"| {method} | {report['official_quality_score'][method]:.4f} | "
+            f"{row['identity_background']:.5f} | "
+            f"{row['temporal_mechanics']:.5f} | "
+            f"{row['semantic_alignment']:.5f} | "
+            f"{row['visual_quality']:.5f} | "
+            f"{row['dynamic_degree']:.5f} |"
+        )
+    lines.extend(["", report["claim_boundary"], ""])
+    return "\n".join(lines)
+
+
+def configure_base() -> None:
+    base.RUN_LABEL = "v172"
+    base.SUMMARY_EXPERIMENT = COMPARISON_EXPERIMENT
+    base.ANALYSIS_STEM = "v172_vbench_analysis"
+    base.SUMMARY_TITLE = "v172 Relative-Depth VBench-Long Core-9"
+    base.COMPARISON_EXPERIMENT = COMPARISON_EXPERIMENT
+    base.METHODS = METHODS
+    base.PROMPT_COUNT = PROMPT_COUNT
+    base.DIMENSIONS = DIMENSIONS
+    base.comparison_name = comparison_name
+    base.analyze = analyze
+    base.render_markdown = render_markdown
+
+
+def main() -> None:
+    configure_base()
+    base.main()
+
+
+if __name__ == "__main__":
+    main()
