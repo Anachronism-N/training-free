@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from analyze_v173_cache_compatibility import load_records
+from analyze_v173_cache_compatibility import PROFILE_CONTRACTS, load_records
 
 
 def main() -> None:
@@ -19,8 +19,13 @@ def main() -> None:
     )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument(
+        "--contract", choices=tuple(PROFILE_CONTRACTS), default="v173"
+    )
     args = parser.parse_args()
-    _, audit = load_records(args.profile_root, strict=args.strict)
+    _, audit = load_records(
+        args.profile_root, strict=args.strict, contract=args.contract
+    )
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(

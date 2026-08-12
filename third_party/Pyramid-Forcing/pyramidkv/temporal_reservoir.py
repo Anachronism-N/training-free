@@ -173,6 +173,8 @@ class TemporalReservoirStrategy:
         current_t: int,
         recent_min_t: int,
         sink_max_t: int,
+        *,
+        source_kind: str = "temporal_reservoir",
     ) -> list[CollectedAnchor]:
         anchors = sorted(
             (
@@ -193,7 +195,7 @@ class TemporalReservoirStrategy:
                 v=anchor.v,
                 pos=anchor.pos,
                 token_count=int(anchor.k.shape[0]),
-                source_kind="temporal_reservoir",
+                source_kind=str(source_kind),
             )
             for anchor in anchors
         ]

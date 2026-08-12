@@ -5124,7 +5124,15 @@ class AdaptiveKVCache(PyramidKVCache):
         if self._cache_compat_reservoir2 is None:
             raise RuntimeError("v173 episode reservoir2 is unavailable")
 
-        recent_frames = 8 if policy == "union" else 4
+        contract = os.environ.get(
+            "CACHE_COMPAT_PROFILE_CONTRACT", "v173"
+        ).strip().lower()
+        if contract not in {"v173", "v176"}:
+            raise RuntimeError(
+                f"unsupported cache compatibility contract: {contract}"
+            )
+
+        recent_frames = 8 if policy in {"recent", "union"} else 4
         recent_min_t = sync_t_raw - recent_frames + 1
         sink_max_t = self._middle_sink_max_t(
             seq_idx=seq_idx,
@@ -5142,6 +5150,16 @@ class AdaptiveKVCache(PyramidKVCache):
                     sink_max_t,
                 )
             )
+        if policy == "union" and contract == "v176":
+            collected.extend(
+                self._cache_compat_reservoir2.collect(
+                    seq_idx,
+                    sync_t_raw,
+                    recent_min_t,
+                    sink_max_t,
+                    source_kind="episode_reservoir",
+                )
+            )
         if policy == "episode":
             collected.extend(
                 self._cache_compat_reservoir2.collect(
@@ -5149,6 +5167,11 @@ class AdaptiveKVCache(PyramidKVCache):
                     sync_t_raw,
                     recent_min_t,
                     sink_max_t,
+                    source_kind=(
+                        "episode_reservoir"
+                        if contract == "v176"
+                        else "temporal_reservoir"
+                    ),
                 )
             )
         if policy in {"episode", "union"}:
@@ -5164,16 +5187,33 @@ class AdaptiveKVCache(PyramidKVCache):
                 )
             collected.extend(motion_anchors)
 
-        # A physical frame may be selected by both coverage and motion.  One
-        # copy is sufficient; prefer the motion annotation for diagnostics.
+        # A physical frame may be selected by several banks. One copy is
+        # sufficient. Prefer motion metadata, then the Episode reservoir, so
+        # the v176 trace can prove that its teacher is a physical-frame
+        # superset of every candidate.
         by_t = {}
         for anchor in collected:
             t_val = int(anchor.t)
             previous = by_t.get(t_val)
-            if previous is None or anchor.source_kind == "coherent_motion":
+            anchor_source = str(anchor.source_kind)
+            previous_source = (
+                None if previous is None else str(previous.source_kind)
+            )
+            priority = {
+                "temporal_reservoir": 0,
+                "episode_reservoir": 1,
+                "coherent_motion": 2,
+            }
+            if previous is None or priority.get(anchor_source, 0) > priority.get(
+                previous_source, 0
+            ):
                 by_t[t_val] = anchor
         result = [by_t[t_val] for t_val in sorted(by_t)]
-        max_middle = {"coverage": 4, "episode": 4, "union": 6}[policy]
+        max_middle = {
+            "coverage": 4,
+            "episode": 4,
+            "union": 8 if contract == "v176" else 6,
+        }[policy]
         if len(result) > max_middle:
             raise RuntimeError(
                 f"cache compatibility middle budget exceeded for {policy}: "
@@ -5863,7 +5903,14 @@ class AdaptiveKVCache(PyramidKVCache):
             ).split(",")
             if value.strip()
         }
+        verify_candidate_superset = (
+            os.environ.get("CACHE_COMPAT_PROFILE_CONTRACT", "v173")
+            .strip()
+            .lower()
+            == "v176"
+        )
         capture_frame_ids = int(self.layer_idx) in debug_layers
+        inspect_frame_ids = capture_frame_ids or verify_candidate_superset
         physical_parts: list[torch.Tensor] = []
         physical_descriptors: list[tuple[int, str, int]] = []
         for length in spec.lengths:
@@ -5883,7 +5930,7 @@ class AdaptiveKVCache(PyramidKVCache):
                 [0 for _ in spec.lengths],
             )
             counts[int(segment.seq_idx)] += int(segment.length) // frame_seqlen
-            if capture_frame_ids:
+            if inspect_frame_ids:
                 frame_ids = _as_long_tensor(
                     segment.pos[::frame_seqlen, 0]
                 )
@@ -5891,7 +5938,16 @@ class AdaptiveKVCache(PyramidKVCache):
                 physical_descriptors.append(
                     (int(segment.seq_idx), str(segment.kind), int(frame_ids.numel()))
                 )
-        max_budget = 15 if policy == "union" else 9
+        profile_contract = os.environ.get(
+            "CACHE_COMPAT_PROFILE_CONTRACT", "v173"
+        ).strip().lower()
+        max_budget = (
+            17
+            if policy == "union" and profile_contract == "v176"
+            else 15
+            if policy == "union"
+            else 9
+        )
         observed_max = max(frame_equivalents, default=0)
         if observed_max > max_budget:
             raise RuntimeError(
@@ -5900,7 +5956,7 @@ class AdaptiveKVCache(PyramidKVCache):
             )
         selected_physical_frames = None
         source_codebook = None
-        if capture_frame_ids:
+        if inspect_frame_ids:
             selected_physical_frames = [list() for _ in spec.lengths]
             source_codebook = sorted(
                 {source_kind for _, source_kind, _ in physical_descriptors}
@@ -5934,8 +5990,15 @@ class AdaptiveKVCache(PyramidKVCache):
                 kind: max(counts, default=0)
                 for kind, counts in source_frames_by_sequence.items()
             },
-            "selected_physical_frames_per_sequence": selected_physical_frames,
-            "selected_source_codebook": source_codebook,
+            "selected_physical_frames_per_sequence": (
+                selected_physical_frames if capture_frame_ids else None
+            ),
+            "selected_source_codebook": (
+                source_codebook if capture_frame_ids else None
+            ),
+            "_runtime_selected_physical_frames_per_sequence": (
+                selected_physical_frames
+            ),
             "current_frame": int(sync_t_raw),
         }
         result = self._materialize_readout_spec(

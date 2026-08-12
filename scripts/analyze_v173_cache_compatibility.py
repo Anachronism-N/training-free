@@ -22,6 +22,33 @@ PROMPTS = 128
 EXPECTED_BUDGET = {"recent": 9, "coverage": 9, "episode": 9, "union": 15}
 EXPECTED_RECORDS_PER_PROMPT_LAYER = 24
 SPLIT_SEED = 1732026
+PROFILE_CONTRACTS = {
+    "v173": {
+        "version": 1,
+        "method": "residual_space_equal_budget_cache_compatibility",
+        "expected_budget": EXPECTED_BUDGET,
+        "calls": [0, 2],
+        "expected_records_per_prompt_layer": 24,
+        "trace_layers": {0, 10, 20, 29},
+        "record_contract": None,
+        "reference_superset": False,
+    },
+    "v176": {
+        "version": 2,
+        "method": "superset_residual_cache_compatibility",
+        "expected_budget": {
+            "recent": 9,
+            "coverage": 9,
+            "episode": 9,
+            "union": 17,
+        },
+        "calls": [0, 1, 2, 3],
+        "expected_records_per_prompt_layer": 48,
+        "trace_layers": {0, 10, 20, 29},
+        "record_contract": "v176",
+        "reference_superset": True,
+    },
+}
 
 
 def finite(value, *, name: str) -> float:
@@ -48,18 +75,35 @@ def profile_paths(root: Path) -> list[Path]:
     return paths
 
 
-def load_records(root: Path, *, strict: bool = False) -> tuple[list[dict], dict]:
+def load_records(
+    root: Path,
+    *,
+    strict: bool = False,
+    contract: str = "v173",
+) -> tuple[list[dict], dict]:
     import torch
+
+    if contract not in PROFILE_CONTRACTS:
+        raise ValueError(f"unsupported profile contract: {contract}")
+    contract_spec = PROFILE_CONTRACTS[contract]
+    expected_budget = contract_spec["expected_budget"]
+    expected_records_per_prompt_layer = contract_spec[
+        "expected_records_per_prompt_layer"
+    ]
 
     records: list[dict] = []
     shard_rows = []
     seen_locations = set()
     for path in profile_paths(root):
         payload = torch.load(path, map_location="cpu", weights_only=False)
-        if payload.get("version") != 1:
+        if payload.get("version") != contract_spec["version"]:
             raise ValueError(f"{path}: unsupported profile version")
-        if payload.get("method") != "residual_space_equal_budget_cache_compatibility":
+        if payload.get("method") != contract_spec["method"]:
             raise ValueError(f"{path}: unexpected profiling method")
+        if contract_spec["record_contract"] is not None and payload.get(
+            "contract"
+        ) != contract_spec["record_contract"]:
+            raise ValueError(f"{path}: unexpected profiling contract")
         if tuple(payload.get("policies") or ()) != POLICIES:
             raise ValueError(f"{path}: policy contract drift")
         shard_records = payload.get("records") or []
@@ -88,6 +132,12 @@ def load_records(root: Path, *, strict: bool = False) -> tuple[list[dict], dict]
             seen_locations.add(location)
             policies = record.get("policies") or {}
             budgets = record.get("budgets") or {}
+            if contract_spec["record_contract"] is not None and record.get(
+                "profile_contract"
+            ) != contract_spec["record_contract"]:
+                raise ValueError(
+                    f"{path}:{record_index}: record contract drift"
+                )
             if set(policies) != set(POLICIES):
                 raise ValueError(f"{path}:{record_index}: incomplete metrics")
             if set(budgets) != set(POLICIES) | {"union"}:
@@ -113,7 +163,8 @@ def load_records(root: Path, *, strict: bool = False) -> tuple[list[dict], dict]
                         )
                         if metric.endswith("mse") and score < 0:
                             raise ValueError("relative MSE must be non-negative")
-            for policy, expected in EXPECTED_BUDGET.items():
+            selected_by_policy = {}
+            for policy, expected in expected_budget.items():
                 budget = budgets[policy]
                 observed = int(budget["max_frame_equivalents"])
                 if observed > expected:
@@ -126,7 +177,7 @@ def load_records(root: Path, *, strict: bool = False) -> tuple[list[dict], dict]
                         f"{path}:{record_index}:{policy} sequence budget shape drift"
                     )
                 selected = budget.get("selected_physical_frames_per_sequence")
-                if layer in {0, 10, 20, 29}:
+                if layer in contract_spec["trace_layers"]:
                     if not isinstance(selected, list) or len(selected) != HEADS:
                         raise ValueError(
                             f"{path}:{record_index}:{policy} missing frame-id trace"
@@ -161,10 +212,38 @@ def load_records(root: Path, *, strict: bool = False) -> tuple[list[dict], dict]
                             raise ValueError("Recent readout contains middle history")
                         if policy == "coverage" and "anchor:coherent_motion" in sources:
                             raise ValueError("Coverage readout contains a motion episode")
+                        if contract_spec["reference_superset"]:
+                            selected_by_policy.setdefault(policy, []).append(
+                                set(frame_ids)
+                            )
                 elif selected is not None:
                     raise ValueError(
                         f"{path}:{record_index}:{policy} unexpected frame-id trace"
                     )
+            if contract_spec["reference_superset"]:
+                if not bool(
+                    budgets["union"].get(
+                        "candidate_physical_superset_verified", False
+                    )
+                ):
+                    raise ValueError(
+                        f"{path}:{record_index}: teacher superset was not verified"
+                    )
+                if layer in contract_spec["trace_layers"]:
+                    references = selected_by_policy.get("union") or []
+                    if len(references) != heads:
+                        raise ValueError(
+                            f"{path}:{record_index}: incomplete teacher frame trace"
+                        )
+                    for policy in POLICIES:
+                        candidates = selected_by_policy.get(policy) or []
+                        if len(candidates) != heads or any(
+                            not candidate.issubset(reference)
+                            for candidate, reference in zip(candidates, references)
+                        ):
+                            raise ValueError(
+                                f"{path}:{record_index}: {policy} is not a teacher subset"
+                            )
             records.append(record)
         shard_rows.append(
             {
@@ -182,11 +261,15 @@ def load_records(root: Path, *, strict: bool = False) -> tuple[list[dict], dict]
     coverage = Counter((int(row["prompt_id"]), int(row["layer"])) for row in records)
     expected_prompt_ids = list(range(PROMPTS))
     counts = set(coverage.values())
-    call_contract_ok = calls == [0, 2] and modes == ["noisy"] and branches == ["cond"]
+    call_contract_ok = (
+        calls == contract_spec["calls"]
+        and modes == ["noisy"]
+        and branches == ["cond"]
+    )
     coverage_complete = (
         prompt_ids == expected_prompt_ids
         and len(coverage) == PROMPTS * LAYERS
-        and counts == {EXPECTED_RECORDS_PER_PROMPT_LAYER}
+        and counts == {expected_records_per_prompt_layer}
     )
     complete_profile = call_contract_ok and coverage_complete
     if strict:
@@ -201,9 +284,10 @@ def load_records(root: Path, *, strict: bool = False) -> tuple[list[dict], dict]
             raise ValueError(
                 "strict v173 profile coverage is incomplete or ragged: "
                 f"counts={sorted(counts)} expected="
-                f"{EXPECTED_RECORDS_PER_PROMPT_LAYER}"
+                f"{expected_records_per_prompt_layer}"
             )
     audit = {
+        "profile_contract": contract,
         "strict": bool(strict),
         "complete_profile": bool(complete_profile),
         "shard_count": len(shard_rows),
@@ -214,7 +298,7 @@ def load_records(root: Path, *, strict: bool = False) -> tuple[list[dict], dict]
         "update_modes": modes,
         "branches": branches,
         "records_per_prompt_layer": sorted(set(coverage.values())),
-        "expected_records_per_prompt_layer": EXPECTED_RECORDS_PER_PROMPT_LAYER,
+        "expected_records_per_prompt_layer": expected_records_per_prompt_layer,
         "shards": shard_rows,
     }
     return records, audit
@@ -317,7 +401,9 @@ def analyze_heads(
     bootstrap_samples: int = 2000,
     split_seed: int = SPLIT_SEED,
     prompt_ids: Iterable[int] | None = None,
+    expected_budget: dict[str, int] | None = None,
 ) -> tuple[list[dict], list[list[int]]]:
+    budget_contract = EXPECTED_BUDGET if expected_budget is None else expected_budget
     universe = list(range(PROMPTS)) if prompt_ids is None else list(prompt_ids)
     calibration_list, validation_list = split_prompt_ids(
         universe,
@@ -420,7 +506,7 @@ def analyze_heads(
             availability = float(
                 np.mean(
                     [
-                        row[f"budget_{best}"] == EXPECTED_BUDGET[best]
+                        row[f"budget_{best}"] == budget_contract[best]
                         for row in validation
                     ]
                 )
@@ -645,8 +731,9 @@ def write_analysis(
     calibration_prompts: int,
     bootstrap_samples: int,
     strict: bool,
+    contract: str = "v173",
 ) -> dict:
-    records, audit = load_records(profile_root, strict=strict)
+    records, audit = load_records(profile_root, strict=strict, contract=contract)
     observed_prompt_ids = list(audit["prompt_ids"])
     effective_calibration_prompts = (
         calibration_prompts
@@ -658,6 +745,7 @@ def write_analysis(
         calibration_prompts=effective_calibration_prompts,
         bootstrap_samples=bootstrap_samples,
         prompt_ids=observed_prompt_ids,
+        expected_budget=PROFILE_CONTRACTS[contract]["expected_budget"],
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     maps = build_control_maps(labels)
@@ -718,7 +806,7 @@ def write_analysis(
     )
     payload = {
         "version": 1,
-        "experiment": "v173_residual_cache_compatibility",
+        "experiment": f"{contract}_residual_cache_compatibility",
         "method": "RCCP",
         "claim_boundary": (
             "operator-aligned head assignments are hypotheses until matched "
@@ -800,6 +888,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--calibration-prompts", type=int, default=64)
     parser.add_argument("--bootstrap-samples", type=int, default=2000)
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument(
+        "--contract", choices=tuple(PROFILE_CONTRACTS), default="v173"
+    )
     return parser.parse_args()
 
 
@@ -811,6 +902,7 @@ def main() -> None:
         calibration_prompts=args.calibration_prompts,
         bootstrap_samples=args.bootstrap_samples,
         strict=args.strict,
+        contract=args.contract,
     )
 
 

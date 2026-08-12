@@ -17,10 +17,34 @@ import torch
 POLICIES = ("recent", "coverage", "episode")
 REFERENCE_POLICY = "union"
 
+PROFILE_CONTRACTS = {
+    "v173": {
+        "version": 1,
+        "method": "residual_space_equal_budget_cache_compatibility",
+        "reference_max_frame_equivalents": 15,
+        "reference_is_candidate_superset": False,
+    },
+    "v176": {
+        "version": 2,
+        "method": "superset_residual_cache_compatibility",
+        "reference_max_frame_equivalents": 17,
+        "reference_is_candidate_superset": True,
+    },
+}
+
 _records: list[dict[str, Any]] = []
 _calls: dict[tuple[int, int, int, str, str], int] = {}
 _projection_grams: dict[tuple[str, int, int, int, int], torch.Tensor] = {}
 _prompt_id = -1
+
+
+def cache_compatibility_profile_contract() -> tuple[str, dict[str, Any]]:
+    name = os.environ.get("CACHE_COMPAT_PROFILE_CONTRACT", "v173").strip().lower()
+    if name not in PROFILE_CONTRACTS:
+        raise ValueError(
+            f"unsupported cache compatibility profile contract: {name!r}"
+        )
+    return name, PROFILE_CONTRACTS[name]
 
 
 def set_cache_compat_profile_prompt_id(prompt_id: int) -> None:
@@ -43,10 +67,13 @@ def resume_cache_compatibility_profile(
     if not path.is_file():
         return set()
     payload = torch.load(path, map_location="cpu", weights_only=False)
-    if payload.get("version") != 1:
+    contract_name, contract = cache_compatibility_profile_contract()
+    if payload.get("version") != contract["version"]:
         raise ValueError(f"{path}: unsupported cache profile version")
-    if payload.get("method") != "residual_space_equal_budget_cache_compatibility":
+    if payload.get("method") != contract["method"]:
         raise ValueError(f"{path}: incompatible cache profile method")
+    if contract_name == "v176" and payload.get("contract") != contract_name:
+        raise ValueError(f"{path}: incompatible cache profile contract")
     if tuple(payload.get("policies") or ()) != POLICIES:
         raise ValueError(f"{path}: incompatible cache profile policies")
     records = list(payload.get("records") or [])
@@ -307,6 +334,7 @@ def record_cache_compatibility_outputs(
 
     record = {
         **capture,
+        "profile_contract": cache_compatibility_profile_contract()[0],
         "query_tokens_total": int(query_tokens),
         "query_tokens_sampled": int(reference_f.shape[1]),
         "query_stride": int(query_stride),
@@ -318,6 +346,12 @@ def record_cache_compatibility_outputs(
         "policies": metrics,
         "budgets": budget_metadata,
     }
+    if record["profile_contract"] == "v176" and not bool(
+        budget_metadata[REFERENCE_POLICY].get(
+            "candidate_physical_superset_verified", False
+        )
+    ):
+        raise RuntimeError("v176 record lacks candidate-superset verification")
     _records.append(record)
     if capture["layer"] in {0, 10, 20, 29}:
         counts = {
@@ -352,13 +386,22 @@ def save_cache_compatibility_profile(
 ) -> None:
     path = Path(output_path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
+    contract_name, contract = cache_compatibility_profile_contract()
     payload = {
-        "version": 1,
-        "method": "residual_space_equal_budget_cache_compatibility",
+        "version": contract["version"],
+        "contract": contract_name,
+        "method": contract["method"],
         "policies": list(POLICIES),
         "reference_policy": REFERENCE_POLICY,
         "metadata": dict(metadata or {})
         | {
+            "profile_contract": contract_name,
+            "reference_max_frame_equivalents": contract[
+                "reference_max_frame_equivalents"
+            ],
+            "reference_is_candidate_superset": contract[
+                "reference_is_candidate_superset"
+            ],
             "completed_prompt_ids": sorted(
                 cache_compatibility_profile_prompt_ids()
             ),

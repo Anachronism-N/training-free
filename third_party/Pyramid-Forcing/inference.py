@@ -696,6 +696,15 @@ parser.add_argument(
     default="moviegen128_discovery",
 )
 parser.add_argument(
+    "--cache_compat_profile_contract",
+    choices=("v173", "v176"),
+    default="v173",
+    help=(
+        "v173 preserves the original union teacher; v176 requires a physical-"
+        "frame superset teacher and is not artifact-compatible with v173."
+    ),
+)
+parser.add_argument(
     "--cache_compat_profile_call_indices",
     type=str,
     default="0,2",
@@ -1340,7 +1349,12 @@ if args.cache_compat_profile_output:
         parser.error("cache compatibility profiling requires sink-grid decoupling")
     config.pyramidkv_cache_compat_profile_enabled = True
     config.pyramidkv_cache_compat_profile_recent_frames = 8
+    if args.cache_compat_profile_contract == "v176":
+        config.pyramidkv_capture_frame_id_mode = "physical"
     os.environ["CACHE_COMPAT_PROFILE"] = "1"
+    os.environ["CACHE_COMPAT_PROFILE_CONTRACT"] = (
+        args.cache_compat_profile_contract
+    )
     os.environ["CACHE_COMPAT_PROFILE_CALL_INDICES"] = (
         args.cache_compat_profile_call_indices
     )
@@ -1360,6 +1374,7 @@ if args.cache_compat_profile_output:
     print(
         "[CacheCompatProfileConfig] active=recent8 "
         "candidates=coverage4,episode2+motion_pair reference=union "
+        f"contract={args.cache_compat_profile_contract} "
         f"calls={args.cache_compat_profile_call_indices} "
         f"ar_stride={args.cache_compat_profile_ar_stride} "
         f"query_stride={args.cache_compat_profile_query_stride} "
@@ -1522,6 +1537,7 @@ if args.cache_compat_profile_output:
 def _cache_compatibility_metadata():
     return {
         "kind": args.cache_compat_profile_kind,
+        "profile_contract": args.cache_compat_profile_contract,
         "seed": int(args.seed),
         "data_path": os.path.abspath(args.data_path),
         "num_output_frames": int(args.num_output_frames),

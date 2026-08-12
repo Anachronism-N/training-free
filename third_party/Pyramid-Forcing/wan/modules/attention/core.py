@@ -1433,6 +1433,45 @@ def pyramidkv_attention(
                     max_k_shadow,
                 ).detach()
                 budgets[policy] = metadata
+            if os.environ.get(
+                "CACHE_COMPAT_PROFILE_CONTRACT", "v173"
+            ).strip().lower() == "v176":
+                reference_frames = budgets["union"].get(
+                    "_runtime_selected_physical_frames_per_sequence"
+                )
+                if not isinstance(reference_frames, list):
+                    raise RuntimeError(
+                        "v176 requires physical frame traces for every layer"
+                    )
+                for policy in ("recent", "coverage", "episode"):
+                    candidate_frames = budgets[policy].get(
+                        "_runtime_selected_physical_frames_per_sequence"
+                    )
+                    if not isinstance(candidate_frames, list) or len(
+                        candidate_frames
+                    ) != len(reference_frames):
+                        raise RuntimeError(
+                            f"v176 {policy} frame trace is incomplete"
+                        )
+                    for sequence, (candidate, reference) in enumerate(
+                        zip(candidate_frames, reference_frames)
+                    ):
+                        candidate_ids = {int(item[0]) for item in candidate}
+                        reference_ids = {int(item[0]) for item in reference}
+                        missing = sorted(candidate_ids - reference_ids)
+                        if missing:
+                            raise RuntimeError(
+                                "v176 teacher is not a physical-frame "
+                                f"superset: policy={policy} sequence={sequence} "
+                                f"missing={missing}"
+                            )
+                budgets["union"][
+                    "candidate_physical_superset_verified"
+                ] = True
+            for metadata in budgets.values():
+                metadata.pop(
+                    "_runtime_selected_physical_frames_per_sequence", None
+                )
             record_cache_compatibility_outputs(
                 outputs=outputs,
                 output_projection_weight=output_projection_weight,
