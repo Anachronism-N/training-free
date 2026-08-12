@@ -20,6 +20,7 @@ LAYERS = 30
 HEADS = 12
 PROMPTS = 128
 EXPECTED_BUDGET = {"recent": 9, "coverage": 9, "episode": 9, "union": 15}
+EXPECTED_RECORDS_PER_PROMPT_LAYER = 24
 SPLIT_SEED = 1732026
 
 
@@ -179,26 +180,41 @@ def load_records(root: Path, *, strict: bool = False) -> tuple[list[dict], dict]
     modes = sorted({str(row["cache_update_mode"]) for row in records})
     branches = sorted({str(row["cfg_branch"]) for row in records})
     coverage = Counter((int(row["prompt_id"]), int(row["layer"])) for row in records)
+    expected_prompt_ids = list(range(PROMPTS))
+    counts = set(coverage.values())
+    call_contract_ok = calls == [0, 2] and modes == ["noisy"] and branches == ["cond"]
+    coverage_complete = (
+        prompt_ids == expected_prompt_ids
+        and len(coverage) == PROMPTS * LAYERS
+        and counts == {EXPECTED_RECORDS_PER_PROMPT_LAYER}
+    )
+    complete_profile = call_contract_ok and coverage_complete
     if strict:
-        if prompt_ids != list(range(PROMPTS)):
+        if prompt_ids != expected_prompt_ids:
             raise ValueError("strict v173 audit requires prompt ids 0..127")
-        if calls != [0, 2] or modes != ["noisy"] or branches != ["cond"]:
+        if not call_contract_ok:
             raise ValueError(
                 "strict v173 call contract drift: "
                 f"calls={calls} modes={modes} branches={branches}"
             )
-        counts = set(coverage.values())
-        if len(coverage) != PROMPTS * LAYERS or len(counts) != 1:
-            raise ValueError("strict v173 profile coverage is incomplete or ragged")
+        if not coverage_complete:
+            raise ValueError(
+                "strict v173 profile coverage is incomplete or ragged: "
+                f"counts={sorted(counts)} expected="
+                f"{EXPECTED_RECORDS_PER_PROMPT_LAYER}"
+            )
     audit = {
         "strict": bool(strict),
+        "complete_profile": bool(complete_profile),
         "shard_count": len(shard_rows),
         "record_count": len(records),
         "prompt_ids": prompt_ids,
+        "missing_prompt_ids": sorted(set(expected_prompt_ids) - set(prompt_ids)),
         "call_indices": calls,
         "update_modes": modes,
         "branches": branches,
         "records_per_prompt_layer": sorted(set(coverage.values())),
+        "expected_records_per_prompt_layer": EXPECTED_RECORDS_PER_PROMPT_LAYER,
         "shards": shard_rows,
     }
     return records, audit
@@ -249,6 +265,25 @@ def _prompt_means(samples: list[dict], value_key: str) -> dict[int, float]:
     }
 
 
+def split_prompt_ids(
+    prompt_ids: Iterable[int],
+    *,
+    calibration_prompts: int,
+    split_seed: int,
+) -> tuple[list[int], list[int]]:
+    universe = sorted({int(value) for value in prompt_ids})
+    if not 1 <= calibration_prompts < len(universe):
+        raise ValueError("calibration prompt count must split the prompt universe")
+    permutation = [
+        int(value)
+        for value in np.random.default_rng(split_seed).permutation(universe)
+    ]
+    return (
+        sorted(permutation[:calibration_prompts]),
+        sorted(permutation[calibration_prompts:]),
+    )
+
+
 def flatten_head_samples(records: list[dict]) -> dict[tuple[int, int], list[dict]]:
     grouped = defaultdict(list)
     for record in records:
@@ -280,12 +315,17 @@ def analyze_heads(
     *,
     calibration_prompts: int = 64,
     bootstrap_samples: int = 2000,
+    split_seed: int = SPLIT_SEED,
+    prompt_ids: Iterable[int] | None = None,
 ) -> tuple[list[dict], list[list[int]]]:
-    if not 1 <= calibration_prompts < PROMPTS:
-        raise ValueError("calibration prompt count must split the 128 prompts")
-    split_rng = np.random.default_rng(SPLIT_SEED)
-    permutation = [int(value) for value in split_rng.permutation(PROMPTS)]
-    calibration_ids = set(permutation[:calibration_prompts])
+    universe = list(range(PROMPTS)) if prompt_ids is None else list(prompt_ids)
+    calibration_list, validation_list = split_prompt_ids(
+        universe,
+        calibration_prompts=calibration_prompts,
+        split_seed=split_seed,
+    )
+    calibration_ids = set(calibration_list)
+    validation_ids = set(validation_list)
     grouped = flatten_head_samples(records)
     if set(grouped) != {
         (layer, head) for layer in range(LAYERS) for head in range(HEADS)
@@ -301,7 +341,7 @@ def analyze_heads(
                 row for row in samples if row["prompt_id"] in calibration_ids
             ]
             validation = [
-                row for row in samples if row["prompt_id"] not in calibration_ids
+                row for row in samples if row["prompt_id"] in validation_ids
             ]
             if not calibration or not validation:
                 raise ValueError(f"L{layer}H{head}: empty calibration/validation split")
@@ -335,7 +375,12 @@ def analyze_heads(
                 ]
                 ci = bootstrap_ci(
                     ordered,
-                    seed=1732026 + layer * 101 + head * 7 + POLICIES.index(alternative),
+                    seed=(
+                        split_seed
+                        + layer * 101
+                        + head * 7
+                        + POLICIES.index(alternative)
+                    ),
                     samples=bootstrap_samples,
                 )
                 call_means = {}
@@ -479,6 +524,120 @@ def build_control_maps(labels: list[list[int]]) -> dict[str, list[list[int]]]:
     return maps
 
 
+def analyze_split_stability(
+    records: list[dict],
+    *,
+    split_seeds: Iterable[int],
+    calibration_prompts: int = 32,
+    bootstrap_samples: int = 500,
+    prompt_ids: Iterable[int] | None = None,
+) -> dict:
+    """Measure whether nonlocal assignments survive prompt resampling."""
+
+    rows_by_seed = {}
+    for seed in split_seeds:
+        rows, _ = analyze_heads(
+            records,
+            calibration_prompts=calibration_prompts,
+            bootstrap_samples=bootstrap_samples,
+            split_seed=int(seed),
+            prompt_ids=prompt_ids,
+        )
+        rows_by_seed[int(seed)] = rows
+    seeds = sorted(rows_by_seed)
+    head_rows = []
+    stable_labels = [[LABELS["recent"]] * HEADS for _ in range(LAYERS)]
+    for layer in range(LAYERS):
+        for head in range(HEADS):
+            outcomes = [
+                rows_by_seed[seed][layer * HEADS + head]["assigned_policy"]
+                for seed in seeds
+            ]
+            counts = Counter(outcomes)
+            nonlocal_outcomes = [value for value in outcomes if value != "recent"]
+            policy = (
+                Counter(nonlocal_outcomes).most_common(1)[0][0]
+                if nonlocal_outcomes
+                else "recent"
+            )
+            frequency = (
+                nonlocal_outcomes.count(policy) / len(seeds)
+                if policy != "recent"
+                else 0.0
+            )
+            conflicting_nonlocal = sorted(
+                set(nonlocal_outcomes) - {policy}
+            )
+            stable = (
+                policy != "recent"
+                and frequency >= 0.75
+                and not conflicting_nonlocal
+            )
+            if stable:
+                stable_labels[layer][head] = LABELS[policy]
+            head_rows.append(
+                {
+                    "layer": layer,
+                    "head": head,
+                    "outcome_counts": dict(sorted(counts.items())),
+                    "modal_nonlocal_policy": policy,
+                    "selection_frequency": float(frequency),
+                    "conflicting_nonlocal_policies": conflicting_nonlocal,
+                    "stable_nonlocal": bool(stable),
+                }
+            )
+    sets = {
+        seed: {
+            (row["layer"], row["head"], row["assigned_policy"])
+            for row in rows_by_seed[seed]
+            if row["assigned_policy"] != "recent"
+        }
+        for seed in seeds
+    }
+    pairwise_jaccard = []
+    for left_index, left in enumerate(seeds):
+        for right in seeds[left_index + 1 :]:
+            union = sets[left] | sets[right]
+            pairwise_jaccard.append(
+                {
+                    "left_seed": left,
+                    "right_seed": right,
+                    "empty_union": not union,
+                    "jaccard": (
+                        None if not union else len(sets[left] & sets[right]) / len(union)
+                    ),
+                }
+            )
+    stable_counts = Counter(
+        row["modal_nonlocal_policy"]
+        for row in head_rows
+        if row["stable_nonlocal"]
+    )
+    nonempty_jaccards = [
+        row["jaccard"]
+        for row in pairwise_jaccard
+        if row["jaccard"] is not None
+    ]
+    return {
+        "split_seeds": seeds,
+        "selection_count_by_seed": {
+            str(seed): len(sets[seed]) for seed in seeds
+        },
+        "pairwise_jaccard": pairwise_jaccard,
+        "nonempty_pair_count": len(nonempty_jaccards),
+        "mean_pairwise_jaccard": (
+            None
+            if not nonempty_jaccards
+            else float(np.mean(nonempty_jaccards))
+        ),
+        "stable_threshold": 0.75,
+        "stable_nonlocal_counts": dict(sorted(stable_counts.items())),
+        "stable_nonlocal_head_count": sum(stable_counts.values()),
+        "head_rows": head_rows,
+        "stable_labels": stable_labels,
+    }
+
+
 def write_analysis(
     profile_root: Path,
     output_dir: Path,
@@ -488,10 +647,17 @@ def write_analysis(
     strict: bool,
 ) -> dict:
     records, audit = load_records(profile_root, strict=strict)
+    observed_prompt_ids = list(audit["prompt_ids"])
+    effective_calibration_prompts = (
+        calibration_prompts
+        if audit["complete_profile"]
+        else min(calibration_prompts, len(observed_prompt_ids) // 2)
+    )
     head_rows, labels = analyze_heads(
         records,
-        calibration_prompts=calibration_prompts,
+        calibration_prompts=effective_calibration_prompts,
         bootstrap_samples=bootstrap_samples,
+        prompt_ids=observed_prompt_ids,
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     maps = build_control_maps(labels)
@@ -544,6 +710,12 @@ def write_analysis(
     supported = Counter(
         row["calibration_best"] for row in head_rows if row["supported"]
     )
+    observed_ids = set(observed_prompt_ids)
+    calibration_ids, validation_ids = split_prompt_ids(
+        observed_prompt_ids,
+        calibration_prompts=effective_calibration_prompts,
+        split_seed=SPLIT_SEED,
+    )
     payload = {
         "version": 1,
         "experiment": "v173_residual_cache_compatibility",
@@ -555,20 +727,16 @@ def write_analysis(
         "profile_audit": audit,
         "split": {
             "seed": SPLIT_SEED,
-            "calibration_prompt_ids": sorted(
-                int(value)
-                for value in np.random.default_rng(SPLIT_SEED)
-                .permutation(PROMPTS)[:calibration_prompts]
-                .tolist()
+            "scope": "full_128" if audit["complete_profile"] else "observed_only_diagnostic",
+            "requested_calibration_prompt_count": int(calibration_prompts),
+            "effective_calibration_prompt_count": int(effective_calibration_prompts),
+            "calibration_prompt_ids": calibration_ids,
+            "validation_prompt_ids": validation_ids,
+            "observed_calibration_prompt_ids": sorted(
+                observed_ids.intersection(calibration_ids)
             ),
-            "validation_prompt_ids": sorted(
-                set(range(PROMPTS))
-                - set(
-                    int(value)
-                    for value in np.random.default_rng(SPLIT_SEED)
-                    .permutation(PROMPTS)[:calibration_prompts]
-                    .tolist()
-                )
+            "observed_validation_prompt_ids": sorted(
+                observed_ids.intersection(validation_ids)
             ),
         },
         "gates": {
@@ -593,7 +761,8 @@ def write_analysis(
             "sha256": sha256(scores_path),
         },
         "generation_ready": bool(
-            any(
+            audit["complete_profile"]
+            and any(
                 row["supported"] and row["calibration_best"] != "recent"
                 for row in head_rows
             )
@@ -607,6 +776,7 @@ def write_analysis(
     print(
         "[v173-analysis] "
         f"records={len(records)} supported={dict(supported)} "
+        f"complete={audit['complete_profile']} "
         f"assigned={dict(assigned)} generation_ready={payload['generation_ready']} "
         f"output={output_path}"
     )

@@ -7,6 +7,7 @@ outputs and model weights are never serialized.
 from __future__ import annotations
 
 import os
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,76 @@ _prompt_id = -1
 def set_cache_compat_profile_prompt_id(prompt_id: int) -> None:
     global _prompt_id
     _prompt_id = int(prompt_id)
+
+
+def cache_compatibility_profile_prompt_ids() -> set[int]:
+    """Return prompt ids already present in the in-process checkpoint."""
+
+    return {int(record["prompt_id"]) for record in _records}
+
+
+def resume_cache_compatibility_profile(
+    input_path: str | os.PathLike[str],
+) -> set[int]:
+    """Restore a partial shard so an interrupted profiling job can resume."""
+
+    path = Path(input_path).resolve()
+    if not path.is_file():
+        return set()
+    payload = torch.load(path, map_location="cpu", weights_only=False)
+    if payload.get("version") != 1:
+        raise ValueError(f"{path}: unsupported cache profile version")
+    if payload.get("method") != "residual_space_equal_budget_cache_compatibility":
+        raise ValueError(f"{path}: incompatible cache profile method")
+    if tuple(payload.get("policies") or ()) != POLICIES:
+        raise ValueError(f"{path}: incompatible cache profile policies")
+    records = list(payload.get("records") or [])
+    locations = {
+        (
+            int(record["prompt_id"]),
+            int(record["layer"]),
+            int(record["current_frame"]),
+            int(record["call_index"]),
+            str(record["cache_update_mode"]),
+            str(record["cfg_branch"]),
+        )
+        for record in records
+    }
+    if len(locations) != len(records):
+        raise ValueError(f"{path}: duplicate locations in resumable profile")
+    expected_per_layer = int(
+        os.environ.get(
+            "CACHE_COMPAT_PROFILE_EXPECTED_RECORDS_PER_PROMPT_LAYER", "24"
+        )
+    )
+    coverage = Counter(
+        (int(record["prompt_id"]), int(record["layer"]))
+        for record in records
+    )
+    observed_prompt_ids = {int(record["prompt_id"]) for record in records}
+    complete_prompt_ids = {
+        prompt_id
+        for prompt_id in observed_prompt_ids
+        if all(
+            coverage[(prompt_id, layer)] == expected_per_layer
+            for layer in range(30)
+        )
+    }
+    dropped_prompt_ids = observed_prompt_ids - complete_prompt_ids
+    _records[:] = [
+        record
+        for record in records
+        if int(record["prompt_id"]) in complete_prompt_ids
+    ]
+    _calls.clear()
+    prompt_ids = cache_compatibility_profile_prompt_ids()
+    print(
+        "[CacheCompatProfileResume] "
+        f"prompts={len(prompt_ids)} records={len(_records)} "
+        f"dropped_incomplete={sorted(dropped_prompt_ids)} input={path}",
+        flush=True,
+    )
+    return prompt_ids
 
 
 def _csv_set(name: str, default: str) -> set[str]:
@@ -286,10 +357,20 @@ def save_cache_compatibility_profile(
         "method": "residual_space_equal_budget_cache_compatibility",
         "policies": list(POLICIES),
         "reference_policy": REFERENCE_POLICY,
-        "metadata": dict(metadata or {}),
+        "metadata": dict(metadata or {})
+        | {
+            "completed_prompt_ids": sorted(
+                cache_compatibility_profile_prompt_ids()
+            ),
+        },
         "records": list(_records),
     }
-    torch.save(payload, path)
+    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}")
+    try:
+        torch.save(payload, temporary)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
     print(
         f"[CacheCompatProfile] records={len(_records)} output={path}",
         flush=True,

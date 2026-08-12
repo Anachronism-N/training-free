@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Four-node/32-GPU residual-space cache compatibility profiling.
+# Multi-node residual-space cache compatibility profiling.
 set -euo pipefail
 
 ACTION="${1:-}"
 case "$ACTION" in
-    prepare|preflight|smoke|profile128|audit|analyze|package|status) ;;
+    prepare|preflight|smoke|profile128|audit|analyze|stability|package|status) ;;
     *)
         echo "usage: bash scripts/run_v173_cache_compat_profile_32gpu.sh ACTION"
-        echo "actions: prepare preflight smoke profile128 audit analyze package status"
+        echo "actions: prepare preflight smoke profile128 audit analyze stability package status"
         exit 2
         ;;
 esac
@@ -25,6 +25,7 @@ PROFILE_ROOT="$OUT_ROOT/profiles"
 VIDEO_ROOT="$OUT_ROOT/videos"
 LOG_ROOT="$OUT_ROOT/logs"
 ANALYSIS_ROOT="$OUT_ROOT/analysis"
+STABILITY_ROOT="${V175_STABILITY_ROOT:-$ROOT/runs/v175_rccp_stability/analysis}"
 SMOKE_ROOT="$OUT_ROOT/smoke"
 
 NODE_RANK="${NODE_RANK:-0}"
@@ -40,8 +41,14 @@ RUN_UNIT_TESTS="${RUN_UNIT_TESTS:-1}"
 IFS=',' read -r -a GPUS <<<"$GPU_LIST"
 GPUS_PER_NODE="${#GPUS[@]}"
 WORLD_SHARDS=$((NUM_NODES * GPUS_PER_NODE))
+PROFILE_WORLD_SHARDS="${V173_PROFILE_WORLD_SHARDS:-$WORLD_SHARDS}"
+SHARD_IDS_RAW="${V173_SHARD_IDS:-}"
 [[ "$WORLD_SHARDS" -ge 1 ]] || {
     echo "[error] v173 requires at least 1 GPU shard"
+    exit 2
+}
+[[ "$PROFILE_WORLD_SHARDS" -ge 1 && "$PROFILE_WORLD_SHARDS" -le 128 ]] || {
+    echo "[error] v173 cannot use more than 128 shards"
     exit 2
 }
 [[ "$NODE_RANK" -ge 0 && "$NODE_RANK" -lt "$NUM_NODES" ]] || {
@@ -147,6 +154,7 @@ configure_runtime() {
     export CACHE_COMPAT_PROFILE_BRANCHES=cond
     export CACHE_COMPAT_PROFILE_UPDATE_MODES=noisy
     export CACHE_COMPAT_PROFILE_BLOCK_FRAMES=3
+    export CACHE_COMPAT_PROFILE_EXPECTED_RECORDS_PER_PROMPT_LAYER=24
     export LIFECACHE_ENABLE=0
     export STRUCTURED_MEMORY_ENABLE=0
     export COMMIT_FORCING_ENABLE=0
@@ -161,10 +169,6 @@ run_one() {
     local video_root="$3"
     local log_path="$4"
     shift 4
-    if [[ -s "$profile_path" && "$FORCE" != "1" ]]; then
-        echo "[v173-skip] existing $profile_path"
-        return
-    fi
     mkdir -p "$(dirname "$profile_path")" "$video_root" "$(dirname "$log_path")"
     (
         cd "$PF"
@@ -191,6 +195,7 @@ run_one() {
             --cache_compat_profile_query_stride 8 \
             --cache_compat_profile_min_frame 12 \
             --cache_compat_profile_chunk_offsets 0 \
+            --skip_video_decode \
             "$@"
     ) >"$log_path" 2>&1
 }
@@ -215,11 +220,50 @@ from pathlib import Path
 
 videos = sorted(Path(sys.argv[1]).glob("*.mp4"))
 log = Path(sys.argv[2]).read_text(encoding="utf-8", errors="replace")
-assert len(videos) == 1 and videos[0].stat().st_size > 100_000
+assert not videos
 assert "[CacheCompatProfileConfig]" in log
 assert "[CacheCompatProfile] records=" in log
+assert "skip_video_decode=True" in log
 assert "Traceback (most recent call last)" not in log
-print("[v173-smoke] profile and video integrity: PASS")
+print("[v173-smoke] no-decode profile integrity: PASS")
+PY
+}
+
+profile_shard_state() {
+    local profile_path="$1"
+    local global_rank="$2"
+    python - "$profile_path" "$global_rank" "$PROFILE_WORLD_SHARDS" <<'PY'
+import collections
+import sys
+from pathlib import Path
+
+import torch
+
+path = Path(sys.argv[1])
+rank = int(sys.argv[2])
+world = int(sys.argv[3])
+expected = set(range(rank, 128, world))
+if not path.is_file():
+    print("missing")
+    raise SystemExit(0)
+payload = torch.load(path, map_location="cpu", weights_only=False)
+records = list(payload.get("records") or [])
+observed = {int(row["prompt_id"]) for row in records}
+if not observed.issubset(expected):
+    extra = sorted(observed - expected)
+    raise SystemExit(
+        f"[error] {path.name} was created with a different shard topology; "
+        f"unexpected prompt ids={extra}. Resume with the original WORLD_SHARDS."
+    )
+coverage = collections.Counter(
+    (int(row["prompt_id"]), int(row["layer"])) for row in records
+)
+complete = observed == expected and all(
+    coverage[(prompt, layer)] == 24
+    for prompt in expected
+    for layer in range(30)
+)
+print("complete" if complete else "partial")
 PY
 }
 
@@ -227,14 +271,55 @@ profile128() {
     preflight
     configure_runtime
     mkdir -p "$PROFILE_ROOT" "$VIDEO_ROOT" "$LOG_ROOT"
+    local -a shard_ids=()
+    if [[ -n "$SHARD_IDS_RAW" ]]; then
+        IFS=',' read -r -a shard_ids <<<"$SHARD_IDS_RAW"
+        [[ "${#shard_ids[@]}" -eq "$GPUS_PER_NODE" ]] || {
+            echo "[error] V173_SHARD_IDS count must equal GPU_LIST count"
+            exit 2
+        }
+    fi
     local -a pids=()
     for local_slot in "${!GPUS[@]}"; do
-        local global_rank=$((NODE_RANK * GPUS_PER_NODE + local_slot))
+        local global_rank
+        if [[ "${#shard_ids[@]}" -gt 0 ]]; then
+            global_rank="${shard_ids[$local_slot]}"
+        else
+            global_rank=$((NODE_RANK * GPUS_PER_NODE + local_slot))
+        fi
+        [[ "$global_rank" -ge 0 && "$global_rank" -lt "$PROFILE_WORLD_SHARDS" ]] || {
+            echo "[error] invalid profile shard id $global_rank"
+            exit 2
+        }
+        for previous_slot in "${!GPUS[@]}"; do
+            [[ "$previous_slot" -lt "$local_slot" ]] || continue
+            local previous_rank
+            if [[ "${#shard_ids[@]}" -gt 0 ]]; then
+                previous_rank="${shard_ids[$previous_slot]}"
+            else
+                previous_rank=$((NODE_RANK * GPUS_PER_NODE + previous_slot))
+            fi
+            [[ "$global_rank" -ne "$previous_rank" ]] || {
+                echo "[error] duplicate logical shard id $global_rank"
+                exit 2
+            }
+        done
         local gpu="${GPUS[$local_slot]}"
         local profile_path="$PROFILE_ROOT/shard$(printf '%02d' "$global_rank").pt"
         local log_path="$LOG_ROOT/node${NODE_RANK}_rank$(printf '%02d' "$global_rank").log"
+        if [[ "$FORCE" == "1" ]]; then
+            rm -f "$profile_path"
+        else
+            local shard_state
+            shard_state="$(profile_shard_state "$profile_path" "$global_rank")"
+            if [[ "$shard_state" == "complete" ]]; then
+                echo "[v173-skip] complete rank=$global_rank profile=$profile_path"
+                continue
+            fi
+            echo "[v173-resume] rank=$global_rank state=$shard_state"
+        fi
         run_one "$gpu" "$profile_path" "$VIDEO_ROOT" "$log_path" \
-            --prompt_stride "$WORLD_SHARDS" \
+            --prompt_stride "$PROFILE_WORLD_SHARDS" \
             --prompt_offset "$global_rank" &
         pids+=("$!")
         echo "[v173-launch] node=$NODE_RANK rank=$global_rank gpu=$gpu log=$log_path"
@@ -268,6 +353,15 @@ analyze() {
         --strict
 }
 
+stability() {
+    activate_env
+    audit
+    python "$ROOT/scripts/analyze_v175_rccp_stability.py" \
+        --profile-root "$PROFILE_ROOT" \
+        --output-dir "$STABILITY_ROOT" \
+        --bootstrap-samples 500
+}
+
 package() {
     [[ "$NODE_RANK" -eq 0 ]] || {
         echo "[error] package runs on NODE_RANK=0 only"
@@ -286,9 +380,8 @@ from pathlib import Path
 
 root = Path(sys.argv[1])
 profiles = sorted((root / "profiles").glob("*.pt"))
-videos = sorted((root / "videos").glob("*.mp4"))
 logs = sorted((root / "logs").glob("*.log"))
-print(f"profiles={len(profiles)}/32 videos={len(videos)}/128 logs={len(logs)}/32")
+print(f"profiles={len(profiles)} logs={len(logs)}")
 failed = []
 for path in logs:
     text = path.read_text(encoding="utf-8", errors="replace")
@@ -305,6 +398,7 @@ case "$ACTION" in
     profile128) profile128 ;;
     audit) audit ;;
     analyze) analyze ;;
+    stability) stability ;;
     package) package ;;
     status) status ;;
 esac

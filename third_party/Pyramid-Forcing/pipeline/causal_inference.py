@@ -371,6 +371,7 @@ class CausalInferencePipeline(torch.nn.Module):
         return_latents: bool = False,
         profile: bool = False,
         low_memory: bool = False,
+        decode_video: bool = True,
     ) -> torch.Tensor:
         """
         Perform inference on the given noise and text prompts.
@@ -635,22 +636,27 @@ class CausalInferencePipeline(torch.nn.Module):
             in ("1", "true", "yes", "on")
         )
 
-        # Initialize VAE streaming decode
-        self.vae.decode_streaming_init(device=noise.device, dtype=noise.dtype)
+        # Profiling needs the committed latent trajectory, not decoded pixels.
+        # Skipping VAE work prevents an unrelated decode OOM from losing a
+        # completed attention-profile shard.
         pixel_chunks = []
         latent_chunks: list[torch.Tensor] = []  # only used in batch mode
-        vae_stream = torch.cuda.Stream()
+        vae_stream = torch.cuda.Stream() if decode_video else None
         # GPU-side event chain: VAE stream waits on (a) previous VAE chunk (decoder is
         # stateful — causal conv buffer) and (b) main stream finishing denoised_pred.
         # Main stream NEVER waits on VAE — DiT continues enqueuing the next block.
         prev_vae_event: Optional[torch.cuda.Event] = None
         if profile:
             vae_chunk_events: list[tuple[torch.cuda.Event, torch.cuda.Event]] = []
+        if decode_video:
+            self.vae.decode_streaming_init(device=noise.device, dtype=noise.dtype)
 
         def _submit_vae_chunk(latent: torch.Tensor) -> None:
             """Dispatch one VAE decode chunk. Streaming: enqueue on vae_stream with
             event-based sync. Batch: defer — just hold the latent.
             """
+            if not decode_video:
+                return
             if self.vae_decode_mode == "batch":
                 latent_chunks.append(latent.detach().clone())
                 return
@@ -658,6 +664,7 @@ class CausalInferencePipeline(torch.nn.Module):
             if profile:
                 start_evt = torch.cuda.Event(enable_timing=True)
                 end_evt = torch.cuda.Event(enable_timing=True)
+            assert vae_stream is not None
             if prev_vae_event is not None:
                 vae_stream.wait_event(prev_vae_event)
             main_done = torch.cuda.Event()
@@ -961,21 +968,29 @@ class CausalInferencePipeline(torch.nn.Module):
             diffusion_time = diffusion_start.elapsed_time(diffusion_end)
             init_time = init_start.elapsed_time(init_end)
 
-        # Step 4: Synchronize VAE stream and concatenate decoded chunks
-        if self.vae_decode_mode == "batch":
-            # Batch mode: decode all latent chunks now (diffusion is done)
-            for chunk in latent_chunks:
-                pixel_chunks.append(self.vae.decode_streaming_chunk(chunk))
+        # Step 4: Synchronize and concatenate only when pixels were requested.
+        if decode_video:
+            if self.vae_decode_mode == "batch":
+                # Batch mode: decode all latent chunks now (diffusion is done)
+                for chunk in latent_chunks:
+                    pixel_chunks.append(self.vae.decode_streaming_chunk(chunk))
+            else:
+                # Streaming mode: wait for the last VAE chunk to finish
+                assert vae_stream is not None
+                vae_stream.synchronize()
+            video = torch.cat(pixel_chunks, dim=1)
+            video = (video * 0.5 + 0.5).clamp(0, 1)
+            self.vae.decode_streaming_finalize()
         else:
-            # Streaming mode: wait for the last VAE chunk to finish
-            vae_stream.synchronize()
-        video = torch.cat(pixel_chunks, dim=1)
-        video = (video * 0.5 + 0.5).clamp(0, 1)
-        self.vae.decode_streaming_finalize()
+            video = None
 
         if profile:
             # Compute VAE timing from recorded events (requires sync already done above)
-            if self.vae_decode_mode == "streaming" and vae_chunk_events:
+            if (
+                decode_video
+                and self.vae_decode_mode == "streaming"
+                and vae_chunk_events
+            ):
                 torch.cuda.synchronize()
                 vae_time = sum(
                     s.elapsed_time(e) for s, e in vae_chunk_events

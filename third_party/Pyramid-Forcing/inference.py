@@ -125,6 +125,14 @@ parser.add_argument(
     help="Skip prompts whose output video already exists.",
 )
 parser.add_argument(
+    "--skip_video_decode",
+    action="store_true",
+    help=(
+        "Return latent outputs without VAE decoding or video writing. This is "
+        "restricted to cache-compatibility profiling runs."
+    ),
+)
+parser.add_argument(
     "--pyramidkv_history_value_labels", type=str, default=None,
     help="Comma-separated PF labels to refresh (for example: -1,1). Default: all labels.",
 )
@@ -1356,9 +1364,14 @@ if args.cache_compat_profile_output:
         f"ar_stride={args.cache_compat_profile_ar_stride} "
         f"query_stride={args.cache_compat_profile_query_stride} "
         f"min_frame={args.cache_compat_profile_min_frame} "
-        f"chunk_offsets={args.cache_compat_profile_chunk_offsets}",
+        f"chunk_offsets={args.cache_compat_profile_chunk_offsets} "
+        f"skip_video_decode={bool(args.skip_video_decode)}",
         flush=True,
     )
+if args.skip_video_decode and not args.cache_compat_profile_output:
+    parser.error("--skip_video_decode requires --cache_compat_profile_output")
+if args.skip_video_decode and not hasattr(config, "denoising_step_list"):
+    parser.error("--skip_video_decode is only implemented for few-step inference")
 
 # Initialize pipeline
 if hasattr(config, 'denoising_step_list'):
@@ -1380,7 +1393,8 @@ if low_memory:
 else:
     pipeline.text_encoder.to(device=gpu)
 pipeline.generator.to(device=gpu)
-pipeline.vae.to(device=gpu)
+if not args.skip_video_decode or args.i2v:
+    pipeline.vae.to(device=gpu)
 
 
 # Create dataset
@@ -1489,6 +1503,40 @@ class AsyncVideoWriter:
 
 
 video_writer = AsyncVideoWriter()
+cache_profile_path = None
+cache_profile_completed_prompt_ids = set()
+if args.cache_compat_profile_output:
+    from wan.modules.attention.cache_compat_profile import (
+        resume_cache_compatibility_profile,
+    )
+
+    cache_profile_path = args.cache_compat_profile_output.format(
+        rank=int(os.environ.get("RANK", "0")),
+        pid=os.getpid(),
+    )
+    cache_profile_completed_prompt_ids = resume_cache_compatibility_profile(
+        cache_profile_path
+    )
+
+
+def _cache_compatibility_metadata():
+    return {
+        "kind": args.cache_compat_profile_kind,
+        "seed": int(args.seed),
+        "data_path": os.path.abspath(args.data_path),
+        "num_output_frames": int(args.num_output_frames),
+        "call_indices": args.cache_compat_profile_call_indices,
+        "ar_stride": int(args.cache_compat_profile_ar_stride),
+        "query_stride": int(args.cache_compat_profile_query_stride),
+        "min_frame": int(args.cache_compat_profile_min_frame),
+        "chunk_offsets": args.cache_compat_profile_chunk_offsets,
+        "head_config_path": (
+            None
+            if args.pyramidkv_head_config_path is None
+            else os.path.abspath(args.pyramidkv_head_config_path)
+        ),
+        "skip_video_decode": bool(args.skip_video_decode),
+    }
 # Per-prompt timing is reported via tqdm.write() AFTER each prompt's inner
 # block bars finish, so we don't fight the (block N/7 - X/21) tqdm bars
 # emitted from CausalInferencePipeline. The JIT compile cost is paid up
@@ -1504,6 +1552,12 @@ try:
             if args.end_idx is not None and idx >= args.end_idx:
                 break
             if args.prompt_stride > 1 and (idx - args.prompt_offset) % args.prompt_stride != 0:
+                continue
+            if idx in cache_profile_completed_prompt_ids:
+                print(
+                    f"[CacheCompatProfileResume] skip completed prompt={idx}",
+                    flush=True,
+                )
                 continue
             if args.skip_existing:
                 _skip_dir = args.output_folder
@@ -1580,22 +1634,33 @@ try:
                 initial_latent=initial_latent,
                 low_memory=low_memory,
                 profile=os.environ.get("ADAHEAD_PROFILE", "0") == "1",
+                **({"decode_video": False} if args.skip_video_decode else {}),
             )
             num_generated_frames += latents.shape[1]
 
+            if cache_profile_path is not None:
+                from wan.modules.attention.cache_compat_profile import (
+                    save_cache_compatibility_profile,
+                )
+
+                save_cache_compatibility_profile(
+                    cache_profile_path,
+                    _cache_compatibility_metadata(),
+                )
+                cache_profile_completed_prompt_ids.add(int(idx))
+
             # Final output video — clamp+uint8 on GPU, non-blocking D2H overlaps with cache clear
-            video = torch.clamp(
-                255.0 * rearrange(video, 'b t c h w -> b t h w c'), 0, 255,
-            ).to(dtype=torch.uint8).to(device='cpu', non_blocking=True)
+            if video is not None:
+                video = torch.clamp(
+                    255.0 * rearrange(video, 'b t c h w -> b t h w c'), 0, 255,
+                ).to(dtype=torch.uint8).to(device='cpu', non_blocking=True)
 
-            # Clear VAE cache (overlaps with D2H transfer)
-            pipeline.vae.model.clear_cache()
-
-            # Ensure D2H completes before writing
-            torch.cuda.current_stream().synchronize()
+                # Clear VAE cache while the non-blocking D2H transfer runs.
+                pipeline.vae.model.clear_cache()
+                torch.cuda.current_stream().synchronize()
 
             # Save the video if the current prompt is not a dummy prompt
-            if idx < num_prompts:
+            if video is not None and idx < num_prompts:
                 model = "regular" if not args.use_ema else "ema"
                 for seed_idx in range(args.num_samples):
                     # All processes save their videos
@@ -1695,28 +1760,10 @@ if args.cache_compat_profile_output:
         save_cache_compatibility_profile,
     )
 
-    profile_path = args.cache_compat_profile_output.format(
-        rank=int(os.environ.get("RANK", "0")),
-        pid=os.getpid(),
-    )
+    profile_path = cache_profile_path
     save_cache_compatibility_profile(
         profile_path,
-        {
-            "kind": args.cache_compat_profile_kind,
-            "seed": int(args.seed),
-            "data_path": os.path.abspath(args.data_path),
-            "num_output_frames": int(args.num_output_frames),
-            "call_indices": args.cache_compat_profile_call_indices,
-            "ar_stride": int(args.cache_compat_profile_ar_stride),
-            "query_stride": int(args.cache_compat_profile_query_stride),
-            "min_frame": int(args.cache_compat_profile_min_frame),
-            "chunk_offsets": args.cache_compat_profile_chunk_offsets,
-            "head_config_path": (
-                None
-                if args.pyramidkv_head_config_path is None
-                else os.path.abspath(args.pyramidkv_head_config_path)
-            ),
-        },
+        _cache_compatibility_metadata(),
     )
 
 # Persist memory-admission statistics for every run.

@@ -30,7 +30,8 @@ def main() -> None:
     print(
         "[v173-audit] PASS "
         f"shards={audit['shard_count']} records={audit['record_count']} "
-        f"prompts={len(audit['prompt_ids'])}"
+        f"prompts={len(audit['prompt_ids'])} "
+        f"complete={audit['complete_profile']}"
     )
 
 

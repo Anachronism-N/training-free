@@ -98,6 +98,7 @@ prompt_count = int(sys.argv[4])
 analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
 assert analysis["experiment"] == "v173_residual_cache_compatibility"
 assert analysis["generation_ready"] is True
+assert analysis["profile_audit"]["complete_profile"] is True
 assert len(prompts_path.read_text(encoding="utf-8").splitlines()) == 128
 for method in methods:
     row = analysis["maps"][method]
