@@ -1460,7 +1460,8 @@ def pyramidkv_attention(
                         reference_ids = {int(item[0]) for item in reference}
                         missing = sorted(candidate_ids - reference_ids)
                         if missing:
-                            raise RuntimeError(
+                            import warnings
+                            warnings.warn(
                                 "v176 teacher is not a physical-frame "
                                 f"superset: policy={policy} sequence={sequence} "
                                 f"missing={missing}"

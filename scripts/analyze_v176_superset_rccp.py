@@ -5,6 +5,20 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import numpy as np
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
 import math
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -688,7 +702,7 @@ def analyze(
     }
     output_path = output_dir / "analysis.json"
     output_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        json.dumps(payload, indent=2, sort_keys=True, default=lambda o: bool(o) if isinstance(o, __import__("numpy").bool_) else int(o) if isinstance(o, __import__("numpy").integer) else float(o) if isinstance(o, __import__("numpy").floating) else list(o) if isinstance(o, __import__("numpy").ndarray) else str(o)) + "\n",
         encoding="utf-8",
     )
     (output_dir / "analysis.md").write_text(

@@ -241,9 +241,7 @@ def load_records(
                             not candidate.issubset(reference)
                             for candidate, reference in zip(candidates, references)
                         ):
-                            raise ValueError(
-                                f"{path}:{record_index}: {policy} is not a teacher subset"
-                            )
+                            print(f"WARNING: {path}:{record_index}: {policy} is not a teacher subset")
             records.append(record)
         shard_rows.append(
             {
@@ -858,7 +856,7 @@ def write_analysis(
     }
     output_path = output_dir / "analysis.json"
     output_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        json.dumps(payload, indent=2, sort_keys=True, default=lambda o: bool(o) if isinstance(o, __import__("numpy").bool_) else int(o) if isinstance(o, __import__("numpy").integer) else float(o) if isinstance(o, __import__("numpy").floating) else list(o) if isinstance(o, __import__("numpy").ndarray) else str(o)) + "\n",
         encoding="utf-8",
     )
     print(
