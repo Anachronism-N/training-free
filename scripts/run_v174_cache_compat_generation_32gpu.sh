@@ -36,8 +36,8 @@ RUN_UNIT_TESTS="${RUN_UNIT_TESTS:-1}"
 IFS=',' read -r -a GPUS <<<"$GPU_LIST"
 GPUS_PER_NODE="${#GPUS[@]}"
 WORLD_SHARDS=$((NUM_NODES * GPUS_PER_NODE))
-[[ "$WORLD_SHARDS" -eq 32 ]] || {
-    echo "[error] v174 requires exactly 32 GPU shards"
+[[ "$WORLD_SHARDS" -ge 1 ]] || {
+    echo "[error] v174 requires at least 1 GPU shard"
     exit 2
 }
 [[ "$NODE_RANK" -ge 0 && "$NODE_RANK" -lt "$NUM_NODES" ]] || {
