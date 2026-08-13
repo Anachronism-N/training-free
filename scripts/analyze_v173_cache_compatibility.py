@@ -14,6 +14,19 @@ from typing import Iterable
 import numpy as np
 
 
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
+
 POLICIES = ("recent", "coverage", "episode")
 LABELS = {"recent": 20, "coverage": 21, "episode": 22}
 LAYERS = 30
@@ -46,6 +59,21 @@ PROFILE_CONTRACTS = {
         "expected_records_per_prompt_layer": 48,
         "trace_layers": {0, 10, 20, 29},
         "record_contract": "v176",
+        "reference_superset": True,
+    },
+    "v177": {
+        "version": 3,
+        "method": "strict_superset_residual_cache_compatibility",
+        "expected_budget": {
+            "recent": 9,
+            "coverage": 9,
+            "episode": 9,
+            "union": 17,
+        },
+        "calls": [0, 1, 2, 3],
+        "expected_records_per_prompt_layer": 48,
+        "trace_layers": {0, 10, 20, 29},
+        "record_contract": "v177",
         "reference_superset": True,
     },
 }
@@ -192,29 +220,84 @@ def load_records(
                                 f"{path}:{record_index}:{policy}:H{head} "
                                 "frame-id/budget mismatch"
                             )
-                        if len(frame_ids) != len(set(frame_ids)):
-                            raise ValueError(
-                                f"{path}:{record_index}:{policy}:H{head} "
-                                "duplicate physical frame"
-                            )
                         try:
-                            sources = {
+                            source_values = [
                                 str(codebook[int(item[1])]) for item in items
-                            }
+                            ]
                         except (IndexError, TypeError, ValueError) as error:
                             raise ValueError(
                                 f"{path}:{record_index}:{policy}:H{head} "
                                 "invalid source code"
                             ) from error
+                        if contract == "v177":
+                            allowed_source = all(
+                                source
+                                in {
+                                    "static_dynamic_rope",
+                                    "static_saved_rope",
+                                    "dynamic_time_mapped",
+                                    "dynamic_saved_rope",
+                                }
+                                or source.startswith("anchor_dynamic_rope:")
+                                or source.startswith("anchor_saved_rope:")
+                                for source in source_values
+                            )
+                            if not allowed_source:
+                                raise ValueError(
+                                    f"{path}:{record_index}:{policy}:H{head} "
+                                    "legacy or unknown representation family"
+                                )
+                        sources = set(source_values)
+                        if contract == "v177":
+                            identities = [
+                                (
+                                    frame_id,
+                                    source.split(":", 1)[0]
+                                    if source.startswith("anchor_")
+                                    else "anchor"
+                                    if source.startswith("anchor:")
+                                    else source,
+                                )
+                                for frame_id, source in zip(
+                                    frame_ids, source_values
+                                )
+                            ]
+                            if len(identities) != len(set(identities)):
+                                raise ValueError(
+                                    f"{path}:{record_index}:{policy}:H{head} "
+                                    "duplicate frame/representation identity"
+                                )
+                        elif len(frame_ids) != len(set(frame_ids)):
+                            raise ValueError(
+                                f"{path}:{record_index}:{policy}:H{head} "
+                                "duplicate physical frame"
+                            )
+                        recent_sources = (
+                            {
+                                "static_dynamic_rope",
+                                "static_saved_rope",
+                                "dynamic_time_mapped",
+                                "dynamic_saved_rope",
+                            }
+                            if contract == "v177"
+                            else {"static", "dynamic"}
+                        )
                         if policy == "recent" and not sources.issubset(
-                            {"static", "dynamic"}
+                            recent_sources
                         ):
                             raise ValueError("Recent readout contains middle history")
-                        if policy == "coverage" and "anchor:coherent_motion" in sources:
+                        motion_sources = {
+                            "anchor:coherent_motion",
+                            "anchor_dynamic_rope:coherent_motion",
+                            "anchor_saved_rope:coherent_motion",
+                        }
+                        if policy == "coverage" and sources & motion_sources:
                             raise ValueError("Coverage readout contains a motion episode")
                         if contract_spec["reference_superset"]:
                             selected_by_policy.setdefault(policy, []).append(
-                                set(frame_ids)
+                                set(identities)
+                                if contract == "v177"
+                                else set(frame_ids)
                             )
                 elif selected is not None:
                     raise ValueError(
@@ -229,6 +312,37 @@ def load_records(
                     raise ValueError(
                         f"{path}:{record_index}: teacher superset was not verified"
                     )
+                if contract == "v177":
+                    union_budget = budgets["union"]
+                    if union_budget.get(
+                        "superset_verification_contract"
+                    ) != "v177":
+                        raise ValueError(
+                            f"{path}:{record_index}: v177 verification contract drift"
+                        )
+                    if union_budget.get(
+                        "candidate_representation_subset_verified"
+                    ) is not True:
+                        raise ValueError(
+                            f"{path}:{record_index}: representation subset unverified"
+                        )
+                    if int(
+                        union_budget.get(
+                            "candidate_representation_subset_checks", -1
+                        )
+                    ) != 3 * heads:
+                        raise ValueError(
+                            f"{path}:{record_index}: expected {3 * heads} "
+                            "representation subset checks"
+                        )
+                    if int(
+                        union_budget.get(
+                            "candidate_representation_subset_failures", -1
+                        )
+                    ) != 0:
+                        raise ValueError(
+                            f"{path}:{record_index}: representation subset failure"
+                        )
                 if layer in contract_spec["trace_layers"]:
                     references = selected_by_policy.get("union") or []
                     if len(references) != heads:
@@ -241,7 +355,9 @@ def load_records(
                             not candidate.issubset(reference)
                             for candidate, reference in zip(candidates, references)
                         ):
-                            print(f"WARNING: {path}:{record_index}: {policy} is not a teacher subset")
+                            raise ValueError(
+                                f"{path}:{record_index}: {policy} is not a teacher subset"
+                            )
             records.append(record)
         shard_rows.append(
             {
@@ -856,7 +972,7 @@ def write_analysis(
     }
     output_path = output_dir / "analysis.json"
     output_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, default=lambda o: bool(o) if isinstance(o, __import__("numpy").bool_) else int(o) if isinstance(o, __import__("numpy").integer) else float(o) if isinstance(o, __import__("numpy").floating) else list(o) if isinstance(o, __import__("numpy").ndarray) else str(o)) + "\n",
+        json.dumps(payload, indent=2, sort_keys=True, cls=NpEncoder) + "\n",
         encoding="utf-8",
     )
     print(

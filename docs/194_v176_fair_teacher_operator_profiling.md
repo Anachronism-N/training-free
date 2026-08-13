@@ -1,5 +1,10 @@
 # v176 Fair-Teacher Operator Profiling
 
+> **Superseded:** the completed v176 artifact violated its teacher-superset
+> contract and must not be used for membership or generation claims. See
+> `docs/195_v176_result_audit_and_v177_strict_recovery.md`. This document is
+> retained as the pre-run design record.
+
 ## 1. Repository status and current conclusion
 
 The latest remote `main` is commit `9dceab22`. It contains the v175 recovery

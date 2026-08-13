@@ -30,6 +30,12 @@ PROFILE_CONTRACTS = {
         "reference_max_frame_equivalents": 17,
         "reference_is_candidate_superset": True,
     },
+    "v177": {
+        "version": 3,
+        "method": "strict_superset_residual_cache_compatibility",
+        "reference_max_frame_equivalents": 17,
+        "reference_is_candidate_superset": True,
+    },
 }
 
 _records: list[dict[str, Any]] = []
@@ -72,7 +78,7 @@ def resume_cache_compatibility_profile(
         raise ValueError(f"{path}: unsupported cache profile version")
     if payload.get("method") != contract["method"]:
         raise ValueError(f"{path}: incompatible cache profile method")
-    if contract_name == "v176" and payload.get("contract") != contract_name:
+    if contract_name in {"v176", "v177"} and payload.get("contract") != contract_name:
         raise ValueError(f"{path}: incompatible cache profile contract")
     if tuple(payload.get("policies") or ()) != POLICIES:
         raise ValueError(f"{path}: incompatible cache profile policies")
@@ -346,7 +352,7 @@ def record_cache_compatibility_outputs(
         "policies": metrics,
         "budgets": budget_metadata,
     }
-    if record["profile_contract"] == "v176" and not bool(
+    if record["profile_contract"] in {"v176", "v177"} and not bool(
         budget_metadata[REFERENCE_POLICY].get(
             "candidate_physical_superset_verified", False
         )

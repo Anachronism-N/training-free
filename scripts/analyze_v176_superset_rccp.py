@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
-"""Analyze v176 fair-teacher RCCP profiles without generation leakage."""
+"""Analyze strict fair-teacher RCCP profiles without generation leakage."""
 from __future__ import annotations
 
 import argparse
 import csv
 import json
+import math
+from collections import Counter, defaultdict
+from pathlib import Path
+
 import numpy as np
+
+import analyze_v173_cache_compatibility as base
+
 
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -19,14 +26,6 @@ class NpEncoder(json.JSONEncoder):
             return obj.tolist()
         return super().default(obj)
 
-import math
-from collections import Counter, defaultdict
-from pathlib import Path
-
-import numpy as np
-
-import analyze_v173_cache_compatibility as base
-
 
 DISCOVERY_SEED = 1762026
 STABILITY_SEEDS = tuple(1763001 + index * 1009 for index in range(12))
@@ -37,13 +36,15 @@ STABILITY_FREQUENCY = 0.75
 MIN_DISCOVERY_PROMPTS = 32
 
 
-def frozen_prompt_split(prompt_ids: list[int]) -> tuple[list[int], list[int], list[int]]:
+def frozen_prompt_split(
+    prompt_ids: list[int], *, discovery_seed: int = DISCOVERY_SEED
+) -> tuple[list[int], list[int], list[int]]:
     universe = sorted({int(value) for value in prompt_ids})
     if universe != list(range(base.PROMPTS)):
         raise ValueError("v176 requires complete prompt ids 0..127")
     order = [
         int(value)
-        for value in np.random.default_rng(DISCOVERY_SEED).permutation(universe)
+        for value in np.random.default_rng(discovery_seed).permutation(universe)
     ]
     discovery = sorted(order[:DISCOVERY_COUNT])
     validation = sorted(order[DISCOVERY_COUNT : DISCOVERY_COUNT + VALIDATION_COUNT])
@@ -55,7 +56,48 @@ def frozen_prompt_split(prompt_ids: list[int]) -> tuple[list[int], list[int], li
     return discovery, validation, generation
 
 
-def aggregate_profile(records: list[dict]) -> dict[str, np.ndarray | float]:
+def _input_provenance(
+    *,
+    input_manifest: Path | None,
+    prompts: Path | None,
+    contract: str,
+    experiment: str,
+) -> dict | None:
+    if input_manifest is None or prompts is None:
+        if contract == "v177":
+            raise ValueError("v177 analysis requires frozen input provenance")
+        return None
+    manifest = json.loads(input_manifest.read_text(encoding="utf-8"))
+    prompt_lines = prompts.read_text(encoding="utf-8").splitlines()
+    prompt_sha = base.sha256(prompts)
+    if (
+        manifest.get("experiment") != experiment
+        or manifest.get("profile_contract") != contract
+        or int(manifest.get("prompt_count", -1)) != base.PROMPTS
+        or manifest.get("prompt_sha256") != prompt_sha
+        or len(prompt_lines) != base.PROMPTS
+        or any(not value.strip() for value in prompt_lines)
+        or manifest.get("calls") != [0, 1, 2, 3]
+        or int(manifest.get("records_per_prompt_layer", -1)) != 48
+        or manifest.get("candidate_budgets_ffe")
+        != {"recent": 9, "coverage": 9, "episode": 9}
+        or int(manifest.get("teacher_max_budget_ffe", -1)) != 17
+        or manifest.get("teacher_requires_representation_candidate_superset")
+        is not (contract == "v177")
+    ):
+        raise ValueError("profiling input manifest or prompt provenance drift")
+    return {
+        "input_manifest": str(input_manifest.resolve()),
+        "input_manifest_sha256": base.sha256(input_manifest),
+        "prompt_file": str(prompts.resolve()),
+        "prompt_sha256": prompt_sha,
+        "prompt_count": len(prompt_lines),
+    }
+
+
+def aggregate_profile(
+    records: list[dict], *, contract: str = "v176"
+) -> dict[str, np.ndarray | float]:
     """Aggregate the large record list once for all downstream diagnostics."""
 
     policy_count = len(base.POLICIES)
@@ -82,7 +124,9 @@ def aggregate_profile(records: list[dict]) -> dict[str, np.ndarray | float]:
     energy_sum = np.zeros(
         (base.PROMPTS, base.LAYERS, base.HEADS), dtype=np.float64
     )
-    expected_budget = base.PROFILE_CONTRACTS["v176"]["expected_budget"]
+    if contract not in {"v176", "v177"}:
+        raise ValueError(f"unsupported strict-superset contract: {contract}")
+    expected_budget = base.PROFILE_CONTRACTS[contract]["expected_budget"]
 
     for record in records:
         prompt = int(record["prompt_id"])
@@ -321,12 +365,25 @@ def analyze(
     output_dir: Path,
     *,
     v145_features: Path | None,
+    contract: str = "v176",
+    experiment: str = "v176_superset_rccp",
+    discovery_seed: int = DISCOVERY_SEED,
+    input_manifest: Path | None = None,
+    prompts: Path | None = None,
 ) -> dict:
-    records, audit = base.load_records(
-        profile_root, strict=True, contract="v176"
+    input_provenance = _input_provenance(
+        input_manifest=input_manifest,
+        prompts=prompts,
+        contract=contract,
+        experiment=experiment,
     )
-    discovery, validation, generation = frozen_prompt_split(audit["prompt_ids"])
-    aggregate = aggregate_profile(records)
+    records, audit = base.load_records(
+        profile_root, strict=True, contract=contract
+    )
+    discovery, validation, generation = frozen_prompt_split(
+        audit["prompt_ids"], discovery_seed=discovery_seed
+    )
+    aggregate = aggregate_profile(records, contract=contract)
     errors = aggregate["errors"]
     discovery_errors_by_prompt = errors[discovery]
     validation_errors_by_prompt = errors[validation]
@@ -659,15 +716,23 @@ def analyze(
 
     payload = {
         "version": 1,
-        "experiment": "v176_superset_rccp",
+        "experiment": experiment,
+        "profile_contract": contract,
         "profile_audit": audit,
+        "input_provenance": input_provenance,
         "teacher_contract": {
             "candidate_physical_superset_required": True,
+            "candidate_representation_superset_required": contract == "v177",
+            "verification_identity": (
+                "physical_frame_and_representation_family"
+                if contract == "v177"
+                else "physical_frame"
+            ),
             "local_teacher_is_not_generation_utility": True,
             "union_max_ffe": 17,
         },
         "prompt_split": {
-            "seed": DISCOVERY_SEED,
+            "seed": discovery_seed,
             "discovery_prompt_ids": discovery,
             "validation_prompt_ids": validation,
             "generation_prompt_ids": generation,
@@ -695,20 +760,20 @@ def analyze(
         },
         "generation_ready": bool(nonlocal_count > 0),
         "claim_boundary": (
-            "v176 membership is a stable local cache-compatibility hypothesis; "
+            f"{contract} membership is a stable local cache-compatibility hypothesis; "
             "it becomes a generation method only if matched routing beats "
             "layer/count-matched hard negatives on untouched prompts."
         ),
     }
     output_path = output_dir / "analysis.json"
     output_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, default=lambda o: bool(o) if isinstance(o, __import__("numpy").bool_) else int(o) if isinstance(o, __import__("numpy").integer) else float(o) if isinstance(o, __import__("numpy").floating) else list(o) if isinstance(o, __import__("numpy").ndarray) else str(o)) + "\n",
+        json.dumps(payload, indent=2, sort_keys=True, cls=NpEncoder) + "\n",
         encoding="utf-8",
     )
     (output_dir / "analysis.md").write_text(
         "\n".join(
             [
-                "# v176 Superset RCCP Analysis",
+                f"# {contract} Superset RCCP Analysis",
                 "",
                 f"- Complete profile: {audit['complete_profile']}",
                 f"- Supported nonlocal heads: {nonlocal_count}",
@@ -724,7 +789,7 @@ def analyze(
         encoding="utf-8",
     )
     print(
-        "[v176-analysis] "
+        f"[{contract}-analysis] "
         f"prompts=128 nonlocal={nonlocal_count} "
         f"generation_ready={payload['generation_ready']} output={output_path}"
     )
@@ -739,6 +804,13 @@ def main() -> None:
         type=Path,
         default=root / "runs" / "v176_superset_rccp" / "profiles",
     )
+    parser.add_argument(
+        "--contract", choices=("v176", "v177"), default="v176"
+    )
+    parser.add_argument("--experiment", default=None)
+    parser.add_argument("--discovery-seed", type=int, default=None)
+    parser.add_argument("--input-manifest", type=Path, default=None)
+    parser.add_argument("--prompts", type=Path, default=None)
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -760,6 +832,15 @@ def main() -> None:
         args.profile_root,
         args.output_dir,
         v145_features=args.v145_features,
+        contract=args.contract,
+        experiment=(args.experiment or f"{args.contract}_superset_rccp"),
+        discovery_seed=(
+            args.discovery_seed
+            if args.discovery_seed is not None
+            else DISCOVERY_SEED
+        ),
+        input_manifest=args.input_manifest,
+        prompts=args.prompts,
     )
 
 

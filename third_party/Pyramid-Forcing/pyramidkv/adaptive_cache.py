@@ -5127,13 +5127,40 @@ class AdaptiveKVCache(PyramidKVCache):
         contract = os.environ.get(
             "CACHE_COMPAT_PROFILE_CONTRACT", "v173"
         ).strip().lower()
-        if contract not in {"v173", "v176"}:
+        if contract not in {"v173", "v176", "v177"}:
             raise RuntimeError(
                 f"unsupported cache compatibility contract: {contract}"
             )
 
         recent_frames = 8 if policy in {"recent", "union"} else 4
         recent_min_t = sync_t_raw - recent_frames + 1
+        if contract == "v177":
+            frame_seqlen = int(self._frame_seqlen or self.frame_seq_length or 0)
+            current_block_tokens = int(self._current_block_token_len[seq_idx])
+            if (
+                frame_seqlen <= 0
+                or current_block_tokens <= 0
+                or current_block_tokens % frame_seqlen
+            ):
+                raise RuntimeError(
+                    "v177 cannot infer the dynamic-tail boundary: "
+                    f"sequence={seq_idx} block_tokens={current_block_tokens} "
+                    f"frame_tokens={frame_seqlen}"
+                )
+            current_block_frames = current_block_tokens // frame_seqlen
+            recent_min_t = (
+                int(sync_t_raw) + current_block_frames - recent_frames
+            )
+        # v176 incorrectly used Union's recent8 boundary to collect middle
+        # banks that belong to recent4 candidates.  With three-frame updates,
+        # this omitted candidate frames from the teacher.  v177 collects every
+        # middle bank with its candidate boundary, then deduplicates it against
+        # Union's recent8 tail below.
+        middle_recent_min_t = (
+            int(sync_t_raw) + current_block_frames - 4
+            if policy == "union" and contract == "v177"
+            else recent_min_t
+        )
         sink_max_t = self._middle_sink_max_t(
             seq_idx=seq_idx,
             head_idx=head_idx,
@@ -5146,16 +5173,16 @@ class AdaptiveKVCache(PyramidKVCache):
                 reservoir4[0].collect(
                     seq_idx,
                     sync_t_raw,
-                    recent_min_t,
+                    middle_recent_min_t,
                     sink_max_t,
                 )
             )
-        if policy == "union" and contract == "v176":
+        if policy == "union" and contract in {"v176", "v177"}:
             collected.extend(
                 self._cache_compat_reservoir2.collect(
                     seq_idx,
                     sync_t_raw,
-                    recent_min_t,
+                    middle_recent_min_t,
                     sink_max_t,
                     source_kind="episode_reservoir",
                 )
@@ -5169,7 +5196,7 @@ class AdaptiveKVCache(PyramidKVCache):
                     sink_max_t,
                     source_kind=(
                         "episode_reservoir"
-                        if contract == "v176"
+                        if contract in {"v176", "v177"}
                         else "temporal_reservoir"
                     ),
                 )
@@ -5178,7 +5205,7 @@ class AdaptiveKVCache(PyramidKVCache):
             motion_anchors = motion[0].collect(
                 seq_idx,
                 sync_t_raw,
-                recent_min_t,
+                middle_recent_min_t,
                 sink_max_t,
             )
             if len(motion_anchors) not in {0, 2}:
@@ -5187,10 +5214,10 @@ class AdaptiveKVCache(PyramidKVCache):
                 )
             collected.extend(motion_anchors)
 
-        # A physical frame may be selected by several banks. One copy is
-        # sufficient. Prefer motion metadata, then the Episode reservoir, so
-        # the v176 trace can prove that its teacher is a physical-frame
-        # superset of every candidate.
+        # A physical frame may be selected by several banks. v177 permits one
+        # copy only after proving that all banks carry the same saved K/V,
+        # positions, and RoPE behavior. This prevents a physical-frame match
+        # from hiding a representation mismatch in the fair teacher.
         by_t = {}
         for anchor in collected:
             t_val = int(anchor.t)
@@ -5199,6 +5226,23 @@ class AdaptiveKVCache(PyramidKVCache):
             previous_source = (
                 None if previous is None else str(previous.source_kind)
             )
+            if previous is not None and contract == "v177":
+                same_representation = (
+                    bool(anchor.dynamic_rope) == bool(previous.dynamic_rope)
+                    and tuple(anchor.k.shape) == tuple(previous.k.shape)
+                    and tuple(anchor.v.shape) == tuple(previous.v.shape)
+                    and tuple(anchor.pos.shape) == tuple(previous.pos.shape)
+                    and torch.equal(anchor.k, previous.k)
+                    and torch.equal(anchor.v, previous.v)
+                    and torch.equal(anchor.pos, previous.pos)
+                )
+                if not same_representation:
+                    raise RuntimeError(
+                        "v177 duplicate physical anchor has non-equivalent "
+                        "representations: "
+                        f"layer={self.layer_idx} sequence={seq_idx} "
+                        f"frame={t_val} sources={previous_source},{anchor_source}"
+                    )
             priority = {
                 "temporal_reservoir": 0,
                 "episode_reservoir": 1,
@@ -5212,7 +5256,7 @@ class AdaptiveKVCache(PyramidKVCache):
         max_middle = {
             "coverage": 4,
             "episode": 4,
-            "union": 8 if contract == "v176" else 6,
+            "union": 8 if contract in {"v176", "v177"} else 6,
         }[policy]
         if len(result) > max_middle:
             raise RuntimeError(
@@ -5907,10 +5951,13 @@ class AdaptiveKVCache(PyramidKVCache):
             os.environ.get("CACHE_COMPAT_PROFILE_CONTRACT", "v173")
             .strip()
             .lower()
-            == "v176"
+            in {"v176", "v177"}
         )
         capture_frame_ids = int(self.layer_idx) in debug_layers
         inspect_frame_ids = capture_frame_ids or verify_candidate_superset
+        profile_contract = os.environ.get(
+            "CACHE_COMPAT_PROFILE_CONTRACT", "v173"
+        ).strip().lower()
         physical_parts: list[torch.Tensor] = []
         physical_descriptors: list[tuple[int, str, int]] = []
         for length in spec.lengths:
@@ -5934,16 +5981,34 @@ class AdaptiveKVCache(PyramidKVCache):
                 frame_ids = _as_long_tensor(
                     segment.pos[::frame_seqlen, 0]
                 )
+                source_kind = str(segment.kind)
+                if profile_contract == "v177":
+                    if source_kind.startswith("anchor:"):
+                        rope_family = (
+                            "dynamic_rope"
+                            if segment.dynamic_rope_t is not None
+                            else "saved_rope"
+                        )
+                        source_kind = f"anchor_{rope_family}:{source_kind[7:]}"
+                    elif source_kind == "static":
+                        source_kind = (
+                            "static_dynamic_rope"
+                            if segment.dynamic_rope_t is not None
+                            else "static_saved_rope"
+                        )
+                    elif source_kind == "dynamic":
+                        source_kind = (
+                            "dynamic_time_mapped"
+                            if segment.dynamic_time_map
+                            else "dynamic_saved_rope"
+                        )
                 physical_parts.append(frame_ids)
                 physical_descriptors.append(
-                    (int(segment.seq_idx), str(segment.kind), int(frame_ids.numel()))
+                    (int(segment.seq_idx), source_kind, int(frame_ids.numel()))
                 )
-        profile_contract = os.environ.get(
-            "CACHE_COMPAT_PROFILE_CONTRACT", "v173"
-        ).strip().lower()
         max_budget = (
             17
-            if policy == "union" and profile_contract == "v176"
+            if policy == "union" and profile_contract in {"v176", "v177"}
             else 15
             if policy == "union"
             else 9
@@ -5999,6 +6064,7 @@ class AdaptiveKVCache(PyramidKVCache):
             "_runtime_selected_physical_frames_per_sequence": (
                 selected_physical_frames
             ),
+            "_runtime_selected_source_codebook": source_codebook,
             "current_frame": int(sync_t_raw),
         }
         result = self._materialize_readout_spec(

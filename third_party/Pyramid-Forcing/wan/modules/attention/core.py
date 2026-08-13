@@ -1433,16 +1433,59 @@ def pyramidkv_attention(
                     max_k_shadow,
                 ).detach()
                 budgets[policy] = metadata
-            if os.environ.get(
+            profile_contract = os.environ.get(
                 "CACHE_COMPAT_PROFILE_CONTRACT", "v173"
-            ).strip().lower() == "v176":
+            ).strip().lower()
+            if profile_contract in {"v176", "v177"}:
+                def representation_sets(metadata):
+                    frame_rows = metadata.get(
+                        "_runtime_selected_physical_frames_per_sequence"
+                    )
+                    codebook = metadata.get("_runtime_selected_source_codebook")
+                    if not isinstance(frame_rows, list) or not isinstance(codebook, list):
+                        raise RuntimeError(
+                            f"{profile_contract} requires physical/source traces "
+                            "for every layer"
+                        )
+                    result = []
+                    for sequence, items in enumerate(frame_rows):
+                        identities = []
+                        for item in items:
+                            try:
+                                source = str(codebook[int(item[1])])
+                            except (IndexError, TypeError, ValueError) as error:
+                                raise RuntimeError(
+                                    f"{profile_contract} has an invalid source "
+                                    f"code: sequence={sequence} item={item}"
+                                ) from error
+                            family = (
+                                source.split(":", 1)[0]
+                                if source.startswith("anchor_")
+                                else "anchor"
+                                if source.startswith("anchor:")
+                                else source
+                            )
+                            identities.append((int(item[0]), family))
+                        if profile_contract == "v177" and len(identities) != len(
+                            set(identities)
+                        ):
+                            raise RuntimeError(
+                                "v177 readout contains duplicate frame/representation "
+                                f"identities: sequence={sequence} identities={identities}"
+                            )
+                        result.append(set(identities))
+                    return result
+
                 reference_frames = budgets["union"].get(
                     "_runtime_selected_physical_frames_per_sequence"
                 )
                 if not isinstance(reference_frames, list):
                     raise RuntimeError(
-                        "v176 requires physical frame traces for every layer"
+                        f"{profile_contract} requires physical frame traces "
+                        "for every layer"
                     )
+                reference_representations = representation_sets(budgets["union"])
+                subset_checks = 0
                 for policy in ("recent", "coverage", "episode"):
                     candidate_frames = budgets[policy].get(
                         "_runtime_selected_physical_frames_per_sequence"
@@ -1451,28 +1494,38 @@ def pyramidkv_attention(
                         candidate_frames
                     ) != len(reference_frames):
                         raise RuntimeError(
-                            f"v176 {policy} frame trace is incomplete"
+                            f"{profile_contract} {policy} frame trace is incomplete"
                         )
-                    for sequence, (candidate, reference) in enumerate(
-                        zip(candidate_frames, reference_frames)
+                    candidate_representations = representation_sets(budgets[policy])
+                    for sequence, (candidate_ids, reference_ids) in enumerate(
+                        zip(candidate_representations, reference_representations)
                     ):
-                        candidate_ids = {int(item[0]) for item in candidate}
-                        reference_ids = {int(item[0]) for item in reference}
                         missing = sorted(candidate_ids - reference_ids)
                         if missing:
-                            import warnings
-                            warnings.warn(
-                                "v176 teacher is not a physical-frame "
-                                f"superset: policy={policy} sequence={sequence} "
+                            message = (
+                                f"{profile_contract} teacher is not a cache-"
+                                f"representation superset: policy={policy} "
+                                f"sequence={sequence} "
                                 f"missing={missing}"
                             )
+                            raise RuntimeError(message)
+                        subset_checks += 1
                 budgets["union"][
                     "candidate_physical_superset_verified"
                 ] = True
+                budgets["union"]["candidate_representation_subset_checks"] = int(
+                    subset_checks
+                )
+                budgets["union"]["candidate_representation_subset_failures"] = 0
+                budgets["union"]["candidate_representation_subset_verified"] = True
+                budgets["union"]["superset_verification_contract"] = (
+                    profile_contract
+                )
             for metadata in budgets.values():
                 metadata.pop(
                     "_runtime_selected_physical_frames_per_sequence", None
                 )
+                metadata.pop("_runtime_selected_source_codebook", None)
             record_cache_compatibility_outputs(
                 outputs=outputs,
                 output_projection_weight=output_projection_weight,

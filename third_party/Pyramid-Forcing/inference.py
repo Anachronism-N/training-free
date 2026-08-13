@@ -697,11 +697,12 @@ parser.add_argument(
 )
 parser.add_argument(
     "--cache_compat_profile_contract",
-    choices=("v173", "v176"),
+    choices=("v173", "v176", "v177"),
     default="v173",
     help=(
-        "v173 preserves the original union teacher; v176 requires a physical-"
-        "frame superset teacher and is not artifact-compatible with v173."
+        "v173 preserves the original union teacher; v176 is the superseded "
+        "soft-audit run; v177 requires a strict physical-frame superset "
+        "teacher and is not artifact-compatible with either predecessor."
     ),
 )
 parser.add_argument(
@@ -1349,7 +1350,7 @@ if args.cache_compat_profile_output:
         parser.error("cache compatibility profiling requires sink-grid decoupling")
     config.pyramidkv_cache_compat_profile_enabled = True
     config.pyramidkv_cache_compat_profile_recent_frames = 8
-    if args.cache_compat_profile_contract == "v176":
+    if args.cache_compat_profile_contract in {"v176", "v177"}:
         config.pyramidkv_capture_frame_id_mode = "physical"
     os.environ["CACHE_COMPAT_PROFILE"] = "1"
     os.environ["CACHE_COMPAT_PROFILE_CONTRACT"] = (

@@ -18,6 +18,12 @@ CONFIG="${PF_CONFIG:-$PF/configs/pyramid-forcing.yaml}"
 CHECKPOINT="${PF_CHECKPOINT:-${SHARED_CHECKPOINT:-/apdcephfs_gy2/share_302533218/cedricnie/model_cache/self_forcing_dmd.pt}}"
 SOURCE_PROMPTS="${V176_SOURCE_PROMPTS:-/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/Causal-Forcing/prompts/MovieGen_128_qwen.txt}"
 OUT_ROOT="${V176_OUT_ROOT:-$ROOT/runs/v176_superset_rccp}"
+PROFILE_CONTRACT="${PROFILE_CONTRACT:-v176}"
+EXPERIMENT_NAME="${EXPERIMENT_NAME:-v176_superset_rccp}"
+DISCOVERY_SEED="${DISCOVERY_SEED:-1762026}"
+PROFILE_VERSION="${PROFILE_VERSION:-2}"
+RUN_LABEL="${RUN_LABEL:-v176}"
+export PROFILE_CONTRACT EXPERIMENT_NAME DISCOVERY_SEED PROFILE_VERSION RUN_LABEL
 INPUT_ROOT="$OUT_ROOT/inputs"
 PROMPTS="$INPUT_ROOT/moviegen_128_qwen.txt"
 HEAD_MAP="$INPUT_ROOT/profile_all_heads.csv"
@@ -64,6 +70,7 @@ prepare() {
 import csv
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -76,8 +83,8 @@ with map_path.open("w", encoding="utf-8", newline="") as handle:
 digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
 manifest_path.write_text(json.dumps({
     "version": 1,
-    "experiment": "v176_superset_rccp",
-    "profile_contract": "v176",
+    "experiment": os.environ["EXPERIMENT_NAME"],
+    "profile_contract": os.environ["PROFILE_CONTRACT"],
     "prompt_count": 128,
     "prompt_sha256": digest(prompts_path),
     "profile_map_sha256": digest(map_path),
@@ -85,10 +92,13 @@ manifest_path.write_text(json.dumps({
     "candidate_budgets_ffe": {"recent": 9, "coverage": 9, "episode": 9},
     "teacher_max_budget_ffe": 17,
     "teacher_requires_physical_candidate_superset": True,
+    "teacher_requires_representation_candidate_superset": (
+        os.environ["PROFILE_CONTRACT"] == "v177"
+    ),
     "calls": [0, 1, 2, 3],
     "records_per_prompt_layer": 48,
 }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-print("[v176-prepare] prompts=128 contract=v176")
+print(f"[profile-prepare] prompts=128 contract={os.environ['PROFILE_CONTRACT']}")
 PY
 }
 
@@ -98,13 +108,16 @@ preflight() {
         [[ -e "$path" ]] || { echo "[error] missing $path; run prepare"; exit 2; }
     done
     python - "$PROMPTS" "$HEAD_MAP" "$INPUT_ROOT/manifest.json" <<'PY'
-import csv, hashlib, json, sys
+import csv, hashlib, json, os, sys
 from pathlib import Path
 prompts, head_map, manifest = map(Path, sys.argv[1:])
 payload = json.loads(manifest.read_text(encoding="utf-8"))
 lines = prompts.read_text(encoding="utf-8").splitlines()
 rows = list(csv.reader(head_map.open(encoding="utf-8")))
-assert payload["profile_contract"] == "v176"
+assert payload["profile_contract"] == os.environ["PROFILE_CONTRACT"]
+assert payload["teacher_requires_representation_candidate_superset"] is (
+    os.environ["PROFILE_CONTRACT"] == "v177"
+)
 assert len(lines) == payload["prompt_count"] == 128
 assert len(rows) == 30 and all(row == ["10"] * 12 for row in rows)
 assert hashlib.sha256(prompts.read_bytes()).hexdigest() == payload["prompt_sha256"]
@@ -112,7 +125,13 @@ assert hashlib.sha256(head_map.read_bytes()).hexdigest() == payload["profile_map
 print("[v176-preflight] frozen input contract: PASS")
 PY
     if [[ "$NODE_RANK" -eq 0 && "$RUN_UNIT_TESTS" == "1" ]]; then
-        (cd "$ROOT" && python -m pytest -q tests/test_v176_superset_rccp.py)
+        if [[ "$PROFILE_CONTRACT" == "v177" ]]; then
+            (cd "$ROOT" && python -m pytest -q \
+                tests/test_v176_superset_rccp.py \
+                tests/test_v177_strict_superset_rccp.py)
+        else
+            (cd "$ROOT" && python -m pytest -q tests/test_v176_superset_rccp.py)
+        fi
     fi
 }
 
@@ -120,7 +139,7 @@ configure_runtime() {
     export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
     export PYRAMIDKV_CPP_STRATEGY=0 PYRAMIDKV_USE_CPP_PACK=0
     export PYRAMIDKV_DISABLE_M6_FASTPATH=1 PYRAMIDKV_PATH_AB=0
-    export CACHE_COMPAT_PROFILE_CONTRACT=v176
+    export CACHE_COMPAT_PROFILE_CONTRACT="$PROFILE_CONTRACT"
     export CACHE_COMPAT_PROFILE_BRANCHES=cond
     export CACHE_COMPAT_PROFILE_UPDATE_MODES=noisy
     export CACHE_COMPAT_PROFILE_BLOCK_FRAMES=3
@@ -147,7 +166,7 @@ run_one() {
             --pyramidkv_history_suppress_policy reservoir4_multiscalemotion1 \
             --cache_compat_profile_output "$profile_path" \
             --cache_compat_profile_kind moviegen128_superset_rccp \
-            --cache_compat_profile_contract v176 \
+            --cache_compat_profile_contract "$PROFILE_CONTRACT" \
             --cache_compat_profile_call_indices 0,1,2,3 \
             --cache_compat_profile_ar_stride 3 \
             --cache_compat_profile_query_stride 8 \
@@ -160,14 +179,15 @@ run_one() {
 shard_state() {
     local path="$1" rank="$2"
     python - "$path" "$rank" "$WORLD_SHARDS" <<'PY'
-import collections, sys
+import collections, os, sys
 from pathlib import Path
 import torch
 path, rank, world = Path(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3])
 expected = set(range(rank, 128, world))
 if not path.is_file(): print("missing"); raise SystemExit(0)
 payload = torch.load(path, map_location="cpu", weights_only=False)
-assert payload.get("version") == 2 and payload.get("contract") == "v176"
+assert payload.get("version") == int(os.environ["PROFILE_VERSION"])
+assert payload.get("contract") == os.environ["PROFILE_CONTRACT"]
 records = payload.get("records") or []
 observed = {int(row["prompt_id"]) for row in records}
 if not observed.issubset(expected): raise SystemExit("[error] shard topology drift")
@@ -183,25 +203,32 @@ smoke() {
     run_one "${GPUS[0]}" "$SMOKE_ROOT/profiles/smoke.pt" "$SMOKE_ROOT/smoke.log" \
         --start_idx 0 --end_idx 1
     python "$ROOT/scripts/audit_v173_cache_compatibility.py" \
-        --profile-root "$SMOKE_ROOT/profiles" --contract v176 \
+        --profile-root "$SMOKE_ROOT/profiles" --contract "$PROFILE_CONTRACT" \
         --output "$SMOKE_ROOT/audit.json"
     python - "$SMOKE_ROOT/profiles/smoke.pt" "$SMOKE_ROOT/smoke.log" <<'PY'
-import sys
+import os, sys
 from pathlib import Path
 import torch
 profile, log_path = Path(sys.argv[1]), Path(sys.argv[2])
 payload = torch.load(profile, map_location="cpu", weights_only=False)
 records = payload.get("records") or []
-assert payload.get("version") == 2 and payload.get("contract") == "v176"
-assert records and all(row.get("profile_contract") == "v176" for row in records)
-# superset check relaxed for 2-node profiling
+contract = os.environ["PROFILE_CONTRACT"]
+assert payload.get("version") == int(os.environ["PROFILE_VERSION"])
+assert payload.get("contract") == contract
+assert len(records) == 1440
+assert all(row.get("profile_contract") == contract for row in records)
 assert all(row["budgets"]["union"]["max_frame_equivalents"] <= 17 for row in records)
+if contract == "v177":
+    assert all(row["budgets"]["union"].get("candidate_representation_subset_failures") == 0 for row in records)
+    assert all(row["budgets"]["union"].get("candidate_representation_subset_checks") == 36 for row in records)
+    assert all(row["budgets"]["union"].get("candidate_representation_subset_verified") is True for row in records)
 log = log_path.read_text(encoding="utf-8", errors="replace")
-assert "contract=v176" in log
+assert f"contract={contract}" in log
+assert "teacher is not a cache-representation superset" not in log
 assert "Traceback (most recent call last)" not in log
 print(f"[v176-smoke-audit] records={len(records)} teacher_superset=PASS")
 PY
-    echo "[v176-smoke] superset profile: PASS"
+    echo "[$RUN_LABEL-smoke] superset profile: PASS"
 }
 
 profile128() {
@@ -214,29 +241,57 @@ profile128() {
         local log="$LOG_ROOT/node${NODE_RANK}_rank$(printf '%02d' "$rank").log"
         if [[ "$FORCE" == "1" ]]; then rm -f "$path"; fi
         if [[ "$FORCE" != "1" && "$(shard_state "$path" "$rank")" == "complete" ]]; then
-            echo "[v176-skip] complete rank=$rank"; continue
+            echo "[$RUN_LABEL-skip] complete rank=$rank"; continue
         fi
         run_one "${GPUS[$slot]}" "$path" "$log" \
             --prompt_stride "$WORLD_SHARDS" --prompt_offset "$rank" &
         pids+=("$!")
-        echo "[v176-launch] node=$NODE_RANK rank=$rank gpu=${GPUS[$slot]} log=$log"
+        echo "[$RUN_LABEL-launch] node=$NODE_RANK rank=$rank gpu=${GPUS[$slot]} log=$log"
     done
     local failed=0
     for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
-    [[ "$failed" -eq 0 ]] || { echo "[error] one or more v176 shards failed"; exit 1; }
+    [[ "$failed" -eq 0 ]] || { echo "[error] one or more $RUN_LABEL shards failed"; exit 1; }
 }
 
 audit() {
     activate_env
+    python - "$LOG_ROOT" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+logs = sorted(root.glob("*.log"))
+if not logs:
+    raise SystemExit(f"[error] no profiling logs below {root}")
+bad = {}
+for path in logs:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    reasons = []
+    if (
+        "teacher is not a cache-representation superset" in text
+        or "teacher is not a physical-frame superset" in text
+    ):
+        reasons.append("teacher_subset_violation")
+    if "Traceback (most recent call last)" in text:
+        reasons.append("traceback")
+    if reasons:
+        bad[path.name] = reasons
+if bad:
+    raise SystemExit(f"[error] invalid profiling logs: {bad}")
+print(f"[profile-log-audit] PASS logs={len(logs)}")
+PY
     python "$ROOT/scripts/audit_v173_cache_compatibility.py" \
-        --profile-root "$PROFILE_ROOT" --contract v176 --strict \
+        --profile-root "$PROFILE_ROOT" --contract "$PROFILE_CONTRACT" --strict \
         --output "$OUT_ROOT/profile_audit.json"
 }
 
 analyze() {
     activate_env; audit
     python "$ROOT/scripts/analyze_v176_superset_rccp.py" \
-        --profile-root "$PROFILE_ROOT" --output-dir "$ANALYSIS_ROOT"
+        --profile-root "$PROFILE_ROOT" --output-dir "$ANALYSIS_ROOT" \
+        --contract "$PROFILE_CONTRACT" --experiment "$EXPERIMENT_NAME" \
+        --discovery-seed "$DISCOVERY_SEED" \
+        --input-manifest "$INPUT_ROOT/manifest.json" --prompts "$PROMPTS"
 }
 
 status() {
@@ -246,15 +301,17 @@ from pathlib import Path
 profiles, logs = Path(sys.argv[1]), Path(sys.argv[2])
 print(f"profiles={len(list(profiles.glob('*.pt')))} logs={len(list(logs.glob('*.log')))}")
 failed = [path.name for path in logs.glob('*.log') if 'Traceback (most recent call last)' in path.read_text(encoding='utf-8', errors='replace')]
+subset = [path.name for path in logs.glob('*.log') if 'teacher is not a cache-representation superset' in path.read_text(encoding='utf-8', errors='replace') or 'teacher is not a physical-frame superset' in path.read_text(encoding='utf-8', errors='replace')]
 print(f"traceback_logs={sorted(failed)}")
+print(f"teacher_subset_violation_logs={sorted(subset)}")
 PY
 }
 
 package() {
     [[ "$NODE_RANK" -eq 0 ]] || { echo "[error] package requires node 0"; exit 2; }
-    tar -C "$OUT_ROOT" -czf "$OUT_ROOT/v176_superset_rccp_diagnostics.tar.gz" \
+    tar -C "$OUT_ROOT" -czf "$OUT_ROOT/${EXPERIMENT_NAME}_diagnostics.tar.gz" \
         inputs analysis profile_audit.json logs
-    echo "$OUT_ROOT/v176_superset_rccp_diagnostics.tar.gz"
+    echo "$OUT_ROOT/${EXPERIMENT_NAME}_diagnostics.tar.gz"
 }
 
 case "$ACTION" in

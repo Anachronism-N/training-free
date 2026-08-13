@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-fast structural audit for v173 profile shards."""
+"""Fail-fast structural audit for cache-compatibility profile shards."""
 from __future__ import annotations
 
 import argparse
@@ -33,7 +33,7 @@ def main() -> None:
             encoding="utf-8",
         )
     print(
-        "[v173-audit] PASS "
+        f"[{args.contract}-audit] PASS "
         f"shards={audit['shard_count']} records={audit['record_count']} "
         f"prompts={len(audit['prompt_ids'])} "
         f"complete={audit['complete_profile']}"

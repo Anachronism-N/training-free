@@ -92,9 +92,9 @@ def test_v176_static_wiring_preserves_v173_contract() -> None:
     assert '"v173": {' in profile and '"v176": {' in profile
     assert "CACHE_COMPAT_PROFILE_CONTRACT" in cache
     assert 'source_kind="episode_reservoir"' in cache
-    assert '"union": 8 if contract == "v176" else 6' in cache
+    assert '"union": 8 if contract in {"v176", "v177"} else 6' in cache
     assert "candidate_physical_superset_verified" in core
-    assert "teacher is not a physical-frame" in core
+    assert "teacher is not a cache-" in core
     assert "--cache_compat_profile_contract" in inference
     assert "--cache_compat_profile_call_indices 0,1,2,3" in runner
     assert "--skip_video_decode" in runner
