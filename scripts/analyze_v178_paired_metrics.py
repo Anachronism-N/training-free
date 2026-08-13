@@ -3,12 +3,82 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
 import numpy as np
 
 import analyze_v174_paired_metrics as base
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def metric_runtime_fingerprint(
+    parts_root: Path,
+    methods: tuple[str, ...],
+    dimensions: tuple[str, ...],
+) -> dict:
+    """Require one metric implementation contract across every paired job."""
+    normalized_contracts = []
+    for method in methods:
+        for dimension in dimensions:
+            path = parts_root / method / dimension / "job_contract.json"
+            if not path.is_file():
+                raise ValueError(f"missing VBench job contract: {path}")
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if (
+                payload.get("method") != method
+                or payload.get("dimension") != dimension
+            ):
+                raise ValueError(f"mixed VBench job contract: {path}")
+            dependencies = payload.get("dependencies") or {}
+            dependency_hashes = {}
+            for name, artifact in sorted(dependencies.items()):
+                digest = artifact.get("sha256") if isinstance(artifact, dict) else None
+                if not isinstance(digest, str) or len(digest) != 64:
+                    raise ValueError(f"invalid VBench dependency hash: {path}:{name}")
+                dependency_hashes[name] = digest
+            if not dependency_hashes:
+                raise ValueError(f"VBench dependency contract is absent: {path}")
+            model_loading = payload.get("model_loading") or {}
+            normalized_contracts.append(
+                {
+                    "contract_version": int(payload.get("version", -1)),
+                    "vbench_commit": str(payload.get("vbench_commit", "")),
+                    "dependency_sha256": dependency_hashes,
+                    "prompt_mapping": payload.get("prompt_mapping"),
+                    "mode": payload.get("mode"),
+                    "dev_flag": payload.get("dev_flag"),
+                    "num_of_samples_per_prompt": payload.get(
+                        "num_of_samples_per_prompt"
+                    ),
+                    "local_models": bool(model_loading.get("local_models", False)),
+                }
+            )
+    encoded = {
+        json.dumps(row, sort_keys=True, separators=(",", ":"))
+        for row in normalized_contracts
+    }
+    if len(encoded) != 1:
+        raise ValueError("VBench runtime contract differs across paired jobs")
+    contract = normalized_contracts[0]
+    digest = hashlib.sha256(
+        json.dumps(contract, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return {
+        "version": 1,
+        "sha256": digest,
+        "job_contract_count": len(normalized_contracts),
+        "contract": contract,
+        "path_fields_ignored": True,
+    }
 
 
 def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
@@ -94,15 +164,28 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
         if row["control"] in {"hard_negative_ensemble", "all_recent"}
         and row["metric"] == "dynamic_degree"
     ]
-    dynamic_nonregression = all(row["mean_delta"] >= -0.02 for row in dynamic_rows)
-    hypothesis_gate = (
-        all(row["mean_delta"] > 0.0 for row in primary)
-        and all(row["bootstrap_ci95"][0] > 0.0 for row in primary)
-        and all(row["q_value"] <= 0.10 for row in primary)
-        and all(row["win_fraction"] >= 0.55 for row in primary)
-        and all(row["mean_delta"] > 0.0 for row in operator_primary)
-        and dynamic_nonregression
-    )
+    gate_checks = {
+        "ensemble_primary_mean_positive": all(
+            row["mean_delta"] > 0.0 for row in primary
+        ),
+        "ensemble_primary_ci95_above_zero": all(
+            row["bootstrap_ci95"][0] > 0.0 for row in primary
+        ),
+        "ensemble_primary_bh_q_le_0p10": all(
+            row["q_value"] <= 0.10 for row in primary
+        ),
+        "ensemble_primary_win_fraction_ge_0p55": all(
+            row["win_fraction"] >= 0.55 for row in primary
+        ),
+        "all_recent_primary_mean_positive": all(
+            row["mean_delta"] > 0.0 for row in operator_primary
+        ),
+        "dynamic_mean_delta_ge_minus_0p02": all(
+            row["mean_delta"] >= -0.02 for row in dynamic_rows
+        ),
+    }
+    dynamic_nonregression = gate_checks["dynamic_mean_delta_ge_minus_0p02"]
+    hypothesis_gate = all(gate_checks.values())
     return {
         "version": 1,
         "experiment": manifest["experiment"],
@@ -110,7 +193,24 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
         "prompt_count": prompt_count,
         "methods": list(methods),
         "hard_negative_controls": list(negatives),
+        "per_prompt_metrics": {
+            method: [
+                {
+                    "prompt_index": prompt,
+                    **{
+                        metric: rows[(method, prompt)][metric]
+                        for metric in base.METRICS
+                    },
+                }
+                for prompt in range(prompt_count)
+            ]
+            for method in methods
+        },
         "comparisons": comparisons,
+        "gate_checks": gate_checks,
+        "failed_gate_checks": [
+            name for name, passed in gate_checks.items() if not passed
+        ],
         "membership_hypothesis_gate": bool(hypothesis_gate),
         "dynamic_nonregression_observed": bool(dynamic_nonregression),
         "decision": (
@@ -133,6 +233,7 @@ def render(report: dict) -> str:
         f"Prompts: {report['prompt_count']}",
         f"Membership gate: {report['membership_hypothesis_gate']}",
         f"Decision: {report['decision']}",
+        f"Failed checks: {report['failed_gate_checks'] or 'none'}",
         "",
         "| Comparison | Metric | Mean delta | CI95 | Win | q |",
         "|---|---|---:|---:|---:|---:|",
@@ -156,13 +257,22 @@ def main() -> None:
     parser.add_argument("--parts-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    manifest = json.loads(
-        (args.comparison_root / "comparison_manifest.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    manifest_path = args.comparison_root / "comparison_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     summary = json.loads(args.summary.read_text(encoding="utf-8"))
     report = analyze(manifest, summary, args.parts_root)
+    report["metric_runtime_fingerprint"] = metric_runtime_fingerprint(
+        args.parts_root,
+        tuple(row["key"] for row in manifest["methods"]),
+        tuple(summary["dimensions"]),
+    )
+    report["input_provenance"] = {
+        "comparison_manifest": str(manifest_path.resolve()),
+        "comparison_manifest_sha256": sha256(manifest_path),
+        "metric_summary": str(args.summary.resolve()),
+        "metric_summary_sha256": sha256(args.summary),
+        "parts_root": str(args.parts_root.resolve()),
+    }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"

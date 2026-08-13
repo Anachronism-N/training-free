@@ -261,6 +261,10 @@ def test_v178_paired_gate_requires_membership_and_operator_wins(
     report = paired.analyze(_paired_manifest(), summary, Path("unused"))
     assert report["membership_hypothesis_gate"] is True
     assert report["decision"] == "advance_rccp_membership_to_broader_generation"
+    assert all(report["gate_checks"].values())
+    assert report["failed_gate_checks"] == []
+    assert len(report["per_prompt_metrics"]["matched"]) == 32
+    assert report["per_prompt_metrics"]["matched"][0]["prompt_index"] == 0
 
     for prompt in range(32):
         values[("hard_negative_0", prompt)]["identity_background"] = 1.2
@@ -270,3 +274,4 @@ def test_v178_paired_gate_requires_membership_and_operator_wins(
     report = paired.analyze(_paired_manifest(), summary, Path("unused"))
     assert report["membership_hypothesis_gate"] is False
     assert report["decision"] == "reject_static_rccp_membership_for_generation"
+    assert "ensemble_primary_mean_positive" in report["failed_gate_checks"]
