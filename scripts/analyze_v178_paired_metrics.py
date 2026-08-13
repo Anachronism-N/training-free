@@ -82,18 +82,43 @@ def metric_runtime_fingerprint(
 
 
 def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
+    provisional = bool(manifest.get("provisional", False))
+    expected_experiment = (
+        "v178_rccp_holdout_vbench_provisional"
+        if provisional
+        else "v178_rccp_holdout_vbench"
+    )
     if (
-        manifest.get("experiment") != "v178_rccp_holdout_vbench"
+        manifest.get("experiment") != expected_experiment
         or manifest.get("profile_contract") != "v177"
         or manifest.get("generation_prompts_used_for_membership") is not False
+        or bool(manifest.get("membership_decision_allowed"))
+        != (not provisional)
     ):
         raise ValueError("invalid or leaked v178 comparison manifest")
     methods = tuple(row["key"] for row in manifest["methods"])
     prompt_count = int(manifest["prompt_count"])
+    prompt_items = manifest.get("prompt_items") or ()
+    method_video_dirs = {
+        str(row["key"]): str(row.get("video_dir", ""))
+        for row in manifest["methods"]
+    }
     if tuple(summary.get("methods") or {}) != methods or summary.get("missing"):
         raise ValueError("v178 paired analysis received an incomplete summary")
-    if prompt_count != 32 or "matched" not in methods or "all_recent" not in methods:
-        raise ValueError("v178 requires matched/all-recent on 32 prompts")
+    if (
+        (not provisional and prompt_count != 32)
+        or (provisional and not 1 <= prompt_count < 32)
+        or "matched" not in methods
+        or "all_recent" not in methods
+    ):
+        raise ValueError("invalid v178 formal/provisional prompt scope")
+    if (
+        len(prompt_items) != prompt_count
+        or [int(row.get("index", -1)) for row in prompt_items]
+        != list(range(prompt_count))
+        or any(not method_video_dirs[method] for method in methods)
+    ):
+        raise ValueError("v178 prompt metadata or method video directories are absent")
     negatives = tuple(method for method in methods if method.startswith("hard_negative_"))
     if len(negatives) != 4:
         raise ValueError("v178 requires four layer/count-matched hard negatives")
@@ -164,10 +189,18 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
         if row["control"] in {"hard_negative_ensemble", "all_recent"}
         and row["metric"] == "dynamic_degree"
     ]
-    gate_checks = {
+    directional_checks = {
         "ensemble_primary_mean_positive": all(
             row["mean_delta"] > 0.0 for row in primary
         ),
+        "all_recent_primary_mean_positive": all(
+            row["mean_delta"] > 0.0 for row in operator_primary
+        ),
+        "dynamic_mean_delta_ge_minus_0p02": all(
+            row["mean_delta"] >= -0.02 for row in dynamic_rows
+        ),
+    }
+    inferential_checks = {
         "ensemble_primary_ci95_above_zero": all(
             row["bootstrap_ci95"][0] > 0.0 for row in primary
         ),
@@ -177,20 +210,68 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
         "ensemble_primary_win_fraction_ge_0p55": all(
             row["win_fraction"] >= 0.55 for row in primary
         ),
-        "all_recent_primary_mean_positive": all(
-            row["mean_delta"] > 0.0 for row in operator_primary
-        ),
-        "dynamic_mean_delta_ge_minus_0p02": all(
-            row["mean_delta"] >= -0.02 for row in dynamic_rows
-        ),
     }
-    dynamic_nonregression = gate_checks["dynamic_mean_delta_ge_minus_0p02"]
-    hypothesis_gate = all(gate_checks.values())
+    gate_checks = {**directional_checks, **inferential_checks}
+    dynamic_nonregression = directional_checks[
+        "dynamic_mean_delta_ge_minus_0p02"
+    ]
+    hypothesis_gate = None if provisional else all(gate_checks.values())
+    if provisional:
+        decision = "provisional_only_no_membership_decision"
+        failed_gate_checks = None
+    else:
+        decision = (
+            "advance_rccp_membership_to_broader_generation"
+            if hypothesis_gate
+            else "reject_static_rccp_membership_for_generation"
+        )
+        failed_gate_checks = [
+            name for name, passed in gate_checks.items() if not passed
+        ]
+    review_queue = []
+    for prompt in range(prompt_count):
+        negative_mean = {
+            metric: float(
+                np.mean([rows[(method, prompt)][metric] for method in negatives])
+            )
+            for metric in base.METRICS
+        }
+        deltas = {
+            metric: rows[("matched", prompt)][metric] - negative_mean[metric]
+            for metric in base.METRICS
+        }
+        priority = min(
+            deltas["official_quality_score"],
+            deltas["identity_background"],
+            deltas["dynamic_degree"],
+        )
+        prompt_item = prompt_items[prompt]
+        review_queue.append(
+            {
+                "rank_key": float(priority),
+                "prompt_index": prompt,
+                "source_prompt_index": int(prompt_item["source_index"]),
+                "prompt": str(prompt_item["text"]),
+                "reason": "largest matched loss versus hard-negative ensemble",
+                "matched_minus_hard_negative_ensemble": deltas,
+                "videos": {
+                    method: str(
+                        Path(method_video_dirs[method])
+                        / f"{prompt:06d}-0.mp4"
+                    )
+                    for method in methods
+                },
+            }
+        )
+    review_queue.sort(key=lambda row: (row["rank_key"], row["prompt_index"]))
+    review_queue = review_queue[: min(6, prompt_count)]
     return {
         "version": 1,
         "experiment": manifest["experiment"],
         "profile_contract": "v177",
         "prompt_count": prompt_count,
+        "provisional": provisional,
+        "membership_decision_allowed": not provisional,
         "methods": list(methods),
         "hard_negative_controls": list(negatives),
         "per_prompt_metrics": {
@@ -207,19 +288,19 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
             for method in methods
         },
         "comparisons": comparisons,
-        "gate_checks": gate_checks,
-        "failed_gate_checks": [
-            name for name, passed in gate_checks.items() if not passed
-        ],
-        "membership_hypothesis_gate": bool(hypothesis_gate),
+        "directional_checks": directional_checks,
+        "gate_checks": None if provisional else gate_checks,
+        "failed_gate_checks": failed_gate_checks,
+        "membership_hypothesis_gate": hypothesis_gate,
         "dynamic_nonregression_observed": bool(dynamic_nonregression),
-        "decision": (
-            "advance_rccp_membership_to_broader_generation"
-            if hypothesis_gate
-            else "reject_static_rccp_membership_for_generation"
-        ),
+        "targeted_review_queue": review_queue,
+        "targeted_review_is_inferential": False,
+        "decision": decision,
         "claim_boundary": (
-            "Only matched superiority over the layer/count-matched hard-negative "
+            "This partial scope is diagnostic only and cannot accept or reject "
+            "RCCP membership, tune the frozen map, or unlock v179."
+            if provisional
+            else "Only matched superiority over the layer/count-matched hard-negative "
             "ensemble on untouched prompts supports RCCP membership. All-recent "
             "isolates operator utility but cannot validate head selection."
         ),
@@ -231,6 +312,7 @@ def render(report: dict) -> str:
         "# v178 Paired RCCP Holdout Analysis",
         "",
         f"Prompts: {report['prompt_count']}",
+        f"Provisional: {report['provisional']}",
         f"Membership gate: {report['membership_hypothesis_gate']}",
         f"Decision: {report['decision']}",
         f"Failed checks: {report['failed_gate_checks'] or 'none'}",
@@ -247,6 +329,25 @@ def render(report: dict) -> str:
             f"{row['win_fraction']:.3f} | {row['q_value']:.4g} |"
         )
     lines.extend(["", report["claim_boundary"], ""])
+    lines.extend(
+        [
+            "## Targeted Review Queue",
+            "",
+            "Diagnostic only; these prompts do not change the gate or head map.",
+            "",
+            "| Prompt | Source | Quality delta | Identity delta | Dynamic delta |",
+            "|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in report["targeted_review_queue"]:
+        delta = row["matched_minus_hard_negative_ensemble"]
+        lines.append(
+            f"| {row['prompt_index']} | {row['source_prompt_index']} | "
+            f"{delta['official_quality_score']:.6f} | "
+            f"{delta['identity_background']:.6f} | "
+            f"{delta['dynamic_degree']:.6f} |"
+        )
+    lines.append("")
     return "\n".join(lines)
 
 

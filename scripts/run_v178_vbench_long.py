@@ -80,10 +80,19 @@ def configure() -> None:
             encoding="utf-8"
         )
     )
+    provisional = bool(manifest.get("provisional", False))
+    expected_experiment = (
+        "v178_rccp_holdout_vbench_provisional"
+        if provisional
+        else "v178_rccp_holdout_vbench"
+    )
     if (
-        manifest.get("experiment") != "v178_rccp_holdout_vbench"
+        manifest.get("experiment") != expected_experiment
         or manifest.get("profile_contract") != "v177"
         or manifest.get("generation_prompts_used_for_membership") is not False
+        or bool(manifest.get("membership_decision_allowed")) == provisional
+        or (not provisional and int(manifest.get("prompt_count", -1)) != 32)
+        or (provisional and not 1 <= int(manifest.get("prompt_count", -1)) < 32)
     ):
         raise ValueError("invalid v178 VBench comparison contract")
     METHODS = tuple(row["key"] for row in manifest["methods"])

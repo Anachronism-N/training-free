@@ -9,21 +9,47 @@ from pathlib import Path
 import prepare_v174_vbench_comparison as base
 
 
-def prepare(run_root: Path, comparison_root: Path) -> dict:
-    published_path = run_root / "published_manifest.json"
-    contract_path = run_root / "contracts" / "experiment.json"
+def prepare(
+    run_root: Path,
+    comparison_root: Path,
+    *,
+    provisional_count: int | None = None,
+) -> dict:
+    if provisional_count is None:
+        scope_root = run_root
+        expected_generation_experiment = "v178_rccp_holdout_generation"
+        comparison_experiment = "v178_rccp_holdout_vbench"
+        expected_provisional = False
+    else:
+        if not 1 <= int(provisional_count) < 32:
+            raise ValueError("provisional-count must be in [1, 31]")
+        scope_root = run_root / f"provisional_{int(provisional_count):02d}"
+        expected_generation_experiment = (
+            "v178_rccp_holdout_generation_provisional"
+        )
+        comparison_experiment = "v178_rccp_holdout_vbench_provisional"
+        expected_provisional = True
+    published_path = scope_root / "published_manifest.json"
+    contract_path = scope_root / "contracts" / "experiment.json"
     if not published_path.is_file() or not contract_path.is_file():
         raise ValueError("v178 generation must be audited before VBench prepare")
     published = json.loads(published_path.read_text(encoding="utf-8"))
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
     if (
         published.get("ok") is not True
-        or published.get("experiment") != "v178_rccp_holdout_generation"
-        or contract.get("experiment") != "v178_rccp_holdout_generation"
+        or bool(published.get("complete")) != (not expected_provisional)
+        or published.get("experiment") != expected_generation_experiment
+        or contract.get("experiment") != expected_generation_experiment
         or published.get("profile_contract") != "v177"
         or contract.get("profile_contract") != "v177"
         or published.get("generation_prompts_used_for_membership") is not False
         or contract.get("generation_prompts_used_for_membership") is not False
+        or bool(published.get("provisional", False)) != expected_provisional
+        or bool(contract.get("provisional", False)) != expected_provisional
+        or bool(published.get("membership_decision_allowed"))
+        != (not expected_provisional)
+        or bool(contract.get("membership_decision_allowed"))
+        != (not expected_provisional)
         or published.get("experiment_contract_sha256") != base.sha256(contract_path)
     ):
         raise ValueError("invalid, leaked, or mixed v178 generation artifacts")
@@ -44,7 +70,7 @@ def prepare(run_root: Path, comparison_root: Path) -> dict:
     prompts = prompts_path.read_text(encoding="utf-8").splitlines()
     source_prompt_ids = [int(value) for value in contract["source_prompt_ids"]]
     if (
-        prompt_count != 32
+        prompt_count != (int(provisional_count) if expected_provisional else 32)
         or len(prompts) != prompt_count
         or base.sha256(prompts_path) != contract["prompt_file_sha256"]
     ):
@@ -77,9 +103,13 @@ def prepare(run_root: Path, comparison_root: Path) -> dict:
         )
     payload = {
         "version": 1,
-        "experiment": "v178_rccp_holdout_vbench",
+        "experiment": comparison_experiment,
         "profile_contract": "v177",
-        "prompt_suite": "moviegen_qwen_rccp_untouched_generation32",
+        "prompt_suite": (
+            f"moviegen_qwen_rccp_untouched_generation{prompt_count}_provisional"
+            if expected_provisional
+            else "moviegen_qwen_rccp_untouched_generation32"
+        ),
         "prompt_count": prompt_count,
         "prompt_file_sha256": contract["prompt_file_sha256"],
         "prompt_items": [
@@ -91,6 +121,8 @@ def prepare(run_root: Path, comparison_root: Path) -> dict:
             for index in range(prompt_count)
         ],
         "generation_prompts_used_for_membership": False,
+        "provisional": expected_provisional,
+        "membership_decision_allowed": not expected_provisional,
         "num_output_frames": 120,
         "decoded_video_contract": contract["decoded_video_contract"],
         "seed": 0,
@@ -118,8 +150,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--comparison-root", type=Path, required=True)
+    parser.add_argument("--provisional-count", type=int)
     args = parser.parse_args()
-    report = prepare(args.run_root, args.comparison_root)
+    report = prepare(
+        args.run_root,
+        args.comparison_root,
+        provisional_count=args.provisional_count,
+    )
     print(
         "[v178-vbench-prepare] "
         f"methods={report['methods']} videos={report['videos']} "

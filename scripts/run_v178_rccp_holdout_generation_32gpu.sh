@@ -4,10 +4,10 @@ set -euo pipefail
 
 ACTION="${1:-}"
 case "$ACTION" in
-    prepare|preflight|generate32|audit|status|package) ;;
+    prepare|preflight|generate32|audit|audit-partial|status|package) ;;
     *)
         echo "usage: bash scripts/run_v178_rccp_holdout_generation_32gpu.sh ACTION"
-        echo "actions: prepare preflight generate32 audit status package"
+        echo "actions: prepare preflight generate32 audit audit-partial status package"
         exit 2
         ;;
 esac
@@ -23,11 +23,14 @@ OUT_ROOT="${V178_OUT_ROOT:-$ROOT/runs/v178_rccp_holdout_generation}"
 INPUT_ROOT="$OUT_ROOT/inputs"
 INPUT_MANIFEST="$INPUT_ROOT/manifest.json"
 PROMPTS="$INPUT_ROOT/generation_holdout32.txt"
-METHODS="matched,all_recent,hard_negative_0,hard_negative_1,hard_negative_2,hard_negative_3"
+ALL_METHODS="matched,all_recent,hard_negative_0,hard_negative_1,hard_negative_2,hard_negative_3"
+METHODS="${METHODS:-$ALL_METHODS}"
 
 NODE_RANK="${NODE_RANK:-0}"
 NUM_NODES="${NUM_NODES:-4}"
 GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7}"
+SHARD_OFFSET="${SHARD_OFFSET:-0}"
+PARTIAL_COUNT="${PARTIAL_COUNT:-16}"
 FRAMES="${FRAMES:-120}"
 SEED="${SEED:-0}"
 FORCE="${FORCE:-0}"
@@ -38,8 +41,12 @@ RUN_UNIT_TESTS="${RUN_UNIT_TESTS:-1}"
 IFS=',' read -r -a GPUS <<<"$GPU_LIST"
 GPUS_PER_NODE="${#GPUS[@]}"
 WORLD_SHARDS=$((NUM_NODES * GPUS_PER_NODE))
-[[ "$WORLD_SHARDS" -ge 1 ]] || {
+[[ "$WORLD_SHARDS" -ge 1 && "$SHARD_OFFSET" -ge 0 ]] || {
     echo "[error] v178 requires at least 1 GPU shard; observed $WORLD_SHARDS"
+    exit 2
+}
+[[ $((SHARD_OFFSET + WORLD_SHARDS)) -le 32 ]] || {
+    echo "[error] shard interval [$SHARD_OFFSET,$((SHARD_OFFSET + WORLD_SHARDS))) exceeds 32 prompts"
     exit 2
 }
 [[ "$NODE_RANK" -ge 0 && "$NODE_RANK" -lt "$NUM_NODES" ]] || {
@@ -50,6 +57,14 @@ WORLD_SHARDS=$((NUM_NODES * GPUS_PER_NODE))
     echo "[error] v178 is frozen at 120 latent frames and seed 0"
     exit 2
 }
+
+IFS=',' read -r -a REQUESTED_METHODS <<<"$METHODS"
+for method in "${REQUESTED_METHODS[@]}"; do
+    case ",$ALL_METHODS," in
+        *",$method,"*) ;;
+        *) echo "[error] unsupported v178 method: $method"; exit 2 ;;
+    esac
+done
 
 activate_env() {
     source "$CONDA_SH"
@@ -140,7 +155,7 @@ generate32() {
         echo "[v178-method] method=$method node=$NODE_RANK"
         local -a pids=()
         for slot in "${!GPUS[@]}"; do
-            local rank=$((NODE_RANK * GPUS_PER_NODE + slot))
+            local rank=$((SHARD_OFFSET + NODE_RANK * GPUS_PER_NODE + slot))
             run_shard "$method" "$rank" "${GPUS[$slot]}" &
             pids+=("$!")
         done
@@ -160,6 +175,14 @@ audit() {
         --run-root "$OUT_ROOT" --input-manifest "$INPUT_MANIFEST"
 }
 
+audit_partial() {
+    [[ "$NODE_RANK" -eq 0 ]] || { echo "[error] audit-partial requires node 0"; exit 2; }
+    preflight
+    python "$ROOT/scripts/audit_v178_rccp_holdout_generation.py" \
+        --run-root "$OUT_ROOT" --input-manifest "$INPUT_MANIFEST" \
+        --partial-count "$PARTIAL_COUNT"
+}
+
 status() {
     python - "$OUT_ROOT" <<'PY'
 import sys
@@ -167,8 +190,14 @@ from pathlib import Path
 
 root = Path(sys.argv[1])
 for method in ("matched", "all_recent", *(f"hard_negative_{i}" for i in range(4))):
-    videos = len(list((root / "raw" / method).glob("*.mp4")))
-    markers = len(list((root / "status" / method).glob("*.done")))
+    video_indices = {
+        int(path.name.split("-", 1)[0])
+        for path in (root / "raw" / method).glob("*-0_ema.mp4")
+    }
+    marker_indices = {
+        int(path.stem.removeprefix("shard"))
+        for path in (root / "status" / method).glob("shard*.done")
+    }
     logs = list((root / "logs" / method).glob("*.log"))
     failed = sum(
         "Traceback (most recent call last)" in path.read_text(
@@ -177,8 +206,9 @@ for method in ("matched", "all_recent", *(f"hard_negative_{i}" for i in range(4)
         for path in logs
     )
     print(
-        f"{method}: videos={videos}/32 markers={markers}/32 "
-        f"logs={len(logs)}/32 traceback_logs={failed}"
+        f"{method}: videos={len(video_indices)}/32 markers={len(marker_indices)}/32 "
+        f"logs={len(logs)}/32 missing_videos={sorted(set(range(32)) - video_indices)} "
+        f"traceback_logs={failed}"
     )
 PY
 }
@@ -195,6 +225,7 @@ case "$ACTION" in
     preflight) preflight ;;
     generate32) generate32 ;;
     audit) audit ;;
+    audit-partial) audit_partial ;;
     status) status ;;
     package) package ;;
 esac

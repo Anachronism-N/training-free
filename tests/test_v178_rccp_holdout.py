@@ -17,6 +17,7 @@ if str(SCRIPTS) not in sys.path:
 import prepare_v178_rccp_holdout as holdout  # noqa: E402
 import prepare_v178_vbench_comparison as vbench  # noqa: E402
 import analyze_v178_paired_metrics as paired  # noqa: E402
+import audit_v178_rccp_holdout_generation as generation_audit  # noqa: E402
 
 
 def _sha(path: Path) -> str:
@@ -163,9 +164,12 @@ def test_v178_vbench_materialization_preserves_source_mapping(
     manifest = holdout.verify(input_root / "manifest.json")
     run_root = tmp_path / "generation"
     contract = {
+        "version": 2,
         "experiment": "v178_rccp_holdout_generation",
         "profile_contract": "v177",
         "generation_prompts_used_for_membership": False,
+        "provisional": False,
+        "membership_decision_allowed": True,
         "prompt_count": 32,
         "prompt_file": manifest["holdout_prompt_file"],
         "prompt_file_sha256": manifest["holdout_prompt_sha256"],
@@ -199,7 +203,11 @@ def test_v178_vbench_materialization_preserves_source_mapping(
             }
         )
     published = {
+        "version": 2,
         "ok": True,
+        "complete": True,
+        "provisional": False,
+        "membership_decision_allowed": True,
         "experiment": "v178_rccp_holdout_generation",
         "profile_contract": "v177",
         "generation_prompts_used_for_membership": False,
@@ -231,6 +239,8 @@ def test_v178_runner_is_pf_free_and_uses_untouched_holdout() -> None:
     assert "pf_native" not in runner
     assert "aba" not in runner.lower()
     assert "--prompt_stride 32" in runner
+    assert "SHARD_OFFSET + NODE_RANK * GPUS_PER_NODE + slot" in runner
+    assert "audit-partial" in runner
     assert "prepare_v178_rccp_holdout.py" in runner
     assert "hard_negative_3" in runner
     assert "analyze_v178_paired_metrics.py" in evaluator
@@ -241,8 +251,17 @@ def _paired_manifest() -> dict:
         "experiment": "v178_rccp_holdout_vbench",
         "profile_contract": "v177",
         "generation_prompts_used_for_membership": False,
+        "provisional": False,
+        "membership_decision_allowed": True,
         "prompt_count": 32,
-        "methods": [{"key": method} for method in holdout.METHODS],
+        "methods": [
+            {"key": method, "video_dir": f"/videos/{method}"}
+            for method in holdout.METHODS
+        ],
+        "prompt_items": [
+            {"index": index, "source_index": index, "text": f"prompt {index}"}
+            for index in range(32)
+        ],
     }
 
 
@@ -275,3 +294,162 @@ def test_v178_paired_gate_requires_membership_and_operator_wins(
     assert report["membership_hypothesis_gate"] is False
     assert report["decision"] == "reject_static_rccp_membership_for_generation"
     assert "ensemble_primary_mean_positive" in report["failed_gate_checks"]
+
+
+def test_v178_provisional_metrics_can_never_unlock_membership(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prompt_count = 16
+    metrics = paired.base.METRICS
+    values = {}
+    for method in holdout.METHODS:
+        score = 0.9 if method == "matched" else 0.7
+        for prompt in range(prompt_count):
+            values[(method, prompt)] = {metric: score for metric in metrics}
+    monkeypatch.setattr(paired.base, "load_prompt_rows", lambda *args: {})
+    monkeypatch.setattr(paired.base, "derived_rows", lambda *args: values)
+    manifest = {
+        "experiment": "v178_rccp_holdout_vbench_provisional",
+        "profile_contract": "v177",
+        "generation_prompts_used_for_membership": False,
+        "provisional": True,
+        "membership_decision_allowed": False,
+        "prompt_count": prompt_count,
+        "methods": [
+            {"key": method, "video_dir": f"/videos/{method}"}
+            for method in holdout.METHODS
+        ],
+        "prompt_items": [
+            {"index": index, "source_index": index, "text": f"prompt {index}"}
+            for index in range(prompt_count)
+        ],
+    }
+    summary = {
+        "methods": {method: {} for method in holdout.METHODS},
+        "missing": [],
+    }
+    report = paired.analyze(manifest, summary, Path("unused"))
+    assert all(report["directional_checks"].values())
+    assert report["membership_hypothesis_gate"] is None
+    assert report["gate_checks"] is None
+    assert report["failed_gate_checks"] is None
+    assert report["decision"] == "provisional_only_no_membership_decision"
+
+
+def _audit_manifest(tmp_path: Path) -> tuple[Path, dict]:
+    prompts = tmp_path / "holdout32.txt"
+    prompts.write_text(
+        "".join(f"holdout prompt {index}\n" for index in range(32)),
+        encoding="utf-8",
+    )
+    analysis = tmp_path / "analysis.json"
+    analysis.write_text("{}\n", encoding="utf-8")
+    maps = {}
+    for method in holdout.METHODS:
+        counts = {"20": 360, "21": 0, "22": 0}
+        if method != "all_recent":
+            counts = {"20": 355, "21": 5, "22": 0}
+        maps[method] = {
+            "path": str(tmp_path / f"{method}.csv"),
+            "sha256": "0" * 64,
+            "counts": counts,
+        }
+    manifest = {
+        "holdout_prompt_file": str(prompts.resolve()),
+        "source_prompt_ids": list(range(32)),
+        "analysis": str(analysis.resolve()),
+        "analysis_sha256": _sha(analysis),
+        "maps": maps,
+    }
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    return path, manifest
+
+
+def _write_audit_inputs(run_root: Path, manifest: dict, count: int) -> None:
+    for method in holdout.METHODS:
+        counts = manifest["maps"][method]["counts"]
+        route = (
+            f"[CacheCompatibilityPolicy] recent=20:{counts['20']} "
+            f"coverage=21:{counts['21']} episode=22:{counts['22']}\n"
+        )
+        for index in range(count):
+            log = run_root / "logs" / method / f"shard{index:02d}.log"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text(route, encoding="utf-8")
+            video = run_root / "raw" / method / f"{index}-0_ema.mp4"
+            video.parent.mkdir(parents=True, exist_ok=True)
+            video.write_bytes(f"{method}:{index}".encode())
+
+
+def _fake_media_report(video_dir: Path, end_idx: int) -> dict:
+    return {
+        "ok": True,
+        "videos": [
+            {"file": f"{index}-0_ema.mp4", "prompt_idx": index}
+            for index in range(end_idx)
+        ],
+    }
+
+
+def test_v178_incomplete_audit_cannot_publish_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, manifest = _audit_manifest(tmp_path)
+    run_root = tmp_path / "run"
+    _write_audit_inputs(run_root, manifest, 16)
+    monkeypatch.setattr(generation_audit, "verify", lambda _: manifest)
+    with pytest.raises(RuntimeError, match="runtime log audit failed"):
+        generation_audit.audit(run_root, manifest_path)
+    published = json.loads(
+        (run_root / "published_manifest.json").read_text(encoding="utf-8")
+    )
+    assert published["ok"] is False
+    assert published["membership_decision_allowed"] is False
+
+
+def test_v178_partial_audit_is_isolated_and_provisional(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, manifest = _audit_manifest(tmp_path)
+    run_root = tmp_path / "run"
+    _write_audit_inputs(run_root, manifest, 16)
+    monkeypatch.setattr(generation_audit, "verify", lambda _: manifest)
+    monkeypatch.setattr(
+        generation_audit,
+        "audit_interval",
+        lambda video_dir, **kwargs: _fake_media_report(
+            video_dir, int(kwargs["end_idx"])
+        ),
+    )
+    report = generation_audit.audit(
+        run_root, manifest_path, partial_count=16
+    )
+    assert report["ok"] is True
+    assert report["complete"] is False
+    assert report["provisional"] is True
+    assert report["membership_decision_allowed"] is False
+    assert not (run_root / "published_manifest.json").exists()
+    provisional = run_root / "provisional_16"
+    prompt_lines = (
+        provisional / "inputs" / "generation_holdout16.txt"
+    ).read_text(encoding="utf-8").splitlines()
+    assert len(prompt_lines) == 16
+    assert len(list((provisional / "published" / "matched").glob("*.mp4"))) == 16
+
+    comparison_root = provisional / "vbench_comparison"
+    prepared = vbench.prepare(
+        run_root,
+        comparison_root,
+        provisional_count=16,
+    )
+    comparison = json.loads(
+        Path(prepared["manifest"]).read_text(encoding="utf-8")
+    )
+    assert comparison["experiment"] == "v178_rccp_holdout_vbench_provisional"
+    assert comparison["provisional"] is True
+    assert comparison["membership_decision_allowed"] is False
+    assert len(comparison["prompt_items"]) == 16
+    assert prepared["videos"] == 96

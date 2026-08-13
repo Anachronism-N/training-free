@@ -445,8 +445,10 @@ def test_v179_runners_are_incremental_and_omit_unrelated_baselines() -> None:
     evaluation = (SCRIPTS / "run_v179_vbench_long.sh").read_text(
         encoding="utf-8"
     )
-    assert 'METHODS="profile_top1_only,profile_remainder"' in generation
+    assert 'ALL_METHODS="profile_top1_only,profile_remainder"' in generation
+    assert 'METHODS="${METHODS:-$ALL_METHODS}"' in generation
     assert "--prompt_stride 32" in generation
+    assert "SHARD_OFFSET + NODE_RANK * GPUS_PER_NODE + slot" in generation
     assert "pf_native" not in generation
     assert "aba" not in generation.lower()
     assert "analyze_v179_head_attribution.py" in evaluation
