@@ -20,6 +20,7 @@ from vbench_quality_contract import (
 METHODS: tuple[str, ...] = ()
 PROMPT_COUNT = 0
 COMPARISON_EXPERIMENT = ""
+PROVISIONAL = False
 
 
 def comparison_name(prompt_index: int) -> str:
@@ -48,10 +49,15 @@ def analyze(payload: dict) -> dict:
         },
         "official_constants_source": OFFICIAL_CONSTANTS_SOURCE,
         "metric_promotion_gate": False,
+        "provisional": PROVISIONAL,
+        "attribution_decision_allowed": not PROVISIONAL,
         "claim_boundary": (
-            "This run evaluates only the two new factorial cells. The v179 "
-            "attribution analyzer binds and reuses all-recent/matched prompt "
-            "metrics from the passing v178 experiment."
+            "This provisional run is directional only and cannot accept or "
+            "reject a head-attribution hypothesis."
+            if PROVISIONAL
+            else "This run evaluates only the two new factorial cells. The "
+            "v179 attribution analyzer binds and reuses all-recent/matched "
+            "prompt metrics from the passing v178 experiment."
         ),
     }
 
@@ -75,25 +81,34 @@ def render(report: dict) -> str:
 
 
 def configure() -> None:
-    global METHODS, PROMPT_COUNT, COMPARISON_EXPERIMENT
+    global METHODS, PROMPT_COUNT, COMPARISON_EXPERIMENT, PROVISIONAL
     index = sys.argv.index("--comparison-root")
     manifest = json.loads(
         (Path(sys.argv[index + 1]).resolve() / "comparison_manifest.json").read_text(
             encoding="utf-8"
         )
     )
+    provisional = bool(manifest.get("provisional", False))
+    expected_experiment = (
+        "v179_rccp_head_attribution_vbench_provisional"
+        if provisional
+        else "v179_rccp_head_attribution_vbench_incremental"
+    )
     if (
-        manifest.get("experiment")
-        != "v179_rccp_head_attribution_vbench_incremental"
+        manifest.get("experiment") != expected_experiment
         or manifest.get("profile_contract") != "v177"
         or manifest.get("generation_prompts_used_for_membership") is not False
+        or bool(manifest.get("attribution_decision_allowed")) != (not provisional)
         or tuple(row["key"] for row in manifest.get("methods") or ())
         != GENERATED_METHODS
+        or (not provisional and int(manifest.get("prompt_count", -1)) != 32)
+        or (provisional and not 1 <= int(manifest.get("prompt_count", -1)) < 32)
     ):
         raise ValueError("invalid v179 incremental VBench contract")
     METHODS = GENERATED_METHODS
     PROMPT_COUNT = int(manifest["prompt_count"])
     COMPARISON_EXPERIMENT = str(manifest["experiment"])
+    PROVISIONAL = provisional
     base.RUN_LABEL = "v179"
     base.SUMMARY_EXPERIMENT = COMPARISON_EXPERIMENT
     base.ANALYSIS_STEM = "v179_vbench_incremental_analysis"

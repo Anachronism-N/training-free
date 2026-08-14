@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Low-cost 2x2 head-attribution test after the v178 causal gate passes.
+# Generate v179 cells early if useful; formal attribution still requires v178.
 set -euo pipefail
 
 ACTION="${1:-}"
-case "$ACTION" in prepare|preflight|generate32|audit|status|package) ;;
+case "$ACTION" in prepare|preflight|generate32|audit|audit-partial|status|package) ;;
 *)
     echo "usage: bash scripts/run_v179_head_attribution_32gpu.sh ACTION"
-    echo "actions: prepare preflight generate32 audit status package"
+    echo "actions: prepare preflight generate32 audit audit-partial status package"
     exit 2
     ;;
 esac
@@ -30,6 +30,9 @@ NODE_RANK="${NODE_RANK:-0}"
 NUM_NODES="${NUM_NODES:-4}"
 GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7}"
 SHARD_OFFSET="${SHARD_OFFSET:-0}"
+PROMPT_INDICES="${PROMPT_INDICES:-}"
+PARTIAL_COUNT="${PARTIAL_COUNT:-8}"
+V179_EXPLORATORY="${V179_EXPLORATORY:-0}"
 FRAMES="${FRAMES:-120}"
 SEED="${SEED:-0}"
 FORCE="${FORCE:-0}"
@@ -44,14 +47,39 @@ WORLD_SHARDS=$((NUM_NODES * GPUS_PER_NODE))
     echo "[error] v179 requires at least 1 GPU shard; observed $WORLD_SHARDS"
     exit 2
 }
-[[ $((SHARD_OFFSET + WORLD_SHARDS)) -le 32 ]] || {
-    echo "[error] shard interval [$SHARD_OFFSET,$((SHARD_OFFSET + WORLD_SHARDS))) exceeds 32 prompts"
-    exit 2
-}
 [[ "$NODE_RANK" -ge 0 && "$NODE_RANK" -lt "$NUM_NODES" ]] || {
     echo "[error] invalid NODE_RANK=$NODE_RANK"
     exit 2
 }
+
+declare -a PLANNED_INDICES=()
+if [[ -n "$PROMPT_INDICES" ]]; then
+    [[ "$SHARD_OFFSET" -eq 0 ]] || {
+        echo "[error] SHARD_OFFSET must be 0 when PROMPT_INDICES is set"
+        exit 2
+    }
+    IFS=',' read -r -a PLANNED_INDICES <<<"$PROMPT_INDICES"
+else
+    [[ $((SHARD_OFFSET + WORLD_SHARDS)) -le 32 ]] || {
+        echo "[error] shard interval [$SHARD_OFFSET,$((SHARD_OFFSET + WORLD_SHARDS))) exceeds 32 prompts"
+        exit 2
+    }
+    for ((index=SHARD_OFFSET; index<SHARD_OFFSET + WORLD_SHARDS; index++)); do
+        PLANNED_INDICES+=("$index")
+    done
+fi
+declare -A SEEN_INDICES=()
+for index in "${PLANNED_INDICES[@]}"; do
+    [[ "$index" =~ ^[0-9]+$ && "$index" -ge 0 && "$index" -lt 32 ]] || {
+        echo "[error] invalid prompt index: $index"
+        exit 2
+    }
+    [[ -z "${SEEN_INDICES[$index]:-}" ]] || {
+        echo "[error] duplicate prompt index: $index"
+        exit 2
+    }
+    SEEN_INDICES[$index]=1
+done
 [[ "$FRAMES" -eq 120 && "$SEED" -eq 0 ]] || {
     echo "[error] v179 is frozen at 120 latent frames and seed 0"
     exit 2
@@ -75,10 +103,14 @@ activate_env() {
 prepare() {
     [[ "$NODE_RANK" -eq 0 ]] || { echo "[error] prepare requires node 0"; exit 2; }
     activate_env
+    local -a extra=()
+    if [[ "$V179_EXPLORATORY" == "1" ]]; then
+        extra+=(--allow-ungated-exploratory)
+    fi
     python "$ROOT/scripts/prepare_v179_head_attribution.py" prepare \
         --analysis "$V177_ANALYSIS" --v178-input "$V178_INPUT" \
         --v178-paired "$V178_PAIRED" --v178-run-root "$V178_ROOT" \
-        --output-root "$INPUT_ROOT"
+        --output-root "$INPUT_ROOT" "${extra[@]}"
 }
 
 preflight() {
@@ -147,6 +179,14 @@ run_shard() {
     printf 'ok\n' >"$marker"
 }
 
+run_worker() {
+    local method="$1" global_worker="$2" gpu="$3"
+    local position
+    for ((position=global_worker; position<${#PLANNED_INDICES[@]}; position+=WORLD_SHARDS)); do
+        run_shard "$method" "${PLANNED_INDICES[$position]}" "$gpu"
+    done
+}
+
 generate32() {
     preflight
     IFS=',' read -r -a methods <<<"$METHODS"
@@ -154,8 +194,8 @@ generate32() {
         echo "[v179-method] method=$method node=$NODE_RANK"
         local -a pids=()
         for slot in "${!GPUS[@]}"; do
-            local rank=$((SHARD_OFFSET + NODE_RANK * GPUS_PER_NODE + slot))
-            run_shard "$method" "$rank" "${GPUS[$slot]}" &
+            local global_worker=$((NODE_RANK * GPUS_PER_NODE + slot))
+            run_worker "$method" "$global_worker" "${GPUS[$slot]}" &
             pids+=("$!")
         done
         local failed=0
@@ -171,7 +211,16 @@ audit() {
     [[ "$NODE_RANK" -eq 0 ]] || { echo "[error] audit requires node 0"; exit 2; }
     preflight
     python "$ROOT/scripts/audit_v179_head_attribution_generation.py" \
-        --run-root "$OUT_ROOT" --input-manifest "$INPUT_MANIFEST"
+        --run-root "$OUT_ROOT" --input-manifest "$INPUT_MANIFEST" \
+        --v178-paired "$V178_PAIRED" --v178-run-root "$V178_ROOT"
+}
+
+audit_partial() {
+    [[ "$NODE_RANK" -eq 0 ]] || { echo "[error] audit-partial requires node 0"; exit 2; }
+    preflight
+    python "$ROOT/scripts/audit_v179_head_attribution_generation.py" \
+        --run-root "$OUT_ROOT" --input-manifest "$INPUT_MANIFEST" \
+        --partial-count "$PARTIAL_COUNT"
 }
 
 status() {
@@ -179,6 +228,7 @@ status() {
 import sys
 from pathlib import Path
 root = Path(sys.argv[1])
+missing_by_method = {}
 for method in ("profile_top1_only", "profile_remainder"):
     video_indices = {
         int(path.name.split("-", 1)[0])
@@ -195,11 +245,15 @@ for method in ("profile_top1_only", "profile_remainder"):
         )
         for path in logs
     )
+    missing = sorted(set(range(32)) - video_indices)
+    missing_by_method[method] = set(missing)
     print(
         f"{method}: videos={len(video_indices)}/32 markers={len(marker_indices)}/32 "
-        f"logs={len(logs)}/32 missing_videos={sorted(set(range(32)) - video_indices)} "
+        f"logs={len(logs)}/32 missing_videos={missing} "
         f"traceback_logs={failed}"
     )
+common = sorted(set.intersection(*missing_by_method.values()))
+print("shared_missing_indices=" + ",".join(str(value) for value in common))
 PY
 }
 
@@ -215,6 +269,7 @@ case "$ACTION" in
     preflight) preflight ;;
     generate32) generate32 ;;
     audit) audit ;;
+    audit-partial) audit_partial ;;
     status) status ;;
     package) package ;;
 esac

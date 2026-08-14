@@ -16,6 +16,7 @@ if str(SCRIPTS) not in sys.path:
 
 import analyze_v179_head_attribution as attribution  # noqa: E402
 import analyze_v178_paired_metrics as v178_paired  # noqa: E402
+import audit_v179_head_attribution_generation as v179_audit  # noqa: E402
 import prepare_v178_rccp_holdout as v178_inputs  # noqa: E402
 import prepare_v179_head_attribution as v179_inputs  # noqa: E402
 import prepare_v179_vbench_comparison as v179_vbench  # noqa: E402
@@ -184,7 +185,17 @@ def _build_passing_v178(tmp_path: Path) -> dict[str, Path]:
         "experiment": "v178_rccp_holdout_vbench",
         "profile_contract": "v177",
         "generation_prompts_used_for_membership": False,
-        "methods": [{"key": method} for method in v178_inputs.METHODS],
+        "methods": [
+            {
+                "key": method,
+                "video_dir": next(
+                    row["video_dir"]
+                    for row in published_rows
+                    if row["key"] == method
+                ),
+            }
+            for method in v178_inputs.METHODS
+        ],
         "source": {
             "published_manifest_sha256": _sha(published_path),
             "experiment_contract_sha256": _sha(contract_path),
@@ -295,6 +306,70 @@ def test_v179_refuses_a_failed_v178_gate(tmp_path: Path) -> None:
         )
 
 
+def test_v179_allows_only_explicit_ungated_exploration(tmp_path: Path) -> None:
+    source = _build_passing_v178(tmp_path)
+    paired = json.loads(source["v178_paired"].read_text(encoding="utf-8"))
+    paired["membership_hypothesis_gate"] = False
+    paired["failed_gate_checks"] = ["ensemble_primary_mean_positive"]
+    paired["decision"] = "reject_static_rccp_membership_for_generation"
+    _write_json(source["v178_paired"], paired)
+    report = v179_inputs.prepare(
+        source["analysis"],
+        source["v178_input"],
+        source["v178_paired"],
+        source["v178_root"],
+        tmp_path / "v179" / "inputs",
+        allow_ungated_exploratory=True,
+    )
+    manifest = v179_inputs.verify(Path(report["manifest"]))
+    assert manifest["generation_mode"] == "exploratory_before_v178_gate"
+    assert manifest["formal_factorial_claim_allowed"] is False
+    assert manifest["upstream_gate_status"] == "not_evaluated"
+    assert manifest["v178_paired_result"] == ""
+    assert manifest["reused_methods"] == {}
+
+
+def test_v179_formal_audit_rechecks_gate_before_media_decode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _build_passing_v178(tmp_path)
+    paired = json.loads(source["v178_paired"].read_text(encoding="utf-8"))
+    paired["membership_hypothesis_gate"] = False
+    paired["failed_gate_checks"] = ["ensemble_primary_mean_positive"]
+    paired["decision"] = "reject_static_rccp_membership_for_generation"
+    _write_json(source["v178_paired"], paired)
+    run_root = tmp_path / "v179"
+    report = v179_inputs.prepare(
+        source["analysis"],
+        source["v178_input"],
+        source["v178_paired"],
+        source["v178_root"],
+        run_root / "inputs",
+        allow_ungated_exploratory=True,
+    )
+    media_called = False
+
+    def fail_if_called(*args, **kwargs):
+        nonlocal media_called
+        media_called = True
+        raise AssertionError("media audit must not run before the v178 gate")
+
+    monkeypatch.setattr(v179_audit, "audit_interval", fail_if_called)
+    with pytest.raises(ValueError, match="requires a passing"):
+        v179_audit.audit(
+            run_root,
+            Path(report["manifest"]),
+            v178_paired_path=source["v178_paired"],
+            v178_run_root=source["v178_root"],
+        )
+    assert media_called is False
+    failure = json.loads(
+        (run_root / "published_manifest.json").read_text(encoding="utf-8")
+    )
+    assert failure["ok"] is False
+    assert failure["status"] == "upstream_v178_gate_or_reuse_invalid"
+
+
 def test_v179_verify_rejects_map_drift(tmp_path: Path) -> None:
     manifest, _ = _prepare_v179(tmp_path)
     manifest_path = tmp_path / "v179" / "inputs" / "manifest.json"
@@ -309,8 +384,21 @@ def _attribution_inputs(tmp_path: Path, y00: float, y10: float, y01: float, y11:
         "experiment": "v179_rccp_head_attribution_vbench_incremental",
         "profile_contract": "v177",
         "generation_prompts_used_for_membership": False,
+        "provisional": False,
+        "attribution_decision_allowed": True,
         "prompt_count": 32,
-        "methods": [{"key": method} for method in v179_inputs.GENERATED_METHODS],
+        "methods": [
+            {"key": method, "video_dir": f"/videos/{method}"}
+            for method in v179_inputs.GENERATED_METHODS
+        ],
+        "prompt_items": [
+            {"index": index, "source_index": index, "text": f"prompt {index}"}
+            for index in range(32)
+        ],
+        "reused_metric_cells": {
+            method: {"video_dir": f"/videos/{method}"}
+            for method in ("all_recent", "matched")
+        },
         "profile_top1_head": {"layer": 0, "head": 10},
         "factorial_design": {
             "all_recent": {"top1": 0, "remainder": 0},
@@ -325,6 +413,9 @@ def _attribution_inputs(tmp_path: Path, y00: float, y10: float, y01: float, y11:
     }
     reused = {
         "experiment": "v178_rccp_holdout_vbench",
+        "profile_contract": "v177",
+        "provisional": False,
+        "membership_decision_allowed": True,
         "prompt_count": 32,
         "membership_hypothesis_gate": True,
         "decision": "advance_rccp_membership_to_broader_generation",
@@ -386,13 +477,215 @@ def test_v179_detects_top1_dominated_effect(
     assert report["remainder_directional_positive"] is False
 
 
+def test_v179_provisional_factorial_never_makes_attribution_decision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prompt_count = 8
+    manifest = {
+        "experiment": "v179_rccp_head_attribution_vbench_provisional",
+        "profile_contract": "v177",
+        "generation_prompts_used_for_membership": False,
+        "provisional": True,
+        "attribution_decision_allowed": False,
+        "prompt_count": prompt_count,
+        "methods": [
+            {"key": method, "video_dir": f"/videos/{method}"}
+            for method in v179_inputs.GENERATED_METHODS
+        ],
+        "prompt_items": [
+            {"index": index, "source_index": index, "text": f"prompt {index}"}
+            for index in range(prompt_count)
+        ],
+        "reused_metric_cells": {
+            method: {"video_dir": f"/videos/{method}"}
+            for method in ("all_recent", "matched")
+        },
+        "profile_top1_head": {"layer": 0, "head": 10},
+        "factorial_design": {
+            "all_recent": {"top1": 0, "remainder": 0},
+            "profile_top1_only": {"top1": 1, "remainder": 0},
+            "profile_remainder": {"top1": 0, "remainder": 1},
+            "matched": {"top1": 1, "remainder": 1},
+        },
+    }
+    summary = {
+        "methods": {
+            method: {} for method in v179_inputs.GENERATED_METHODS
+        },
+        "missing": [],
+    }
+    reused = {
+        "experiment": "v178_rccp_holdout_vbench_provisional",
+        "profile_contract": "v177",
+        "provisional": True,
+        "membership_decision_allowed": False,
+        "prompt_count": prompt_count,
+        "membership_hypothesis_gate": None,
+        "decision": "provisional_only_no_membership_decision",
+        "per_prompt_metrics": {
+            "all_recent": [
+                {
+                    "prompt_index": prompt,
+                    **{
+                        metric: 0.70
+                        for metric in attribution.base.METRICS
+                    },
+                }
+                for prompt in range(prompt_count)
+            ],
+            "matched": [
+                {
+                    "prompt_index": prompt,
+                    **{
+                        metric: 0.82
+                        for metric in attribution.base.METRICS
+                    },
+                }
+                for prompt in range(prompt_count)
+            ],
+        },
+    }
+    reused_path = _write_json(tmp_path / "v178_provisional.json", reused)
+    generated = {
+        (method, prompt): {
+            metric: 0.76 if method == "profile_top1_only" else 0.74
+            for metric in attribution.base.METRICS
+        }
+        for method in v179_inputs.GENERATED_METHODS
+        for prompt in range(prompt_count)
+    }
+    monkeypatch.setattr(attribution.base, "load_prompt_rows", lambda *args: {})
+    monkeypatch.setattr(
+        attribution.base, "derived_rows", lambda *args: generated
+    )
+    report = attribution.analyze(
+        manifest, summary, Path("unused"), reused_path, _sha(reused_path)
+    )
+    assert report["provisional"] is True
+    assert report["attribution_decision_allowed"] is False
+    assert report["distributed_attribution_gate"] is None
+    assert report["decision"] == "provisional_factorial_no_attribution_decision"
+    assert report["directional_pattern"] == "distributed_selected_set_directional"
+    assert report["top1_confirmatory_positive"] is False
+    assert report["remainder_confirmatory_positive"] is False
+
+
+def _write_v179_partial_inputs(run_root: Path, manifest: dict, count: int) -> None:
+    for method in v179_inputs.GENERATED_METHODS:
+        counts = manifest["maps"][method]["counts"]
+        route = (
+            f"[CacheCompatibilityPolicy] recent=20:{counts['20']} "
+            f"coverage=21:{counts['21']} episode=22:{counts['22']}\n"
+        )
+        for index in range(count):
+            log = run_root / "logs" / method / f"shard{index:02d}.log"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text(route, encoding="utf-8")
+            video = run_root / "raw" / method / f"{index}-0_ema.mp4"
+            video.parent.mkdir(parents=True, exist_ok=True)
+            video.write_bytes(f"{method}:{index}".encode())
+
+
+def test_v179_partial_audit_and_vbench_are_isolated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inputs, _ = _prepare_v179(tmp_path)
+    run_root = tmp_path / "v179"
+    _write_v179_partial_inputs(run_root, inputs, 8)
+    monkeypatch.setattr(
+        v179_audit,
+        "audit_interval",
+        lambda video_dir, **kwargs: {
+            "ok": True,
+            "videos": [
+                {"file": f"{index}-0_ema.mp4", "prompt_idx": index}
+                for index in range(int(kwargs["end_idx"]))
+            ],
+        },
+    )
+    published = v179_audit.audit(
+        run_root,
+        run_root / "inputs" / "manifest.json",
+        partial_count=8,
+    )
+    assert published["ok"] is True
+    assert published["complete"] is False
+    assert published["provisional"] is True
+    assert published["attribution_decision_allowed"] is False
+    assert [row["key"] for row in published["methods"]] == list(
+        v179_inputs.GENERATED_METHODS
+    )
+    assert not (run_root / "published_manifest.json").exists()
+
+    source_ids = inputs["source_prompt_ids"][:8]
+    v178_comparison = _write_json(
+        tmp_path / "v178_provisional" / "comparison_manifest.json",
+        {
+            "experiment": "v178_rccp_holdout_vbench_provisional",
+            "provisional": True,
+            "prompt_count": 8,
+            "methods": [
+                {"key": method, "video_dir": f"/videos/{method}"}
+                for method in v178_inputs.METHODS
+            ],
+            "prompt_items": [
+                {"index": index, "source_index": source_ids[index]}
+                for index in range(8)
+            ],
+        },
+    )
+    v178_summary = _write_json(
+        tmp_path / "v178_provisional" / "summary.json", {"ok": True}
+    )
+    v178_paired = _write_json(
+        tmp_path / "v178_provisional" / "v178_paired_metrics.json",
+        {
+            "experiment": "v178_rccp_holdout_vbench_provisional",
+            "profile_contract": "v177",
+            "provisional": True,
+            "membership_decision_allowed": False,
+            "membership_hypothesis_gate": None,
+            "decision": "provisional_only_no_membership_decision",
+            "prompt_count": 8,
+            "metric_runtime_fingerprint": {
+                "version": 1,
+                "sha256": "a" * 64,
+                "job_contract_count": 54,
+                "contract": {"vbench_commit": "synthetic"},
+            },
+            "input_provenance": {
+                "comparison_manifest": str(v178_comparison.resolve()),
+                "comparison_manifest_sha256": _sha(v178_comparison),
+                "metric_summary": str(v178_summary.resolve()),
+                "metric_summary_sha256": _sha(v178_summary),
+            },
+        },
+    )
+    report = v179_vbench.prepare(
+        run_root,
+        run_root / "provisional_08" / "vbench_comparison",
+        provisional_count=8,
+        v178_paired_path=v178_paired,
+    )
+    comparison = json.loads(
+        Path(report["manifest"]).read_text(encoding="utf-8")
+    )
+    assert report["new_videos"] == 16
+    assert comparison["provisional"] is True
+    assert comparison["attribution_decision_allowed"] is False
+    assert comparison["prompt_count"] == 8
+
+
 def test_v179_incremental_vbench_materializes_only_new_cells(tmp_path: Path) -> None:
     inputs, _ = _prepare_v179(tmp_path)
     run_root = tmp_path / "v179"
     contract = {
+        "version": 2,
         "experiment": "v179_rccp_head_attribution_generation",
         "profile_contract": "v177",
         "generation_prompts_used_for_membership": False,
+        "provisional": False,
+        "attribution_decision_allowed": True,
         "prompt_count": 32,
         "prompt_file": inputs["prompt_file"],
         "prompt_file_sha256": inputs["prompt_file_sha256"],
@@ -409,6 +702,12 @@ def test_v179_incremental_vbench_materializes_only_new_cells(tmp_path: Path) -> 
         "methods": list(v179_inputs.METHODS),
         "factorial_design": inputs["factorial_design"],
         "profile_top1_head": inputs["profile_top1_head"],
+        "v178_paired_result": inputs["v178_paired_result"],
+        "v178_paired_result_sha256": inputs["v178_paired_result_sha256"],
+        "v178_published_manifest": inputs["v178_published_manifest"],
+        "v178_published_manifest_sha256": inputs[
+            "v178_published_manifest_sha256"
+        ],
     }
     contract_path = _write_json(run_root / "contracts" / "experiment.json", contract)
     method_rows = []
@@ -421,7 +720,11 @@ def test_v179_incremental_vbench_materializes_only_new_cells(tmp_path: Path) -> 
             {"key": method, "role": "synthetic", "video_dir": str(video_dir.resolve())}
         )
     published = {
+        "version": 2,
         "ok": True,
+        "complete": True,
+        "provisional": False,
+        "attribution_decision_allowed": True,
         "experiment": "v179_rccp_head_attribution_generation",
         "profile_contract": "v177",
         "generation_prompts_used_for_membership": False,
@@ -448,7 +751,10 @@ def test_v179_runners_are_incremental_and_omit_unrelated_baselines() -> None:
     assert 'ALL_METHODS="profile_top1_only,profile_remainder"' in generation
     assert 'METHODS="${METHODS:-$ALL_METHODS}"' in generation
     assert "--prompt_stride 32" in generation
-    assert "SHARD_OFFSET + NODE_RANK * GPUS_PER_NODE + slot" in generation
+    assert 'PROMPT_INDICES="${PROMPT_INDICES:-}"' in generation
+    assert "run_worker" in generation
+    assert "position+=WORLD_SHARDS" in generation
+    assert "audit-partial" in generation
     assert "pf_native" not in generation
     assert "aba" not in generation.lower()
     assert "analyze_v179_head_attribution.py" in evaluation

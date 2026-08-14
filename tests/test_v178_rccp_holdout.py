@@ -239,7 +239,9 @@ def test_v178_runner_is_pf_free_and_uses_untouched_holdout() -> None:
     assert "pf_native" not in runner
     assert "aba" not in runner.lower()
     assert "--prompt_stride 32" in runner
-    assert "SHARD_OFFSET + NODE_RANK * GPUS_PER_NODE + slot" in runner
+    assert 'PROMPT_INDICES="${PROMPT_INDICES:-}"' in runner
+    assert "run_worker" in runner
+    assert "position+=WORLD_SHARDS" in runner
     assert "audit-partial" in runner
     assert "prepare_v178_rccp_holdout.py" in runner
     assert "hard_negative_3" in runner

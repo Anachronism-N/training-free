@@ -12,12 +12,33 @@ esac
 
 ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 RUN_ROOT="${RUN_ROOT:-$ROOT/runs/v179_rccp_head_attribution}"
-COMPARISON_ROOT="${COMPARISON_ROOT:-$RUN_ROOT/vbench_comparison}"
+V178_ROOT="${V178_OUT_ROOT:-$ROOT/runs/v178_rccp_holdout_generation}"
+PROVISIONAL_COUNT="${PROVISIONAL_COUNT:-0}"
+if [[ "$PROVISIONAL_COUNT" -ne 0 ]]; then
+    [[ "$PROVISIONAL_COUNT" -ge 1 && "$PROVISIONAL_COUNT" -lt 32 ]] || {
+        echo "[error] PROVISIONAL_COUNT must be 0 or in [1,31]"
+        exit 2
+    }
+    SCOPE="provisional_$(printf '%02d' "$PROVISIONAL_COUNT")"
+    DEFAULT_COMPARISON_ROOT="$RUN_ROOT/$SCOPE/vbench_comparison"
+    DEFAULT_PARTS_ROOT="$RUN_ROOT/$SCOPE/metrics/vbench_long_parts"
+    DEFAULT_SUMMARY_ROOT="$RUN_ROOT/$SCOPE/metrics"
+    DEFAULT_ANALYSIS_ROOT="$RUN_ROOT/$SCOPE/analysis"
+    DEFAULT_V178_PAIRED="$V178_ROOT/$SCOPE/analysis/v178_paired_metrics.json"
+else
+    DEFAULT_COMPARISON_ROOT="$RUN_ROOT/vbench_comparison"
+    DEFAULT_PARTS_ROOT="$RUN_ROOT/metrics/vbench_long_parts"
+    DEFAULT_SUMMARY_ROOT="$RUN_ROOT/metrics"
+    DEFAULT_ANALYSIS_ROOT="$RUN_ROOT/analysis"
+    DEFAULT_V178_PAIRED="$V178_ROOT/analysis/v178_paired_metrics.json"
+fi
+COMPARISON_ROOT="${COMPARISON_ROOT:-$DEFAULT_COMPARISON_ROOT}"
 VBENCH_ROOT="${VBENCH_ROOT:-$ROOT/../research_sprint/bench_baselines/VBench}"
 VBENCH_CACHE_DIR="${VBENCH_CACHE_DIR:-$ROOT/runs/vbench_cache}"
-PARTS_ROOT="${PARTS_ROOT:-$RUN_ROOT/metrics/vbench_long_parts}"
-SUMMARY_ROOT="${SUMMARY_ROOT:-$RUN_ROOT/metrics}"
-ANALYSIS_ROOT="${ANALYSIS_ROOT:-$RUN_ROOT/analysis}"
+PARTS_ROOT="${PARTS_ROOT:-$DEFAULT_PARTS_ROOT}"
+SUMMARY_ROOT="${SUMMARY_ROOT:-$DEFAULT_SUMMARY_ROOT}"
+ANALYSIS_ROOT="${ANALYSIS_ROOT:-$DEFAULT_ANALYSIS_ROOT}"
+V178_PAIRED="${V178_PAIRED:-$DEFAULT_V178_PAIRED}"
 CONDA_SH="${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}"
 CONDA_ENV="${CONDA_ENV:-longlive}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
@@ -26,6 +47,10 @@ NUM_NODES="${NUM_NODES:-4}"
 GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7}"
 
 if [[ "$ACTION" == "decision" ]]; then
+    [[ "$PROVISIONAL_COUNT" -eq 0 ]] || {
+        echo "[error] provisional v179 metrics cannot make an attribution decision"
+        exit 4
+    }
     "$PYTHON_BIN" - "$ANALYSIS_ROOT/v179_head_attribution.json" <<'PY'
 import json
 import sys
@@ -35,6 +60,11 @@ path = Path(sys.argv[1])
 if not path.is_file():
     raise SystemExit(f"[error] missing attribution result: {path}")
 payload = json.loads(path.read_text(encoding="utf-8"))
+if (
+    payload.get("provisional") is not False
+    or payload.get("attribution_decision_allowed") is not True
+):
+    raise SystemExit("[error] v179 result is not a formal attribution scope")
 print(f"decision={payload['decision']}")
 print(f"top1_directional_positive={payload['top1_directional_positive']}")
 print(f"remainder_directional_positive={payload['remainder_directional_positive']}")
@@ -52,8 +82,14 @@ fi
 
 if [[ "$ACTION" == "prepare" ]]; then
     [[ "$NODE_RANK" == "0" ]] || { echo "[error] prepare requires node 0"; exit 2; }
-    "$PYTHON_BIN" "$ROOT/scripts/prepare_v179_vbench_comparison.py" \
-        --run-root "$RUN_ROOT" --comparison-root "$COMPARISON_ROOT"
+    PREPARE_ARGS=(--run-root "$RUN_ROOT" --comparison-root "$COMPARISON_ROOT")
+    if [[ "$PROVISIONAL_COUNT" -ne 0 ]]; then
+        PREPARE_ARGS+=(
+            --provisional-count "$PROVISIONAL_COUNT"
+            --v178-paired "$V178_PAIRED"
+        )
+    fi
+    "$PYTHON_BIN" "$ROOT/scripts/prepare_v179_vbench_comparison.py" "${PREPARE_ARGS[@]}"
     exit $?
 fi
 

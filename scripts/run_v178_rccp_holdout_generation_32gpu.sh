@@ -30,6 +30,7 @@ NODE_RANK="${NODE_RANK:-0}"
 NUM_NODES="${NUM_NODES:-4}"
 GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7}"
 SHARD_OFFSET="${SHARD_OFFSET:-0}"
+PROMPT_INDICES="${PROMPT_INDICES:-}"
 PARTIAL_COUNT="${PARTIAL_COUNT:-16}"
 FRAMES="${FRAMES:-120}"
 SEED="${SEED:-0}"
@@ -45,14 +46,39 @@ WORLD_SHARDS=$((NUM_NODES * GPUS_PER_NODE))
     echo "[error] v178 requires at least 1 GPU shard; observed $WORLD_SHARDS"
     exit 2
 }
-[[ $((SHARD_OFFSET + WORLD_SHARDS)) -le 32 ]] || {
-    echo "[error] shard interval [$SHARD_OFFSET,$((SHARD_OFFSET + WORLD_SHARDS))) exceeds 32 prompts"
-    exit 2
-}
 [[ "$NODE_RANK" -ge 0 && "$NODE_RANK" -lt "$NUM_NODES" ]] || {
     echo "[error] invalid NODE_RANK=$NODE_RANK"
     exit 2
 }
+
+declare -a PLANNED_INDICES=()
+if [[ -n "$PROMPT_INDICES" ]]; then
+    [[ "$SHARD_OFFSET" -eq 0 ]] || {
+        echo "[error] SHARD_OFFSET must be 0 when PROMPT_INDICES is set"
+        exit 2
+    }
+    IFS=',' read -r -a PLANNED_INDICES <<<"$PROMPT_INDICES"
+else
+    [[ $((SHARD_OFFSET + WORLD_SHARDS)) -le 32 ]] || {
+        echo "[error] shard interval [$SHARD_OFFSET,$((SHARD_OFFSET + WORLD_SHARDS))) exceeds 32 prompts"
+        exit 2
+    }
+    for ((index=SHARD_OFFSET; index<SHARD_OFFSET + WORLD_SHARDS; index++)); do
+        PLANNED_INDICES+=("$index")
+    done
+fi
+declare -A SEEN_INDICES=()
+for index in "${PLANNED_INDICES[@]}"; do
+    [[ "$index" =~ ^[0-9]+$ && "$index" -ge 0 && "$index" -lt 32 ]] || {
+        echo "[error] invalid prompt index: $index"
+        exit 2
+    }
+    [[ -z "${SEEN_INDICES[$index]:-}" ]] || {
+        echo "[error] duplicate prompt index: $index"
+        exit 2
+    }
+    SEEN_INDICES[$index]=1
+done
 [[ "$FRAMES" -eq 120 && "$SEED" -eq 0 ]] || {
     echo "[error] v178 is frozen at 120 latent frames and seed 0"
     exit 2
@@ -148,6 +174,14 @@ run_shard() {
     printf 'ok\n' >"$marker"
 }
 
+run_worker() {
+    local method="$1" global_worker="$2" gpu="$3"
+    local position
+    for ((position=global_worker; position<${#PLANNED_INDICES[@]}; position+=WORLD_SHARDS)); do
+        run_shard "$method" "${PLANNED_INDICES[$position]}" "$gpu"
+    done
+}
+
 generate32() {
     preflight
     IFS=',' read -r -a methods <<<"$METHODS"
@@ -155,8 +189,8 @@ generate32() {
         echo "[v178-method] method=$method node=$NODE_RANK"
         local -a pids=()
         for slot in "${!GPUS[@]}"; do
-            local rank=$((SHARD_OFFSET + NODE_RANK * GPUS_PER_NODE + slot))
-            run_shard "$method" "$rank" "${GPUS[$slot]}" &
+            local global_worker=$((NODE_RANK * GPUS_PER_NODE + slot))
+            run_worker "$method" "$global_worker" "${GPUS[$slot]}" &
             pids+=("$!")
         done
         local failed=0
@@ -189,6 +223,7 @@ import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
+missing_by_method = {}
 for method in ("matched", "all_recent", *(f"hard_negative_{i}" for i in range(4))):
     video_indices = {
         int(path.name.split("-", 1)[0])
@@ -205,11 +240,15 @@ for method in ("matched", "all_recent", *(f"hard_negative_{i}" for i in range(4)
         )
         for path in logs
     )
+    missing = sorted(set(range(32)) - video_indices)
+    missing_by_method[method] = set(missing)
     print(
         f"{method}: videos={len(video_indices)}/32 markers={len(marker_indices)}/32 "
-        f"logs={len(logs)}/32 missing_videos={sorted(set(range(32)) - video_indices)} "
+        f"logs={len(logs)}/32 missing_videos={missing} "
         f"traceback_logs={failed}"
     )
+common = sorted(set.intersection(*missing_by_method.values()))
+print("shared_missing_indices=" + ",".join(str(value) for value in common))
 PY
 }
 

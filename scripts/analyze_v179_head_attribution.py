@@ -17,16 +17,37 @@ from prepare_v179_head_attribution import GENERATED_METHODS, METHODS
 PRIMARY_METRICS = ("official_quality_score", "identity_background")
 
 
-def _load_reused(path: Path, expected_sha: str, prompt_count: int) -> dict:
+def _load_reused(
+    path: Path,
+    expected_sha: str,
+    prompt_count: int,
+    *,
+    provisional: bool,
+) -> dict:
     if not path.is_file() or sha256(path) != expected_sha:
         raise ValueError("v178 reused prompt metrics are absent or hash-drifted")
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if (
-        payload.get("membership_hypothesis_gate") is not True
-        or payload.get("decision") != "advance_rccp_membership_to_broader_generation"
-        or int(payload.get("prompt_count", -1)) != prompt_count
-    ):
-        raise ValueError("v179 cannot reuse a non-passing v178 result")
+    if provisional:
+        valid = (
+            payload.get("experiment")
+            == "v178_rccp_holdout_vbench_provisional"
+            and payload.get("provisional") is True
+            and payload.get("membership_decision_allowed") is False
+            and payload.get("membership_hypothesis_gate") is None
+            and payload.get("decision")
+            == "provisional_only_no_membership_decision"
+        )
+    else:
+        valid = (
+            payload.get("experiment") == "v178_rccp_holdout_vbench"
+            and payload.get("provisional") is False
+            and payload.get("membership_decision_allowed") is True
+            and payload.get("membership_hypothesis_gate") is True
+            and payload.get("decision")
+            == "advance_rccp_membership_to_broader_generation"
+        )
+    if not valid or int(payload.get("prompt_count", -1)) != prompt_count:
+        raise ValueError("v179 reused v178 result has the wrong decision scope")
     result = {}
     rows = payload.get("per_prompt_metrics") or {}
     for method in ("all_recent", "matched"):
@@ -70,24 +91,56 @@ def analyze(
     v178_paired_path: Path,
     v178_paired_sha256: str,
 ) -> dict:
+    provisional = bool(manifest.get("provisional", False))
+    expected_experiment = (
+        "v179_rccp_head_attribution_vbench_provisional"
+        if provisional
+        else "v179_rccp_head_attribution_vbench_incremental"
+    )
     if (
-        manifest.get("experiment")
-        != "v179_rccp_head_attribution_vbench_incremental"
+        manifest.get("experiment") != expected_experiment
         or manifest.get("profile_contract") != "v177"
         or manifest.get("generation_prompts_used_for_membership") is not False
+        or bool(manifest.get("attribution_decision_allowed")) != (not provisional)
     ):
         raise ValueError("invalid v179 incremental comparison manifest")
     methods = tuple(row["key"] for row in manifest.get("methods") or ())
     prompt_count = int(manifest.get("prompt_count", -1))
-    if methods != GENERATED_METHODS or prompt_count != 32:
+    if (
+        methods != GENERATED_METHODS
+        or (not provisional and prompt_count != 32)
+        or (provisional and not 1 <= prompt_count < 32)
+    ):
         raise ValueError("v179 incremental method or prompt grid drift")
     if tuple(summary.get("methods") or {}) != methods or summary.get("missing"):
         raise ValueError("v179 incremental metric summary is incomplete")
+    prompt_items = manifest.get("prompt_items") or ()
+    generated_video_dirs = {
+        row["key"]: str(row.get("video_dir", ""))
+        for row in manifest.get("methods") or ()
+    }
+    reused_cells = manifest.get("reused_metric_cells") or {}
+    if (
+        len(prompt_items) != prompt_count
+        or [int(row.get("index", -1)) for row in prompt_items]
+        != list(range(prompt_count))
+        or any(not generated_video_dirs.get(method) for method in GENERATED_METHODS)
+        or any(
+            not str((reused_cells.get(method) or {}).get("video_dir", ""))
+            for method in ("all_recent", "matched")
+        )
+    ):
+        raise ValueError("v179 prompt metadata or factorial video paths are absent")
 
     raw = base.load_prompt_rows(parts_root, summary, methods, prompt_count)
     rows = base.derived_rows(raw, methods, prompt_count)
     rows.update(
-        _load_reused(v178_paired_path, v178_paired_sha256, prompt_count)
+        _load_reused(
+            v178_paired_path,
+            v178_paired_sha256,
+            prompt_count,
+            provisional=provisional,
+        )
     )
 
     contrasts = []
@@ -135,9 +188,10 @@ def analyze(
         if row["contrast"] in {"top1_shapley", "remainder_shapley"}
         and row["metric"] in PRIMARY_METRICS
     ]
-    base.bh(primary_family)
+    if not provisional:
+        base.bh(primary_family)
     for row in contrasts:
-        if "q_value" not in row:
+        if provisional or "q_value" not in row:
             row["q_value"] = None
             row["inferential_role"] = "descriptive"
         else:
@@ -156,15 +210,25 @@ def analyze(
     remainder_directional = all(
         row["mean_delta"] > 0.0 for row in remainder_primary
     )
-    top_confirmatory = all(
+    top_confirmatory = not provisional and all(
         row["bootstrap_ci95"][0] > 0.0 and row["q_value"] <= 0.10
         for row in top_primary
     )
-    remainder_confirmatory = all(
+    remainder_confirmatory = not provisional and all(
         row["bootstrap_ci95"][0] > 0.0 and row["q_value"] <= 0.10
         for row in remainder_primary
     )
-    if top_confirmatory and remainder_confirmatory:
+    if top_directional and remainder_directional:
+        directional_pattern = "distributed_selected_set_directional"
+    elif top_directional and not remainder_directional:
+        directional_pattern = "profile_top1_directional"
+    elif remainder_directional and not top_directional:
+        directional_pattern = "profile_remainder_directional"
+    else:
+        directional_pattern = "directionally_inconclusive"
+    if provisional:
+        decision = "provisional_factorial_no_attribution_decision"
+    elif top_confirmatory and remainder_confirmatory:
         decision = "distributed_selected_set_confirmed"
     elif top_directional and remainder_directional:
         decision = "distributed_selected_set_directional_only"
@@ -202,11 +266,70 @@ def analyze(
             ),
             "additivity_error": (top + remainder) - total,
         }
+    review_queue = []
+    review_metrics = (*PRIMARY_METRICS, "dynamic_degree")
+    for prompt in range(prompt_count):
+        interactions = {}
+        shapley_gap = {}
+        for metric in review_metrics:
+            y00 = rows[("all_recent", prompt)][metric]
+            y10 = rows[("profile_top1_only", prompt)][metric]
+            y01 = rows[("profile_remainder", prompt)][metric]
+            y11 = rows[("matched", prompt)][metric]
+            interactions[metric] = y11 - y10 - y01 + y00
+            top = 0.5 * ((y10 - y00) + (y11 - y01))
+            remainder = 0.5 * ((y01 - y00) + (y11 - y10))
+            shapley_gap[metric] = top - remainder
+        priority = max(
+            max(abs(value) for value in interactions.values()),
+            max(abs(value) for value in shapley_gap.values()),
+        )
+        prompt_item = prompt_items[prompt]
+        review_queue.append(
+            {
+                "rank_key": float(priority),
+                "prompt_index": prompt,
+                "source_prompt_index": int(prompt_item["source_index"]),
+                "prompt": str(prompt_item["text"]),
+                "reason": "largest factor interaction or Shapley disagreement",
+                "factor_interaction": interactions,
+                "top1_minus_remainder_shapley": shapley_gap,
+                "videos": {
+                    "all_recent": str(
+                        Path(reused_cells["all_recent"]["video_dir"])
+                        / f"{prompt:06d}-0.mp4"
+                    ),
+                    "profile_top1_only": str(
+                        Path(generated_video_dirs["profile_top1_only"])
+                        / f"{prompt:06d}-0.mp4"
+                    ),
+                    "profile_remainder": str(
+                        Path(generated_video_dirs["profile_remainder"])
+                        / f"{prompt:06d}-0.mp4"
+                    ),
+                    "matched": str(
+                        Path(reused_cells["matched"]["video_dir"])
+                        / f"{prompt:06d}-0.mp4"
+                    ),
+                },
+            }
+        )
+    review_queue.sort(
+        key=lambda row: (-row["rank_key"], row["prompt_index"])
+    )
+    review_queue = review_queue[: min(6, prompt_count)]
     return {
         "version": 1,
         "experiment": "v179_rccp_head_attribution",
         "profile_contract": "v177",
         "prompt_count": prompt_count,
+        "provisional": provisional,
+        "attribution_decision_allowed": not provisional,
+        "distributed_attribution_gate": (
+            None
+            if provisional
+            else bool(top_confirmatory and remainder_confirmatory)
+        ),
         "methods": list(METHODS),
         "profile_top1_head": manifest["profile_top1_head"],
         "factorial_design": manifest["factorial_design"],
@@ -216,10 +339,16 @@ def analyze(
         "remainder_directional_positive": remainder_directional,
         "top1_confirmatory_positive": top_confirmatory,
         "remainder_confirmatory_positive": remainder_confirmatory,
+        "directional_pattern": directional_pattern,
         "contribution_share": contribution_share,
+        "targeted_review_queue": review_queue,
+        "targeted_review_is_inferential": False,
         "decision": decision,
         "claim_boundary": (
-            "v179 attributes the already validated v178 matched-vs-recent "
+            "This partial factorial is diagnostic only. It cannot validate "
+            "head attribution, unlock a new method, or tune the selected map."
+            if provisional
+            else "v179 attributes the already validated v178 matched-vs-recent "
             "effect between the profile-strongest head and the remaining "
             "selected set. It does not independently validate individual "
             "heads inside the remainder or cross-model transfer."
@@ -233,7 +362,9 @@ def render(report: dict) -> str:
         "# v179 RCCP Head Attribution",
         "",
         f"Top profile head: L{top['layer']}H{top['head']}",
+        f"Provisional: {report['provisional']}",
         f"Decision: {report['decision']}",
+        f"Directional pattern: {report['directional_pattern']}",
         "",
         "| Contrast | Metric | Mean delta | CI95 | Win | q |",
         "|---|---|---:|---:|---:|---:|",
@@ -258,6 +389,22 @@ def render(report: dict) -> str:
             f"{row['win_fraction']:.3f} | {q_value} |"
         )
     lines.extend(["", report["claim_boundary"], ""])
+    lines.extend(
+        [
+            "## Targeted Review Queue",
+            "",
+            "Diagnostic only; selected by interaction or Shapley disagreement.",
+            "",
+            "| Prompt | Source | Priority |",
+            "|---:|---:|---:|",
+        ]
+    )
+    for row in report["targeted_review_queue"]:
+        lines.append(
+            f"| {row['prompt_index']} | {row['source_prompt_index']} | "
+            f"{row['rank_key']:.6f} |"
+        )
+    lines.append("")
     return "\n".join(lines)
 
 

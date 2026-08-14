@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Freeze the v179 2x2 attribution inputs after a passing v178 gate."""
+"""Freeze v179 attribution inputs with explicit exploratory/formal status."""
 from __future__ import annotations
 
 import argparse
@@ -173,21 +173,38 @@ def prepare(
     v178_paired_path: Path,
     v178_run_root: Path,
     output_root: Path,
+    *,
+    allow_ungated_exploratory: bool = False,
 ) -> dict:
     v178_inputs = verify_v178_inputs(v178_input_path)
-    paired, published, contract = None, None, None  # skip v178 gate
+    if allow_ungated_exploratory:
+        paired, published, contract = None, None, None
+        generation_mode = "exploratory_before_v178_gate"
+    else:
+        paired, published, contract = _validate_v178_gate(
+            v178_paired_path, v178_input_path, v178_run_root
+        )
+        generation_mode = "formal_after_v178_gate"
     analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
     if (
         analysis.get("experiment") != "v177_strict_superset_rccp"
         or analysis.get("profile_contract") != "v177"
         or analysis.get("generation_ready") is not True
         or v178_inputs.get("analysis_sha256") != sha256(analysis_path)
+        or (
+            contract is not None
+            and contract.get("analysis_sha256") != sha256(analysis_path)
+        )
     ):
-        raise ValueError("v177 analysis differs from the passing v178 experiment")
+        raise ValueError("v177 analysis differs from the frozen v178 inputs")
 
     source_prompt = Path(v178_inputs["holdout_prompt_file"])
     if (
         sha256(source_prompt) != v178_inputs["holdout_prompt_sha256"]
+        or (
+            contract is not None
+            and contract.get("prompt_file_sha256") != sha256(source_prompt)
+        )
     ):
         raise ValueError("v178 holdout prompt provenance drift")
     output_root.mkdir(parents=True, exist_ok=True)
@@ -237,9 +254,15 @@ def prepare(
         reused = {}
 
     manifest = {
-        "version": 1,
+        "version": 2,
         "experiment": "v179_rccp_head_attribution_inputs",
         "profile_contract": "v177",
+        "generation_mode": generation_mode,
+        "upstream_gate_status": (
+            paired["decision"] if paired else "not_evaluated"
+        ),
+        "formal_factorial_claim_allowed": paired is not None,
+        "v178_gate_required_for_formal_analysis": True,
         "prompt_count": HOLDOUT_PROMPTS,
         "prompt_file": str(prompt_path.resolve()),
         "prompt_file_sha256": sha256(prompt_path),
@@ -261,12 +284,18 @@ def prepare(
         "v177_analysis_sha256": sha256(analysis_path),
         "v178_input_manifest": str(v178_input_path.resolve()),
         "v178_input_manifest_sha256": sha256(v178_input_path),
-        "v178_paired_result": str(v178_paired_path.resolve()) if v178_paired_path.exists() else "",
-        "v178_paired_result_sha256": sha256(v178_paired_path) if v178_paired_path.exists() else "",
-        "v178_paired_decision": paired["decision"] if paired else "skipped",
+        "v178_paired_result": (
+            str(v178_paired_path.resolve()) if paired is not None else ""
+        ),
+        "v178_paired_result_sha256": (
+            sha256(v178_paired_path) if paired is not None else ""
+        ),
+        "v178_paired_decision": (
+            paired["decision"] if paired else "not_evaluated"
+        ),
         "v178_metric_runtime_fingerprint": paired[
             "metric_runtime_fingerprint"
-        ] if paired else "skipped",
+        ] if paired else None,
         "v178_published_manifest": str(
             (v178_run_root / "published_manifest.json").resolve()
         ) if (v178_run_root / "published_manifest.json").exists() else "",
@@ -296,6 +325,11 @@ def verify(manifest_path: Path) -> dict:
         or tuple(manifest.get("methods") or ()) != METHODS
         or tuple(manifest.get("generated_methods") or ()) != GENERATED_METHODS
         or int(manifest.get("prompt_count", -1)) != HOLDOUT_PROMPTS
+        or manifest.get("generation_mode") not in {
+            "exploratory_before_v178_gate",
+            "formal_after_v178_gate",
+        }
+        or manifest.get("v178_gate_required_for_formal_analysis") is not True
     ):
         raise ValueError("invalid v179 input manifest")
     for key, hash_key in (
@@ -306,8 +340,47 @@ def verify(manifest_path: Path) -> dict:
         path = Path(manifest[key])
         if not path.is_file() or sha256(path) != manifest[hash_key]:
             raise ValueError(f"v179 frozen provenance drift: {key}")
-    # Skip v178 paired/published provenance checks (not available in 2-node setup)
-    paired, _, contract = None, None, None
+    v178_inputs = verify_v178_inputs(Path(manifest["v178_input_manifest"]))
+    analysis_path = Path(manifest["v177_analysis"])
+    analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+    if (
+        analysis.get("experiment") != "v177_strict_superset_rccp"
+        or analysis.get("profile_contract") != "v177"
+        or analysis.get("generation_ready") is not True
+        or v178_inputs.get("analysis_sha256") != manifest["v177_analysis_sha256"]
+        or v178_inputs.get("holdout_prompt_sha256")
+        != manifest["prompt_file_sha256"]
+        or v178_inputs.get("source_prompt_ids") != manifest.get("source_prompt_ids")
+    ):
+        raise ValueError("v179 exploratory provenance differs from v177/v178")
+
+    if manifest["generation_mode"] == "formal_after_v178_gate":
+        if manifest.get("formal_factorial_claim_allowed") is not True:
+            raise ValueError("formal v179 manifest cannot disable its passing gate")
+        paired, _, contract = _validate_v178_gate(
+            Path(manifest["v178_paired_result"]),
+            Path(manifest["v178_input_manifest"]),
+            Path(manifest["v178_published_manifest"]).parent,
+        )
+        if (
+            paired.get("decision") != manifest.get("v178_paired_decision")
+            or paired.get("metric_runtime_fingerprint")
+            != manifest.get("v178_metric_runtime_fingerprint")
+            or contract.get("prompt_file_sha256")
+            != manifest.get("prompt_file_sha256")
+            or contract.get("source_prompt_ids")
+            != manifest.get("source_prompt_ids")
+        ):
+            raise ValueError("v179 formal manifest differs from passing v178")
+    elif (
+        manifest.get("formal_factorial_claim_allowed") is not False
+        or manifest.get("upstream_gate_status") != "not_evaluated"
+        or manifest.get("v178_paired_result")
+        or manifest.get("v178_paired_result_sha256")
+        or manifest.get("v178_metric_runtime_fingerprint") is not None
+        or manifest.get("reused_methods")
+    ):
+        raise ValueError("ungated v179 generation must remain exploratory")
     maps = {}
     for method in METHODS:
         artifact = manifest["maps"][method]
@@ -351,6 +424,11 @@ def main() -> None:
     prepare_parser.add_argument("--v178-paired", type=Path, required=True)
     prepare_parser.add_argument("--v178-run-root", type=Path, required=True)
     prepare_parser.add_argument("--output-root", type=Path, required=True)
+    prepare_parser.add_argument(
+        "--allow-ungated-exploratory",
+        action="store_true",
+        help="Permit generation before v178, while disabling formal claims.",
+    )
     verify_parser = subparsers.add_parser("verify")
     verify_parser.add_argument("--manifest", type=Path, required=True)
     args = parser.parse_args()
@@ -361,6 +439,7 @@ def main() -> None:
             args.v178_paired,
             args.v178_run_root,
             args.output_root,
+            allow_ungated_exploratory=args.allow_ungated_exploratory,
         )
         print(
             "[v179-prepare] "
