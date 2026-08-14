@@ -1,0 +1,172 @@
+{
+  "experiment": "v179_rccp_head_attribution_inputs",
+  "factorial_design": {
+    "all_recent": {
+      "remainder": 0,
+      "top1": 0
+    },
+    "matched": {
+      "remainder": 1,
+      "top1": 1
+    },
+    "profile_remainder": {
+      "remainder": 1,
+      "top1": 0
+    },
+    "profile_top1_only": {
+      "remainder": 0,
+      "top1": 1
+    }
+  },
+  "generated_methods": [
+    "profile_top1_only",
+    "profile_remainder"
+  ],
+  "generation_prompts_used_for_membership": false,
+  "maps": {
+    "all_recent": {
+      "counts": {
+        "20": 360,
+        "21": 0,
+        "22": 0
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v179_rccp_head_attribution/inputs/maps/all_recent.csv",
+      "sha256": "2d3dc5f347ca0eb9645f8d8e29098c91ade4bb33885c43a1e71e492558844bb6"
+    },
+    "matched": {
+      "counts": {
+        "20": 355,
+        "21": 5,
+        "22": 0
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v179_rccp_head_attribution/inputs/maps/matched.csv",
+      "sha256": "732a65f7829a6d05199e005f88ef303c8605319a8f73fad66245dfe6fa8ef8ba"
+    },
+    "profile_remainder": {
+      "counts": {
+        "20": 356,
+        "21": 4,
+        "22": 0
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v179_rccp_head_attribution/inputs/maps/profile_remainder.csv",
+      "sha256": "89b5df3d518c959488dc7d9137eb68b91eb9ac4bbb4aac7b26b29e488c99a88d"
+    },
+    "profile_top1_only": {
+      "counts": {
+        "20": 359,
+        "21": 1,
+        "22": 0
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v179_rccp_head_attribution/inputs/maps/profile_top1_only.csv",
+      "sha256": "cd77645420c00ca1672121dd251020b40b721b0462eced54ad7dfd8f26359eaa"
+    }
+  },
+  "methods": [
+    "all_recent",
+    "profile_top1_only",
+    "profile_remainder",
+    "matched"
+  ],
+  "num_output_frames": 120,
+  "profile_contract": "v177",
+  "profile_top1_head": {
+    "discovery_margin": 0.9625378597329717,
+    "head": 10,
+    "label": 21,
+    "layer": 0,
+    "policy": "coverage",
+    "profile_gain_over_recent": 4.78279938162864
+  },
+  "prompt_count": 32,
+  "prompt_file": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v179_rccp_head_attribution/inputs/generation_holdout32.txt",
+  "prompt_file_sha256": "e6c4d4de1ed5582ed0ec2df7c821d8bb749fd03f23a428e16397d8e8e6ba988e",
+  "reused_methods": {},
+  "seed": 0,
+  "selected_heads": [
+    {
+      "discovery_margin": 0.9625378597329717,
+      "head": 10,
+      "label": 21,
+      "layer": 0,
+      "policy": "coverage",
+      "profile_gain_over_recent": 4.78279938162864
+    },
+    {
+      "discovery_margin": 0.32108501890355834,
+      "head": 6,
+      "label": 21,
+      "layer": 8,
+      "policy": "coverage",
+      "profile_gain_over_recent": 1.3418608154462204
+    },
+    {
+      "discovery_margin": 0.12413609282726279,
+      "head": 2,
+      "label": 21,
+      "layer": 23,
+      "policy": "coverage",
+      "profile_gain_over_recent": 0.5753629067881616
+    },
+    {
+      "discovery_margin": 0.24189156667917944,
+      "head": 3,
+      "label": 21,
+      "layer": 5,
+      "policy": "coverage",
+      "profile_gain_over_recent": 0.30975694516233476
+    },
+    {
+      "discovery_margin": 0.214740975815082,
+      "head": 6,
+      "label": 21,
+      "layer": 6,
+      "policy": "coverage",
+      "profile_gain_over_recent": 0.214740975815082
+    }
+  ],
+  "source_prompt_ids": [
+    0,
+    6,
+    7,
+    8,
+    11,
+    15,
+    20,
+    30,
+    31,
+    34,
+    35,
+    40,
+    47,
+    51,
+    58,
+    67,
+    68,
+    70,
+    71,
+    72,
+    75,
+    76,
+    77,
+    78,
+    82,
+    90,
+    91,
+    97,
+    99,
+    101,
+    112,
+    120
+  ],
+  "v177_analysis": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v177_strict_superset_rccp/analysis/analysis.json",
+  "v177_analysis_sha256": "9736cecb5454e7079d95842b5436ef1eb721382e49c2303d62a7d22ec2d8c05e",
+  "v178_input_manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v178_rccp_holdout_generation/inputs/manifest.json",
+  "v178_input_manifest_sha256": "ba05ce9b0f3cf80b7524d185f195186d2ee6ff83beea69f36a11508bb43ea47f",
+  "v178_metric_runtime_fingerprint": "skipped",
+  "v178_paired_decision": "skipped",
+  "v178_paired_result": "",
+  "v178_paired_result_sha256": "",
+  "v178_published_manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v178_rccp_holdout_generation/published_manifest.json",
+  "v178_published_manifest_sha256": "7854894c53bc2045788fe2266bced18e953cbfa7894f7b8c600679612d2bf740",
+  "version": 1
+}
