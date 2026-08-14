@@ -130,12 +130,24 @@ def prompt_clip(video_path: str) -> tuple[int, int]:
     return int(match.group(1)), int(match.group(2))
 
 
-def load_dimension(path: Path, dimension: str) -> dict[int, list[float]]:
+def load_dimension(
+    path: Path,
+    dimension: str,
+    *,
+    prompt_count: int | None = None,
+    clips_per_video: int | None = None,
+) -> dict[int, list[float]]:
+    prompt_count = PROMPT_COUNT if prompt_count is None else int(prompt_count)
+    clips_per_video = (
+        CLIPS_PER_VIDEO if clips_per_video is None else int(clips_per_video)
+    )
+    if prompt_count <= 0 or clips_per_video <= 0:
+        raise ValueError("prompt_count and clips_per_video must be positive")
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or dimension not in payload:
         raise ValueError(f"invalid {dimension} result: {path}")
-    expected_prompts = set(range(PROMPT_COUNT))
-    expected_clips = set(range(CLIPS_PER_VIDEO))
+    expected_prompts = set(range(prompt_count))
+    expected_clips = set(range(clips_per_video))
     failures = []
     for candidate_index, records in enumerate(
         candidate_record_lists(payload[dimension])
@@ -166,11 +178,11 @@ def load_dimension(path: Path, dimension: str) -> dict[int, list[float]]:
             failures.append(
                 f"candidate {candidate_index}: coverage="
                 f"{sum(len(clips) for clips in grouped.values())}/"
-                f"{PROMPT_COUNT * CLIPS_PER_VIDEO}"
+                f"{prompt_count * clips_per_video}"
             )
             continue
         return {
-            prompt: [clips[index] for index in range(CLIPS_PER_VIDEO)]
+            prompt: [clips[index] for index in range(clips_per_video)]
             for prompt, clips in grouped.items()
         }
     detail = "; ".join(failures[:5]) or "no per-video detail list"

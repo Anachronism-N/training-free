@@ -28,6 +28,7 @@ from vbench_long_split_cache import clean_manifest_path, validate_clean_split
 
 
 CLIPS_PER_VIDEO = 15
+NUM_OUTPUT_FRAMES = 120
 RUN_LABEL = "v154"
 SUMMARY_EXPERIMENT = "v154_history_critical_moviebench16_vbench"
 ANALYSIS_STEM = "v154_vbench_analysis"
@@ -189,7 +190,7 @@ def load_manifest(path: Path) -> dict[str, Any]:
     if (
         payload.get("experiment") != COMPARISON_EXPERIMENT
         or int(payload.get("prompt_count", -1)) != PROMPT_COUNT
-        or int(payload.get("num_output_frames", -1)) != 120
+        or int(payload.get("num_output_frames", -1)) != NUM_OUTPUT_FRAMES
         or methods != METHODS
         or tuple(payload.get("vbench_long_dimensions", ())) != DIMENSIONS
         or len(prompt_items) != PROMPT_COUNT

@@ -20,12 +20,15 @@ from prepare_v154_vbench_comparison import (
 from vbench_long_split_cache import prepare_clean_split
 
 
+NUM_OUTPUT_FRAMES = 120
+
+
 def load_manifest(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if (
         payload.get("experiment") != COMPARISON_EXPERIMENT
         or int(payload.get("prompt_count", -1)) != PROMPT_COUNT
-        or int(payload.get("num_output_frames", -1)) != 120
+        or int(payload.get("num_output_frames", -1)) != NUM_OUTPUT_FRAMES
         or tuple(row.get("key") for row in payload.get("methods", []))
         != METHODS
     ):

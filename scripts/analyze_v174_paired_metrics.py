@@ -50,7 +50,16 @@ def bh(rows: list[dict]) -> None:
         rows[index]["q_value"] = min(1.0, running)
 
 
-def load_prompt_rows(parts_root: Path, summary: dict, methods: tuple[str, ...], prompt_count: int) -> dict:
+def load_prompt_rows(
+    parts_root: Path,
+    summary: dict,
+    methods: tuple[str, ...],
+    prompt_count: int,
+    *,
+    clips_per_video: int = 15,
+) -> dict:
+    if prompt_count <= 0 or clips_per_video <= 0:
+        raise ValueError("prompt_count and clips_per_video must be positive")
     dimensions = tuple(summary["dimensions"])
     rows = {(method, prompt): {} for method in methods for prompt in range(prompt_count)}
     for method in methods:
@@ -58,6 +67,8 @@ def load_prompt_rows(parts_root: Path, summary: dict, methods: tuple[str, ...], 
             clips = base.load_dimension(
                 parts_root / method / dimension / "results.json",
                 dimension,
+                prompt_count=prompt_count,
+                clips_per_video=clips_per_video,
             )
             raw_values = [value for prompt in range(prompt_count) for value in clips[prompt]]
             summary_value = base.finite(

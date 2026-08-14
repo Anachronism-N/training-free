@@ -23,6 +23,7 @@ def main() -> None:
     base.COMPARISON_EXPERIMENT = str(manifest["experiment"])
     base.METHODS = tuple(row["key"] for row in manifest["methods"])
     base.PROMPT_COUNT = int(manifest["prompt_count"])
+    base.NUM_OUTPUT_FRAMES = int(manifest["num_output_frames"])
     base.main()
 
 
