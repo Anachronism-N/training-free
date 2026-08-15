@@ -691,6 +691,16 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--pyramidkv_cache_compatibility_coverage_policy",
+    choices=("reservoir", "landmark", "prototype", "retrieval"),
+    default="reservoir",
+    help=(
+        "Middle-memory operator for label 21 when cache compatibility routing "
+        "is enabled. reservoir preserves the v173-v181 behavior; the other "
+        "choices are generation-side structured-Coverage experiments."
+    ),
+)
+parser.add_argument(
     "--cache_compat_profile_kind",
     type=str,
     default="moviegen128_discovery",
@@ -1031,6 +1041,14 @@ if selected_policy_overrides > 1:
         "binary, history-polarity, cache-compatibility, and PF "
         "extended-recent policy overrides are mutually exclusive"
     )
+if (
+    not args.pyramidkv_cache_compatibility_policy
+    and args.pyramidkv_cache_compatibility_coverage_policy != "reservoir"
+):
+    parser.error(
+        "--pyramidkv_cache_compatibility_coverage_policy requires "
+        "--pyramidkv_cache_compatibility_policy"
+    )
 if args.pyramidkv_binary_responsive_policy is not None:
     from pyramidkv.policy_overrides import binary_head_policy_overrides
 
@@ -1139,6 +1157,14 @@ if args.pyramidkv_cache_compatibility_policy:
             "--pyramidkv_cache_compatibility_policy requires "
             "--pyramidkv_head_config_path"
         )
+    if (
+        args.cache_compat_profile_output is not None
+        and args.pyramidkv_cache_compatibility_coverage_policy != "reservoir"
+    ):
+        parser.error(
+            "cache-compatibility profiling is frozen to reservoir Coverage; "
+            "structured Coverage operators are generation-side experiments"
+        )
     try:
         with open(
             args.pyramidkv_head_config_path,
@@ -1175,6 +1201,7 @@ if args.pyramidkv_cache_compatibility_policy:
 
     policy_overrides = cache_compatibility_policy_overrides(
         capacity=int(config.pyramidkv_default_capacity or 32760),
+        coverage_policy=args.pyramidkv_cache_compatibility_coverage_policy,
     )
     for field_name, field_value in policy_overrides.items():
         setattr(config, field_name, field_value)
@@ -1186,7 +1213,8 @@ if args.pyramidkv_cache_compatibility_policy:
         f"{sum(row.count(CACHE_COMPAT_COVERAGE_LABEL) for row in compatibility_rows)} "
         f"episode={CACHE_COMPAT_EPISODE_LABEL}:"
         f"{sum(row.count(CACHE_COMPAT_EPISODE_LABEL) for row in compatibility_rows)} "
-        "budget=9FFE owner=HeadComposition",
+        f"coverage_policy={args.pyramidkv_cache_compatibility_coverage_policy} "
+        "budget=9FFE read_budget=9FFE owner=HeadComposition",
         flush=True,
     )
 if args.pyramidkv_pf_extended_recent_ablation is not None:

@@ -83,6 +83,41 @@ def test_cache_compatibility_policy_has_three_neutral_equal_budget_routes() -> N
     }
 
 
+def test_cache_compatibility_coverage_operator_is_configurable_and_exclusive() -> None:
+    module = load_module(
+        "v182_policy_overrides",
+        ROOT
+        / "third_party"
+        / "Pyramid-Forcing"
+        / "pyramidkv"
+        / "policy_overrides.py",
+    )
+    capacity_fields = {
+        "reservoir": "pyramidkv_label_temporal_reservoir_capacity_map",
+        "landmark": "pyramidkv_label_semantic_landmark_capacity_map",
+        "prototype": "pyramidkv_label_temporal_prototype_capacity_map",
+        "retrieval": "pyramidkv_label_semantic_retrieval_capacity_map",
+    }
+
+    for policy, active_field in capacity_fields.items():
+        fields = module.cache_compatibility_policy_overrides(
+            capacity=12345,
+            coverage_policy=policy,
+        )
+        assert fields["pyramidkv_label_sink_frames_map"]["21"] == 1
+        assert fields["pyramidkv_label_recent_frames_map"]["21"] == 4
+        assert fields[active_field]["21"] == 4
+        for other_policy, other_field in capacity_fields.items():
+            expected = 4 if other_policy == policy else 0
+            assert fields[other_field]["21"] == expected
+        assert fields["pyramidkv_label_temporal_reservoir_capacity_map"]["22"] == 2
+        assert fields["pyramidkv_label_coherent_motion_pair_capacity_map"]["22"] == 1
+        assert fields["pyramidkv_label_recent_frames_map"]["20"] == 8
+
+    with pytest.raises(ValueError, match="Coverage policy"):
+        module.cache_compatibility_policy_overrides(coverage_policy="random")
+
+
 @pytest.mark.skipif(torch is None, reason="torch is available on the GPU server")
 def test_residual_space_metric_uses_head_slice_of_output_projection() -> None:
     module = load_module(

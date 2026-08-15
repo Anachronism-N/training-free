@@ -9,6 +9,12 @@ CACHE_COMPAT_PROFILE_POLICY = "reservoir4_multiscalemotion1"
 CACHE_COMPAT_RECENT_LABEL = 20
 CACHE_COMPAT_COVERAGE_LABEL = 21
 CACHE_COMPAT_EPISODE_LABEL = 22
+CACHE_COMPAT_COVERAGE_POLICIES = (
+    "reservoir",
+    "landmark",
+    "prototype",
+    "retrieval",
+)
 DIRECTION_STALE_TIE_MARGINS = {
     "reservoir2_dirstaletie003": 0.03,
     "reservoir2_dirstaletie005": 0.05,
@@ -996,22 +1002,34 @@ def binary_responsive_policy_overrides(policy: str) -> dict[str, object]:
 def cache_compatibility_policy_overrides(
     *,
     capacity: int = 32760,
+    coverage_policy: str = "reservoir",
 ) -> dict[str, object]:
-    """Build the three equal-budget v173 cache-operator routes.
+    """Build the three v173 cache-operator routes.
 
     Labels deliberately use a new namespace so no PF class semantics leak
     into the generated maps:
 
     * 20: sink1 + recent8 (local evidence),
-    * 21: sink1 + reservoir4 + recent4 (temporal coverage),
+    * 21: sink1 + a four-frame Coverage operator + recent4,
     * 22: sink1 + reservoir2 + coherent motion pair + recent4 (episode).
+
+    ``reservoir`` remains the default and therefore preserves every v173-v181
+    contract.  The other Coverage operators are generation-side development
+    alternatives; they must not be mixed with the v177 reservoir-based
+    representation-complete profiling teacher.
     """
 
+    coverage_policy = str(coverage_policy).strip().lower()
+    if coverage_policy not in CACHE_COMPAT_COVERAGE_POLICIES:
+        raise ValueError(
+            "cache compatibility Coverage policy must be one of "
+            + ", ".join(CACHE_COMPAT_COVERAGE_POLICIES)
+        )
     recent_key = str(CACHE_COMPAT_RECENT_LABEL)
     coverage_key = str(CACHE_COMPAT_COVERAGE_LABEL)
     episode_key = str(CACHE_COMPAT_EPISODE_LABEL)
     fields = history_polarity_policy_overrides(
-        "reservoir",
+        coverage_policy,
         "reservoir2_multiscalemotion1",
         support_label=CACHE_COMPAT_COVERAGE_LABEL,
         suppress_label=CACHE_COMPAT_EPISODE_LABEL,
@@ -1052,6 +1070,29 @@ def cache_compatibility_policy_overrides(
     expected = {recent_key, coverage_key, episode_key}
     if set(fields["pyramidkv_code_map"]) != expected:
         raise RuntimeError("cache compatibility policy labels are incomplete")
+    middle_capacity_fields = {
+        "reservoir": "pyramidkv_label_temporal_reservoir_capacity_map",
+        "landmark": "pyramidkv_label_semantic_landmark_capacity_map",
+        "prototype": "pyramidkv_label_temporal_prototype_capacity_map",
+        "retrieval": "pyramidkv_label_semantic_retrieval_capacity_map",
+    }
+    active_middle = {
+        policy: int(fields[field_name].get(coverage_key, 0))
+        for policy, field_name in middle_capacity_fields.items()
+    }
+    if active_middle != {
+        policy: 4 if policy == coverage_policy else 0
+        for policy in CACHE_COMPAT_COVERAGE_POLICIES
+    }:
+        raise RuntimeError(
+            "cache compatibility Coverage route is not an exclusive "
+            f"four-frame operator: {active_middle}"
+        )
+    if (
+        int(fields["pyramidkv_label_sink_frames_map"][coverage_key]) != 1
+        or int(fields["pyramidkv_label_recent_frames_map"][coverage_key]) != 4
+    ):
+        raise RuntimeError("cache compatibility Coverage budget drift")
     fields["pyramidkv_composition_owns_dynamic"] = True
     return fields
 
