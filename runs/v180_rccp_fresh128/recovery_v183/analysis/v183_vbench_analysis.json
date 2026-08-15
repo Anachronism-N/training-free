@@ -1,0 +1,80 @@
+{
+  "claim_boundary": "Aggregate scores are descriptive. The paired recovery analysis may screen cache operators, but an RCCP membership claim still requires a real matched-versus-count-matched-negative experiment.",
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "exclusive_groups": {
+    "dynamic_degree": [
+      "dynamic_degree"
+    ],
+    "identity_background": [
+      "subject_consistency",
+      "background_consistency"
+    ],
+    "semantic_alignment": [
+      "overall_consistency"
+    ],
+    "temporal_mechanics": [
+      "temporal_flickering",
+      "motion_smoothness"
+    ],
+    "visual_quality": [
+      "aesthetic_quality",
+      "imaging_quality"
+    ]
+  },
+  "exclusive_scores": {
+    "all_coverage": {
+      "dynamic_degree": 0.6026041666666667,
+      "identity_background": 0.9692514557936798,
+      "semantic_alignment": 0.23350124181403467,
+      "temporal_mechanics": 0.9778280272279518,
+      "visual_quality": 0.6508652259504112
+    },
+    "all_recent": {
+      "dynamic_degree": 0.49270833333333336,
+      "identity_background": 0.9709376627661392,
+      "semantic_alignment": 0.23483418273390272,
+      "temporal_mechanics": 0.9790470085769785,
+      "visual_quality": 0.6514812036709239
+    },
+    "rccp_matched": {
+      "dynamic_degree": 0.4984375,
+      "identity_background": 0.9701653993809946,
+      "semantic_alignment": 0.23467215055861743,
+      "temporal_mechanics": 0.9775430713799629,
+      "visual_quality": 0.6502662910106591
+    },
+    "sf_native": {
+      "dynamic_degree": 0.40677083333333336,
+      "identity_background": 0.9702807624029118,
+      "semantic_alignment": 0.2343404842931098,
+      "temporal_mechanics": 0.982428778624255,
+      "visual_quality": 0.6464818192337018
+    }
+  },
+  "experiment": "v183_v180_recovery_vbench",
+  "methods": [
+    "sf_native",
+    "rccp_matched",
+    "all_recent",
+    "all_coverage"
+  ],
+  "metric_promotion_gate": false,
+  "official_constants_source": "https://github.com/Vchitect/VBench/blob/master/scripts/constant.py",
+  "official_quality_score": {
+    "all_coverage": 83.11194834522604,
+    "all_recent": 82.45438066389349,
+    "rccp_matched": 82.2900680751209,
+    "sf_native": 81.91175545004204
+  },
+  "version": 1
+}
