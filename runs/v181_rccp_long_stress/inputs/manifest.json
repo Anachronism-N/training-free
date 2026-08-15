@@ -1,0 +1,1498 @@
+{
+  "calibration_source_index_range": [
+    0,
+    127
+  ],
+  "evaluation_prompts_used_for_membership": false,
+  "exact_text_overlap_with_calibration": 0,
+  "exact_text_overlap_with_prior_evaluation": 0,
+  "experiment": "v181_rccp_long_stress_inputs",
+  "maps": {
+    "all_recent": {
+      "counts": {
+        "20": 360,
+        "21": 0,
+        "22": 0
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v181_rccp_long_stress/inputs/maps/all_recent.csv",
+      "sha256": "2d3dc5f347ca0eb9645f8d8e29098c91ade4bb33885c43a1e71e492558844bb6",
+      "source_path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v178_rccp_holdout_generation/inputs/maps/all_recent.csv",
+      "source_sha256": "2d3dc5f347ca0eb9645f8d8e29098c91ade4bb33885c43a1e71e492558844bb6"
+    },
+    "rccp_matched": {
+      "counts": {
+        "20": 355,
+        "21": 5,
+        "22": 0
+      },
+      "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v181_rccp_long_stress/inputs/maps/rccp_matched.csv",
+      "sha256": "732a65f7829a6d05199e005f88ef303c8605319a8f73fad66245dfe6fa8ef8ba",
+      "source_path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v178_rccp_holdout_generation/inputs/maps/matched.csv",
+      "source_sha256": "732a65f7829a6d05199e005f88ef303c8605319a8f73fad66245dfe6fa8ef8ba"
+    }
+  },
+  "methods": [
+    "sf_native",
+    "rccp_matched",
+    "all_recent"
+  ],
+  "prior_evaluation_source_index_range": [
+    128,
+    255
+  ],
+  "profile_contract": "v177",
+  "prompt_source_directory": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt",
+  "runtime": {
+    "implementation_sha256": {
+      "pf_adaptive_cache": {
+        "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/pyramidkv/adaptive_cache.py",
+        "sha256": "4e22c8e9001e5d1376498af8c4f557b7b9cb5d2241c08211cb388cd187a03465"
+      },
+      "pf_cache_base": {
+        "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/pyramidkv/base.py",
+        "sha256": "25cb274fe2ba378c17fce0e5252707b9a8bc5658bd8ab5d617266b564553e59b"
+      },
+      "pf_cache_factory": {
+        "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/pyramidkv/factory.py",
+        "sha256": "8e9d399d0a55111f35119aa10e8d2bb3385dead1ebba62c43adea182070878eb"
+      },
+      "pf_causal_inference": {
+        "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/pipeline/causal_inference.py",
+        "sha256": "0ff2236408e27070e6bdc2e59572bdff8b6e38766aeceeee1c41b0021a6c3d03"
+      },
+      "pf_config_parser": {
+        "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/pipeline/pyramidkv_config.py",
+        "sha256": "33153f898f9bc5aded23fcb5ff60840282a09e1ccc5193485088c0bfa6851f19"
+      },
+      "pf_inference": {
+        "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/inference.py",
+        "sha256": "c8f7183f009265ea9dac9d729dee9443dcb77441981cc41214885225893f518a"
+      },
+      "pf_policy_overrides": {
+        "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/pyramidkv/policy_overrides.py",
+        "sha256": "6d7c56aaf6940e36de91644ff9e1546711a49e927bef70ec4a072b720c2f0160"
+      },
+      "sf_causal_inference": {
+        "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Self-Forcing/pipeline/causal_inference.py",
+        "sha256": "47958a7c3b46514c483d99ce79981c6842ebc3dce1abbc04b59bbcfeb03654ab"
+      },
+      "sf_inference": {
+        "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Self-Forcing/inference.py",
+        "sha256": "0c170341fec62d44aa9e602d0d18078e86c371b11360d4ba179a129823e080a5"
+      }
+    },
+    "pf_config": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/configs/pyramid-forcing.yaml",
+    "pf_config_sha256": "a11516c668612d4049133081c13db0d357bc4987e5fadae609d85e9744098aa1",
+    "pf_repo": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing",
+    "same_checkpoint_file": true,
+    "sf_config": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Self-Forcing/configs/self_forcing_dmd.yaml",
+    "sf_config_sha256": "65f616cd57fd524bb43b51846c3a846cba12225fe45299f1b2764f327b85d9d8",
+    "sf_repo": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Self-Forcing",
+    "shared_checkpoint": "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/self_forcing_dmd.pt",
+    "shared_checkpoint_size": 5676252553
+  },
+  "scopes": [
+    {
+      "decoded_video_contract": {
+        "duration_seconds": 59.8125,
+        "fps": 16.0,
+        "frames": 957,
+        "height": 480,
+        "width": 832
+      },
+      "key": "long60_seed0",
+      "num_output_frames": 240,
+      "priority": "required_long_horizon_confirmation",
+      "prompt_count": 128,
+      "prompt_file": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v181_rccp_long_stress/inputs/prompts/long60_seed0.txt",
+      "prompt_file_sha256": "63f53e2768ed59f32baafc38ad005ebb3db447e88e17bcc8e1dc70227a06734d",
+      "prompt_source_indices": [
+        256,
+        257,
+        258,
+        259,
+        260,
+        261,
+        262,
+        263,
+        264,
+        265,
+        266,
+        267,
+        268,
+        269,
+        270,
+        271,
+        272,
+        273,
+        274,
+        275,
+        276,
+        277,
+        278,
+        279,
+        280,
+        281,
+        282,
+        283,
+        284,
+        285,
+        286,
+        287,
+        288,
+        289,
+        290,
+        291,
+        292,
+        293,
+        294,
+        295,
+        296,
+        297,
+        298,
+        299,
+        300,
+        301,
+        302,
+        303,
+        304,
+        305,
+        306,
+        307,
+        308,
+        309,
+        310,
+        311,
+        312,
+        313,
+        314,
+        315,
+        316,
+        317,
+        318,
+        319,
+        320,
+        321,
+        322,
+        323,
+        324,
+        325,
+        326,
+        327,
+        328,
+        329,
+        330,
+        331,
+        332,
+        333,
+        334,
+        335,
+        336,
+        337,
+        338,
+        339,
+        340,
+        341,
+        342,
+        343,
+        344,
+        345,
+        346,
+        347,
+        348,
+        349,
+        350,
+        351,
+        352,
+        353,
+        354,
+        355,
+        356,
+        357,
+        358,
+        359,
+        360,
+        361,
+        362,
+        363,
+        364,
+        365,
+        366,
+        367,
+        368,
+        369,
+        370,
+        371,
+        372,
+        373,
+        374,
+        375,
+        376,
+        377,
+        378,
+        379,
+        380,
+        381,
+        382,
+        383
+      ],
+      "prompt_sources": [
+        {
+          "evaluation_index": 0,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0256.txt",
+          "sha256": "59b39443c99ae20f774043b180bb6780852b46e54bca863945ad6f9b39e4a496",
+          "source_index": 256
+        },
+        {
+          "evaluation_index": 1,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0257.txt",
+          "sha256": "d5958df5ad98d9e1c4d597fd03dbd7fdaf76a1de7ee9c3de5517b1f2ecca8592",
+          "source_index": 257
+        },
+        {
+          "evaluation_index": 2,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0258.txt",
+          "sha256": "ab7605e21881e50a01bedd2847baaa233c291794d677b1050780246abc94f036",
+          "source_index": 258
+        },
+        {
+          "evaluation_index": 3,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0259.txt",
+          "sha256": "61557578ce7f2218cf30867f5f31ea71525ca2583ccbe62ada26e37b8af871c7",
+          "source_index": 259
+        },
+        {
+          "evaluation_index": 4,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0260.txt",
+          "sha256": "f281c9df0ca4f47d718989f9f868036a1fa2cfa6ce60b80aefe8e102d6f3b4eb",
+          "source_index": 260
+        },
+        {
+          "evaluation_index": 5,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0261.txt",
+          "sha256": "e13e579988ba2f366b1242c49c3ca33eb035902d12da66a5e30ce3a8879193b3",
+          "source_index": 261
+        },
+        {
+          "evaluation_index": 6,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0262.txt",
+          "sha256": "a14c51283b36680540d9e79ecb13d23f4823e57fe8ff9f60fa27c9d5b67fe5d8",
+          "source_index": 262
+        },
+        {
+          "evaluation_index": 7,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0263.txt",
+          "sha256": "0d496832f57c830eb4a5dd8b6b43a14cc0e2f8a3b81c5f0591ef6c295d6c9716",
+          "source_index": 263
+        },
+        {
+          "evaluation_index": 8,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0264.txt",
+          "sha256": "09853a67c8e7710f0fe4ee083b59f74778b6fbd5b5c0064242f3c932767a2044",
+          "source_index": 264
+        },
+        {
+          "evaluation_index": 9,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0265.txt",
+          "sha256": "b61352144410f5e3766657559ed70ad2ecdd835fc4380a45c2cb667ef954f37c",
+          "source_index": 265
+        },
+        {
+          "evaluation_index": 10,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0266.txt",
+          "sha256": "088be1107f860bb0a7a39d451b93353813592475a12041bc25697573fa924bee",
+          "source_index": 266
+        },
+        {
+          "evaluation_index": 11,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0267.txt",
+          "sha256": "a8c2dc9afadaf9a783b3e76618df436821eaa18a7be4dd5400744675020b91c6",
+          "source_index": 267
+        },
+        {
+          "evaluation_index": 12,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0268.txt",
+          "sha256": "54155f2a511a8e257adf15a00721d2c731a8d04c6fd95f41e4e814e734158074",
+          "source_index": 268
+        },
+        {
+          "evaluation_index": 13,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0269.txt",
+          "sha256": "43f89711c0be5c423ea53271ba4586238ede377c37984c5fa5d53798349526a8",
+          "source_index": 269
+        },
+        {
+          "evaluation_index": 14,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0270.txt",
+          "sha256": "8327cc14164ade3a24b1b194cc16b3da101188704ba52190de5a8cceb7c32f70",
+          "source_index": 270
+        },
+        {
+          "evaluation_index": 15,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0271.txt",
+          "sha256": "3c0b28fd8ad14246c0d0a5bdb4ca9a801d0e69a76c699e3dd37e88935c029aa1",
+          "source_index": 271
+        },
+        {
+          "evaluation_index": 16,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0272.txt",
+          "sha256": "59889832f12f65eb019ecbe3783e803073e54c10a3255e9f50724b421e7fbf0d",
+          "source_index": 272
+        },
+        {
+          "evaluation_index": 17,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0273.txt",
+          "sha256": "dff6b5c9df57f4a4c5adb7197d1651cbbda90776860077de9ae1c9fed93cb57a",
+          "source_index": 273
+        },
+        {
+          "evaluation_index": 18,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0274.txt",
+          "sha256": "905bbc46eed700e933cb982ffed1c721a2cb41a438fddff40bb64a31e7874660",
+          "source_index": 274
+        },
+        {
+          "evaluation_index": 19,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0275.txt",
+          "sha256": "e6eb82a945615f3cf3f249e52bf97e51bd35856a9519e46509ee1c030b5908a8",
+          "source_index": 275
+        },
+        {
+          "evaluation_index": 20,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0276.txt",
+          "sha256": "422219531b78d1ead2195e746c856c17db3eb137ac9e51aafe6cbee872686ca3",
+          "source_index": 276
+        },
+        {
+          "evaluation_index": 21,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0277.txt",
+          "sha256": "6a4e3d2c83c125cab7dc196c10d64f73ccc4ba0cc5eb35988932692d60017a08",
+          "source_index": 277
+        },
+        {
+          "evaluation_index": 22,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0278.txt",
+          "sha256": "9e616da7a53c81002fc8d52fd0bd8affb1115e77774277c7e5ae53da3137d5ae",
+          "source_index": 278
+        },
+        {
+          "evaluation_index": 23,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0279.txt",
+          "sha256": "cbf9f3f2679d331041197cb4ac40cd5a1ea08316c1df041615fbac3129366f80",
+          "source_index": 279
+        },
+        {
+          "evaluation_index": 24,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0280.txt",
+          "sha256": "2db19fd18373b90b45ded66a0c99510d5eabd6384cca38f1bfbbae7748b9ad9f",
+          "source_index": 280
+        },
+        {
+          "evaluation_index": 25,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0281.txt",
+          "sha256": "d894a68691d5c54a25bf39bf017269c65f857917ce900d226cc4ab372e761c26",
+          "source_index": 281
+        },
+        {
+          "evaluation_index": 26,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0282.txt",
+          "sha256": "8e6fc87676fdcf38e1f51edbd3e4b78e9cdd07f9acec516ffd09d5290e259cce",
+          "source_index": 282
+        },
+        {
+          "evaluation_index": 27,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0283.txt",
+          "sha256": "794ad9bc100355b5d44d58a61611e4edc96feb1079e55a74f86f2565a13f44e5",
+          "source_index": 283
+        },
+        {
+          "evaluation_index": 28,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0284.txt",
+          "sha256": "dc3c29424428013010b87a11f28d824ce827f8c202d06f047d884615be4806d8",
+          "source_index": 284
+        },
+        {
+          "evaluation_index": 29,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0285.txt",
+          "sha256": "b3571dcf12fc2051b275b5cc80b6e3915282b3e23a0dfd628b124da67fc6f57e",
+          "source_index": 285
+        },
+        {
+          "evaluation_index": 30,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0286.txt",
+          "sha256": "755b900a013ef4267cfed42913872fdf383c7a183ca332119828d0e3b1994248",
+          "source_index": 286
+        },
+        {
+          "evaluation_index": 31,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0287.txt",
+          "sha256": "25c9432f3b1e2783528a64f099e61445fd2842f8e7817b74d17388c4812e335d",
+          "source_index": 287
+        },
+        {
+          "evaluation_index": 32,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0288.txt",
+          "sha256": "22e93f1e626f0fa2071c70aed61eb4cde6e6bd4640d652ceb129287f8ac16ff9",
+          "source_index": 288
+        },
+        {
+          "evaluation_index": 33,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0289.txt",
+          "sha256": "c56a9802f3dc56c9c2b2ba5239b72e6db80fdd3a52da9f6dc3cca7e7cea91460",
+          "source_index": 289
+        },
+        {
+          "evaluation_index": 34,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0290.txt",
+          "sha256": "94f9a007ddb35c57c3d307cb49dc8b43c6782cfaf10ced48537163ea54b234fb",
+          "source_index": 290
+        },
+        {
+          "evaluation_index": 35,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0291.txt",
+          "sha256": "a41d68b3b3ed01be036dddcc7c7e73f264de7f16399ac003e77881316279335f",
+          "source_index": 291
+        },
+        {
+          "evaluation_index": 36,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0292.txt",
+          "sha256": "aa10e93d83c31ec3289cc6e7853bb58013138a84d5b8da1c72de49bbf1e92c36",
+          "source_index": 292
+        },
+        {
+          "evaluation_index": 37,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0293.txt",
+          "sha256": "29eac2222eed9a09ca8771bc0238b7b87d3d7429686a5787bacd6f549c99079c",
+          "source_index": 293
+        },
+        {
+          "evaluation_index": 38,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0294.txt",
+          "sha256": "a905fd7aef570afb7d577cb15cf0d7532960db120d31031118d5d1b5f29ec290",
+          "source_index": 294
+        },
+        {
+          "evaluation_index": 39,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0295.txt",
+          "sha256": "132909231eed72246d50ba7fe7e6df55b2986f2f1b2702bc96ab094ca8e89553",
+          "source_index": 295
+        },
+        {
+          "evaluation_index": 40,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0296.txt",
+          "sha256": "e17b8097c2aa186dbb5beb04f40842b3477d1df8e193a6180a7f81475770b047",
+          "source_index": 296
+        },
+        {
+          "evaluation_index": 41,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0297.txt",
+          "sha256": "1859431d75e38a72c5c365e2d247fca1d2fd446b0f35a088771c0a18cbe1e9f7",
+          "source_index": 297
+        },
+        {
+          "evaluation_index": 42,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0298.txt",
+          "sha256": "8ca551e3bf05a047ea7122a2ef54b6a067022e86276d51175cf852c14b171610",
+          "source_index": 298
+        },
+        {
+          "evaluation_index": 43,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0299.txt",
+          "sha256": "023d575bdba23eec4a8e70d248c10e70644652abd0b0cadd07ecefe94d390de8",
+          "source_index": 299
+        },
+        {
+          "evaluation_index": 44,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0300.txt",
+          "sha256": "09d08885495767970c4235b7e29fc08d34fedbd4506d3dc5231a091746011feb",
+          "source_index": 300
+        },
+        {
+          "evaluation_index": 45,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0301.txt",
+          "sha256": "8a5306ce175f283c65998ae616a4df7fbdc2cf1f7207a6bacbf1bded5c0bf4d7",
+          "source_index": 301
+        },
+        {
+          "evaluation_index": 46,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0302.txt",
+          "sha256": "2945b13e1d0f2250e4357aa92d16a6dbd0b1ef3ee130d81b372d84109e4ffbb9",
+          "source_index": 302
+        },
+        {
+          "evaluation_index": 47,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0303.txt",
+          "sha256": "eef00494498d3f9ddef388952606aa4235b4e7348a350397c6976a680376714a",
+          "source_index": 303
+        },
+        {
+          "evaluation_index": 48,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0304.txt",
+          "sha256": "bbfed14af6e79a4462bc92951f622951dc80bd98793d6fe8bd009a243fbf20c2",
+          "source_index": 304
+        },
+        {
+          "evaluation_index": 49,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0305.txt",
+          "sha256": "78a950013f2592aaa47ede63a9a227df39b1846fdb28dcd88340cf6bfa21936f",
+          "source_index": 305
+        },
+        {
+          "evaluation_index": 50,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0306.txt",
+          "sha256": "8fa1daa15c9f7a0c0998cea286603e7f332d98ccce50c35b7d500215d2cbca1e",
+          "source_index": 306
+        },
+        {
+          "evaluation_index": 51,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0307.txt",
+          "sha256": "b93ea02f07e6dab1731d37598bdf29437e22c2c915e404e9ad8cbc913c6d5b86",
+          "source_index": 307
+        },
+        {
+          "evaluation_index": 52,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0308.txt",
+          "sha256": "5a2b23e5505a29230c41c78523342bffc6c4c64bf7550b6ebccf24b19b5b82ef",
+          "source_index": 308
+        },
+        {
+          "evaluation_index": 53,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0309.txt",
+          "sha256": "bdebcb58a9eab9486dcd4b62651c1efc253c881e87dd71260fd0072e9fb149c9",
+          "source_index": 309
+        },
+        {
+          "evaluation_index": 54,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0310.txt",
+          "sha256": "62fba2dc901a13822a76896d86411c5f53a5726a4be73d2061cf1abe4c5216c8",
+          "source_index": 310
+        },
+        {
+          "evaluation_index": 55,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0311.txt",
+          "sha256": "823d5438687878f6976506711fe24dc9e5baccf5717c8cc7043c0953ae721887",
+          "source_index": 311
+        },
+        {
+          "evaluation_index": 56,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0312.txt",
+          "sha256": "01df453f1b00b159f3b5a2efb5ce145cda0cf565f6cdf86d9315602d0640786f",
+          "source_index": 312
+        },
+        {
+          "evaluation_index": 57,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0313.txt",
+          "sha256": "639938394b5bfc8dd0c442af71bbb749654c1d771c4dcdebcb3c31e3c999208e",
+          "source_index": 313
+        },
+        {
+          "evaluation_index": 58,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0314.txt",
+          "sha256": "501f493edabb473c937861924932ad73da3141de64f8c0393f5e7633789811f6",
+          "source_index": 314
+        },
+        {
+          "evaluation_index": 59,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0315.txt",
+          "sha256": "1d19c81d77a211f89627f550703161711541d4dbedf62a2cffd60caa3e535c09",
+          "source_index": 315
+        },
+        {
+          "evaluation_index": 60,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0316.txt",
+          "sha256": "8ecb705b226fe4cfaab028c1aeab2cc0830ba24c39f164b8456b7f0026e109ff",
+          "source_index": 316
+        },
+        {
+          "evaluation_index": 61,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0317.txt",
+          "sha256": "b8e7a5ad3d73862fae0b245f14bca51fec45d0098b154c79366bad93ece77384",
+          "source_index": 317
+        },
+        {
+          "evaluation_index": 62,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0318.txt",
+          "sha256": "b5c98580852b647b1ddfb3eb743a583e54d6ff4962571b669e2806539e0f5a4f",
+          "source_index": 318
+        },
+        {
+          "evaluation_index": 63,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0319.txt",
+          "sha256": "3ed5e328219e184605e11a7669355ea1ff4ebf778017e23d5041caf6683604e1",
+          "source_index": 319
+        },
+        {
+          "evaluation_index": 64,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0320.txt",
+          "sha256": "ce9e790b9a4cc77fe3a73e28a207ca37c267693f274e8662a23da41d3723c7b4",
+          "source_index": 320
+        },
+        {
+          "evaluation_index": 65,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0321.txt",
+          "sha256": "c19380d66b25cf9c4f367cfc3134416ddf3c432b830feca7d96e27b9c79f3f46",
+          "source_index": 321
+        },
+        {
+          "evaluation_index": 66,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0322.txt",
+          "sha256": "b7b78c5eae7db7dc3255d4ea26d539f683fdc0169cbe0f0c1f6b814d913bbec0",
+          "source_index": 322
+        },
+        {
+          "evaluation_index": 67,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0323.txt",
+          "sha256": "0d39251b7dd49a8aba643d614f013b41c56d900f5c1644cbca27b0bd6b8b7deb",
+          "source_index": 323
+        },
+        {
+          "evaluation_index": 68,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0324.txt",
+          "sha256": "e5afce7f08c94166e3413238faeceef1636235a780a2ad099f02988162d91adf",
+          "source_index": 324
+        },
+        {
+          "evaluation_index": 69,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0325.txt",
+          "sha256": "526e9d390aaf37e7ecd234dfd1ce5ec9f6bab6c05cf541518f11f74abfdb1921",
+          "source_index": 325
+        },
+        {
+          "evaluation_index": 70,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0326.txt",
+          "sha256": "a8cd01dc7ec3eee0c0f24d7cd83de7e978b36bd556da12075a8078ea83dd8b60",
+          "source_index": 326
+        },
+        {
+          "evaluation_index": 71,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0327.txt",
+          "sha256": "1013ecbcecc184a56e8f44b6488c9942b0e7f338b8ff1184e56af1e380c2dfad",
+          "source_index": 327
+        },
+        {
+          "evaluation_index": 72,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0328.txt",
+          "sha256": "230e18d6463414eda9dbb00004eef7372603ae288668c2966975a1c5f5f7ed77",
+          "source_index": 328
+        },
+        {
+          "evaluation_index": 73,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0329.txt",
+          "sha256": "21b4f8ea5e32aaa509bc3ebc9c1b58b05e7c0cf8aa5643acd5c24df683b4068e",
+          "source_index": 329
+        },
+        {
+          "evaluation_index": 74,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0330.txt",
+          "sha256": "22fb533dad16ad86715339383cbd0d4eec8fa53d37a1f3261100d45612936f2f",
+          "source_index": 330
+        },
+        {
+          "evaluation_index": 75,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0331.txt",
+          "sha256": "c1478d8316d8b59f98352a5fbcab508f0ad0b0fa39a8b41dbf07dbf8cde0abaa",
+          "source_index": 331
+        },
+        {
+          "evaluation_index": 76,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0332.txt",
+          "sha256": "f872054edff9e5a17dd85b7a2d70407025ce5c33595a1b9982ac2d5078a97be0",
+          "source_index": 332
+        },
+        {
+          "evaluation_index": 77,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0333.txt",
+          "sha256": "233ebde1b87b3a95db9dd0e4aebc6f939869b4978e305e05c0062985cae09019",
+          "source_index": 333
+        },
+        {
+          "evaluation_index": 78,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0334.txt",
+          "sha256": "3e0a698fed619cc375f348cc91b73810f58be631dcae4c83a5318a077260b096",
+          "source_index": 334
+        },
+        {
+          "evaluation_index": 79,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0335.txt",
+          "sha256": "5bddd032c722710a4510d3dd0aff798167c7d668fd2319b2194bc41487fce86a",
+          "source_index": 335
+        },
+        {
+          "evaluation_index": 80,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0336.txt",
+          "sha256": "b4a0f4313cb2fc341f5c22c160f22979f4bf44b920574c9b61fb44cba440bd0f",
+          "source_index": 336
+        },
+        {
+          "evaluation_index": 81,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0337.txt",
+          "sha256": "43626c19248a38f4d6bc4e14c80d113c32d5107764aa55751c9c785694b3bc42",
+          "source_index": 337
+        },
+        {
+          "evaluation_index": 82,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0338.txt",
+          "sha256": "d7e389673482e232e092406365e3b75ad837fe2872fcf0b405d636af27d997ae",
+          "source_index": 338
+        },
+        {
+          "evaluation_index": 83,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0339.txt",
+          "sha256": "84d7358e49362a6d0c0905e1be1e4de577d5a2894bd0f81c745b216adbcb4b03",
+          "source_index": 339
+        },
+        {
+          "evaluation_index": 84,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0340.txt",
+          "sha256": "a5b82e1fd390778a07263324df33c477aa3375e968c67ffae1d011b6237f7b72",
+          "source_index": 340
+        },
+        {
+          "evaluation_index": 85,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0341.txt",
+          "sha256": "82fbc597ab857ec830be57aec8d13266c431218b6bbec91327ab5cebccfe6edf",
+          "source_index": 341
+        },
+        {
+          "evaluation_index": 86,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0342.txt",
+          "sha256": "e14677866e63b6f61fbeaa17e9e79c04ec31ddb6da44b9ece259554095abcb7c",
+          "source_index": 342
+        },
+        {
+          "evaluation_index": 87,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0343.txt",
+          "sha256": "3bbd09f93390dbbc1477f32fe19466265bbeaa13ac74c7279a1b212a08790606",
+          "source_index": 343
+        },
+        {
+          "evaluation_index": 88,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0344.txt",
+          "sha256": "9cd446876f1fbe6b77a3632ad080f37e0e2b61185acdbd7710a4a60fe046d8b4",
+          "source_index": 344
+        },
+        {
+          "evaluation_index": 89,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0345.txt",
+          "sha256": "be9083045e4fabfdb136ab8e11727409753bb70cff68d72fca0e7b72e39258a5",
+          "source_index": 345
+        },
+        {
+          "evaluation_index": 90,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0346.txt",
+          "sha256": "83880f15b10208222bd57289ae82df125b01b4c0da8342fc083d953d813e4237",
+          "source_index": 346
+        },
+        {
+          "evaluation_index": 91,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0347.txt",
+          "sha256": "2d3b7c7bc05d5f89307f1fa1f9f188a4c993f9d55ebde93df60bec97c2ca3424",
+          "source_index": 347
+        },
+        {
+          "evaluation_index": 92,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0348.txt",
+          "sha256": "101433b649705d48d362b0534e0378b9297e983358168d810956ca49eddc31e3",
+          "source_index": 348
+        },
+        {
+          "evaluation_index": 93,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0349.txt",
+          "sha256": "5a555d208e7575f0fd8795bee511ea64e637153d74de5c4e06dfccf36755a5fb",
+          "source_index": 349
+        },
+        {
+          "evaluation_index": 94,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0350.txt",
+          "sha256": "93ab6311587f90ba9ecc140c6e74ce348193e99541a2ddd8428fc1c1f93e6876",
+          "source_index": 350
+        },
+        {
+          "evaluation_index": 95,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0351.txt",
+          "sha256": "729d5830240e7c85547c278c0458ebfb3510497bc39f514acc49da85be6e5e39",
+          "source_index": 351
+        },
+        {
+          "evaluation_index": 96,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0352.txt",
+          "sha256": "dba1ae9dc650e991215ab4e7874db938a0e87e5f6bbb86c78bf57b67490da64f",
+          "source_index": 352
+        },
+        {
+          "evaluation_index": 97,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0353.txt",
+          "sha256": "c7fbd7ad86c29383bb203fb1fe26f187e51e6874a39f91cd2d1a51409313b4eb",
+          "source_index": 353
+        },
+        {
+          "evaluation_index": 98,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0354.txt",
+          "sha256": "3327759be2d3937f05ef30dc54f451229efef963d6337ce67a02d65f95d88ec9",
+          "source_index": 354
+        },
+        {
+          "evaluation_index": 99,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0355.txt",
+          "sha256": "b997cd971cf5f376f18361ff7822346b067693bb3cac79abe808e8b0e4a59f0e",
+          "source_index": 355
+        },
+        {
+          "evaluation_index": 100,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0356.txt",
+          "sha256": "65c283523c6b2cec80d7bbf6618cfc3eb47f4e4309e90847257b5cbd59ce04f7",
+          "source_index": 356
+        },
+        {
+          "evaluation_index": 101,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0357.txt",
+          "sha256": "549dd1d682b7df57cc9b33cbb7c726edd38718619f9d07d9b563f33f9be11f65",
+          "source_index": 357
+        },
+        {
+          "evaluation_index": 102,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0358.txt",
+          "sha256": "f870818e8fd30e726b3ab4d3396859e3d99d9f6da31dc82816b4850fc59ab3bf",
+          "source_index": 358
+        },
+        {
+          "evaluation_index": 103,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0359.txt",
+          "sha256": "c1ddaf51a3ef661419f249bde228cb5da4db9e98241052408c9b60b80d8f4770",
+          "source_index": 359
+        },
+        {
+          "evaluation_index": 104,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0360.txt",
+          "sha256": "9a5ace1691c672b4456b28074ebf01d0758eaa30c8b3cb8f8187507c92004f57",
+          "source_index": 360
+        },
+        {
+          "evaluation_index": 105,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0361.txt",
+          "sha256": "8cdfd70de3f68d59c20f1f7af9eb8c39648c3765172410ec8607e048e2498eb9",
+          "source_index": 361
+        },
+        {
+          "evaluation_index": 106,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0362.txt",
+          "sha256": "7bb978b6a8b2ddd6f37c996a6521821cefeed670b961ac1c423406e1f6fd8871",
+          "source_index": 362
+        },
+        {
+          "evaluation_index": 107,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0363.txt",
+          "sha256": "80196548ab92c5f005e39d2c2fdbe67da027e28b1cdc4967d4f5d4ef2e728d00",
+          "source_index": 363
+        },
+        {
+          "evaluation_index": 108,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0364.txt",
+          "sha256": "c9a6b05a1fef924b1c402a91c663235dc4b4bebd60331cce687f10d7634205ce",
+          "source_index": 364
+        },
+        {
+          "evaluation_index": 109,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0365.txt",
+          "sha256": "04573904b69e35ad11616d5a1d83de4b00cc0c5a16924ff47c5aa458da6dd6bf",
+          "source_index": 365
+        },
+        {
+          "evaluation_index": 110,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0366.txt",
+          "sha256": "04a4e50fe3e6b144010752179733a0a61b2dda3199ea268dde86d76d9eb5cd20",
+          "source_index": 366
+        },
+        {
+          "evaluation_index": 111,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0367.txt",
+          "sha256": "fbeeec839e7f61cc43c0f6d3c75139af4222c89bf12fdc6c806082b2aa7f0167",
+          "source_index": 367
+        },
+        {
+          "evaluation_index": 112,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0368.txt",
+          "sha256": "e6b77e3253252c0e2e9c167d2e9e4585cb42015820fe920e95e859b730e61b88",
+          "source_index": 368
+        },
+        {
+          "evaluation_index": 113,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0369.txt",
+          "sha256": "19bd80790e42b947687c3c7026b892d264a7c511544cfe8ef2ab5cb940c05b59",
+          "source_index": 369
+        },
+        {
+          "evaluation_index": 114,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0370.txt",
+          "sha256": "7f3c12f06dab4fb6cac2feaff2ad69b00a7447f1a354bd5399d62365015ffbc7",
+          "source_index": 370
+        },
+        {
+          "evaluation_index": 115,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0371.txt",
+          "sha256": "0aafd851bce7b27de3d1d861a1cc41a998332789966c71a4b0df2dc4b2f03db5",
+          "source_index": 371
+        },
+        {
+          "evaluation_index": 116,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0372.txt",
+          "sha256": "09fce456d6dd6c6c7d3245dbd5783726a8fd5dae5f687b6cedb197062f3a14a3",
+          "source_index": 372
+        },
+        {
+          "evaluation_index": 117,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0373.txt",
+          "sha256": "6e14d0d32a486b76d3e3cb17c4dbc6fcd79cbfdffb49ca4922956c2852130765",
+          "source_index": 373
+        },
+        {
+          "evaluation_index": 118,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0374.txt",
+          "sha256": "e8743ecbb932bab293eeada108b400802df02e7c9d3a486c2b735bd2535a33c9",
+          "source_index": 374
+        },
+        {
+          "evaluation_index": 119,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0375.txt",
+          "sha256": "ff62c100f798137486fadd9f823407af06fcc417fec8997fe518f1e6beb7a346",
+          "source_index": 375
+        },
+        {
+          "evaluation_index": 120,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0376.txt",
+          "sha256": "6edca515d45135eb9b4911288b2685d05c8cad104c5604b8e5f92147330461e3",
+          "source_index": 376
+        },
+        {
+          "evaluation_index": 121,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0377.txt",
+          "sha256": "94e44423fa606ad9f4e592c8703efddebade679cfec9794eb660a48904d5ce36",
+          "source_index": 377
+        },
+        {
+          "evaluation_index": 122,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0378.txt",
+          "sha256": "9fc7212fce74a57c7f74555ca085826e8d953676c5674e42992e89692e921437",
+          "source_index": 378
+        },
+        {
+          "evaluation_index": 123,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0379.txt",
+          "sha256": "d4dacea66aac39b281fca7bfe2c6543cab7c97028602728e8d448f5d35be66e7",
+          "source_index": 379
+        },
+        {
+          "evaluation_index": 124,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0380.txt",
+          "sha256": "cae88d828d40629059d7eb0a8ecfdab7d4368c8dbc22fb4d95fcda3cd965efb8",
+          "source_index": 380
+        },
+        {
+          "evaluation_index": 125,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0381.txt",
+          "sha256": "9c0bf68fca7ab178e46f43a3175a7aac1fe3cddc7793a47409e7808749ca94dd",
+          "source_index": 381
+        },
+        {
+          "evaluation_index": 126,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0382.txt",
+          "sha256": "281b8acd7c0a13e6fdb760abe8b3124f7873f76409acb9e5701f5a341974fbf3",
+          "source_index": 382
+        },
+        {
+          "evaluation_index": 127,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0383.txt",
+          "sha256": "eae2197fdb55f25e8fbc16806ce12678f34e3f5093cabccc424e1d75f706c238",
+          "source_index": 383
+        }
+      ],
+      "seed": 0,
+      "source_end": 384,
+      "source_start": 256
+    },
+    {
+      "decoded_video_contract": {
+        "duration_seconds": 59.8125,
+        "fps": 16.0,
+        "frames": 957,
+        "height": 480,
+        "width": 832
+      },
+      "key": "long60_seed10000_64",
+      "num_output_frames": 240,
+      "priority": "optional_seed_replication",
+      "prompt_count": 64,
+      "prompt_file": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v181_rccp_long_stress/inputs/prompts/long60_seed10000_64.txt",
+      "prompt_file_sha256": "ff3ae768e9dd03b1f08ee2b4619c795bfeab610cacbe3ec3a0909b3c0faa77b2",
+      "prompt_source_indices": [
+        256,
+        257,
+        258,
+        259,
+        260,
+        261,
+        262,
+        263,
+        264,
+        265,
+        266,
+        267,
+        268,
+        269,
+        270,
+        271,
+        272,
+        273,
+        274,
+        275,
+        276,
+        277,
+        278,
+        279,
+        280,
+        281,
+        282,
+        283,
+        284,
+        285,
+        286,
+        287,
+        288,
+        289,
+        290,
+        291,
+        292,
+        293,
+        294,
+        295,
+        296,
+        297,
+        298,
+        299,
+        300,
+        301,
+        302,
+        303,
+        304,
+        305,
+        306,
+        307,
+        308,
+        309,
+        310,
+        311,
+        312,
+        313,
+        314,
+        315,
+        316,
+        317,
+        318,
+        319
+      ],
+      "prompt_sources": [
+        {
+          "evaluation_index": 0,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0256.txt",
+          "sha256": "59b39443c99ae20f774043b180bb6780852b46e54bca863945ad6f9b39e4a496",
+          "source_index": 256
+        },
+        {
+          "evaluation_index": 1,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0257.txt",
+          "sha256": "d5958df5ad98d9e1c4d597fd03dbd7fdaf76a1de7ee9c3de5517b1f2ecca8592",
+          "source_index": 257
+        },
+        {
+          "evaluation_index": 2,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0258.txt",
+          "sha256": "ab7605e21881e50a01bedd2847baaa233c291794d677b1050780246abc94f036",
+          "source_index": 258
+        },
+        {
+          "evaluation_index": 3,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0259.txt",
+          "sha256": "61557578ce7f2218cf30867f5f31ea71525ca2583ccbe62ada26e37b8af871c7",
+          "source_index": 259
+        },
+        {
+          "evaluation_index": 4,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0260.txt",
+          "sha256": "f281c9df0ca4f47d718989f9f868036a1fa2cfa6ce60b80aefe8e102d6f3b4eb",
+          "source_index": 260
+        },
+        {
+          "evaluation_index": 5,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0261.txt",
+          "sha256": "e13e579988ba2f366b1242c49c3ca33eb035902d12da66a5e30ce3a8879193b3",
+          "source_index": 261
+        },
+        {
+          "evaluation_index": 6,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0262.txt",
+          "sha256": "a14c51283b36680540d9e79ecb13d23f4823e57fe8ff9f60fa27c9d5b67fe5d8",
+          "source_index": 262
+        },
+        {
+          "evaluation_index": 7,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0263.txt",
+          "sha256": "0d496832f57c830eb4a5dd8b6b43a14cc0e2f8a3b81c5f0591ef6c295d6c9716",
+          "source_index": 263
+        },
+        {
+          "evaluation_index": 8,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0264.txt",
+          "sha256": "09853a67c8e7710f0fe4ee083b59f74778b6fbd5b5c0064242f3c932767a2044",
+          "source_index": 264
+        },
+        {
+          "evaluation_index": 9,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0265.txt",
+          "sha256": "b61352144410f5e3766657559ed70ad2ecdd835fc4380a45c2cb667ef954f37c",
+          "source_index": 265
+        },
+        {
+          "evaluation_index": 10,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0266.txt",
+          "sha256": "088be1107f860bb0a7a39d451b93353813592475a12041bc25697573fa924bee",
+          "source_index": 266
+        },
+        {
+          "evaluation_index": 11,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0267.txt",
+          "sha256": "a8c2dc9afadaf9a783b3e76618df436821eaa18a7be4dd5400744675020b91c6",
+          "source_index": 267
+        },
+        {
+          "evaluation_index": 12,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0268.txt",
+          "sha256": "54155f2a511a8e257adf15a00721d2c731a8d04c6fd95f41e4e814e734158074",
+          "source_index": 268
+        },
+        {
+          "evaluation_index": 13,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0269.txt",
+          "sha256": "43f89711c0be5c423ea53271ba4586238ede377c37984c5fa5d53798349526a8",
+          "source_index": 269
+        },
+        {
+          "evaluation_index": 14,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0270.txt",
+          "sha256": "8327cc14164ade3a24b1b194cc16b3da101188704ba52190de5a8cceb7c32f70",
+          "source_index": 270
+        },
+        {
+          "evaluation_index": 15,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0271.txt",
+          "sha256": "3c0b28fd8ad14246c0d0a5bdb4ca9a801d0e69a76c699e3dd37e88935c029aa1",
+          "source_index": 271
+        },
+        {
+          "evaluation_index": 16,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0272.txt",
+          "sha256": "59889832f12f65eb019ecbe3783e803073e54c10a3255e9f50724b421e7fbf0d",
+          "source_index": 272
+        },
+        {
+          "evaluation_index": 17,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0273.txt",
+          "sha256": "dff6b5c9df57f4a4c5adb7197d1651cbbda90776860077de9ae1c9fed93cb57a",
+          "source_index": 273
+        },
+        {
+          "evaluation_index": 18,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0274.txt",
+          "sha256": "905bbc46eed700e933cb982ffed1c721a2cb41a438fddff40bb64a31e7874660",
+          "source_index": 274
+        },
+        {
+          "evaluation_index": 19,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0275.txt",
+          "sha256": "e6eb82a945615f3cf3f249e52bf97e51bd35856a9519e46509ee1c030b5908a8",
+          "source_index": 275
+        },
+        {
+          "evaluation_index": 20,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0276.txt",
+          "sha256": "422219531b78d1ead2195e746c856c17db3eb137ac9e51aafe6cbee872686ca3",
+          "source_index": 276
+        },
+        {
+          "evaluation_index": 21,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0277.txt",
+          "sha256": "6a4e3d2c83c125cab7dc196c10d64f73ccc4ba0cc5eb35988932692d60017a08",
+          "source_index": 277
+        },
+        {
+          "evaluation_index": 22,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0278.txt",
+          "sha256": "9e616da7a53c81002fc8d52fd0bd8affb1115e77774277c7e5ae53da3137d5ae",
+          "source_index": 278
+        },
+        {
+          "evaluation_index": 23,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0279.txt",
+          "sha256": "cbf9f3f2679d331041197cb4ac40cd5a1ea08316c1df041615fbac3129366f80",
+          "source_index": 279
+        },
+        {
+          "evaluation_index": 24,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0280.txt",
+          "sha256": "2db19fd18373b90b45ded66a0c99510d5eabd6384cca38f1bfbbae7748b9ad9f",
+          "source_index": 280
+        },
+        {
+          "evaluation_index": 25,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0281.txt",
+          "sha256": "d894a68691d5c54a25bf39bf017269c65f857917ce900d226cc4ab372e761c26",
+          "source_index": 281
+        },
+        {
+          "evaluation_index": 26,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0282.txt",
+          "sha256": "8e6fc87676fdcf38e1f51edbd3e4b78e9cdd07f9acec516ffd09d5290e259cce",
+          "source_index": 282
+        },
+        {
+          "evaluation_index": 27,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0283.txt",
+          "sha256": "794ad9bc100355b5d44d58a61611e4edc96feb1079e55a74f86f2565a13f44e5",
+          "source_index": 283
+        },
+        {
+          "evaluation_index": 28,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0284.txt",
+          "sha256": "dc3c29424428013010b87a11f28d824ce827f8c202d06f047d884615be4806d8",
+          "source_index": 284
+        },
+        {
+          "evaluation_index": 29,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0285.txt",
+          "sha256": "b3571dcf12fc2051b275b5cc80b6e3915282b3e23a0dfd628b124da67fc6f57e",
+          "source_index": 285
+        },
+        {
+          "evaluation_index": 30,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0286.txt",
+          "sha256": "755b900a013ef4267cfed42913872fdf383c7a183ca332119828d0e3b1994248",
+          "source_index": 286
+        },
+        {
+          "evaluation_index": 31,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0287.txt",
+          "sha256": "25c9432f3b1e2783528a64f099e61445fd2842f8e7817b74d17388c4812e335d",
+          "source_index": 287
+        },
+        {
+          "evaluation_index": 32,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0288.txt",
+          "sha256": "22e93f1e626f0fa2071c70aed61eb4cde6e6bd4640d652ceb129287f8ac16ff9",
+          "source_index": 288
+        },
+        {
+          "evaluation_index": 33,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0289.txt",
+          "sha256": "c56a9802f3dc56c9c2b2ba5239b72e6db80fdd3a52da9f6dc3cca7e7cea91460",
+          "source_index": 289
+        },
+        {
+          "evaluation_index": 34,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0290.txt",
+          "sha256": "94f9a007ddb35c57c3d307cb49dc8b43c6782cfaf10ced48537163ea54b234fb",
+          "source_index": 290
+        },
+        {
+          "evaluation_index": 35,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0291.txt",
+          "sha256": "a41d68b3b3ed01be036dddcc7c7e73f264de7f16399ac003e77881316279335f",
+          "source_index": 291
+        },
+        {
+          "evaluation_index": 36,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0292.txt",
+          "sha256": "aa10e93d83c31ec3289cc6e7853bb58013138a84d5b8da1c72de49bbf1e92c36",
+          "source_index": 292
+        },
+        {
+          "evaluation_index": 37,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0293.txt",
+          "sha256": "29eac2222eed9a09ca8771bc0238b7b87d3d7429686a5787bacd6f549c99079c",
+          "source_index": 293
+        },
+        {
+          "evaluation_index": 38,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0294.txt",
+          "sha256": "a905fd7aef570afb7d577cb15cf0d7532960db120d31031118d5d1b5f29ec290",
+          "source_index": 294
+        },
+        {
+          "evaluation_index": 39,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0295.txt",
+          "sha256": "132909231eed72246d50ba7fe7e6df55b2986f2f1b2702bc96ab094ca8e89553",
+          "source_index": 295
+        },
+        {
+          "evaluation_index": 40,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0296.txt",
+          "sha256": "e17b8097c2aa186dbb5beb04f40842b3477d1df8e193a6180a7f81475770b047",
+          "source_index": 296
+        },
+        {
+          "evaluation_index": 41,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0297.txt",
+          "sha256": "1859431d75e38a72c5c365e2d247fca1d2fd446b0f35a088771c0a18cbe1e9f7",
+          "source_index": 297
+        },
+        {
+          "evaluation_index": 42,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0298.txt",
+          "sha256": "8ca551e3bf05a047ea7122a2ef54b6a067022e86276d51175cf852c14b171610",
+          "source_index": 298
+        },
+        {
+          "evaluation_index": 43,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0299.txt",
+          "sha256": "023d575bdba23eec4a8e70d248c10e70644652abd0b0cadd07ecefe94d390de8",
+          "source_index": 299
+        },
+        {
+          "evaluation_index": 44,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0300.txt",
+          "sha256": "09d08885495767970c4235b7e29fc08d34fedbd4506d3dc5231a091746011feb",
+          "source_index": 300
+        },
+        {
+          "evaluation_index": 45,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0301.txt",
+          "sha256": "8a5306ce175f283c65998ae616a4df7fbdc2cf1f7207a6bacbf1bded5c0bf4d7",
+          "source_index": 301
+        },
+        {
+          "evaluation_index": 46,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0302.txt",
+          "sha256": "2945b13e1d0f2250e4357aa92d16a6dbd0b1ef3ee130d81b372d84109e4ffbb9",
+          "source_index": 302
+        },
+        {
+          "evaluation_index": 47,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0303.txt",
+          "sha256": "eef00494498d3f9ddef388952606aa4235b4e7348a350397c6976a680376714a",
+          "source_index": 303
+        },
+        {
+          "evaluation_index": 48,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0304.txt",
+          "sha256": "bbfed14af6e79a4462bc92951f622951dc80bd98793d6fe8bd009a243fbf20c2",
+          "source_index": 304
+        },
+        {
+          "evaluation_index": 49,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0305.txt",
+          "sha256": "78a950013f2592aaa47ede63a9a227df39b1846fdb28dcd88340cf6bfa21936f",
+          "source_index": 305
+        },
+        {
+          "evaluation_index": 50,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0306.txt",
+          "sha256": "8fa1daa15c9f7a0c0998cea286603e7f332d98ccce50c35b7d500215d2cbca1e",
+          "source_index": 306
+        },
+        {
+          "evaluation_index": 51,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0307.txt",
+          "sha256": "b93ea02f07e6dab1731d37598bdf29437e22c2c915e404e9ad8cbc913c6d5b86",
+          "source_index": 307
+        },
+        {
+          "evaluation_index": 52,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0308.txt",
+          "sha256": "5a2b23e5505a29230c41c78523342bffc6c4c64bf7550b6ebccf24b19b5b82ef",
+          "source_index": 308
+        },
+        {
+          "evaluation_index": 53,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0309.txt",
+          "sha256": "bdebcb58a9eab9486dcd4b62651c1efc253c881e87dd71260fd0072e9fb149c9",
+          "source_index": 309
+        },
+        {
+          "evaluation_index": 54,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0310.txt",
+          "sha256": "62fba2dc901a13822a76896d86411c5f53a5726a4be73d2061cf1abe4c5216c8",
+          "source_index": 310
+        },
+        {
+          "evaluation_index": 55,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0311.txt",
+          "sha256": "823d5438687878f6976506711fe24dc9e5baccf5717c8cc7043c0953ae721887",
+          "source_index": 311
+        },
+        {
+          "evaluation_index": 56,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0312.txt",
+          "sha256": "01df453f1b00b159f3b5a2efb5ce145cda0cf565f6cdf86d9315602d0640786f",
+          "source_index": 312
+        },
+        {
+          "evaluation_index": 57,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0313.txt",
+          "sha256": "639938394b5bfc8dd0c442af71bbb749654c1d771c4dcdebcb3c31e3c999208e",
+          "source_index": 313
+        },
+        {
+          "evaluation_index": 58,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0314.txt",
+          "sha256": "501f493edabb473c937861924932ad73da3141de64f8c0393f5e7633789811f6",
+          "source_index": 314
+        },
+        {
+          "evaluation_index": 59,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0315.txt",
+          "sha256": "1d19c81d77a211f89627f550703161711541d4dbedf62a2cffd60caa3e535c09",
+          "source_index": 315
+        },
+        {
+          "evaluation_index": 60,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0316.txt",
+          "sha256": "8ecb705b226fe4cfaab028c1aeab2cc0830ba24c39f164b8456b7f0026e109ff",
+          "source_index": 316
+        },
+        {
+          "evaluation_index": 61,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0317.txt",
+          "sha256": "b8e7a5ad3d73862fae0b245f14bca51fec45d0098b154c79366bad93ece77384",
+          "source_index": 317
+        },
+        {
+          "evaluation_index": 62,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0318.txt",
+          "sha256": "b5c98580852b647b1ddfb3eb743a583e54d6ff4962571b669e2806539e0f5a4f",
+          "source_index": 318
+        },
+        {
+          "evaluation_index": 63,
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/DeepForcing/prompts/MovieGenVideoBench_txt/line_0319.txt",
+          "sha256": "3ed5e328219e184605e11a7669355ea1ff4ebf778017e23d5041caf6683604e1",
+          "source_index": 319
+        }
+      ],
+      "seed": 10000,
+      "source_end": 320,
+      "source_start": 256
+    }
+  ],
+  "selected_nonlocal_head_count": 5,
+  "stress_source_index_range": [
+    256,
+    383
+  ],
+  "upstream_decision": "pass",
+  "v177_analysis": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v177_strict_superset_rccp/analysis/analysis.json",
+  "v177_analysis_sha256": "9736cecb5454e7079d95842b5436ef1eb721382e49c2303d62a7d22ec2d8c05e",
+  "v178_input_manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v178_rccp_holdout_generation/inputs/manifest.json",
+  "v178_input_manifest_sha256": "ba05ce9b0f3cf80b7524d185f195186d2ee6ff83beea69f36a11508bb43ea47f",
+  "v178_paired_result": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v178_rccp_holdout_generation/analysis/v178_paired_metrics.json",
+  "v178_paired_result_sha256": "b008d87e6b7cb217bdfbcc85b01fcdea26bfa6cffe8c15ab8c361cb8dfbf718b",
+  "v178_run_root": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v178_rccp_holdout_generation",
+  "version": 1
+}
