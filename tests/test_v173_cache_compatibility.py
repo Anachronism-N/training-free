@@ -410,6 +410,8 @@ def test_v173_shell_exposes_automated_profile_lifecycle() -> None:
         / "adaptive_cache.py"
     ).read_text(encoding="utf-8")
     assert cache_source.count(
-        '"recent" if self.cache_compat_profile_enabled else None'
+        "self._cache_compat_active_policy\n"
+        "                if self.cache_compat_profile_enabled"
     ) == 2
+    assert 'self._cache_compat_active_policy = "recent"' in cache_source
     assert "cache compatibility middle budget exceeded" in cache_source

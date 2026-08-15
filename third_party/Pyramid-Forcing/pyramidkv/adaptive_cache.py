@@ -733,6 +733,30 @@ class AdaptiveKVCache(PyramidKVCache):
         self.cache_compat_profile_recent_frames = max(
             1, int(cache_compat_profile_recent_frames)
         )
+        self._cache_compat_active_policy = "recent"
+        self._cache_compat_active_context: dict[str, object] = {}
+        self._cache_compat_schedule_trace_path = os.environ.get(
+            "PYRAMIDKV_DENOISE_SCHEDULE_TRACE_PATH", ""
+        ).strip()
+        self._cache_compat_schedule_trace_layers = {
+            int(value.strip())
+            for value in os.environ.get(
+                "PYRAMIDKV_DENOISE_SCHEDULE_TRACE_LAYERS",
+                "0,10,20,29",
+            ).split(",")
+            if value.strip()
+        }
+        self._cache_compat_schedule_trace_heads = {
+            int(value.strip())
+            for value in os.environ.get(
+                "PYRAMIDKV_DENOISE_SCHEDULE_TRACE_HEADS",
+                "0,6,10",
+            ).split(",")
+            if value.strip()
+        }
+        self._cache_compat_schedule_trace_seen: set[tuple] = set()
+        self._cache_compat_readout_trace_seen: set[tuple] = set()
+        self._cache_compat_schedule_trace_warned = False
         # The profiling composition owns the four-frame coverage reservoir
         # and coherent motion pair.  Keep a separate two-frame reservoir for
         # the episode candidate so every shadow policy is derived from the
@@ -2963,7 +2987,242 @@ class AdaptiveKVCache(PyramidKVCache):
             self._cache_compat_reservoir2.reset(
                 self.batch_size * self.num_heads
             )
+        self._cache_compat_active_policy = "recent"
+        self._cache_compat_active_context = {}
+        self._cache_compat_schedule_trace_seen.clear()
+        self._cache_compat_readout_trace_seen.clear()
+        self._cache_compat_schedule_trace_warned = False
         self._cache_compat_last_readout_metadata.clear()
+
+    def set_cache_compatibility_active_policy(
+        self,
+        policy: str,
+        *,
+        schedule: str,
+        call_index: int | None,
+        call_count: int,
+        update_mode: str,
+        current_start: int,
+    ) -> None:
+        """Select the active shadow readout without changing stored banks."""
+
+        normalized = str(policy).strip().lower()
+        if normalized not in {"recent", "coverage"}:
+            raise ValueError(
+                f"invalid active cache-compatibility policy: {policy!r}"
+            )
+        if not self.cache_compat_profile_enabled:
+            raise RuntimeError(
+                "denoise scheduling requires the cache-compatibility shadow "
+                "banks"
+            )
+        if normalized != self._cache_compat_active_policy:
+            self._invalidate_readout_cache()
+        self._cache_compat_active_policy = normalized
+        self._cache_compat_active_context = {
+            "schedule": str(schedule),
+            "call_index": None if call_index is None else int(call_index),
+            "call_count": int(call_count),
+            "update_mode": str(update_mode),
+            "current_start": int(current_start),
+        }
+        self._trace_cache_compatibility_schedule()
+
+    def _trace_cache_compatibility_schedule(self) -> None:
+        path = self._cache_compat_schedule_trace_path
+        if not path or self.layer_idx not in self._cache_compat_schedule_trace_layers:
+            return
+        context = self._cache_compat_active_context
+        key = (
+            int(self._policy_trace_prompt_id),
+            int(self.layer_idx),
+            int(context.get("current_start", 0)),
+            str(context.get("update_mode", "")),
+            context.get("call_index"),
+            str(self._cache_compat_active_policy),
+        )
+        if key in self._cache_compat_schedule_trace_seen:
+            return
+        self._cache_compat_schedule_trace_seen.add(key)
+        frame_seqlen = int(self._frame_seqlen or self.frame_seq_length or 0)
+        payload = {
+            "version": 1,
+            "event": "schedule",
+            "prompt_id": int(self._policy_trace_prompt_id),
+            "layer": int(self.layer_idx),
+            "schedule": str(context.get("schedule", "")),
+            "effective_policy": str(self._cache_compat_active_policy),
+            "call_index": context.get("call_index"),
+            "call_count": int(context.get("call_count", 0)),
+            "update_mode": str(context.get("update_mode", "")),
+            "current_start": int(context.get("current_start", 0)),
+            "current_frame": (
+                int(context.get("current_start", 0)) // frame_seqlen
+                if frame_seqlen > 0
+                else None
+            ),
+            "clean_policy_is_recent": (
+                str(context.get("update_mode", "")) != "clean"
+                or self._cache_compat_active_policy == "recent"
+            ),
+        }
+        try:
+            directory = os.path.dirname(path)
+            if directory:
+                os.makedirs(directory, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, sort_keys=True) + "\n")
+        except OSError as error:
+            if not self._cache_compat_schedule_trace_warned:
+                print(
+                    "[CacheCompatDenoiseTraceWarning] "
+                    f"layer={self.layer_idx} error={error}",
+                    flush=True,
+                )
+                self._cache_compat_schedule_trace_warned = True
+
+    def _audit_and_trace_cache_compatibility_readout(
+        self,
+        spec: _ReadoutSpec,
+        *,
+        sync_t_raw: int,
+        frame_seqlen: int,
+    ) -> None:
+        """Fail fast on route leakage and sample physical readout contents."""
+
+        if not self.cache_compat_profile_enabled:
+            return
+        policy = str(self._cache_compat_active_policy)
+        num_seq = self.batch_size * self.num_heads
+        counts = [
+            {"static": 0, "dynamic": 0, "anchor": 0}
+            for _ in range(num_seq)
+        ]
+        for segment in spec.segments:
+            if int(segment.length) % int(frame_seqlen) != 0:
+                raise RuntimeError(
+                    "scheduled cache readout contains a partial frame: "
+                    f"layer={self.layer_idx} policy={policy} "
+                    f"kind={segment.kind} tokens={segment.length}"
+                )
+            kind = (
+                "static"
+                if segment.kind == "static"
+                else "dynamic"
+                if segment.kind == "dynamic"
+                else "anchor"
+            )
+            counts[int(segment.seq_idx)][kind] += (
+                int(segment.length) // int(frame_seqlen)
+            )
+        for seq_idx, row in enumerate(counts):
+            total = sum(row.values())
+            if total > 9 or row["static"] > 1:
+                raise RuntimeError(
+                    "scheduled cache read budget drift: "
+                    f"layer={self.layer_idx} seq={seq_idx} policy={policy} "
+                    f"counts={row} total={total}"
+                )
+            if policy == "recent" and (
+                row["anchor"] != 0 or row["dynamic"] > 8
+            ):
+                raise RuntimeError(
+                    "Recent schedule leaked middle memory: "
+                    f"layer={self.layer_idx} seq={seq_idx} counts={row}"
+                )
+            if policy == "coverage" and (
+                row["anchor"] > 4 or row["dynamic"] > 4
+            ):
+                raise RuntimeError(
+                    "Coverage schedule exceeded its 4+4 budget: "
+                    f"layer={self.layer_idx} seq={seq_idx} counts={row}"
+                )
+
+        path = self._cache_compat_schedule_trace_path
+        if (
+            not path
+            or self.layer_idx not in self._cache_compat_schedule_trace_layers
+            or int(sync_t_raw) % 3 != 0
+        ):
+            return
+        context = self._cache_compat_active_context
+        key = (
+            int(self._policy_trace_prompt_id),
+            int(self.layer_idx),
+            int(sync_t_raw),
+            str(context.get("update_mode", "")),
+            context.get("call_index"),
+            policy,
+        )
+        if key in self._cache_compat_readout_trace_seen:
+            return
+        self._cache_compat_readout_trace_seen.add(key)
+        selected = []
+        for head_idx in sorted(self._cache_compat_schedule_trace_heads):
+            if not 0 <= head_idx < self.num_heads:
+                continue
+            seq_idx = head_idx
+            segments = []
+            for segment in spec.segments:
+                if int(segment.seq_idx) != seq_idx:
+                    continue
+                frame_ids = (
+                    segment.pos[::frame_seqlen, 0]
+                    .detach()
+                    .to(device="cpu", dtype=torch.long)
+                    .tolist()
+                )
+                segments.append(
+                    {
+                        "kind": str(segment.kind),
+                        "frame_equivalents": (
+                            int(segment.length) // int(frame_seqlen)
+                        ),
+                        "physical_frame_ids": [int(value) for value in frame_ids],
+                        "dynamic_rope": segment.dynamic_rope_t is not None,
+                        "dynamic_time_map": bool(segment.dynamic_time_map),
+                    }
+                )
+            selected.append(
+                {
+                    "head": int(head_idx),
+                    "counts": counts[seq_idx],
+                    "total_frame_equivalents": int(sum(counts[seq_idx].values())),
+                    "segments": segments,
+                }
+            )
+        payload = {
+            "version": 1,
+            "event": "readout",
+            "prompt_id": int(self._policy_trace_prompt_id),
+            "layer": int(self.layer_idx),
+            "schedule": str(context.get("schedule", "")),
+            "effective_policy": policy,
+            "call_index": context.get("call_index"),
+            "call_count": int(context.get("call_count", 0)),
+            "update_mode": str(context.get("update_mode", "")),
+            "current_frame": int(sync_t_raw),
+            "selected_heads": selected,
+            "max_total_frame_equivalents": max(
+                (sum(row.values()) for row in counts),
+                default=0,
+            ),
+            "budget_pass": True,
+        }
+        try:
+            directory = os.path.dirname(path)
+            if directory:
+                os.makedirs(directory, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, sort_keys=True) + "\n")
+        except OSError as error:
+            if not self._cache_compat_schedule_trace_warned:
+                print(
+                    "[CacheCompatDenoiseTraceWarning] "
+                    f"layer={self.layer_idx} error={error}",
+                    flush=True,
+                )
+                self._cache_compat_schedule_trace_warned = True
 
     def _update_steady_state(self, cu_seqlens_k: torch.Tensor) -> None:
         """Steady-state detection via pure-Python _dyn_store_len comparison.
@@ -4108,7 +4367,9 @@ class AdaptiveKVCache(PyramidKVCache):
             sync_t_raw=sync_t_raw,
             sync_t=sync_t,
             compatibility_policy=(
-                "recent" if self.cache_compat_profile_enabled else None
+                self._cache_compat_active_policy
+                if self.cache_compat_profile_enabled
+                else None
             ),
         )
 
@@ -5857,8 +6118,15 @@ class AdaptiveKVCache(PyramidKVCache):
             sync_t_raw=sync_t_raw,
             sync_t=sync_t,
             compatibility_policy=(
-                "recent" if self.cache_compat_profile_enabled else None
+                self._cache_compat_active_policy
+                if self.cache_compat_profile_enabled
+                else None
             ),
+        )
+        self._audit_and_trace_cache_compatibility_readout(
+            spec,
+            sync_t_raw=sync_t_raw,
+            frame_seqlen=frame_seqlen,
         )
         shape_matches_previous = (
             self._last_readout_shape_key is not None

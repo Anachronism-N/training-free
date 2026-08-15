@@ -701,6 +701,15 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--pyramidkv_cache_compatibility_denoise_schedule",
+    choices=("recent", "coverage", "early1", "early2", "late2", "late1"),
+    default=None,
+    help=(
+        "Use one shared Recent/Coverage shadow state and route noisy "
+        "denoising calls by phase. Clean KV commits always read Recent."
+    ),
+)
+parser.add_argument(
     "--cache_compat_profile_kind",
     type=str,
     default="moviegen128_discovery",
@@ -1215,6 +1224,48 @@ if args.pyramidkv_cache_compatibility_policy:
         f"{sum(row.count(CACHE_COMPAT_EPISODE_LABEL) for row in compatibility_rows)} "
         f"coverage_policy={args.pyramidkv_cache_compatibility_coverage_policy} "
         "budget=9FFE read_budget=9FFE owner=HeadComposition",
+        flush=True,
+    )
+if args.pyramidkv_cache_compatibility_denoise_schedule is not None:
+    if args.cache_compat_profile_output is not None:
+        parser.error(
+            "denoise scheduling cannot share a run with cache-compatibility "
+            "profiling"
+        )
+    if args.pyramidkv_cache_compatibility_policy:
+        parser.error(
+            "denoise scheduling uses the profiling shadow banks and cannot "
+            "share the label-20/21/22 generation override"
+        )
+    if not args.pyramidkv_history_polarity or (
+        args.pyramidkv_history_support_policy
+        != "reservoir4_multiscalemotion1"
+        or args.pyramidkv_history_suppress_policy
+        != "reservoir4_multiscalemotion1"
+    ):
+        parser.error(
+            "denoise scheduling requires history-polarity with both routes "
+            "set to reservoir4_multiscalemotion1"
+        )
+    if not bool(getattr(config, "use_adaptive_pyramidkv", False)):
+        parser.error("denoise scheduling requires AdaptiveKVCache")
+    if not bool(getattr(config, "sink_grid_decoupling", False)):
+        parser.error("denoise scheduling requires sink-grid decoupling")
+    if not hasattr(config, "denoising_step_list"):
+        parser.error("denoise scheduling requires few-step inference")
+    config.pyramidkv_cache_compat_profile_enabled = True
+    config.pyramidkv_cache_compat_profile_recent_frames = 8
+    os.environ["PYRAMIDKV_CACHE_COMPAT_DENOISE_SCHEDULE"] = (
+        args.pyramidkv_cache_compatibility_denoise_schedule
+    )
+    os.environ["PYRAMIDKV_DISABLE_M6_FASTPATH"] = "1"
+    os.environ["PYRAMIDKV_PATH_AB"] = "0"
+    print(
+        "[CacheCompatDenoiseSchedule] "
+        f"schedule={args.pyramidkv_cache_compatibility_denoise_schedule} "
+        "noisy_readout=scheduled clean_readout=recent "
+        "recent=sink1+recent8 coverage=sink1+reservoir4+recent4 "
+        "shared_updates=true read_budget=9FFE",
         flush=True,
     )
 if args.pyramidkv_pf_extended_recent_ablation is not None:

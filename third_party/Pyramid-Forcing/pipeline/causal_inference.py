@@ -13,6 +13,9 @@ from pyramidkv import AdaptiveKVCache, PyramidKVCache, PyramidKVConfig
 from pyramidkv import build_compositions
 from pyramidkv._mega_cache import build_mega_caches
 from pyramidkv import _mega_state_ref as _mega_ref
+from pyramidkv.denoise_schedule import (
+    set_cache_compatibility_denoise_state,
+)
 from pipeline.pyramidkv_config import PyramidKVPipelineConfig
 from pipeline.logging_utils import BlockTimer, format_block_progress, get_log_mode, is_main_process, should_use_timestep_progress
 
@@ -846,6 +849,13 @@ class CausalInferencePipeline(torch.nn.Module):
                 teacache_force_calc = (
                     index == 0 or index == len(self.denoising_step_list) - 1
                 )
+                set_cache_compatibility_denoise_state(
+                    self.kv_cache1,
+                    call_index=index,
+                    call_count=len(self.denoising_step_list),
+                    update_mode="noisy",
+                    current_start=current_start_frame * self.frame_seq_length,
+                )
 
                 flow_cond, denoised_cond = self.generator(
                     noisy_image_or_video=noisy_input,
@@ -858,6 +868,14 @@ class CausalInferencePipeline(torch.nn.Module):
                     teacache_force_calc=teacache_force_calc,
                 )
                 if self.few_step_cfg_enabled:
+                    set_cache_compatibility_denoise_state(
+                        self.kv_cache_uncond,
+                        call_index=index,
+                        call_count=len(self.denoising_step_list),
+                        update_mode="noisy",
+                        current_start=current_start_frame
+                        * self.frame_seq_length,
+                    )
                     flow_uncond, _ = self.generator(
                         noisy_image_or_video=noisy_input,
                         conditional_dict=unconditional_dict,
@@ -912,6 +930,13 @@ class CausalInferencePipeline(torch.nn.Module):
             context_timestep = torch.ones_like(timestep) * self.args.context_noise
             if profile:
                 clean_pass_start.record()
+            set_cache_compatibility_denoise_state(
+                self.kv_cache1,
+                call_index=None,
+                call_count=len(self.denoising_step_list),
+                update_mode="clean",
+                current_start=current_start_frame * self.frame_seq_length,
+            )
             self.generator(
                 noisy_image_or_video=denoised_pred,
                 conditional_dict=conditional_dict,
@@ -923,6 +948,14 @@ class CausalInferencePipeline(torch.nn.Module):
                 skip_x0=True,
             )
             if self.few_step_cfg_enabled:
+                set_cache_compatibility_denoise_state(
+                    self.kv_cache_uncond,
+                    call_index=None,
+                    call_count=len(self.denoising_step_list),
+                    update_mode="clean",
+                    current_start=current_start_frame
+                    * self.frame_seq_length,
+                )
                 self.generator(
                     noisy_image_or_video=denoised_pred,
                     conditional_dict=unconditional_dict,
