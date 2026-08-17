@@ -3021,6 +3021,9 @@ class AdaptiveKVCache(PyramidKVCache):
         self._cache_compat_active_policy = normalized
         self._cache_compat_active_context = {
             "schedule": str(schedule),
+            "coverage_operator": os.environ.get(
+                "PYRAMIDKV_CACHE_COMPAT_COVERAGE_OPERATOR", "reservoir"
+            ).strip().lower(),
             "call_index": None if call_index is None else int(call_index),
             "call_count": int(call_count),
             "update_mode": str(update_mode),
@@ -3051,6 +3054,9 @@ class AdaptiveKVCache(PyramidKVCache):
             "prompt_id": int(self._policy_trace_prompt_id),
             "layer": int(self.layer_idx),
             "schedule": str(context.get("schedule", "")),
+            "coverage_operator": str(
+                context.get("coverage_operator", "reservoir")
+            ),
             "effective_policy": str(self._cache_compat_active_policy),
             "call_index": context.get("call_index"),
             "call_count": int(context.get("call_count", 0)),
@@ -3175,10 +3181,18 @@ class AdaptiveKVCache(PyramidKVCache):
                 segments.append(
                     {
                         "kind": str(segment.kind),
+                        "source_kind": (
+                            str(segment.kind).split(":", 1)[1]
+                            if str(segment.kind).startswith("anchor:")
+                            else str(segment.kind)
+                        ),
                         "frame_equivalents": (
                             int(segment.length) // int(frame_seqlen)
                         ),
                         "physical_frame_ids": [int(value) for value in frame_ids],
+                        "frame_ages": [
+                            int(sync_t_raw) - int(value) for value in frame_ids
+                        ],
                         "dynamic_rope": segment.dynamic_rope_t is not None,
                         "dynamic_time_map": bool(segment.dynamic_time_map),
                     }
@@ -3197,6 +3211,9 @@ class AdaptiveKVCache(PyramidKVCache):
             "prompt_id": int(self._policy_trace_prompt_id),
             "layer": int(self.layer_idx),
             "schedule": str(context.get("schedule", "")),
+            "coverage_operator": str(
+                context.get("coverage_operator", "reservoir")
+            ),
             "effective_policy": policy,
             "call_index": context.get("call_index"),
             "call_count": int(context.get("call_count", 0)),
@@ -5363,6 +5380,20 @@ class AdaptiveKVCache(PyramidKVCache):
             raise RuntimeError(
                 "cache compatibility profiling requires explicit compositions"
             )
+        coverage_operator = os.environ.get(
+            "PYRAMIDKV_CACHE_COMPAT_COVERAGE_OPERATOR", "reservoir"
+        ).strip().lower()
+        operator_types = {
+            "reservoir": TemporalReservoirStrategy,
+            "landmark": SemanticLandmarkStrategy,
+            "prototype": TemporalPrototypeStrategy,
+            "retrieval": SemanticRetrievalStrategy,
+        }
+        if coverage_operator not in operator_types:
+            raise RuntimeError(
+                "unsupported scheduled Coverage operator: "
+                f"{coverage_operator!r}"
+            )
         reservoir4 = [
             strategy
             for strategy in composition.middle_strategies
@@ -5375,13 +5406,37 @@ class AdaptiveKVCache(PyramidKVCache):
             if isinstance(strategy, CoherentMotionStrategy)
             and int(strategy.pair_capacity) == 1
         ]
-        if len(reservoir4) != 1 or len(motion) != 1:
-            raise RuntimeError(
-                "v173 profiling composition must contain exactly one "
-                "reservoir4 and one coherent-motion pair: "
-                f"layer={self.layer_idx} head={head_idx} "
-                f"reservoir4={len(reservoir4)} motion={len(motion)}"
-            )
+        if coverage_operator == "reservoir":
+            if len(reservoir4) != 1 or len(motion) != 1:
+                raise RuntimeError(
+                    "reservoir Coverage requires exactly one reservoir4 and "
+                    "one coherent-motion shadow strategy: "
+                    f"layer={self.layer_idx} head={head_idx} "
+                    f"reservoir4={len(reservoir4)} motion={len(motion)}"
+                )
+            coverage_strategy = reservoir4[0]
+        else:
+            expected_type = operator_types[coverage_operator]
+            matches = [
+                strategy
+                for strategy in composition.middle_strategies
+                if isinstance(strategy, expected_type)
+                and int(getattr(strategy, "capacity", -1)) == 4
+            ]
+            if len(matches) != 1 or len(composition.middle_strategies) != 1:
+                raise RuntimeError(
+                    "structured scheduled Coverage requires one exclusive "
+                    f"four-frame {coverage_operator} strategy: "
+                    f"layer={self.layer_idx} head={head_idx} "
+                    f"matches={len(matches)} "
+                    f"middle={len(composition.middle_strategies)}"
+                )
+            if policy != "coverage":
+                raise RuntimeError(
+                    "structured scheduled Coverage does not expose Episode or "
+                    "Union profiling readouts"
+                )
+            coverage_strategy = matches[0]
         if self._cache_compat_reservoir2 is None:
             raise RuntimeError("v173 episode reservoir2 is unavailable")
 
@@ -5431,7 +5486,7 @@ class AdaptiveKVCache(PyramidKVCache):
         collected = []
         if policy in {"coverage", "union"}:
             collected.extend(
-                reservoir4[0].collect(
+                coverage_strategy.collect(
                     seq_idx,
                     sync_t_raw,
                     middle_recent_min_t,

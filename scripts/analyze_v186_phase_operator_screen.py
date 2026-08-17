@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Paired VBench-Long analysis for the v184 denoising-phase screen."""
+"""Paired VBench-Long analysis for the v186 operator screen."""
 
 from __future__ import annotations
 
@@ -10,20 +10,16 @@ from pathlib import Path
 import numpy as np
 
 import analyze_v174_paired_metrics as base
-from prepare_v184_denoise_phase_screen import METHODS, PROMPT_COUNT
-
-
-CONTROL = "all_recent"
-PHASE_CANDIDATES = (
-    "coverage_early1",
-    "coverage_early2",
-    "coverage_late2",
+from prepare_v186_phase_operator_screen import (
+    GENERATED_METHODS,
+    METHODS,
+    PROMPT_COUNT,
+    STORAGE_FFE,
 )
-COVERAGE_DOSE = {
-    "coverage_early1": 1,
-    "coverage_early2": 2,
-    "coverage_late2": 2,
-}
+
+
+LOCAL_CONTROL = "all_recent"
+RANDOM_REFERENCE = "phase_reservoir"
 PRIMARY_METRICS = (
     "official_quality_score",
     "identity_background",
@@ -33,15 +29,18 @@ PRIMARY_METRICS = (
 
 
 def pareto_front(means: dict[str, dict[str, float]]) -> list[str]:
-    metrics = PRIMARY_METRICS
     front = []
     for candidate, row in means.items():
         dominated = False
         for other, other_row in means.items():
             if other == candidate:
                 continue
-            weakly_better = all(other_row[metric] >= row[metric] for metric in metrics)
-            strictly_better = any(other_row[metric] > row[metric] for metric in metrics)
+            weakly_better = all(
+                other_row[metric] >= row[metric] for metric in PRIMARY_METRICS
+            )
+            strictly_better = any(
+                other_row[metric] > row[metric] for metric in PRIMARY_METRICS
+            )
             if weakly_better and strictly_better:
                 dominated = True
                 break
@@ -88,28 +87,17 @@ def _comparison_rows(comparisons: list[dict], candidate: str, control: str) -> d
     }
 
 
-def select_operator_screen_schedule(
-    promoted: list[str],
-    statuses: dict[str, dict],
-) -> str | None:
-    """Select the least invasive schedule that already passes every gate.
-
-    Coverage dose is minimized first.  Equal-dose schedules are ordered by
-    identity and temporal retention before quality and motion.  This rule is
-    frozen before v184 results are available and avoids choosing a schedule
-    from visual examples after the fact.
-    """
-
+def select_candidate(promoted: list[str], statuses: dict[str, dict]) -> str | None:
     if not promoted:
         return None
     return min(
         promoted,
         key=lambda candidate: (
-            COVERAGE_DOSE[candidate],
-            -statuses[candidate]["deltas_vs_recent"]["identity_background"],
-            -statuses[candidate]["deltas_vs_recent"]["temporal_mechanics"],
-            -statuses[candidate]["deltas_vs_recent"]["official_quality_score"],
-            -statuses[candidate]["deltas_vs_recent"]["dynamic_degree"],
+            STORAGE_FFE[candidate],
+            -statuses[candidate]["deltas_vs_reservoir"]["identity_background"],
+            -statuses[candidate]["deltas_vs_reservoir"]["temporal_mechanics"],
+            -statuses[candidate]["deltas_vs_reservoir"]["official_quality_score"],
+            -statuses[candidate]["deltas_vs_reservoir"]["dynamic_degree"],
             candidate,
         ),
     )
@@ -118,36 +106,38 @@ def select_operator_screen_schedule(
 def _targeted_review(
     manifest: dict,
     rows: dict,
-    promoted: list[str],
+    selected: str | None,
     limit: int = 4,
 ) -> list[dict]:
-    candidates = promoted or list(PHASE_CANDIDATES)
-    video_dirs = {
-        row["key"]: row["video_dir"] for row in manifest["methods"]
-    }
+    candidates = [selected] if selected else list(GENERATED_METHODS)
+    video_dirs = {row["key"]: row["video_dir"] for row in manifest["methods"]}
     queue = []
     for candidate in candidates:
         for prompt in range(PROMPT_COUNT):
             identity = (
                 rows[(candidate, prompt)]["identity_background"]
-                - rows[(CONTROL, prompt)]["identity_background"]
+                - rows[(RANDOM_REFERENCE, prompt)]["identity_background"]
             )
             dynamic = (
                 rows[(candidate, prompt)]["dynamic_degree"]
-                - rows[(CONTROL, prompt)]["dynamic_degree"]
+                - rows[(RANDOM_REFERENCE, prompt)]["dynamic_degree"]
             )
             quality = (
                 rows[(candidate, prompt)]["official_quality_score"]
-                - rows[(CONTROL, prompt)]["official_quality_score"]
+                - rows[(RANDOM_REFERENCE, prompt)]["official_quality_score"]
             )
             temporal = (
                 rows[(candidate, prompt)]["temporal_mechanics"]
-                - rows[(CONTROL, prompt)]["temporal_mechanics"]
+                - rows[(RANDOM_REFERENCE, prompt)]["temporal_mechanics"]
             )
-            conflict = dynamic > 0.0 and (identity < 0.0 or temporal < 0.0)
+            conflict = (
+                (identity > 0.0 and dynamic < 0.0)
+                or (dynamic > 0.0 and identity < 0.0)
+                or abs(quality) >= 0.5
+            )
             if not conflict:
                 continue
-            priority = abs(dynamic) + 20.0 * abs(identity) + 0.1 * abs(quality)
+            priority = 25.0 * abs(identity) + abs(dynamic) + 0.1 * abs(quality)
             item = manifest["prompt_items"][prompt]
             queue.append(
                 {
@@ -155,14 +145,14 @@ def _targeted_review(
                     "prompt_index": prompt,
                     "source_index": int(item["source_index"]),
                     "prompt": item["text"],
-                    "identity_delta": float(identity),
-                    "dynamic_delta": float(dynamic),
-                    "quality_delta": float(quality),
-                    "temporal_delta": float(temporal),
+                    "identity_delta_vs_reservoir": float(identity),
+                    "dynamic_delta_vs_reservoir": float(dynamic),
+                    "quality_delta_vs_reservoir": float(quality),
+                    "temporal_delta_vs_reservoir": float(temporal),
                     "priority": float(priority),
                     "videos": {
                         method: str(Path(video_dirs[method]) / f"{prompt:06d}-0.mp4")
-                        for method in (CONTROL, candidate)
+                        for method in (LOCAL_CONTROL, RANDOM_REFERENCE, candidate)
                     },
                 }
             )
@@ -176,24 +166,24 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
     methods = tuple(row.get("key") for row in manifest.get("methods") or ())
     if (
         manifest.get("experiment")
-        != "v184_denoise_phase_coverage_vbench_screen32"
+        != "v186_phase_conditioned_operator_vbench_screen32"
         or methods != METHODS
         or int(manifest.get("prompt_count", -1)) != PROMPT_COUNT
         or len(manifest.get("prompt_items") or ()) != PROMPT_COUNT
         or tuple(summary.get("methods") or {}) != METHODS
         or summary.get("missing")
     ):
-        raise ValueError("v184 paired analysis requires a complete frozen screen")
+        raise ValueError("v186 paired analysis requires a complete frozen screen")
     raw = base.load_prompt_rows(parts_root, summary, METHODS, PROMPT_COUNT)
     rows = base.derived_rows(raw, METHODS, PROMPT_COUNT)
     comparisons = []
     pairs = [
-        (candidate, CONTROL, "schedule_vs_recent")
-        for candidate in METHODS
-        if candidate != CONTROL
+        (method, LOCAL_CONTROL, "operator_schedule_vs_recent")
+        for method in METHODS
+        if method != LOCAL_CONTROL
     ] + [
-        ("coverage_early2", "coverage_late2", "early_vs_late_equal_dose"),
-        ("coverage_early2", "coverage_early1", "early_dose_increment"),
+        (method, RANDOM_REFERENCE, "deterministic_vs_random_operator")
+        for method in GENERATED_METHODS
     ]
     for pair_index, (candidate, control, role) in enumerate(pairs):
         for metric_index, metric in enumerate(base.METRICS):
@@ -204,7 +194,7 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
                     control,
                     role,
                     metric,
-                    seed=1842026 + pair_index * 101 + metric_index,
+                    seed=1862026 + pair_index * 101 + metric_index,
                 )
             )
     base.bh(comparisons)
@@ -222,104 +212,113 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
     }
     front = pareto_front(
         {
-            method: {metric: method_means[method][metric] for metric in PRIMARY_METRICS}
+            method: {
+                metric: method_means[method][metric] for metric in PRIMARY_METRICS
+            }
             for method in METHODS
         }
     )
     statuses = {}
     promoted = []
-    for candidate in PHASE_CANDIDATES:
-        metrics = _comparison_rows(comparisons, candidate, CONTROL)
-        directional_gate = bool(
-            metrics["official_quality_score"]["mean_delta"] >= 0.0
-            and metrics["identity_background"]["mean_delta"] >= -0.001
-            and metrics["dynamic_degree"]["mean_delta"] >= 0.02
-            and metrics["temporal_mechanics"]["mean_delta"] >= -0.002
+    for candidate in GENERATED_METHODS:
+        recent = _comparison_rows(comparisons, candidate, LOCAL_CONTROL)
+        reservoir = _comparison_rows(comparisons, candidate, RANDOM_REFERENCE)
+        preserves_v184_actuation = bool(
+            recent["official_quality_score"]["mean_delta"] >= 0.0
+            and recent["identity_background"]["mean_delta"] >= -0.001
+            and recent["dynamic_degree"]["mean_delta"] >= 0.02
+            and recent["temporal_mechanics"]["mean_delta"] >= -0.002
+        )
+        noninferior_to_reservoir = bool(
+            reservoir["official_quality_score"]["mean_delta"] >= -0.10
+            and reservoir["identity_background"]["mean_delta"] >= -0.0005
+            and reservoir["dynamic_degree"]["mean_delta"] >= -0.02
+            and reservoir["temporal_mechanics"]["mean_delta"] >= -0.001
+        )
+        improves_explanatory_axis = bool(
+            reservoir["identity_background"]["mean_delta"] >= 0.0005
+            or reservoir["temporal_mechanics"]["mean_delta"] >= 0.001
+            or reservoir["official_quality_score"]["mean_delta"] >= 0.10
         )
         on_front = candidate in front
-        promote = directional_gate and on_front
+        promote = bool(
+            preserves_v184_actuation
+            and noninferior_to_reservoir
+            and improves_explanatory_axis
+            and on_front
+        )
         if promote:
             promoted.append(candidate)
         statuses[candidate] = {
             "on_primary_pareto_front": on_front,
-            "directional_gate": directional_gate,
-            "promote_to_operator_screen": promote,
+            "preserves_v184_actuation": preserves_v184_actuation,
+            "noninferior_to_reservoir": noninferior_to_reservoir,
+            "improves_explanatory_axis": improves_explanatory_axis,
+            "promote_to_fresh128": promote,
+            "middle_storage_capacity": STORAGE_FFE[candidate],
             "deltas_vs_recent": {
-                metric: metrics[metric]["mean_delta"] for metric in PRIMARY_METRICS
+                metric: recent[metric]["mean_delta"] for metric in PRIMARY_METRICS
+            },
+            "deltas_vs_reservoir": {
+                metric: reservoir[metric]["mean_delta"] for metric in PRIMARY_METRICS
             },
         }
 
-    all_coverage = _comparison_rows(comparisons, "all_coverage_noisy", CONTROL)
-    phase_has_motion = any(
-        statuses[candidate]["deltas_vs_recent"]["dynamic_degree"] >= 0.02
-        for candidate in PHASE_CANDIDATES
-    )
-    coverage_is_actuator = bool(
-        all_coverage["dynamic_degree"]["mean_delta"] >= 0.02
-    )
-    if promoted:
-        recommendation = "advance_phase_schedule_to_operator_screen"
-    elif coverage_is_actuator and phase_has_motion:
-        recommendation = "design_online_motion_deficit_gate"
-    elif coverage_is_actuator:
-        recommendation = "phase_sparsification_failed_revisit_operator"
+    selected = select_candidate(promoted, statuses)
+    if selected is not None:
+        recommendation = "advance_deterministic_operator_to_fresh128"
     else:
-        recommendation = "stop_coverage_schedule"
-
-    selected_schedule = select_operator_screen_schedule(promoted, statuses)
+        recommendation = "no_deterministic_operator_advance"
     return {
         "version": 1,
         "experiment": manifest["experiment"],
         "development_only": True,
         "prompt_count": PROMPT_COUNT,
+        "selected_schedule": manifest["selected_schedule"],
         "methods": list(METHODS),
         "method_means": method_means,
         "comparisons": comparisons,
         "primary_pareto_front": front,
         "candidate_status": statuses,
-        "promoted_to_operator_screen": promoted,
-        "selected_for_operator_screen": selected_schedule,
-        "operator_screen_selection_rule": (
-            "Among Pareto candidates passing every directional gate, minimize "
-            "Coverage noisy-call dose; break equal-dose ties by identity, "
-            "temporal, quality, then dynamic delta versus all-Recent."
+        "promoted_to_fresh128": promoted,
+        "selected_for_fresh128": selected,
+        "selection_rule": (
+            "Require preservation versus all-Recent and non-inferiority plus "
+            "one explanatory-axis improvement versus Reservoir. Prefer equal "
+            "four-frame storage, then identity, temporal, quality, and dynamic."
         ),
         "recommendation": recommendation,
-        "all_coverage_is_motion_actuator": coverage_is_actuator,
         "manual_review_required_for_recommendation": False,
-        "targeted_review_queue": _targeted_review(
-            manifest,
-            rows,
-            promoted,
-        ),
+        "targeted_review_queue": _targeted_review(manifest, rows, selected),
         "claim_boundary": (
-            "The screen can select a denoising schedule for a controlled "
-            "deterministic-operator screen. It cannot establish a final benchmark "
-            "result, a universal timestep mechanism, or static head specialization."
+            "The development32 screen may select one operator for a fresh "
+            "confirmatory benchmark. It cannot establish final superiority, "
+            "cross-model transfer, or head specialization."
         ),
     }
 
 
 def render(report: dict) -> str:
     lines = [
-        "# v184 Denoising-Phase Coverage Screen",
+        "# v186 Phase-Conditioned Coverage Operator Screen",
         "",
+        f"Schedule: `{report['selected_schedule']}`",
         f"Recommendation: `{report['recommendation']}`",
-        "Promoted: " + (", ".join(report["promoted_to_operator_screen"]) or "none"),
-        "Selected for operator screen: "
-        + (report["selected_for_operator_screen"] or "none"),
-        f"Primary Pareto front: {', '.join(report['primary_pareto_front'])}",
+        "Promoted: " + (", ".join(report["promoted_to_fresh128"]) or "none"),
+        "Selected: " + (report["selected_for_fresh128"] or "none"),
         "",
-        "| Candidate | dQuality | dIdentity | dDynamic | dTemporal | Pareto | Promote |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Candidate | dQ/R | dID/R | dDyn/R | dTemp/R | Storage | Pareto | Promote |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for candidate, status in report["candidate_status"].items():
-        delta = status["deltas_vs_recent"]
+        delta = status["deltas_vs_reservoir"]
         lines.append(
             f"| {candidate} | {delta['official_quality_score']:.6f} | "
             f"{delta['identity_background']:.6f} | {delta['dynamic_degree']:.6f} | "
             f"{delta['temporal_mechanics']:.6f} | "
-            f"{status['on_primary_pareto_front']} | {status['promote_to_operator_screen']} |"
+            f"{status['middle_storage_capacity']} | "
+            f"{status['on_primary_pareto_front']} | "
+            f"{status['promote_to_fresh128']} |"
         )
     lines.extend(["", report["claim_boundary"], ""])
     return "\n".join(lines)
@@ -346,8 +345,8 @@ def main() -> None:
     )
     args.output.with_suffix(".md").write_text(render(report), encoding="utf-8")
     print(
-        f"[v184-decision] {report['recommendation']} "
-        f"promoted={','.join(report['promoted_to_operator_screen']) or 'none'}"
+        f"[v186-decision] {report['recommendation']} "
+        f"selected={report['selected_for_fresh128'] or 'none'}"
     )
 
 

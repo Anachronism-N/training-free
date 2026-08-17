@@ -271,5 +271,34 @@ def test_v184_analyzer_promotes_only_pareto_phase_candidate(
     report = module.analyze(manifest, summary, tmp_path)
 
     assert report["promoted_to_operator_screen"] == ["coverage_early2"]
+    assert report["selected_for_operator_screen"] == "coverage_early2"
     assert report["recommendation"] == "advance_phase_schedule_to_operator_screen"
     assert report["manual_review_required_for_recommendation"] is False
+
+
+def test_v184_operator_schedule_selection_prefers_minimum_passing_dose() -> None:
+    module = load_module(
+        "v184_schedule_selection",
+        ROOT / "scripts" / "analyze_v184_denoise_phase_screen.py",
+    )
+    statuses = {
+        "coverage_early1": {
+            "deltas_vs_recent": {
+                "identity_background": -0.0005,
+                "temporal_mechanics": -0.001,
+                "official_quality_score": 0.1,
+                "dynamic_degree": 0.03,
+            }
+        },
+        "coverage_early2": {
+            "deltas_vs_recent": {
+                "identity_background": 0.001,
+                "temporal_mechanics": 0.001,
+                "official_quality_score": 0.5,
+                "dynamic_degree": 0.10,
+            }
+        },
+    }
+    assert module.select_operator_screen_schedule(
+        ["coverage_early1", "coverage_early2"], statuses
+    ) == "coverage_early1"

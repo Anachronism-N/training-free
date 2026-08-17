@@ -710,6 +710,16 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--pyramidkv_cache_compatibility_denoise_coverage_policy",
+    choices=("reservoir", "landmark", "prototype", "retrieval"),
+    default="reservoir",
+    help=(
+        "Four-frame Coverage operator used by the denoising-call schedule. "
+        "This is independent of label-20/21/22 generation routing and keeps "
+        "the clean-pass readout on Recent."
+    ),
+)
+parser.add_argument(
     "--cache_compat_profile_kind",
     type=str,
     default="moviegen128_discovery",
@@ -1237,15 +1247,24 @@ if args.pyramidkv_cache_compatibility_denoise_schedule is not None:
             "denoise scheduling uses the profiling shadow banks and cannot "
             "share the label-20/21/22 generation override"
         )
+    denoise_coverage_policy = str(
+        args.pyramidkv_cache_compatibility_denoise_coverage_policy
+    ).strip().lower()
+    history_policy_by_operator = {
+        "reservoir": "reservoir4_multiscalemotion1",
+        "landmark": "landmark",
+        "prototype": "prototype",
+        "retrieval": "retrieval",
+    }
+    expected_history_policy = history_policy_by_operator[denoise_coverage_policy]
     if not args.pyramidkv_history_polarity or (
-        args.pyramidkv_history_support_policy
-        != "reservoir4_multiscalemotion1"
-        or args.pyramidkv_history_suppress_policy
-        != "reservoir4_multiscalemotion1"
+        args.pyramidkv_history_support_policy != expected_history_policy
+        or args.pyramidkv_history_suppress_policy != expected_history_policy
     ):
         parser.error(
             "denoise scheduling requires history-polarity with both routes "
-            "set to reservoir4_multiscalemotion1"
+            f"set to {expected_history_policy} for Coverage operator "
+            f"{denoise_coverage_policy}"
         )
     if not bool(getattr(config, "use_adaptive_pyramidkv", False)):
         parser.error("denoise scheduling requires AdaptiveKVCache")
@@ -1258,15 +1277,24 @@ if args.pyramidkv_cache_compatibility_denoise_schedule is not None:
     os.environ["PYRAMIDKV_CACHE_COMPAT_DENOISE_SCHEDULE"] = (
         args.pyramidkv_cache_compatibility_denoise_schedule
     )
+    os.environ["PYRAMIDKV_CACHE_COMPAT_COVERAGE_OPERATOR"] = (
+        denoise_coverage_policy
+    )
     os.environ["PYRAMIDKV_DISABLE_M6_FASTPATH"] = "1"
     os.environ["PYRAMIDKV_PATH_AB"] = "0"
     print(
         "[CacheCompatDenoiseSchedule] "
         f"schedule={args.pyramidkv_cache_compatibility_denoise_schedule} "
+        f"coverage_operator={denoise_coverage_policy} "
         "noisy_readout=scheduled clean_readout=recent "
-        "recent=sink1+recent8 coverage=sink1+reservoir4+recent4 "
+        "recent=sink1+recent8 coverage=sink1+middle4+recent4 "
         "shared_updates=true read_budget=9FFE",
         flush=True,
+    )
+elif args.pyramidkv_cache_compatibility_denoise_coverage_policy != "reservoir":
+    parser.error(
+        "--pyramidkv_cache_compatibility_denoise_coverage_policy requires "
+        "--pyramidkv_cache_compatibility_denoise_schedule"
     )
 if args.pyramidkv_pf_extended_recent_ablation is not None:
     from pyramidkv.policy_overrides import pf_class_extended_recent_overrides
