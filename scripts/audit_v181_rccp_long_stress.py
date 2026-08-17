@@ -147,7 +147,7 @@ def audit(
     log_path = scope_root / "audits" / "runtime_logs.json"
     write_state(log_path, log_report)
     if not log_report["ok"]:
-        print(f"WARNING: v181 {scope_key} runtime log audit failed")
+        raise RuntimeError(f"v181 {scope_key} runtime log audit failed")
 
     video_contract = scope["decoded_video_contract"]
     media_reports = {}
@@ -170,13 +170,13 @@ def audit(
         media_reports[method] = report
     failed = [method for method, report in media_reports.items() if not report["ok"]]
     if failed:
-        print(f"WARNING: v181 {scope_key} media audit failed: " + ",".join(failed))
+        raise RuntimeError(f"v181 {scope_key} media audit failed: " + ",".join(failed))
 
     duplicates = duplicate_report(scope_root, prompt_count)
     duplicate_path = scope_root / "audits" / "exact_video_duplicates.json"
     write_state(duplicate_path, duplicates)
     if not duplicates["ok"]:
-        print(f"WARNING: v181 {scope_key} custom head map appears globally ignored")
+        raise RuntimeError(f"v181 {scope_key} custom head map appears globally ignored")
 
     contract = {
         "version": 1,
