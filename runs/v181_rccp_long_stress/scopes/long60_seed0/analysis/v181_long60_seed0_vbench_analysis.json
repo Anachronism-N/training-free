@@ -1,0 +1,71 @@
+{
+  "claim_boundary": "Aggregate metrics are descriptive. Long-horizon claims require the paired v181 analysis and its frozen confidence gates.",
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "exclusive_groups": {
+    "dynamic_degree": [
+      "dynamic_degree"
+    ],
+    "identity_background": [
+      "subject_consistency",
+      "background_consistency"
+    ],
+    "semantic_alignment": [
+      "overall_consistency"
+    ],
+    "temporal_mechanics": [
+      "temporal_flickering",
+      "motion_smoothness"
+    ],
+    "visual_quality": [
+      "aesthetic_quality",
+      "imaging_quality"
+    ]
+  },
+  "exclusive_scores": {
+    "all_recent": {
+      "dynamic_degree": 0.50546875,
+      "identity_background": 0.9666952889061424,
+      "semantic_alignment": 0.21945439992571966,
+      "temporal_mechanics": 0.97594770580405,
+      "visual_quality": 0.6286412221382682
+    },
+    "rccp_matched": {
+      "dynamic_degree": 0.5557291666666667,
+      "identity_background": 0.9646360496768689,
+      "semantic_alignment": 0.22164062477337818,
+      "temporal_mechanics": 0.9720136730614952,
+      "visual_quality": 0.6283199881679611
+    },
+    "sf_native": {
+      "dynamic_degree": 0.33151041666666664,
+      "identity_background": 0.9664400149981726,
+      "semantic_alignment": 0.21198615043055422,
+      "temporal_mechanics": 0.9805990590082665,
+      "visual_quality": 0.6198603452235305
+    }
+  },
+  "experiment": "v181_rccp_long_stress_vbench",
+  "methods": [
+    "sf_native",
+    "rccp_matched",
+    "all_recent"
+  ],
+  "metric_promotion_gate": false,
+  "official_constants_source": "https://github.com/Vchitect/VBench/blob/master/scripts/constant.py",
+  "official_quality_score": {
+    "all_recent": 81.40700187320058,
+    "rccp_matched": 81.33635375815038,
+    "sf_native": 80.19038631286352
+  },
+  "version": 1
+}
