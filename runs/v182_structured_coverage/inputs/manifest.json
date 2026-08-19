@@ -1,0 +1,127 @@
+{
+  "cache_contract": {
+    "coverage": "sink1 + middle4 + recent4",
+    "dynamic_rope": true,
+    "episode": "unused",
+    "exclusive_owner": true,
+    "recent": "sink1 + recent8"
+  },
+  "claim_boundary": "This screen compares Coverage operators with frozen v177 membership. It cannot confirm RCCP membership or a final paper method.",
+  "decoded_video_contract": {
+    "fps": 16.0,
+    "frames": 477,
+    "height": 480,
+    "width": 832
+  },
+  "experiment": "v182_structured_coverage_screen",
+  "method_order": [
+    "all_recent",
+    "strict5_reservoir",
+    "strict5_landmark",
+    "strict5_prototype",
+    "strict5_retrieval"
+  ],
+  "methods": {
+    "all_recent": {
+      "coverage_policy": "reservoir",
+      "expected_middle_strategy": null,
+      "head_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v182_structured_coverage/inputs/maps/all_recent.csv",
+      "head_map_sha256": "2d3dc5f347ca0eb9645f8d8e29098c91ade4bb33885c43a1e71e492558844bb6",
+      "middle_read_capacity": 0,
+      "middle_storage_capacity": 0,
+      "read_frame_equivalents": 9,
+      "route_counts": {
+        "20": 360,
+        "21": 0,
+        "22": 0
+      }
+    },
+    "strict5_landmark": {
+      "coverage_policy": "landmark",
+      "expected_middle_strategy": "SemanticLandmarkStrategy",
+      "head_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v182_structured_coverage/inputs/maps/strict5.csv",
+      "head_map_sha256": "732a65f7829a6d05199e005f88ef303c8605319a8f73fad66245dfe6fa8ef8ba",
+      "middle_read_capacity": 4,
+      "middle_storage_capacity": 4,
+      "read_frame_equivalents": 9,
+      "route_counts": {
+        "20": 355,
+        "21": 5,
+        "22": 0
+      }
+    },
+    "strict5_prototype": {
+      "coverage_policy": "prototype",
+      "expected_middle_strategy": "TemporalPrototypeStrategy",
+      "head_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v182_structured_coverage/inputs/maps/strict5.csv",
+      "head_map_sha256": "732a65f7829a6d05199e005f88ef303c8605319a8f73fad66245dfe6fa8ef8ba",
+      "middle_read_capacity": 4,
+      "middle_storage_capacity": 4,
+      "read_frame_equivalents": 9,
+      "route_counts": {
+        "20": 355,
+        "21": 5,
+        "22": 0
+      }
+    },
+    "strict5_reservoir": {
+      "coverage_policy": "reservoir",
+      "expected_middle_strategy": "TemporalReservoirStrategy",
+      "head_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v182_structured_coverage/inputs/maps/strict5.csv",
+      "head_map_sha256": "732a65f7829a6d05199e005f88ef303c8605319a8f73fad66245dfe6fa8ef8ba",
+      "middle_read_capacity": 4,
+      "middle_storage_capacity": 4,
+      "read_frame_equivalents": 9,
+      "route_counts": {
+        "20": 355,
+        "21": 5,
+        "22": 0
+      }
+    },
+    "strict5_retrieval": {
+      "coverage_policy": "retrieval",
+      "expected_middle_strategy": "SemanticRetrievalStrategy",
+      "head_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v182_structured_coverage/inputs/maps/strict5.csv",
+      "head_map_sha256": "732a65f7829a6d05199e005f88ef303c8605319a8f73fad66245dfe6fa8ef8ba",
+      "middle_read_capacity": 4,
+      "middle_storage_capacity": 12,
+      "read_frame_equivalents": 9,
+      "route_counts": {
+        "20": 355,
+        "21": 5,
+        "22": 0
+      }
+    }
+  },
+  "num_output_frames": 120,
+  "prompt_count": 16,
+  "prompt_file": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v182_structured_coverage/inputs/prompts/moviegen_diverse16.txt",
+  "prompt_file_sha256": "3d85d29bba6500db570909aa1c5b4364687d21d7c15980e7ed3c3f6b607829d8",
+  "scope": "development_only",
+  "seed": 0,
+  "source_prompt_file": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/prompts/moviegen_128_qwen_v154_diverse16.txt",
+  "source_prompt_file_sha256": "3d85d29bba6500db570909aa1c5b4364687d21d7c15980e7ed3c3f6b607829d8",
+  "strict_coverage_heads": [
+    {
+      "head": 10,
+      "layer": 0
+    },
+    {
+      "head": 3,
+      "layer": 5
+    },
+    {
+      "head": 6,
+      "layer": 6
+    },
+    {
+      "head": 6,
+      "layer": 8
+    },
+    {
+      "head": 2,
+      "layer": 23
+    }
+  ],
+  "version": 1
+}
