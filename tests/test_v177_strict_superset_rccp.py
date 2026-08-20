@@ -68,9 +68,9 @@ def test_v177_runtime_has_hard_representation_superset_audit() -> None:
     runner = (SCRIPTS / "run_v177_strict_superset_rccp_32gpu.sh").read_text(
         encoding="utf-8"
     )
-    assert 'policy == "union" and contract == "v177"' in cache
+    assert 'policy == "union" and contract in {"v177", "v189"}' in cache
     assert "middle_recent_min_t" in cache
-    assert 'if profile_contract in {"v176", "v177"}:' in core
+    assert 'if profile_contract in {"v176", "v177", "v189"}:' in core
     assert "raise RuntimeError(message)" in core
     assert "representation_sets" in core
     assert 'source.startswith("anchor_")' in core

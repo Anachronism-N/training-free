@@ -35,8 +35,19 @@ PROFILE_CONTRACTS = {
         "method": "strict_superset_residual_cache_compatibility",
         "reference_max_frame_equivalents": 17,
         "reference_is_candidate_superset": True,
+        "policies": POLICIES,
+    },
+    "v189": {
+        "version": 4,
+        "method": "structured_head_phase_cache_compatibility",
+        "reference_max_frame_equivalents": 13,
+        "reference_is_candidate_superset": True,
+        "policies": ("recent", "coverage"),
     },
 }
+
+for _legacy_contract in ("v173", "v176"):
+    PROFILE_CONTRACTS[_legacy_contract]["policies"] = POLICIES
 
 _records: list[dict[str, Any]] = []
 _calls: dict[tuple[int, int, int, str, str], int] = {}
@@ -51,6 +62,13 @@ def cache_compatibility_profile_contract() -> tuple[str, dict[str, Any]]:
             f"unsupported cache compatibility profile contract: {name!r}"
         )
     return name, PROFILE_CONTRACTS[name]
+
+
+def cache_compatibility_profile_policies() -> tuple[str, ...]:
+    """Return candidate policies for the active artifact contract."""
+
+    _, contract = cache_compatibility_profile_contract()
+    return tuple(str(value) for value in contract["policies"])
 
 
 def set_cache_compat_profile_prompt_id(prompt_id: int) -> None:
@@ -78,9 +96,9 @@ def resume_cache_compatibility_profile(
         raise ValueError(f"{path}: unsupported cache profile version")
     if payload.get("method") != contract["method"]:
         raise ValueError(f"{path}: incompatible cache profile method")
-    if contract_name in {"v176", "v177"} and payload.get("contract") != contract_name:
+    if contract_name in {"v176", "v177", "v189"} and payload.get("contract") != contract_name:
         raise ValueError(f"{path}: incompatible cache profile contract")
-    if tuple(payload.get("policies") or ()) != POLICIES:
+    if tuple(payload.get("policies") or ()) != cache_compatibility_profile_policies():
         raise ValueError(f"{path}: incompatible cache profile policies")
     records = list(payload.get("records") or [])
     locations = {
@@ -224,7 +242,8 @@ def record_cache_compatibility_outputs(
 ) -> None:
     """Record per-head raw and post-``W_O`` errors against the union readout."""
 
-    expected = set(POLICIES) | {REFERENCE_POLICY}
+    policies = cache_compatibility_profile_policies()
+    expected = set(policies) | {REFERENCE_POLICY}
     if set(outputs) != expected:
         raise ValueError(
             f"cache compatibility outputs must be {sorted(expected)}, "
@@ -267,7 +286,7 @@ def record_cache_compatibility_outputs(
     reference_f = reference[:, sampled].detach().float()
     candidate_f = {
         policy: outputs[policy][:, sampled].detach().float()
-        for policy in POLICIES
+        for policy in policies
     }
     ref = reference_f.reshape(-1, heads, head_dim)
     ref_residual = torch.einsum(
@@ -282,7 +301,7 @@ def record_cache_compatibility_outputs(
         "output_rms",
     )
     metric_rows = []
-    for policy in POLICIES:
+    for policy in policies:
         candidate = candidate_f[policy].reshape(-1, heads, head_dim)
         delta = candidate - ref
         delta_residual = torch.einsum(
@@ -322,9 +341,9 @@ def record_cache_compatibility_outputs(
             ref_raw.reshape(-1),
         )
     ).detach().cpu()
-    metric_count = len(POLICIES) * len(metric_names) * heads
+    metric_count = len(policies) * len(metric_names) * heads
     metric_tensor = packed[:metric_count].reshape(
-        len(POLICIES), len(metric_names), heads
+        len(policies), len(metric_names), heads
     )
     cursor = metric_count
     reference_residual_energy = packed[cursor : cursor + heads].tolist()
@@ -335,7 +354,7 @@ def record_cache_compatibility_outputs(
             metric: metric_tensor[policy_index, metric_index].tolist()
             for metric_index, metric in enumerate(metric_names)
         }
-        for policy_index, policy in enumerate(POLICIES)
+        for policy_index, policy in enumerate(policies)
     }
 
     record = {
@@ -352,7 +371,7 @@ def record_cache_compatibility_outputs(
         "policies": metrics,
         "budgets": budget_metadata,
     }
-    if record["profile_contract"] in {"v176", "v177"} and not bool(
+    if record["profile_contract"] in {"v176", "v177", "v189"} and not bool(
         budget_metadata[REFERENCE_POLICY].get(
             "candidate_physical_superset_verified", False
         )
@@ -397,7 +416,7 @@ def save_cache_compatibility_profile(
         "version": contract["version"],
         "contract": contract_name,
         "method": contract["method"],
-        "policies": list(POLICIES),
+        "policies": list(cache_compatibility_profile_policies()),
         "reference_policy": REFERENCE_POLICY,
         "metadata": dict(metadata or {})
         | {

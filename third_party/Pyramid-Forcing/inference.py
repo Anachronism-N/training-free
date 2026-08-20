@@ -683,6 +683,15 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--cache_compat_profile_coverage_operator",
+    choices=("reservoir", "landmark", "prototype", "retrieval"),
+    default="reservoir",
+    help=(
+        "Coverage operator shadow-profiled against Recent. Structured "
+        "operators require the v189 representation-complete contract."
+    ),
+)
+parser.add_argument(
     "--pyramidkv_cache_compatibility_policy",
     action="store_true",
     help=(
@@ -702,11 +711,28 @@ parser.add_argument(
 )
 parser.add_argument(
     "--pyramidkv_cache_compatibility_denoise_schedule",
-    choices=("recent", "coverage", "early1", "early2", "late2", "late1"),
+    choices=(
+        "recent",
+        "coverage",
+        "early1",
+        "early2",
+        "late2",
+        "late1",
+        "head_phase",
+    ),
     default=None,
     help=(
         "Use one shared Recent/Coverage shadow state and route noisy "
         "denoising calls by phase. Clean KV commits always read Recent."
+    ),
+)
+parser.add_argument(
+    "--pyramidkv_cache_compatibility_head_phase_map",
+    type=str,
+    default=None,
+    help=(
+        "JSON call x layer x head Coverage mask used by the head_phase "
+        "denoising schedule."
     ),
 )
 parser.add_argument(
@@ -726,12 +752,13 @@ parser.add_argument(
 )
 parser.add_argument(
     "--cache_compat_profile_contract",
-    choices=("v173", "v176", "v177"),
+    choices=("v173", "v176", "v177", "v189"),
     default="v173",
     help=(
         "v173 preserves the original union teacher; v176 is the superseded "
         "soft-audit run; v177 requires a strict physical-frame superset "
-        "teacher and is not artifact-compatible with either predecessor."
+        "teacher and is not artifact-compatible with either predecessor; "
+        "v189 profiles one structured Coverage operator by denoising call."
     ),
 )
 parser.add_argument(
@@ -1247,9 +1274,39 @@ if args.pyramidkv_cache_compatibility_denoise_schedule is not None:
             "denoise scheduling uses the profiling shadow banks and cannot "
             "share the label-20/21/22 generation override"
         )
+    if not hasattr(config, "denoising_step_list"):
+        parser.error("denoise scheduling requires few-step inference")
     denoise_coverage_policy = str(
         args.pyramidkv_cache_compatibility_denoise_coverage_policy
     ).strip().lower()
+    phase_map = None
+    if args.pyramidkv_cache_compatibility_denoise_schedule == "head_phase":
+        if args.pyramidkv_cache_compatibility_head_phase_map is None:
+            parser.error("head_phase schedule requires a head-phase map")
+        from pyramidkv.denoise_schedule import (
+            load_cache_compatibility_head_phase_map,
+        )
+
+        phase_map = load_cache_compatibility_head_phase_map(
+            args.pyramidkv_cache_compatibility_head_phase_map,
+            expected_call_count=len(config.denoising_step_list),
+        )
+        if (
+            int(phase_map["layer_count"]) != 30
+            or int(phase_map["head_count"]) != 12
+        ):
+            parser.error("head-phase map must have shape 4x30x12")
+        map_operator = phase_map.get("coverage_operator")
+        if map_operator is not None and str(map_operator) != denoise_coverage_policy:
+            parser.error(
+                "head-phase map Coverage operator differs from runtime: "
+                f"{map_operator} != {denoise_coverage_policy}"
+            )
+    elif args.pyramidkv_cache_compatibility_head_phase_map is not None:
+        parser.error(
+            "--pyramidkv_cache_compatibility_head_phase_map requires "
+            "--pyramidkv_cache_compatibility_denoise_schedule head_phase"
+        )
     history_policy_by_operator = {
         "reservoir": "reservoir4_multiscalemotion1",
         "landmark": "landmark",
@@ -1270,8 +1327,6 @@ if args.pyramidkv_cache_compatibility_denoise_schedule is not None:
         parser.error("denoise scheduling requires AdaptiveKVCache")
     if not bool(getattr(config, "sink_grid_decoupling", False)):
         parser.error("denoise scheduling requires sink-grid decoupling")
-    if not hasattr(config, "denoising_step_list"):
-        parser.error("denoise scheduling requires few-step inference")
     config.pyramidkv_cache_compat_profile_enabled = True
     config.pyramidkv_cache_compat_profile_recent_frames = 8
     os.environ["PYRAMIDKV_CACHE_COMPAT_DENOISE_SCHEDULE"] = (
@@ -1280,12 +1335,17 @@ if args.pyramidkv_cache_compatibility_denoise_schedule is not None:
     os.environ["PYRAMIDKV_CACHE_COMPAT_COVERAGE_OPERATOR"] = (
         denoise_coverage_policy
     )
+    if phase_map is not None:
+        os.environ["PYRAMIDKV_CACHE_COMPAT_HEAD_PHASE_MAP"] = os.path.abspath(
+            args.pyramidkv_cache_compatibility_head_phase_map
+        )
     os.environ["PYRAMIDKV_DISABLE_M6_FASTPATH"] = "1"
     os.environ["PYRAMIDKV_PATH_AB"] = "0"
     print(
         "[CacheCompatDenoiseSchedule] "
         f"schedule={args.pyramidkv_cache_compatibility_denoise_schedule} "
         f"coverage_operator={denoise_coverage_policy} "
+        f"phase_map_id={None if phase_map is None else phase_map.get('map_id')} "
         "noisy_readout=scheduled clean_readout=recent "
         "recent=sink1+recent8 coverage=sink1+middle4+recent4 "
         "shared_updates=true read_budget=9FFE",
@@ -1295,6 +1355,11 @@ elif args.pyramidkv_cache_compatibility_denoise_coverage_policy != "reservoir":
     parser.error(
         "--pyramidkv_cache_compatibility_denoise_coverage_policy requires "
         "--pyramidkv_cache_compatibility_denoise_schedule"
+    )
+elif args.pyramidkv_cache_compatibility_head_phase_map is not None:
+    parser.error(
+        "--pyramidkv_cache_compatibility_head_phase_map requires "
+        "--pyramidkv_cache_compatibility_denoise_schedule head_phase"
     )
 if args.pyramidkv_pf_extended_recent_ablation is not None:
     from pyramidkv.policy_overrides import pf_class_extended_recent_overrides
@@ -1435,15 +1500,31 @@ if args.cache_compat_profile_output:
             "cache compatibility profiling cannot share a run with other "
             "attention profilers"
         )
+    profile_operator = str(args.cache_compat_profile_coverage_operator)
+    profile_history_policy = {
+        "reservoir": "reservoir4_multiscalemotion1",
+        "landmark": "landmark",
+        "prototype": "prototype",
+        "retrieval": "retrieval",
+    }[profile_operator]
     if not args.pyramidkv_history_polarity or (
-        args.pyramidkv_history_support_policy
-        != "reservoir4_multiscalemotion1"
-        or args.pyramidkv_history_suppress_policy
-        != "reservoir4_multiscalemotion1"
+        args.pyramidkv_history_support_policy != profile_history_policy
+        or args.pyramidkv_history_suppress_policy != profile_history_policy
     ):
         parser.error(
             "cache compatibility profiling requires history-polarity with "
-            "both routes set to reservoir4_multiscalemotion1"
+            f"both routes set to {profile_history_policy}"
+        )
+    if args.cache_compat_profile_contract == "v189":
+        if profile_operator not in {"landmark", "retrieval"}:
+            parser.error(
+                "v189 profiles the promoted structured operators landmark "
+                "or retrieval"
+            )
+    elif profile_operator != "reservoir":
+        parser.error(
+            "structured Coverage profiling requires "
+            "--cache_compat_profile_contract v189"
         )
     if args.cache_compat_profile_ar_stride <= 0:
         parser.error("--cache_compat_profile_ar_stride must be positive")
@@ -1457,12 +1538,13 @@ if args.cache_compat_profile_output:
         parser.error("cache compatibility profiling requires sink-grid decoupling")
     config.pyramidkv_cache_compat_profile_enabled = True
     config.pyramidkv_cache_compat_profile_recent_frames = 8
-    if args.cache_compat_profile_contract in {"v176", "v177"}:
+    if args.cache_compat_profile_contract in {"v176", "v177", "v189"}:
         config.pyramidkv_capture_frame_id_mode = "physical"
     os.environ["CACHE_COMPAT_PROFILE"] = "1"
     os.environ["CACHE_COMPAT_PROFILE_CONTRACT"] = (
         args.cache_compat_profile_contract
     )
+    os.environ["PYRAMIDKV_CACHE_COMPAT_COVERAGE_OPERATOR"] = profile_operator
     os.environ["CACHE_COMPAT_PROFILE_CALL_INDICES"] = (
         args.cache_compat_profile_call_indices
     )
@@ -1481,7 +1563,9 @@ if args.cache_compat_profile_output:
     os.environ["PYRAMIDKV_DISABLE_M6_FASTPATH"] = "1"
     print(
         "[CacheCompatProfileConfig] active=recent8 "
-        "candidates=coverage4,episode2+motion_pair reference=union "
+        f"coverage_operator={profile_operator} "
+        f"candidates={'recent8+structured4' if args.cache_compat_profile_contract == 'v189' else 'coverage4,episode2+motion_pair'} "
+        "reference=representation_complete_union "
         f"contract={args.cache_compat_profile_contract} "
         f"calls={args.cache_compat_profile_call_indices} "
         f"ar_stride={args.cache_compat_profile_ar_stride} "
@@ -1646,6 +1730,7 @@ def _cache_compatibility_metadata():
     return {
         "kind": args.cache_compat_profile_kind,
         "profile_contract": args.cache_compat_profile_contract,
+        "coverage_operator": args.cache_compat_profile_coverage_operator,
         "seed": int(args.seed),
         "data_path": os.path.abspath(args.data_path),
         "num_output_frames": int(args.num_output_frames),

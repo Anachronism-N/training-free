@@ -734,6 +734,7 @@ class AdaptiveKVCache(PyramidKVCache):
             1, int(cache_compat_profile_recent_frames)
         )
         self._cache_compat_active_policy = "recent"
+        self._cache_compat_active_head_mask: tuple[bool, ...] | None = None
         self._cache_compat_active_context: dict[str, object] = {}
         self._cache_compat_schedule_trace_path = os.environ.get(
             "PYRAMIDKV_DENOISE_SCHEDULE_TRACE_PATH", ""
@@ -757,10 +758,17 @@ class AdaptiveKVCache(PyramidKVCache):
         self._cache_compat_schedule_trace_seen: set[tuple] = set()
         self._cache_compat_readout_trace_seen: set[tuple] = set()
         self._cache_compat_schedule_trace_warned = False
-        # The profiling composition owns the four-frame coverage reservoir
-        # and coherent motion pair.  Keep a separate two-frame reservoir for
-        # the episode candidate so every shadow policy is derived from the
-        # same committed clean updates without mutating the active readout.
+        # Legacy profiling contracts need a separate two-frame Episode bank.
+        # v189 and scheduled generation compare only Recent with Coverage, so
+        # allocating or updating that unused bank would waste device memory.
+        cache_compat_contract = os.environ.get(
+            "CACHE_COMPAT_PROFILE_CONTRACT", "v173"
+        ).strip().lower()
+        needs_episode_shadow = bool(
+            self.cache_compat_profile_enabled
+            and os.environ.get("CACHE_COMPAT_PROFILE", "").strip()
+            and cache_compat_contract != "v189"
+        )
         self._cache_compat_reservoir2 = (
             TemporalReservoirStrategy(
                 capacity=2,
@@ -769,7 +777,7 @@ class AdaptiveKVCache(PyramidKVCache):
                 seed=2026,
                 dynamic_rope=True,
             )
-            if self.cache_compat_profile_enabled
+            if needs_episode_shadow
             else None
         )
         self._cache_compat_last_readout_metadata: dict[str, dict] = {}
@@ -2988,6 +2996,7 @@ class AdaptiveKVCache(PyramidKVCache):
                 self.batch_size * self.num_heads
             )
         self._cache_compat_active_policy = "recent"
+        self._cache_compat_active_head_mask = None
         self._cache_compat_active_context = {}
         self._cache_compat_schedule_trace_seen.clear()
         self._cache_compat_readout_trace_seen.clear()
@@ -3003,11 +3012,13 @@ class AdaptiveKVCache(PyramidKVCache):
         call_count: int,
         update_mode: str,
         current_start: int,
+        coverage_head_mask: tuple[bool, ...] | None = None,
+        phase_map_id: str | None = None,
     ) -> None:
         """Select the active shadow readout without changing stored banks."""
 
         normalized = str(policy).strip().lower()
-        if normalized not in {"recent", "coverage"}:
+        if normalized not in {"recent", "coverage", "mixed"}:
             raise ValueError(
                 f"invalid active cache-compatibility policy: {policy!r}"
             )
@@ -3016,9 +3027,38 @@ class AdaptiveKVCache(PyramidKVCache):
                 "denoise scheduling requires the cache-compatibility shadow "
                 "banks"
             )
-        if normalized != self._cache_compat_active_policy:
+        normalized_mask = (
+            None
+            if coverage_head_mask is None
+            else tuple(bool(value) for value in coverage_head_mask)
+        )
+        if normalized_mask is not None:
+            if len(normalized_mask) != self.num_heads:
+                raise ValueError(
+                    "cache-compatibility head mask must match num_heads: "
+                    f"{len(normalized_mask)} != {self.num_heads}"
+                )
+            selected = sum(normalized_mask)
+            expected = (
+                "recent"
+                if selected == 0
+                else "coverage"
+                if selected == self.num_heads
+                else "mixed"
+            )
+            if normalized != expected:
+                raise ValueError(
+                    f"active policy {normalized} disagrees with head mask {expected}"
+                )
+        elif normalized == "mixed":
+            raise ValueError("mixed cache policy requires a per-head mask")
+        if (
+            normalized != self._cache_compat_active_policy
+            or normalized_mask != self._cache_compat_active_head_mask
+        ):
             self._invalidate_readout_cache()
         self._cache_compat_active_policy = normalized
+        self._cache_compat_active_head_mask = normalized_mask
         self._cache_compat_active_context = {
             "schedule": str(schedule),
             "coverage_operator": os.environ.get(
@@ -3028,6 +3068,14 @@ class AdaptiveKVCache(PyramidKVCache):
             "call_count": int(call_count),
             "update_mode": str(update_mode),
             "current_start": int(current_start),
+            "phase_map_id": None if phase_map_id is None else str(phase_map_id),
+            "coverage_heads": (
+                self.num_heads
+                if normalized_mask is None and normalized == "coverage"
+                else 0
+                if normalized_mask is None
+                else int(sum(normalized_mask))
+            ),
         }
         self._trace_cache_compatibility_schedule()
 
@@ -3043,6 +3091,7 @@ class AdaptiveKVCache(PyramidKVCache):
             str(context.get("update_mode", "")),
             context.get("call_index"),
             str(self._cache_compat_active_policy),
+            self._cache_compat_active_head_mask,
         )
         if key in self._cache_compat_schedule_trace_seen:
             return
@@ -3058,6 +3107,25 @@ class AdaptiveKVCache(PyramidKVCache):
                 context.get("coverage_operator", "reservoir")
             ),
             "effective_policy": str(self._cache_compat_active_policy),
+            "coverage_heads": int(context.get("coverage_heads", 0)),
+            "recent_heads": int(
+                self.num_heads - int(context.get("coverage_heads", 0))
+            ),
+            "coverage_head_indices": (
+                list(range(self.num_heads))
+                if self._cache_compat_active_head_mask is None
+                and self._cache_compat_active_policy == "coverage"
+                else []
+                if self._cache_compat_active_head_mask is None
+                else [
+                    head
+                    for head, enabled in enumerate(
+                        self._cache_compat_active_head_mask
+                    )
+                    if enabled
+                ]
+            ),
+            "phase_map_id": context.get("phase_map_id"),
             "call_index": context.get("call_index"),
             "call_count": int(context.get("call_count", 0)),
             "update_mode": str(context.get("update_mode", "")),
@@ -3069,7 +3137,7 @@ class AdaptiveKVCache(PyramidKVCache):
             ),
             "clean_policy_is_recent": (
                 str(context.get("update_mode", "")) != "clean"
-                or self._cache_compat_active_policy == "recent"
+                or int(context.get("coverage_heads", 0)) == 0
             ),
         }
         try:
@@ -3099,6 +3167,13 @@ class AdaptiveKVCache(PyramidKVCache):
         if not self.cache_compat_profile_enabled:
             return
         policy = str(self._cache_compat_active_policy)
+        head_mask = self._cache_compat_active_head_mask
+
+        def policy_for_sequence(seq_idx: int) -> str:
+            if head_mask is None:
+                return policy
+            return "coverage" if head_mask[seq_idx % self.num_heads] else "recent"
+
         num_seq = self.batch_size * self.num_heads
         counts = [
             {"static": 0, "dynamic": 0, "anchor": 0}
@@ -3122,6 +3197,7 @@ class AdaptiveKVCache(PyramidKVCache):
                 int(segment.length) // int(frame_seqlen)
             )
         for seq_idx, row in enumerate(counts):
+            sequence_policy = policy_for_sequence(seq_idx)
             total = sum(row.values())
             if total > 9 or row["static"] > 1:
                 raise RuntimeError(
@@ -3129,14 +3205,14 @@ class AdaptiveKVCache(PyramidKVCache):
                     f"layer={self.layer_idx} seq={seq_idx} policy={policy} "
                     f"counts={row} total={total}"
                 )
-            if policy == "recent" and (
+            if sequence_policy == "recent" and (
                 row["anchor"] != 0 or row["dynamic"] > 8
             ):
                 raise RuntimeError(
                     "Recent schedule leaked middle memory: "
                     f"layer={self.layer_idx} seq={seq_idx} counts={row}"
                 )
-            if policy == "coverage" and (
+            if sequence_policy == "coverage" and (
                 row["anchor"] > 4 or row["dynamic"] > 4
             ):
                 raise RuntimeError(
@@ -3159,6 +3235,7 @@ class AdaptiveKVCache(PyramidKVCache):
             str(context.get("update_mode", "")),
             context.get("call_index"),
             policy,
+            head_mask,
         )
         if key in self._cache_compat_readout_trace_seen:
             return
@@ -3200,6 +3277,7 @@ class AdaptiveKVCache(PyramidKVCache):
             selected.append(
                 {
                     "head": int(head_idx),
+                    "effective_policy": policy_for_sequence(seq_idx),
                     "counts": counts[seq_idx],
                     "total_frame_equivalents": int(sum(counts[seq_idx].values())),
                     "segments": segments,
@@ -3215,6 +3293,11 @@ class AdaptiveKVCache(PyramidKVCache):
                 context.get("coverage_operator", "reservoir")
             ),
             "effective_policy": policy,
+            "coverage_heads": int(context.get("coverage_heads", 0)),
+            "recent_heads": int(
+                self.num_heads - int(context.get("coverage_heads", 0))
+            ),
+            "phase_map_id": context.get("phase_map_id"),
             "call_index": context.get("call_index"),
             "call_count": int(context.get("call_count", 0)),
             "update_mode": str(context.get("update_mode", "")),
@@ -4388,6 +4471,11 @@ class AdaptiveKVCache(PyramidKVCache):
                 if self.cache_compat_profile_enabled
                 else None
             ),
+            compatibility_head_mask=(
+                self._cache_compat_active_head_mask
+                if self.cache_compat_profile_enabled
+                else None
+            ),
         )
 
         # Shape mismatch → caller must do a full cold pack to rebuild K_RAW/V.
@@ -5431,26 +5519,35 @@ class AdaptiveKVCache(PyramidKVCache):
                     f"matches={len(matches)} "
                     f"middle={len(composition.middle_strategies)}"
                 )
-            if policy != "coverage":
+            contract = os.environ.get(
+                "CACHE_COMPAT_PROFILE_CONTRACT", "v173"
+            ).strip().lower()
+            if policy != "coverage" and not (
+                policy == "union" and contract == "v189"
+            ):
                 raise RuntimeError(
                     "structured scheduled Coverage does not expose Episode or "
-                    "Union profiling readouts"
+                    "legacy Union profiling readouts"
                 )
             coverage_strategy = matches[0]
-        if self._cache_compat_reservoir2 is None:
-            raise RuntimeError("v173 episode reservoir2 is unavailable")
-
         contract = os.environ.get(
             "CACHE_COMPAT_PROFILE_CONTRACT", "v173"
         ).strip().lower()
-        if contract not in {"v173", "v176", "v177"}:
+        if contract not in {"v173", "v176", "v177", "v189"}:
             raise RuntimeError(
                 f"unsupported cache compatibility contract: {contract}"
+            )
+        needs_episode_shadow = policy == "episode" or (
+            policy == "union" and contract in {"v173", "v176", "v177"}
+        )
+        if needs_episode_shadow and self._cache_compat_reservoir2 is None:
+            raise RuntimeError(
+                f"{contract} {policy} readout requires episode reservoir2"
             )
 
         recent_frames = 8 if policy in {"recent", "union"} else 4
         recent_min_t = sync_t_raw - recent_frames + 1
-        if contract == "v177":
+        if contract in {"v177", "v189"}:
             frame_seqlen = int(self._frame_seqlen or self.frame_seq_length or 0)
             current_block_tokens = int(self._current_block_token_len[seq_idx])
             if (
@@ -5459,7 +5556,7 @@ class AdaptiveKVCache(PyramidKVCache):
                 or current_block_tokens % frame_seqlen
             ):
                 raise RuntimeError(
-                    "v177 cannot infer the dynamic-tail boundary: "
+                    f"{contract} cannot infer the dynamic-tail boundary: "
                     f"sequence={seq_idx} block_tokens={current_block_tokens} "
                     f"frame_tokens={frame_seqlen}"
                 )
@@ -5474,7 +5571,7 @@ class AdaptiveKVCache(PyramidKVCache):
         # Union's recent8 tail below.
         middle_recent_min_t = (
             int(sync_t_raw) + current_block_frames - 4
-            if policy == "union" and contract == "v177"
+            if policy == "union" and contract in {"v177", "v189"}
             else recent_min_t
         )
         sink_max_t = self._middle_sink_max_t(
@@ -5517,7 +5614,7 @@ class AdaptiveKVCache(PyramidKVCache):
                     ),
                 )
             )
-        if policy in {"episode", "union"}:
+        if policy in {"episode", "union"} and contract != "v189":
             motion_anchors = motion[0].collect(
                 seq_idx,
                 sync_t_raw,
@@ -5542,7 +5639,7 @@ class AdaptiveKVCache(PyramidKVCache):
             previous_source = (
                 None if previous is None else str(previous.source_kind)
             )
-            if previous is not None and contract == "v177":
+            if previous is not None and contract in {"v177", "v189"}:
                 same_representation = (
                     bool(anchor.dynamic_rope) == bool(previous.dynamic_rope)
                     and tuple(anchor.k.shape) == tuple(previous.k.shape)
@@ -5554,7 +5651,7 @@ class AdaptiveKVCache(PyramidKVCache):
                 )
                 if not same_representation:
                     raise RuntimeError(
-                        "v177 duplicate physical anchor has non-equivalent "
+                        f"{contract} duplicate physical anchor has non-equivalent "
                         "representations: "
                         f"layer={self.layer_idx} sequence={seq_idx} "
                         f"frame={t_val} sources={previous_source},{anchor_source}"
@@ -5572,7 +5669,13 @@ class AdaptiveKVCache(PyramidKVCache):
         max_middle = {
             "coverage": 4,
             "episode": 4,
-            "union": 8 if contract in {"v176", "v177"} else 6,
+            "union": (
+                4
+                if contract == "v189"
+                else 8
+                if contract in {"v176", "v177"}
+                else 6
+            ),
         }[policy]
         if len(result) > max_middle:
             raise RuntimeError(
@@ -5587,17 +5690,28 @@ class AdaptiveKVCache(PyramidKVCache):
         sync_t_raw: int,
         sync_t: int,
         compatibility_policy: str | None = None,
+        compatibility_head_mask: tuple[bool, ...] | None = None,
     ) -> _ReadoutSpec:
         if compatibility_policy is not None and compatibility_policy not in {
             "recent",
             "coverage",
             "episode",
             "union",
+            "mixed",
         }:
             raise ValueError(
                 "invalid cache compatibility readout policy: "
                 f"{compatibility_policy}"
             )
+        if compatibility_head_mask is not None:
+            if len(compatibility_head_mask) != self.num_heads:
+                raise ValueError("compatibility head mask width drift")
+            if compatibility_policy not in {"recent", "coverage", "mixed"}:
+                raise ValueError(
+                    "per-head compatibility mask supports Recent/Coverage only"
+                )
+        elif compatibility_policy == "mixed":
+            raise ValueError("mixed compatibility policy requires a head mask")
         compatibility_mode = compatibility_policy is not None
         num_seq = self.batch_size * self.num_heads
         capture_physical = self.capture_frame_id_mode == "physical"
@@ -5621,6 +5735,13 @@ class AdaptiveKVCache(PyramidKVCache):
         offset = 0
         for i in range(num_seq):
             head_idx = i % self.num_heads
+            sequence_compatibility_policy = compatibility_policy
+            if compatibility_head_mask is not None:
+                sequence_compatibility_policy = (
+                    "coverage"
+                    if compatibility_head_mask[head_idx]
+                    else "recent"
+                )
             shield_middle = prompt_warmup_mask[head_idx]
             shield_sink = (
                 shield_middle and self.prompt_warmup.config.mode == "history"
@@ -5668,7 +5789,7 @@ class AdaptiveKVCache(PyramidKVCache):
                     if compatibility_mode:
                         recent_frames = (
                             self.cache_compat_profile_recent_frames
-                            if compatibility_policy in {"recent", "union"}
+                            if sequence_compatibility_policy in {"recent", "union"}
                             else 4
                         )
                     else:
@@ -5701,13 +5822,13 @@ class AdaptiveKVCache(PyramidKVCache):
                 offset += n_d
 
             if compatibility_mode:
-                if compatibility_policy != "recent":
+                if sequence_compatibility_policy != "recent":
                     anchors = self._cache_compatibility_middle_anchors(
                         seq_idx=i,
                         head_idx=head_idx,
                         sync_t_raw=sync_t_raw,
                         has_stat=has_stat,
-                        policy=str(compatibility_policy),
+                        policy=str(sequence_compatibility_policy),
                     )
                     for anchor_idx, anchor in enumerate(anchors):
                         n_a = int(anchor.k.shape[0])
@@ -6177,6 +6298,11 @@ class AdaptiveKVCache(PyramidKVCache):
                 if self.cache_compat_profile_enabled
                 else None
             ),
+            compatibility_head_mask=(
+                self._cache_compat_active_head_mask
+                if self.cache_compat_profile_enabled
+                else None
+            ),
         )
         self._audit_and_trace_cache_compatibility_readout(
             spec,
@@ -6274,7 +6400,7 @@ class AdaptiveKVCache(PyramidKVCache):
             os.environ.get("CACHE_COMPAT_PROFILE_CONTRACT", "v173")
             .strip()
             .lower()
-            in {"v176", "v177"}
+            in {"v176", "v177", "v189"}
         )
         capture_frame_ids = int(self.layer_idx) in debug_layers
         inspect_frame_ids = capture_frame_ids or verify_candidate_superset
@@ -6305,7 +6431,7 @@ class AdaptiveKVCache(PyramidKVCache):
                     segment.pos[::frame_seqlen, 0]
                 )
                 source_kind = str(segment.kind)
-                if profile_contract == "v177":
+                if profile_contract in {"v177", "v189"}:
                     if source_kind.startswith("anchor:"):
                         rope_family = (
                             "dynamic_rope"
@@ -6332,6 +6458,8 @@ class AdaptiveKVCache(PyramidKVCache):
         max_budget = (
             17
             if policy == "union" and profile_contract in {"v176", "v177"}
+            else 13
+            if policy == "union" and profile_contract == "v189"
             else 15
             if policy == "union"
             else 9

@@ -1399,7 +1399,14 @@ def pyramidkv_attention(
             budgets["recent"] = recent_readout[-1]
             del recent_readout
 
-            for policy in ("coverage", "episode", "union"):
+            from .cache_compat_profile import (
+                cache_compatibility_profile_policies,
+            )
+
+            profile_policies = cache_compatibility_profile_policies()
+            for policy in tuple(
+                value for value in profile_policies if value != "recent"
+            ) + ("union",):
                 (
                     k_shadow,
                     v_shadow,
@@ -1436,7 +1443,7 @@ def pyramidkv_attention(
             profile_contract = os.environ.get(
                 "CACHE_COMPAT_PROFILE_CONTRACT", "v173"
             ).strip().lower()
-            if profile_contract in {"v176", "v177"}:
+            if profile_contract in {"v176", "v177", "v189"}:
                 def representation_sets(metadata):
                     frame_rows = metadata.get(
                         "_runtime_selected_physical_frames_per_sequence"
@@ -1466,7 +1473,7 @@ def pyramidkv_attention(
                                 else source
                             )
                             identities.append((int(item[0]), family))
-                        if profile_contract == "v177" and len(identities) != len(
+                        if profile_contract in {"v177", "v189"} and len(identities) != len(
                             set(identities)
                         ):
                             raise RuntimeError(
@@ -1486,7 +1493,7 @@ def pyramidkv_attention(
                     )
                 reference_representations = representation_sets(budgets["union"])
                 subset_checks = 0
-                for policy in ("recent", "coverage", "episode"):
+                for policy in profile_policies:
                     candidate_frames = budgets[policy].get(
                         "_runtime_selected_physical_frames_per_sequence"
                     )
