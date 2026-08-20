@@ -1,0 +1,23 @@
+2026-08-20 10:51:03,286 - vbench.utils - INFO - [32m[Local Mode][0m Working in local mode, please make sure that the pre-trained model has been fully downloaded.
+Videos have been splitted into clips in /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v182_structured_coverage/screen16/vbench_comparison/published/strict5_prototype/split_clip
+Evaluation meta data saved to /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v182_structured_coverage/screen16/metrics/vbench_long_parts/strict5_prototype/overall_consistency/v129_overall_consistency_full_info.json
+[V129PromptMap] mapped=16 manifest=/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v182_structured_coverage/screen16/vbench_comparison/comparison_manifest.json
+2026-08-20 10:51:04,166 - py.warnings - WARNING - /apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+
+2026-08-20 10:51:22,988 - py.warnings - WARNING - /apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/lib/python3.10/site-packages/timm/models/layers/__init__.py:49: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+
+2026-08-20 10:51:23,070 - py.warnings - WARNING - /apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/lib/python3.10/site-packages/timm/models/registry.py:4: FutureWarning: Importing from timm.models.registry is deprecated, please import via timm.models
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.models", FutureWarning)
+
+2026-08-20 10:51:25,314 - vbench.third_party.ViCLIP.viclip - INFO - Load pretrained weights from /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/vbench_cache/ViCLIP/ViClip-InternVid-10M-FLT.pth
+cur_full_info_path: /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v182_structured_coverage/screen16/metrics/vbench_long_parts/strict5_prototype/overall_consistency/v129_overall_consistency_full_info.json
+  0%|          | 0/16 [00:00<?, ?it/s]2026-08-20 10:55:21,339 - py.warnings - WARNING - /apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py:1181: UserWarning: torch.utils.checkpoint: the use_reentrant parameter should be passed explicitly. Starting in PyTorch 2.9, calling checkpoint without use_reentrant will raise an exception. use_reentrant=False is recommended, but if you need to preserve the current default behavior, you can pass use_reentrant=True. Refer to docs for more details on the differences between the two variants.
+  return fn(*args, **kwargs)
+
+2026-08-20 10:55:21,360 - py.warnings - WARNING - /apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/lib/python3.10/site-packages/torch/utils/checkpoint.py:232: UserWarning: None of the inputs have requires_grad=True. Gradients will be None
+  check_backward_validity(args)
+
+  6%|▋         | 1/16 [00:09<02:23,  9.53s/it] 12%|█▎        | 2/16 [00:16<01:48,  7.74s/it] 19%|█▉        | 3/16 [00:22<01:32,  7.13s/it] 25%|██▌       | 4/16 [00:29<01:23,  6.93s/it] 31%|███▏      | 5/16 [00:35<01:14,  6.79s/it] 38%|███▊      | 6/16 [00:42<01:07,  6.77s/it] 44%|████▍     | 7/16 [00:48<01:00,  6.73s/it] 50%|█████     | 8/16 [00:55<00:53,  6.63s/it] 56%|█████▋    | 9/16 [01:01<00:45,  6.56s/it] 62%|██████▎   | 10/16 [01:07<00:37,  6.29s/it] 69%|██████▉   | 11/16 [01:13<00:30,  6.11s/it] 75%|███████▌  | 12/16 [01:18<00:23,  5.97s/it] 81%|████████▏ | 13/16 [01:24<00:17,  5.89s/it] 88%|████████▊ | 14/16 [01:30<00:11,  5.85s/it] 94%|█████████▍| 15/16 [01:35<00:05,  5.78s/it]100%|██████████| 16/16 [01:41<00:00,  5.72s/it]100%|██████████| 16/16 [01:41<00:00,  6.34s/it]
+Evaluation results saved to /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v182_structured_coverage/screen16/metrics/vbench_long_parts/strict5_prototype/overall_consistency/v129_overall_consistency_eval_results.json
