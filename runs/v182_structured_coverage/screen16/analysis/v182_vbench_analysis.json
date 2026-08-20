@@ -1,0 +1,97 @@
+{
+  "claim_boundary": "Aggregate metrics do not validate the classifier. Matched must also beat swapped and the count-matched random replicas in the paired prompt-level analysis.",
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "duplicate_metric_audit": {
+    "action": "count once as semantic_alignment",
+    "aggregate_exact_within_1e-12": true,
+    "pair": [
+      "overall_consistency",
+      "temporal_style"
+    ]
+  },
+  "exclusive_groups": {
+    "dynamic_degree": [
+      "dynamic_degree"
+    ],
+    "identity_background": [
+      "subject_consistency",
+      "background_consistency"
+    ],
+    "semantic_alignment": [
+      "overall_consistency"
+    ],
+    "temporal_mechanics": [
+      "temporal_flickering",
+      "motion_smoothness"
+    ],
+    "visual_quality": [
+      "aesthetic_quality",
+      "imaging_quality"
+    ]
+  },
+  "exclusive_scores": {
+    "all_recent": {
+      "dynamic_degree": 0.6875,
+      "identity_background": 0.9652086637817043,
+      "semantic_alignment": 0.2343131496881445,
+      "temporal_mechanics": 0.9687080987485205,
+      "visual_quality": 0.6623195579573511
+    },
+    "strict5_landmark": {
+      "dynamic_degree": 0.7416666666666667,
+      "identity_background": 0.9653523235051198,
+      "semantic_alignment": 0.23587920853557687,
+      "temporal_mechanics": 0.9694574673186747,
+      "visual_quality": 0.6659279712190231
+    },
+    "strict5_prototype": {
+      "dynamic_degree": 0.7166666666666667,
+      "identity_background": 0.9637114153948918,
+      "semantic_alignment": 0.23386245345075926,
+      "temporal_mechanics": 0.9666790959818287,
+      "visual_quality": 0.6618478974029423
+    },
+    "strict5_reservoir": {
+      "dynamic_degree": 0.7375,
+      "identity_background": 0.9635026883209048,
+      "semantic_alignment": 0.23511635665781797,
+      "temporal_mechanics": 0.9667242341923512,
+      "visual_quality": 0.660397895976901
+    },
+    "strict5_retrieval": {
+      "dynamic_degree": 0.7708333333333334,
+      "identity_background": 0.9652245952583544,
+      "semantic_alignment": 0.2375682651375731,
+      "temporal_mechanics": 0.9682933138216585,
+      "visual_quality": 0.665150201720496
+    }
+  },
+  "experiment": "v182_structured_coverage_vbench_screen16",
+  "methods": [
+    "all_recent",
+    "strict5_reservoir",
+    "strict5_landmark",
+    "strict5_prototype",
+    "strict5_retrieval"
+  ],
+  "metric_promotion_gate": false,
+  "official_constants_source": "https://github.com/Vchitect/VBench/blob/master/scripts/constant.py",
+  "official_quality_score": {
+    "all_recent": 83.14110890957531,
+    "strict5_landmark": 83.74840457137026,
+    "strict5_prototype": 83.10395049236148,
+    "strict5_reservoir": 83.22520796991707,
+    "strict5_retrieval": 83.8280045784195
+  },
+  "version": 1
+}
