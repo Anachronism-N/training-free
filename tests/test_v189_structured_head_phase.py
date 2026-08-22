@@ -149,6 +149,8 @@ def test_v189_classifier_keeps_phase_specific_cell_without_cross_call_gate() -> 
     gain[:, 0, 2, 3] = 0.10
     # A call-invariant compatible cell should not be called phase-selective.
     gain[:, :, 4, 5] = 0.08
+    # A head-invariant call/layer effect should be recovered by phase/layer-only.
+    gain[:, 2, 6, :] = 0.05
     aggregate = {
         "gain": gain,
         "energy": np.ones_like(gain),
@@ -168,6 +170,27 @@ def test_v189_classifier_keeps_phase_specific_cell_without_cross_call_gate() -> 
     for call in range(4):
         assert by_key[(call, 4, 5)]["compatible"] is True
         assert by_key[(call, 4, 5)]["phase_selective"] is False
+    factor_masks, factor_rows = analysis._factorized_masks(
+        aggregate,
+        operator="landmark",
+        discovery=discovery,
+        validation=validation,
+    )
+    assert len(factor_rows) == 30 * 12 + 4 * 30
+    assert all(
+        factor_masks["head_only_compatible"][call][2][3]
+        for call in range(4)
+    )
+    assert all(
+        factor_masks["head_only_compatible"][call][4][5]
+        for call in range(4)
+    )
+    assert all(
+        factor_masks["phase_layer_only_compatible"][2][6]
+    )
+    assert not any(
+        factor_masks["phase_layer_only_compatible"][0][2]
+    )
 
 
 def test_v189_runtime_contract_is_representation_complete_and_traceable() -> None:
@@ -202,6 +225,9 @@ def test_v189_runtime_contract_is_representation_complete_and_traceable() -> Non
     runner = (
         SCRIPTS / "run_v189_structured_head_phase_profile_32gpu.sh"
     ).read_text(encoding="utf-8")
+    v190_runner = (SCRIPTS / "run_v190_vbench_long.sh").read_text(
+        encoding="utf-8"
+    )
     assert '"v189": {' in profiler
     assert '"policies": ("recent", "coverage")' in profiler
     assert 'profile_contract in {"v176", "v177", "v189"}' in core
@@ -211,6 +237,8 @@ def test_v189_runtime_contract_is_representation_complete_and_traceable() -> Non
     assert "--pyramidkv_cache_compatibility_head_phase_map" in inference
     assert "candidate_representation_subset_checks" in runner
     assert "profile128" in runner
+    assert "compute_temporal_jump_diagnostic.py" in v190_runner
+    assert "--temporal-csv" in v190_runner
 
 
 def test_v190_preparer_builds_count_and_phase_controls(tmp_path: Path) -> None:
@@ -260,6 +288,31 @@ def test_v190_preparer_builds_count_and_phase_controls(tmp_path: Path) -> None:
     }
     primary_path = tmp_path / "primary.json"
     primary_path.write_text(json.dumps(primary), encoding="utf-8")
+    head_only_masks = [
+        [[False for _ in range(12)] for _ in range(30)] for _ in range(4)
+    ]
+    for call in range(4):
+        head_only_masks[call][2][3] = True
+    head_only = dict(primary) | {
+        "map_id": "head-only-map",
+        "classification": "head_only_compatible",
+        "coverage_masks": head_only_masks,
+        "coverage_count_by_call": [1, 1, 1, 1],
+    }
+    head_only_path = tmp_path / "head_only.json"
+    head_only_path.write_text(json.dumps(head_only), encoding="utf-8")
+    phase_layer_masks = [
+        [[False for _ in range(12)] for _ in range(30)] for _ in range(4)
+    ]
+    phase_layer_masks[0][2] = [True] * 12
+    phase_layer = dict(primary) | {
+        "map_id": "phase-layer-map",
+        "classification": "phase_layer_only_compatible",
+        "coverage_masks": phase_layer_masks,
+        "coverage_count_by_call": [12, 0, 0, 0],
+    }
+    phase_layer_path = tmp_path / "phase_layer.json"
+    phase_layer_path.write_text(json.dumps(phase_layer), encoding="utf-8")
     analysis = {
         "experiment": "v189_structured_head_phase_profile",
         "recommendation": "advance_head_phase_maps_to_causal_screen",
@@ -272,7 +325,17 @@ def test_v190_preparer_builds_count_and_phase_controls(tmp_path: Path) -> None:
                         "path": str(primary_path.resolve()),
                         "sha256": module.sha256(primary_path),
                         "map_id": "primary-map",
-                    }
+                    },
+                    "head_only_compatible": {
+                        "path": str(head_only_path.resolve()),
+                        "sha256": module.sha256(head_only_path),
+                        "map_id": "head-only-map",
+                    },
+                    "phase_layer_only_compatible": {
+                        "path": str(phase_layer_path.resolve()),
+                        "sha256": module.sha256(phase_layer_path),
+                        "map_id": "phase-layer-map",
+                    },
                 }
             }
         },
@@ -286,6 +349,8 @@ def test_v190_preparer_builds_count_and_phase_controls(tmp_path: Path) -> None:
         "all_recent",
         "landmark_all_coverage",
         "landmark_compatible",
+        "landmark_head_only",
+        "landmark_phase_layer_only",
         "landmark_membership_shift",
         "landmark_phase_shift",
         "landmark_dense_phase",
@@ -303,7 +368,13 @@ def test_v190_preparer_builds_count_and_phase_controls(tmp_path: Path) -> None:
     assert phase_counts == [0, 1, 1, 0]
     assert payload["methods"]["landmark_dense_phase"][
         "coverage_count_by_call"
-    ] == [360, 360, 0, 0]
+    ] == [12, 12, 0, 0]
+    assert payload["methods"]["landmark_head_only"][
+        "coverage_count_by_call"
+    ] == [1, 1, 1, 1]
+    assert payload["methods"]["landmark_phase_layer_only"][
+        "coverage_count_by_call"
+    ] == [12, 0, 0, 0]
     assert payload["methods"]["landmark_all_coverage"][
         "coverage_count_by_call"
     ] == [360, 360, 360, 360]
@@ -322,6 +393,7 @@ def test_v190_analyzer_requires_baseline_membership_and_phase_support(
         "all_recent",
         "landmark_all_coverage",
         "landmark_compatible",
+        "landmark_phase_layer_only",
         "landmark_membership_shift",
         "landmark_phase_shift",
         "landmark_dense_phase",
@@ -330,13 +402,15 @@ def test_v190_analyzer_requires_baseline_membership_and_phase_support(
         "all_recent": "local_control",
         "landmark_all_coverage": "all_head_all_phase_control",
         "landmark_compatible": "primary_head_phase",
+        "landmark_phase_layer_only": "head_invariant_phase_layer_factor_control",
         "landmark_membership_shift": "layer_count_matched_membership_control",
         "landmark_phase_shift": "call_count_matched_phase_control",
-        "landmark_dense_phase": "same_active_calls_dense_control",
+        "landmark_dense_phase": "same_active_call_layer_cells_dense_control",
     }
     manifest = {
         "experiment": "v190_head_phase_causal_vbench_screen32",
         "prompt_count": 32,
+        "control_aliases": {"landmark_head_only": "all_recent"},
         "methods": [
             {
                 "key": method,
@@ -362,12 +436,13 @@ def test_v190_analyzer_requires_baseline_membership_and_phase_support(
     }
     summary = {"methods": {method: {} for method in methods}, "missing": []}
     values = {
-        "all_recent": (80.0, 0.9700, 0.9800, 0.40),
-        "landmark_all_coverage": (80.4, 0.9698, 0.9800, 0.455),
-        "landmark_compatible": (80.5, 0.9705, 0.9805, 0.44),
-        "landmark_membership_shift": (80.2, 0.9700, 0.9800, 0.41),
-        "landmark_phase_shift": (80.2, 0.9700, 0.9800, 0.41),
-        "landmark_dense_phase": (80.3, 0.9698, 0.9798, 0.43),
+        "all_recent": (80.0, 0.9700, 0.9800, 1.0),
+        "landmark_all_coverage": (80.4, 0.9698, 0.9800, 1.0),
+        "landmark_compatible": (80.5, 0.9705, 0.9805, 1.0),
+        "landmark_phase_layer_only": (80.2, 0.9700, 0.9800, 1.0),
+        "landmark_membership_shift": (80.2, 0.9700, 0.9800, 1.0),
+        "landmark_phase_shift": (80.2, 0.9700, 0.9800, 1.0),
+        "landmark_dense_phase": (80.3, 0.9698, 0.9798, 1.0),
     }
     rows = {}
     for method, (quality, identity, temporal, dynamic) in values.items():
@@ -382,7 +457,28 @@ def test_v190_analyzer_requires_baseline_membership_and_phase_support(
             }
     monkeypatch.setattr(module.base, "load_prompt_rows", lambda *args, **kwargs: rows)
     monkeypatch.setattr(module.base, "derived_rows", lambda *args, **kwargs: rows)
-    report = module.analyze(manifest, summary, Path("unused"))
+    temporal_defaults = {
+        feature: 0.0 for feature in module.TEMPORAL_FEATURES
+    }
+    temporal_defaults.update(
+        {
+            "flow_speed_median": 0.5,
+            "motion_coverage_fraction": 0.9,
+            "late_motion_ratio": 1.0,
+            "temporal_jump": 1.0,
+        }
+    )
+    temporal_rows = {
+        (method, prompt): dict(temporal_defaults)
+        for method in methods
+        for prompt in range(32)
+    }
+    report = module.analyze(
+        manifest,
+        summary,
+        Path("unused"),
+        temporal_rows=temporal_rows,
+    )
     assert report["statuses"]["landmark_compatible"]["baseline_pass"] is True
     assert (
         report["statuses"]["landmark_compatible"]["controls"][
@@ -402,7 +498,119 @@ def test_v190_analyzer_requires_baseline_membership_and_phase_support(
         ]["supported"]
         is True
     )
+    assert (
+        report["statuses"]["landmark_compatible"]["joint_factorization_pass"]
+        is True
+    )
+    assert (
+        report["statuses"]["landmark_compatible"]["controls"][
+            "head_only_factor"
+        ]["aliased_to"]
+        == "all_recent"
+    )
+    assert report["metric_validity"]["dynamic_degree"][
+        "ceiling_nonregression_only"
+    ] is True
+    assert report["statuses"]["landmark_compatible"]["dynamic_evidence"] == {
+        "improvement_supported": False,
+        "ceiling_nonregression_supported": True,
+        "claim_motion_improvement": False,
+    }
     assert report["recommendation"] == "advance_head_phase_method_to_fresh128"
+
+
+def test_v190_temporal_guard_rejects_repeated_differential_failures() -> None:
+    module = load_module(
+        "v190_temporal_guard", SCRIPTS / "analyze_v190_head_phase_causal_screen.py"
+    )
+    defaults = {feature: 0.0 for feature in module.TEMPORAL_FEATURES}
+    defaults.update(
+        {
+            "flow_speed_median": 0.5,
+            "motion_coverage_fraction": 0.9,
+            "late_motion_ratio": 1.0,
+            "temporal_jump": 1.0,
+        }
+    )
+    rows = {
+        (method, prompt): dict(defaults)
+        for method in ("candidate", "all_recent")
+        for prompt in range(32)
+    }
+    for prompt in (3, 11):
+        rows[("candidate", prompt)]["longest_low_motion_run_fraction"] = 0.5
+        rows[("candidate", prompt)]["late_motion_ratio"] = 0.2
+    report = module.temporal_guard(
+        rows,
+        candidate="candidate",
+        control="all_recent",
+        prompt_count=32,
+    )
+    assert report["automatic_safety_pass"] is False
+    assert report["flagged_prompt_count"] == 2
+
+
+def test_legacy_v185_pf_audit_recovers_complete_log_grid(tmp_path: Path) -> None:
+    module = load_module(
+        "legacy_v185_pf_audit",
+        SCRIPTS / "audit_v185_pf_baseline.py",
+    )
+    run_root = tmp_path / "v185"
+    log_root = run_root / "logs"
+    log_root.mkdir(parents=True)
+    for rank in range(16):
+        completions = "\n".join(
+            f"[{index}/128] elapsed=1m"
+            for index in range(rank + 1, 129, 16)
+        )
+        (log_root / f"shard{rank:02d}.log").write_text(
+            "Number of prompts: 128\n"
+            "Loading PyramidKV config from "
+            "configs/head_configs/best_labels.csv\n"
+            f"{completions}\n",
+            encoding="utf-8",
+        )
+    prompts = tmp_path / "prompts.txt"
+    prompts.write_text(
+        "\n".join(f"prompt {index}" for index in range(128)) + "\n",
+        encoding="utf-8",
+    )
+    config = tmp_path / "pf.yaml"
+    config.write_text(
+        "\n".join(
+            (
+                "use_pyramidkv: true",
+                "use_adaptive_pyramidkv: true",
+                "pyramidkv_config_path: configs/head_configs/best_labels.csv",
+                "pyramidkv_policy_csv_path: configs/head_configs/best_labels.csv",
+                "pyramidkv_label_phase_bucket_map:",
+                "pyramidkv_label_stride_enabled_map:",
+                "pyramidkv_label_merge_enabled_map:",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    labels = [[-1 for _ in range(12)] for _ in range(30)]
+    labels[0][0] = 1
+    labels[0][1] = 2
+    head_map = tmp_path / "best_labels.csv"
+    head_map.write_text(
+        "\n".join(",".join(str(value) for value in row) for row in labels)
+        + "\n",
+        encoding="utf-8",
+    )
+    report = module.audit(
+        run_root,
+        prompts,
+        config,
+        head_map,
+        require_media=False,
+        decode=False,
+    )
+    assert report["logs"]["ok"] is True
+    assert report["media_available"] is False
+    assert report["decision"] == "generation_logs_complete_media_not_uploaded"
 
 
 def test_v184_evidence_audit_rejects_comparative_claim_and_flags_dynamic(

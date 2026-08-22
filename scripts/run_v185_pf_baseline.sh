@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# v185: True PF baseline (best_labels.csv + cyclic/stride/merge)
+# Legacy v185 PF baseline (best_labels.csv + cyclic/stride/merge).
+# The number collides with the earlier v185 recovered-long60 experiment.
 # Does NOT pass --pyramidkv_cache_compatibility_policy, uses PF's native head classification
 set -euo pipefail
 
 ACTION="${1:-}"
 case "$ACTION" in
-    generate|status) ;;
+    generate|status|audit|audit-fast) ;;
     *)
         echo "usage: bash scripts/run_v185_pf_baseline.sh ACTION"
-        echo "actions: generate status"
+        echo "actions: generate status audit audit-fast"
         exit 2
         ;;
 esac
@@ -20,6 +21,8 @@ CHECKPOINT="${SHARED_CHECKPOINT:-/apdcephfs_gy2/share_302533218/cedricnie/model_
 PF_CHECKPOINT="${PF_CHECKPOINT:-$CHECKPOINT}"
 PROMPTS="${V185_PROMPTS:-$ROOT/prompts/moviegen_128_full.txt}"
 OUT_ROOT="${V185_OUT_ROOT:-$ROOT/runs/v185_pf_baseline}"
+AUDIT_OUTPUT="${V185_AUDIT_OUTPUT:-$OUT_ROOT/analysis/provenance_audit.json}"
+HEAD_MAP="${V185_HEAD_MAP:-$PF/configs/head_configs/best_labels.csv}"
 
 NODE_RANK="${NODE_RANK:-0}"
 NUM_NODES="${NUM_NODES:-2}"
@@ -119,5 +122,14 @@ print(f"v185 pf_baseline: videos={len(indices)}/{count} missing={len(missing)}")
 if missing:
     print(f"  missing: {missing[:20]}{'...' if len(missing) > 20 else ''}")
 PY
+        ;;
+    audit|audit-fast)
+        activate_env
+        extra=()
+        [[ "$ACTION" == "audit-fast" ]] && extra+=(--skip-decode)
+        python "$ROOT/scripts/audit_v185_pf_baseline.py" \
+            --run-root "$OUT_ROOT" --prompt-file "$PROMPTS" \
+            --config "$PF_CONFIG" --head-map "$HEAD_MAP" \
+            --output "$AUDIT_OUTPUT" --require-media "${extra[@]}"
         ;;
 esac

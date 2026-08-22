@@ -266,14 +266,14 @@ def _cell_rows(
                     validation_phase,
                     seed=1895000 + call * 10000 + layer * 100 + head,
                 )
-                compatible = bool(
-                    float(np.mean(discovery_values)) >= DISCOVERY_GAIN
-                    and float(np.mean(validation_values)) >= VALIDATION_GAIN
-                    and validation_ci[0] >= VALIDATION_CI_LOWER
-                    and float(np.mean(validation_values > 0)) >= VALIDATION_WIN
-                    and float(np.mean(full_budget[discovery, call, layer, head]))
-                    >= MIN_BUDGET_FRACTION
-                    and relative_energy >= MIN_RELATIVE_ENERGY
+                compatible = _compatibility_gate(
+                    discovery_values,
+                    validation_values,
+                    validation_ci=validation_ci,
+                    full_budget_values=full_budget[
+                        discovery, call, layer, head
+                    ],
+                    relative_energy=relative_energy,
                 )
                 phase_selective = bool(
                     compatible
@@ -356,6 +356,144 @@ def _topk_mask(rows: list[dict]) -> list[list[list[bool]]]:
     return result
 
 
+def _compatibility_gate(
+    discovery_values: np.ndarray,
+    validation_values: np.ndarray,
+    *,
+    validation_ci: list[float],
+    full_budget_values: np.ndarray,
+    relative_energy: float,
+) -> bool:
+    return bool(
+        float(np.mean(discovery_values)) >= DISCOVERY_GAIN
+        and float(np.mean(validation_values)) >= VALIDATION_GAIN
+        and validation_ci[0] >= VALIDATION_CI_LOWER
+        and float(np.mean(validation_values > 0)) >= VALIDATION_WIN
+        and float(np.mean(full_budget_values)) >= MIN_BUDGET_FRACTION
+        and relative_energy >= MIN_RELATIVE_ENERGY
+    )
+
+
+def _factorized_masks(
+    aggregate: dict[str, np.ndarray],
+    *,
+    operator: str,
+    discovery: list[int],
+    validation: list[int],
+) -> tuple[dict[str, list[list[list[bool]]]], list[dict]]:
+    """Fit call-invariant head and head-invariant call/layer controls."""
+
+    gain = aggregate["gain"]
+    energy = aggregate["energy"]
+    full_budget = aggregate["full_budget"]
+    head_mask = [[False for _ in range(HEADS)] for _ in range(LAYERS)]
+    phase_layer_mask = [
+        [False for _ in range(LAYERS)] for _ in range(CALLS)
+    ]
+    rows = []
+
+    head_energy = energy[discovery].mean(axis=(0, 1))
+    head_layer_medians = np.median(head_energy, axis=1)
+    for layer in range(LAYERS):
+        for head in range(HEADS):
+            discovery_values = gain[discovery, :, layer, head].mean(axis=1)
+            validation_values = gain[validation, :, layer, head].mean(axis=1)
+            validation_ci = bootstrap_ci(
+                validation_values,
+                seed=1897000 + layer * 100 + head,
+            )
+            relative_energy = float(
+                head_energy[layer, head]
+                / max(float(head_layer_medians[layer]), 1e-12)
+            )
+            budget_values = full_budget[discovery, :, layer, head].mean(axis=1)
+            selected = _compatibility_gate(
+                discovery_values,
+                validation_values,
+                validation_ci=validation_ci,
+                full_budget_values=budget_values,
+                relative_energy=relative_energy,
+            )
+            head_mask[layer][head] = selected
+            rows.append(
+                {
+                    "operator": operator,
+                    "factor": "head_only",
+                    "call_index": -1,
+                    "layer": layer,
+                    "head": head,
+                    "discovery_gain": float(np.mean(discovery_values)),
+                    "validation_gain": float(np.mean(validation_values)),
+                    "validation_ci_lower": validation_ci[0],
+                    "validation_ci_upper": validation_ci[1],
+                    "validation_win_fraction": float(
+                        np.mean(validation_values > 0)
+                    ),
+                    "full_budget_fraction": float(np.mean(budget_values)),
+                    "relative_reference_energy": relative_energy,
+                    "selected": selected,
+                }
+            )
+
+    for call in range(CALLS):
+        for layer in range(LAYERS):
+            discovery_values = gain[discovery, call, layer].mean(axis=1)
+            validation_values = gain[validation, call, layer].mean(axis=1)
+            validation_ci = bootstrap_ci(
+                validation_values,
+                seed=1898000 + call * 10000 + layer * 100,
+            )
+            per_head_energy = energy[discovery, call, layer].mean(axis=0)
+            relative_energy = float(
+                np.mean(per_head_energy)
+                / max(float(np.median(per_head_energy)), 1e-12)
+            )
+            budget_values = full_budget[discovery, call, layer].mean(axis=1)
+            selected = _compatibility_gate(
+                discovery_values,
+                validation_values,
+                validation_ci=validation_ci,
+                full_budget_values=budget_values,
+                relative_energy=relative_energy,
+            )
+            phase_layer_mask[call][layer] = selected
+            rows.append(
+                {
+                    "operator": operator,
+                    "factor": "phase_layer_only",
+                    "call_index": call,
+                    "layer": layer,
+                    "head": -1,
+                    "discovery_gain": float(np.mean(discovery_values)),
+                    "validation_gain": float(np.mean(validation_values)),
+                    "validation_ci_lower": validation_ci[0],
+                    "validation_ci_upper": validation_ci[1],
+                    "validation_win_fraction": float(
+                        np.mean(validation_values > 0)
+                    ),
+                    "full_budget_fraction": float(np.mean(budget_values)),
+                    "relative_reference_energy": relative_energy,
+                    "selected": selected,
+                }
+            )
+
+    head_masks = [
+        [[bool(value) for value in layer] for layer in head_mask]
+        for _ in range(CALLS)
+    ]
+    phase_layer_masks = [
+        [
+            [bool(phase_layer_mask[call][layer]) for _ in range(HEADS)]
+            for layer in range(LAYERS)
+        ]
+        for call in range(CALLS)
+    ]
+    return {
+        "head_only_compatible": head_masks,
+        "phase_layer_only_compatible": phase_layer_masks,
+    }, rows
+
+
 def _write_map(
     path: Path,
     *,
@@ -431,6 +569,7 @@ def analyze(manifest_path: Path, profile_root: Path, output_dir: Path) -> dict:
     holdout = [int(value) for value in split["generation_holdout"]]
     output_dir.mkdir(parents=True, exist_ok=True)
     all_rows = []
+    all_factor_rows = []
     audits = {}
     operators = {}
     map_payloads = {}
@@ -447,11 +586,19 @@ def analyze(manifest_path: Path, profile_root: Path, output_dir: Path) -> dict:
         compatible = _mask(rows, "compatible")
         selective = _mask(rows, "phase_selective")
         topk = _topk_mask(rows)
+        factor_masks, factor_rows = _factorized_masks(
+            aggregate,
+            operator=operator,
+            discovery=discovery,
+            validation=validation,
+        )
+        all_factor_rows.extend(factor_rows)
         operator_maps = {}
         for name, masks in (
             ("compatible", compatible),
             ("phase_selective", selective),
             ("top12_discovery", topk),
+            *factor_masks.items(),
         ):
             operator_maps[name] = _write_map(
                 output_dir / "maps" / f"{operator}_{name}.json",
@@ -467,6 +614,22 @@ def analyze(manifest_path: Path, profile_root: Path, output_dir: Path) -> dict:
         operators[operator] = {
             "compatible_cell_count": len(compatible_rows),
             "phase_selective_cell_count": len(selective_rows),
+            "head_only_compatible_cell_count": int(
+                sum(
+                    value
+                    for call_rows in factor_masks["head_only_compatible"]
+                    for layer in call_rows
+                    for value in layer
+                )
+            ),
+            "phase_layer_only_compatible_cell_count": int(
+                sum(
+                    value
+                    for call_rows in factor_masks["phase_layer_only_compatible"]
+                    for layer in call_rows
+                    for value in layer
+                )
+            ),
             "compatible_count_by_call": operator_maps["compatible"][
                 "coverage_count_by_call"
             ],
@@ -630,6 +793,27 @@ def analyze(manifest_path: Path, profile_root: Path, output_dir: Path) -> dict:
                 }
             )
             writer.writerow(flat)
+    factor_fieldnames = [
+        "operator",
+        "factor",
+        "call_index",
+        "layer",
+        "head",
+        "discovery_gain",
+        "validation_gain",
+        "validation_ci_lower",
+        "validation_ci_upper",
+        "validation_win_fraction",
+        "full_budget_fraction",
+        "relative_reference_energy",
+        "selected",
+    ]
+    with (output_dir / "factor_scores.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=factor_fieldnames)
+        writer.writeheader()
+        writer.writerows(all_factor_rows)
     lines = [
         "# v189 Structured Head x Phase Profile",
         "",
@@ -638,16 +822,17 @@ def analyze(manifest_path: Path, profile_root: Path, output_dir: Path) -> dict:
         "- Holdout prompts were not used for classification.",
         "- Classification is per denoising call; cross-call consistency is not a gate.",
         "",
-        "| Operator | Compatible cells | Phase-selective cells | Per-call compatible | Any-call heads | All-call heads |",
-        "|---|---:|---:|---|---:|---:|",
+        "| Operator | Joint cells | Head-only cells | Phase/layer-only cells | Phase-selective cells | Per-call joint |",
+        "|---|---:|---:|---:|---:|---|",
     ]
     for operator in OPERATORS:
         row = operators[operator]
         lines.append(
             f"| {operator} | {row['compatible_cell_count']} | "
+            f"{row['head_only_compatible_cell_count']} | "
+            f"{row['phase_layer_only_compatible_cell_count']} | "
             f"{row['phase_selective_cell_count']} | "
-            f"{row['compatible_count_by_call']} | "
-            f"{row['heads_selected_any_call']} | {row['heads_selected_all_calls']} |"
+            f"{row['compatible_count_by_call']} |"
         )
     lines.extend(
         [

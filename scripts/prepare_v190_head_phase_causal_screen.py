@@ -150,19 +150,40 @@ def phase_shift_map(primary: dict) -> dict:
 
 def dense_phase_map(primary: dict) -> dict:
     masks = primary["coverage_masks"]
-    active_calls = [
-        any(value for row in masks[call] for value in row) for call in range(CALLS)
+    active_cells = [
+        [any(masks[call][layer]) for layer in range(LAYERS)]
+        for call in range(CALLS)
     ]
     dense = [
-        [[active_calls[call] for _ in range(HEADS)] for _ in range(LAYERS)]
+        [
+            [active_cells[call][layer] for _ in range(HEADS)]
+            for layer in range(LAYERS)
+        ]
         for call in range(CALLS)
     ]
     return _new_map(
         dense,
         operator=str(primary["coverage_operator"]),
-        classification="same_active_calls_all_heads",
+        classification="same_active_call_layer_cells_all_heads",
         parent_map_id=str(primary["map_id"]),
     )
+
+
+def validate_factor_map(payload: dict, factor: str) -> None:
+    masks = payload["coverage_masks"]
+    if factor == "head_only_compatible":
+        if any(masks[call] != masks[0] for call in range(1, CALLS)):
+            raise ValueError("v189 head-only map varies across denoising calls")
+        return
+    if factor == "phase_layer_only_compatible":
+        if any(
+            len(set(bool(value) for value in masks[call][layer])) != 1
+            for call in range(CALLS)
+            for layer in range(LAYERS)
+        ):
+            raise ValueError("v189 phase/layer-only map varies across heads")
+        return
+    raise ValueError(f"unknown v190 factor map: {factor}")
 
 
 def prepare(
@@ -240,17 +261,30 @@ def prepare(
         }
         method_order.append(key)
 
-    add_method("all_recent", "local_control", operators[0], all_recent_map(operators[0]))
+    recent = all_recent_map(operators[0])
+    add_method("all_recent", "local_control", operators[0], recent)
     control_diagnostics = {}
+    control_aliases = {}
     for operator in operators:
-        map_row = analysis["operators"][operator]["maps"]["compatible"]
-        source_map_path = Path(map_row["path"])
-        if sha256(source_map_path) != map_row["sha256"]:
-            raise ValueError(f"v190 source map hash drift: {operator}")
-        primary = json.loads(source_map_path.read_text(encoding="utf-8"))
-        validate_map(primary, operator=operator)
-        if primary.get("map_id") != map_row["map_id"]:
-            raise ValueError(f"v190 source map id drift: {operator}")
+        source_rows = analysis["operators"][operator]["maps"]
+
+        def load_source_map(name: str) -> dict:
+            if name not in source_rows:
+                raise ValueError(
+                    f"v190 requires v189 factor map {operator}/{name}; "
+                    "rerun the v189 analyzer with the current code"
+                )
+            row = source_rows[name]
+            path = Path(row["path"])
+            if sha256(path) != row["sha256"]:
+                raise ValueError(f"v190 source map hash drift: {operator}/{name}")
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            validate_map(payload, operator=operator)
+            if payload.get("map_id") != row["map_id"]:
+                raise ValueError(f"v190 source map id drift: {operator}/{name}")
+            return payload
+
+        primary = load_source_map("compatible")
         primary_key = f"{operator}_compatible"
         universal = all_coverage_map(operator)
         add_method(
@@ -260,6 +294,48 @@ def prepare(
             universal,
         )
         add_method(primary_key, "primary_head_phase", operator, primary)
+        registered_masks = [
+            ("all_recent", recent["coverage_masks"]),
+            (f"{operator}_all_coverage", universal["coverage_masks"]),
+            (primary_key, primary["coverage_masks"]),
+        ]
+        factor_diagnostics = {}
+        for factor, suffix, role in (
+            (
+                "head_only_compatible",
+                "head_only",
+                "call_invariant_head_factor_control",
+            ),
+            (
+                "phase_layer_only_compatible",
+                "phase_layer_only",
+                "head_invariant_phase_layer_factor_control",
+            ),
+        ):
+            factor_map = load_source_map(factor)
+            validate_factor_map(factor_map, factor)
+            duplicate_of = next(
+                (
+                    key
+                    for key, masks in registered_masks
+                    if factor_map["coverage_masks"] == masks
+                ),
+                None,
+            )
+            informative = duplicate_of is None
+            method_key = f"{operator}_{suffix}"
+            if informative:
+                add_method(method_key, role, operator, factor_map)
+                registered_masks.append((method_key, factor_map["coverage_masks"]))
+            else:
+                control_aliases[method_key] = duplicate_of
+            factor_diagnostics[factor] = {
+                "informative": informative,
+                "alias_method": duplicate_of,
+                "coverage_cell_count": int(
+                    sum(factor_map["coverage_count_by_call"])
+                ),
+            }
 
         membership = membership_shift_map(primary)
         membership_informative = membership["coverage_masks"] != primary["coverage_masks"]
@@ -269,6 +345,9 @@ def prepare(
                 "layer_count_matched_membership_control",
                 operator,
                 membership,
+            )
+            registered_masks.append(
+                (f"{operator}_membership_shift", membership["coverage_masks"])
             )
 
         phase = phase_shift_map(primary)
@@ -280,16 +359,21 @@ def prepare(
                 operator,
                 phase,
             )
+            registered_masks.append(
+                (f"{operator}_phase_shift", phase["coverage_masks"])
+            )
 
         dense = dense_phase_map(primary)
         dense_informative = (
-            dense["coverage_masks"] != primary["coverage_masks"]
-            and dense["coverage_masks"] != universal["coverage_masks"]
+            all(
+                dense["coverage_masks"] != masks
+                for _, masks in registered_masks
+            )
         )
         if dense_informative:
             add_method(
                 f"{operator}_dense_phase",
-                "same_active_calls_dense_control",
+                "same_active_call_layer_cells_dense_control",
                 operator,
                 dense,
             )
@@ -303,6 +387,7 @@ def prepare(
             "dense_phase_deduplicated_against_all_coverage": bool(
                 dense["coverage_masks"] == universal["coverage_masks"]
             ),
+            "factor_maps": factor_diagnostics,
         }
 
     payload = {
@@ -332,6 +417,7 @@ def prepare(
         "operators": operators,
         "method_order": method_order,
         "methods": methods,
+        "control_aliases": control_aliases,
         "control_diagnostics": control_diagnostics,
         "source": {
             "v189_manifest": str(v189_manifest_path.resolve()),
@@ -366,6 +452,12 @@ def verify(manifest_path: Path) -> dict:
         or payload["method_order"][0] != "all_recent"
     ):
         raise ValueError("invalid v190 manifest")
+    aliases = payload.get("control_aliases") or {}
+    if any(
+        alias in payload["methods"] or target not in payload["methods"]
+        for alias, target in aliases.items()
+    ):
+        raise ValueError("invalid v190 control alias")
     prompt_path = Path(payload["prompt_file"])
     if sha256(prompt_path) != payload["prompt_file_sha256"]:
         raise ValueError("v190 prompt hash drift")

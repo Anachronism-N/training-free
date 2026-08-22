@@ -92,9 +92,13 @@ If v189 passes its discovery/validation gates, v190 now compares, on the same
 1. `all_recent`;
 2. `{operator}_all_coverage`, all 1,440 call-layer-head cells exposed;
 3. `{operator}_compatible`, the frozen Head x Phase map;
-4. layer/call count-matched head-membership shift;
-5. cyclic denoising-phase shift;
-6. all-head dense exposure on the primary map's active calls.
+4. `{operator}_head_only`, a call-invariant classifier fitted after averaging
+   each layer/head over all noisy calls;
+5. `{operator}_phase_layer_only`, a head-invariant classifier fitted after
+   averaging each call/layer over all heads;
+6. layer/call count-matched head-membership shift;
+7. cyclic denoising-phase shift;
+8. all-head dense exposure only on the primary map's active call/layer cells.
 
 The dense-phase method is omitted when it equals all-Coverage. Every method uses
 the same 9-FFE read budget and clean calls always use Recent.
@@ -102,6 +106,7 @@ the same 9-FFE read budget and clean calls always use Recent.
 The full v190 gate now requires all of the following:
 
 - useful effect relative to all-Recent;
+- support over both Head-only and Phase/Layer-only factor controls;
 - support over the count-matched head-membership control;
 - support over the phase-shift control;
 - fewer Coverage cell-calls than all-Coverage;
@@ -111,6 +116,12 @@ The full v190 gate now requires all of the following:
 This directly tests whether classification is useful rather than merely whether
 Retrieval Coverage is useful. It also prevents an all-head effect from being
 misreported as evidence for a Head x Phase classifier.
+
+The updated collector audits Dynamic Degree before using it. A constant
+all-one result is retained only as ceiling non-regression and cannot support a
+motion-improvement claim. Lightweight paired optical-flow diagnostics reject
+repeated freezing/jump/artifact failures and localize at most four prompts for
+review; they are not promoted to paper metrics.
 
 ## 5. Execution order
 

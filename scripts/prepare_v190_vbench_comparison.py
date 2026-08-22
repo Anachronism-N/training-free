@@ -66,6 +66,15 @@ def prepare(run_root: Path, comparison_root: Path) -> dict:
     methods = [str(value) for value in contract["methods"]]
     if set(rows) != set(methods) or methods[0] != "all_recent":
         raise ValueError("v190 method membership drift")
+    control_aliases = {
+        str(key): str(value)
+        for key, value in (contract.get("control_aliases") or {}).items()
+    }
+    if any(
+        alias in methods or target not in methods
+        for alias, target in control_aliases.items()
+    ):
+        raise ValueError("v190 control alias drift")
     prompt_path = Path(contract["prompt_file"])
     prompts = prompt_path.read_text(encoding="utf-8").splitlines()
     prompt_items = contract.get("prompt_items") or ()
@@ -119,6 +128,7 @@ def prepare(run_root: Path, comparison_root: Path) -> dict:
         "decoded_video_contract": contract["decoded_video_contract"],
         "seed": contract["seed"],
         "methods": comparison_methods,
+        "control_aliases": control_aliases,
         "vbench_long_dimensions": list(DIMENSIONS),
         "source": {
             "published_manifest": str(published_path.resolve()),

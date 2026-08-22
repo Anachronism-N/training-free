@@ -90,6 +90,17 @@ gain = log(error_Recent_to_Union) - log(error_Coverage_to_Union)
 `gain x win-fraction` threshold sensitivity；这些控制在看到视频前生成，不能根据人工
 review 事后挑选。
 
+同一份 discovery/validation profile 还会冻结两个不使用联合交互的 factor control：
+
+- `head_only_compatible`：先在四个 noisy calls 上平均每个 layer/head 的 gain，再用与
+  primary 相同的 gain、validation、budget 和 residual-energy gate 分类；所得 head
+  membership 在四个 calls 中完全相同；
+- `phase_layer_only_compatible`：先在 12 个 heads 上平均每个 call/layer 的 gain，
+  通过同一组 gate 后，该 call/layer 的全部 heads 一起读取 Coverage。
+
+它们不使用最后 32 条 generation holdout。`Head x Phase` 只有在生成侧同时优于这两个
+因子化方法时，才支持“联合路由不可被单独的 head 或 denoising-phase 分类替代”。
+
 ## 6. 新增 runtime 与 debug
 
 新增 schedule：
@@ -172,6 +183,7 @@ runs/v189_structured_head_phase_profile/profile_audit.json
 runs/v189_structured_head_phase_profile/analysis/analysis.json
 runs/v189_structured_head_phase_profile/analysis/analysis.md
 runs/v189_structured_head_phase_profile/analysis/cell_scores.csv
+runs/v189_structured_head_phase_profile/analysis/factor_scores.csv
 runs/v189_structured_head_phase_profile/analysis/maps/
 ```
 
@@ -190,13 +202,17 @@ advance_head_phase_maps_to_causal_screen
 1. all-Recent；
 2. all-Coverage，即四个 noisy calls 的全部 360 heads 都读取长期历史；
 3. primary compatible Head x Phase map；
-4. 同 call、同 layer 数量的确定性 membership shift；
-5. 将同一 membership 循环平移到其他 denoising calls 的 phase control；
-6. 相同 active calls 的 all-head dense control。
+4. call-invariant Head-only map；
+5. head-invariant Phase/Layer-only map；
+6. 同 call、同 layer 数量的确定性 membership shift；
+7. 将同一 membership 循环平移到其他 denoising calls 的 phase control；
+8. primary 激活的相同 call/layer cells 上使用 all-head 的 dense control。
 
-这些方法分别检验 operator utility、head membership、phase membership 和稀疏暴露。具体
-方法集合由 v189 自动冻结；若一个 control map 与 primary 完全相同，prepare 会将其删除，
-若 dense-phase 等于 all-Coverage 也会自动去重，不会运行无信息的重复视频。
+这些方法分别检验 operator utility、Head x Phase 交互、head membership、phase
+membership 和稀疏暴露。具体方法集合由 v189 自动冻结；若一个 control map 与 primary、
+all-Recent、all-Coverage 或已经注册的 control 完全相同，prepare 会将其删除，不会运行
+无信息的重复视频，并在分析时复用其 exact-equivalent method。若 factor map 与 primary
+本身相同，则联合交互不可识别，相应机制 claim 自动判定为未获得支持。
 
 这里的 `all-Recent` 是同一 shadow-cache runtime 下的 9-FFE 局部读取控制，不等同于
 原生 SF。它用于隔离 Head x Phase 路由的因果作用；只有 v190 通过后，新的 128-prompt
@@ -247,9 +263,24 @@ NODE_RANK=0 bash scripts/run_v190_vbench_long.sh decision
 NODE_RANK=0 bash scripts/run_v190_head_phase_causal_screen_32gpu.sh package
 ```
 
-只有 primary 相对 all-Recent 通过基本质量/身份/运动/时序 gate，同时优于
-membership-shift 与 phase-shift，并在减少 Coverage cell-call 暴露量的前提下不劣于
-all-Coverage，才输出：
+`collect` 会在缺失时自动运行 `compute_temporal_jump_diagnostic.py`，以 8-frame step
+计算配对的光流、后段运动衰减、低运动区间、时序跳变和亮度/边缘异常。该结果只用于
+自动拒绝重复伪影并挑选最多 4 条 review prompt，不作为论文效果指标。也可在 VBench
+结束前单独运行：
+
+```bash
+NODE_RANK=0 V190_TEMPORAL_WORKERS=8 \
+  bash scripts/run_v190_vbench_long.sh temporal
+```
+
+分析器会先检查 VBench Dynamic Degree 是否有方差。若所有方法、所有 prompt 都为
+`1.0`，该维度只能记为运动在指标天花板处未退化，不能声称运动提升；此时 primary
+还必须在质量、身份/背景或时序轴至少有一项正增益。若 Dynamic Degree 有区分度，
+则仍要求相对 all-Recent 至少提升 `0.01`。
+
+只有 primary 相对 all-Recent 通过基本质量/身份/运动/时序 gate，同时优于 Head-only、
+Phase/Layer-only、membership-shift 与 phase-shift，并在减少 Coverage cell-call 暴露量
+的前提下不劣于 all-Coverage，才输出：
 
 ```text
 advance_head_phase_method_to_fresh128

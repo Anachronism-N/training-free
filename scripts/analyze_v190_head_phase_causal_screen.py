@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +21,166 @@ PRIMARY_METRICS = (
     "dynamic_degree",
     "temporal_mechanics",
 )
+TEMPORAL_FEATURES = (
+    "flow_speed_median",
+    "motion_coverage_fraction",
+    "late_motion_ratio",
+    "longest_low_motion_run_fraction",
+    "temporal_jump",
+    "appearance_outlier_fraction",
+    "flow_accel_outlier_fraction",
+    "dark_frame_fraction",
+    "bright_frame_fraction",
+    "low_contrast_frame_fraction",
+    "edge_density_outlier_fraction",
+)
+
+
+def finite(value: object, *, name: str) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{name} is not numeric") from error
+    if not math.isfinite(result):
+        raise ValueError(f"{name} is not finite")
+    return result
+
+
+def load_temporal_rows(
+    path: Path,
+    *,
+    methods: tuple[str, ...],
+    prompt_count: int,
+) -> dict[tuple[str, int], dict[str, float]]:
+    rows = {}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        for raw in csv.DictReader(handle):
+            key = (str(raw["method"]), int(raw["prompt_index"]))
+            if key in rows:
+                raise ValueError(f"duplicate v190 temporal row: {key}")
+            rows[key] = {
+                feature: finite(raw.get(feature), name=f"{key}:{feature}")
+                for feature in TEMPORAL_FEATURES
+            }
+    expected = {
+        (method, prompt)
+        for method in methods
+        for prompt in range(prompt_count)
+    }
+    if set(rows) != expected:
+        raise ValueError(
+            "v190 temporal coverage mismatch: "
+            f"missing={sorted(expected-set(rows))[:12]} "
+            f"extra={sorted(set(rows)-expected)[:12]}"
+        )
+    return rows
+
+
+def dynamic_metric_validity(
+    rows: dict,
+    *,
+    methods: tuple[str, ...],
+    prompt_count: int,
+) -> dict:
+    values = np.asarray(
+        [
+            rows[(method, prompt)]["dynamic_degree"]
+            for method in methods
+            for prompt in range(prompt_count)
+        ],
+        dtype=np.float64,
+    )
+    value_range = float(values.max() - values.min())
+    informative = bool(value_range > 1e-12)
+    ceiling = bool(not informative and float(values.min()) >= 1.0 - 1e-12)
+    return {
+        "informative": informative,
+        "ceiling_nonregression_only": ceiling,
+        "minimum": float(values.min()),
+        "maximum": float(values.max()),
+        "standard_deviation": float(values.std()),
+        "unique_value_count": int(np.unique(values).size),
+        "observation_count": int(values.size),
+        "claim_boundary": (
+            "A constant all-one Dynamic Degree can support ceiling-level "
+            "non-regression only; it cannot support a motion-improvement claim."
+        ),
+    }
+
+
+def temporal_guard(
+    rows: dict[tuple[str, int], dict[str, float]],
+    *,
+    candidate: str,
+    control: str,
+    prompt_count: int,
+) -> dict:
+    mean_deltas = {
+        feature: float(
+            np.mean(
+                [
+                    rows[(candidate, prompt)][feature]
+                    - rows[(control, prompt)][feature]
+                    for prompt in range(prompt_count)
+                ]
+            )
+        )
+        for feature in TEMPORAL_FEATURES
+    }
+    flagged = []
+    for prompt in range(prompt_count):
+        current = rows[(candidate, prompt)]
+        reference = rows[(control, prompt)]
+        flags = []
+        if (
+            current["longest_low_motion_run_fraction"] > 0.20
+            and current["longest_low_motion_run_fraction"]
+            > reference["longest_low_motion_run_fraction"] + 0.10
+        ):
+            flags.append("long_low_motion_run")
+        if (
+            current["late_motion_ratio"] < 0.55
+            and current["late_motion_ratio"]
+            < reference["late_motion_ratio"] - 0.20
+        ):
+            flags.append("late_motion_collapse")
+        if (
+            current["temporal_jump"] > 1.35 * max(reference["temporal_jump"], 1e-8)
+            and current["appearance_outlier_fraction"]
+            > reference["appearance_outlier_fraction"] + 0.02
+        ):
+            flags.append("temporal_discontinuity")
+        for feature, threshold, margin in (
+            ("dark_frame_fraction", 0.05, 0.02),
+            ("bright_frame_fraction", 0.05, 0.02),
+            ("low_contrast_frame_fraction", 0.10, 0.05),
+        ):
+            if (
+                current[feature] > threshold
+                and current[feature] > reference[feature] + margin
+            ):
+                flags.append(feature.replace("_fraction", "_failure"))
+        if (
+            current["edge_density_outlier_fraction"] > 0.10
+            and current["edge_density_outlier_fraction"]
+            > reference["edge_density_outlier_fraction"] + 0.05
+        ):
+            flags.append("edge_density_failure")
+        if flags:
+            flagged.append({"prompt_index": prompt, "flags": flags})
+    # One isolated warning is queued for review. Repeated failures reject the
+    # candidate before any broad visual inspection.
+    return {
+        "available": True,
+        "automatic_safety_pass": len(flagged) <= 1,
+        "flagged_prompt_count": len(flagged),
+        "flagged_prompts": flagged,
+        "mean_deltas_vs_recent": mean_deltas,
+        "use_boundary": (
+            "Farneback diagnostics are an automatic failure guard and review "
+            "localizer, not a paper metric or promotion effect size."
+        ),
+    }
 
 
 def contrast(
@@ -73,7 +235,13 @@ def noninferior_and_better(rows: dict) -> tuple[bool, bool]:
     return noninferior, better
 
 
-def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
+def analyze(
+    manifest: dict,
+    summary: dict,
+    parts_root: Path,
+    *,
+    temporal_rows: dict[tuple[str, int], dict[str, float]] | None = None,
+) -> dict:
     methods = tuple(str(row["key"]) for row in manifest["methods"])
     prompt_count = int(manifest["prompt_count"])
     if (
@@ -84,13 +252,24 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
     ):
         raise ValueError("v190 paired analysis received incomplete inputs")
     metadata = {str(row["key"]): row for row in manifest["methods"]}
+    control_aliases = {
+        str(key): str(value)
+        for key, value in (manifest.get("control_aliases") or {}).items()
+    }
     primary_methods = tuple(
-        method for method in methods if metadata[method]["role"] == "primary_head_phase"
+        method
+        for method in methods
+        if metadata[method]["role"] == "primary_head_phase"
     )
     if not primary_methods:
         raise ValueError("v190 contains no primary Head x Phase method")
     raw = base.load_prompt_rows(parts_root, summary, methods, prompt_count)
     rows = base.derived_rows(raw, methods, prompt_count)
+    dynamic_validity = dynamic_metric_validity(
+        rows,
+        methods=methods,
+        prompt_count=prompt_count,
+    )
     means = {
         method: {
             metric: float(
@@ -103,11 +282,26 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
     comparisons = []
     for primary_index, primary in enumerate(primary_methods):
         operator = str(metadata[primary]["operator"])
-        controls = ["all_recent", f"{operator}_all_coverage"] + [
+        factor_controls = []
+        for suffix in ("head_only", "phase_layer_only"):
+            requested = f"{operator}_{suffix}"
+            resolved = (
+                requested
+                if requested in methods
+                else control_aliases.get(requested)
+            )
+            if resolved is not None and resolved != primary:
+                factor_controls.append(resolved)
+        controls = ["all_recent", f"{operator}_all_coverage"] + factor_controls + [
             f"{operator}_{suffix}"
-            for suffix in ("membership_shift", "phase_shift", "dense_phase")
+            for suffix in (
+                "membership_shift",
+                "phase_shift",
+                "dense_phase",
+            )
             if f"{operator}_{suffix}" in methods
         ]
+        controls = list(dict.fromkeys(controls))
         for control_index, control in enumerate(controls):
             for metric_index, metric in enumerate(METRICS):
                 comparisons.append(
@@ -130,13 +324,84 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
     for primary in primary_methods:
         operator = str(metadata[primary]["operator"])
         baseline = comparison_metrics(comparisons, primary, "all_recent")
-        baseline_pass = bool(
+        baseline_non_motion_pass = bool(
             baseline["official_quality_score"]["mean_delta"] >= 0
             and baseline["identity_background"]["mean_delta"] >= -0.001
-            and baseline["dynamic_degree"]["mean_delta"] >= 0.01
             and baseline["temporal_mechanics"]["mean_delta"] >= -0.002
         )
+        dynamic_improvement = bool(
+            dynamic_validity["informative"]
+            and baseline["dynamic_degree"]["mean_delta"] >= 0.01
+        )
+        ceiling_nonregression = bool(
+            dynamic_validity["ceiling_nonregression_only"]
+            and means[primary]["dynamic_degree"] >= 1.0 - 1e-12
+            and means["all_recent"]["dynamic_degree"] >= 1.0 - 1e-12
+        )
+        positive_effect = bool(
+            dynamic_improvement
+            or baseline["official_quality_score"]["mean_delta"] >= 0.10
+            or baseline["identity_background"]["mean_delta"] >= 0.0005
+            or baseline["temporal_mechanics"]["mean_delta"] >= 0.001
+        )
+        if temporal_rows is None:
+            automatic_safety = {
+                "available": False,
+                "automatic_safety_pass": False,
+                "reason": "temporal_diagnostics_missing",
+            }
+        else:
+            automatic_safety = temporal_guard(
+                temporal_rows,
+                candidate=primary,
+                control="all_recent",
+                prompt_count=prompt_count,
+            )
+        baseline_pass = bool(
+            baseline_non_motion_pass
+            and (dynamic_improvement or ceiling_nonregression)
+            and positive_effect
+            and automatic_safety["automatic_safety_pass"]
+        )
         controls = {}
+        for suffix, claim in (
+            ("head_only", "head_only_factor"),
+            ("phase_layer_only", "phase_layer_only_factor"),
+        ):
+            requested = f"{operator}_{suffix}"
+            control = (
+                requested
+                if requested in methods
+                else control_aliases.get(requested)
+            )
+            if control is None:
+                controls[claim] = {
+                    "available": False,
+                    "supported": False,
+                    "reason": "factor_map_was_not_informative",
+                }
+                continue
+            if control == primary:
+                controls[claim] = {
+                    "available": True,
+                    "supported": False,
+                    "aliased_to": control,
+                    "reason": "factor_map_is_identical_to_primary",
+                }
+                continue
+            comparison = comparison_metrics(comparisons, primary, control)
+            noninferior, better = noninferior_and_better(comparison)
+            controls[claim] = {
+                "available": True,
+                "supported": bool(noninferior and better),
+                "aliased_to": control if control != requested else None,
+                "noninferior": noninferior,
+                "at_least_one_mean_gain": better,
+                "deltas": {
+                    metric: comparison[metric]["mean_delta"]
+                    for metric in PRIMARY_METRICS
+                },
+            }
         for suffix, claim in (
             ("membership_shift", "head_membership"),
             ("phase_shift", "phase_membership"),
@@ -189,20 +454,36 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
             controls["head_membership"]["supported"]
             and controls["phase_membership"]["supported"]
         )
+        joint_factorization_pass = bool(
+            controls["head_only_factor"]["supported"]
+            and controls["phase_layer_only_factor"]["supported"]
+        )
         selective_exposure_pass = bool(
             controls["universal_coverage"]["supported"]
         )
         statuses[primary] = {
             "operator": operator,
             "baseline_pass": baseline_pass,
+            "baseline_non_motion_pass": baseline_non_motion_pass,
+            "positive_effect_observed": positive_effect,
+            "dynamic_evidence": {
+                "improvement_supported": dynamic_improvement,
+                "ceiling_nonregression_supported": ceiling_nonregression,
+                "claim_motion_improvement": dynamic_improvement,
+            },
+            "automatic_temporal_guard": automatic_safety,
             "baseline_deltas": {
                 metric: baseline[metric]["mean_delta"] for metric in PRIMARY_METRICS
             },
             "controls": controls,
             "head_phase_attribution_pass": attribution_pass,
+            "joint_factorization_pass": joint_factorization_pass,
             "selective_exposure_pass": selective_exposure_pass,
             "full_screen_pass": bool(
-                baseline_pass and attribution_pass and selective_exposure_pass
+                baseline_pass
+                and attribution_pass
+                and joint_factorization_pass
+                and selective_exposure_pass
             ),
         }
     passing = [method for method in primary_methods if statuses[method]["full_screen_pass"]]
@@ -212,6 +493,13 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
         for method in primary_methods
         if statuses[method]["baseline_pass"]
         and statuses[method]["head_phase_attribution_pass"]
+    ]
+    jointly_supported = [
+        method
+        for method in primary_methods
+        if statuses[method]["baseline_pass"]
+        and statuses[method]["head_phase_attribution_pass"]
+        and statuses[method]["joint_factorization_pass"]
     ]
     selected = None
     if passing:
@@ -226,8 +514,10 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
             ),
         )
         recommendation = "advance_head_phase_method_to_fresh128"
-    elif attributed:
+    elif jointly_supported:
         recommendation = "head_phase_effect_not_competitive_with_all_coverage"
+    elif attributed:
+        recommendation = "joint_head_phase_not_supported_over_factorized_controls"
     elif baseline_only:
         recommendation = "operator_effect_without_head_phase_attribution"
     else:
@@ -237,14 +527,33 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
     if selected is not None:
         operator = statuses[selected]["operator"]
         universal = f"{operator}_all_coverage"
+        head_only = f"{operator}_head_only"
+        phase_layer = f"{operator}_phase_layer_only"
         membership = f"{operator}_membership_shift"
         phase = f"{operator}_phase_shift"
-        controls = [
-            value
-            for value in ("all_recent", universal, membership, phase)
-            if value in methods
-        ]
+        controls = list(
+            dict.fromkeys(
+                value
+                for value in (
+                    "all_recent",
+                    universal,
+                    head_only if head_only in methods else control_aliases.get(head_only),
+                    phase_layer
+                    if phase_layer in methods
+                    else control_aliases.get(phase_layer),
+                    membership,
+                    phase,
+                )
+                if value in methods
+            )
+        )
         ranked = []
+        flagged_by_prompt = {
+            int(row["prompt_index"]): row["flags"]
+            for row in statuses[selected]["automatic_temporal_guard"].get(
+                "flagged_prompts", ()
+            )
+        }
         for prompt in range(prompt_count):
             identity_delta = rows[(selected, prompt)]["identity_background"] - rows[
                 ("all_recent", prompt)
@@ -259,9 +568,27 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
                 )
                 for control in controls
             )
+            temporal_score = 0.0
+            if temporal_rows is not None:
+                current = temporal_rows[(selected, prompt)]
+                reference = temporal_rows[("all_recent", prompt)]
+                temporal_score = abs(
+                    math.log(
+                        (current["flow_speed_median"] + 1e-8)
+                        / (reference["flow_speed_median"] + 1e-8)
+                    )
+                ) + 0.25 * abs(
+                    math.log(
+                        (current["temporal_jump"] + 1e-8)
+                        / (reference["temporal_jump"] + 1e-8)
+                    )
+                )
             ranked.append(
                 (
-                    abs(identity_delta - dynamic_delta) + 0.05 * disagreement,
+                    5.0 * bool(flagged_by_prompt.get(prompt))
+                    + 100.0 * abs(identity_delta)
+                    + temporal_score
+                    + 0.05 * disagreement,
                     prompt,
                     identity_delta,
                     dynamic_delta,
@@ -275,16 +602,20 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
                     "controls": controls,
                     "identity_delta_vs_recent": identity_delta,
                     "dynamic_delta_vs_recent": dynamic_delta,
+                    "automatic_flags": flagged_by_prompt.get(prompt, []),
                 }
             )
     return {
-        "version": 2,
+        "version": 4,
         "experiment": manifest["experiment"],
         "development_only": True,
         "prompt_count": prompt_count,
         "methods": list(methods),
+        "control_aliases": control_aliases,
         "primary_methods": list(primary_methods),
         "means": means,
+        "metric_validity": {"dynamic_degree": dynamic_validity},
+        "temporal_diagnostics_available": temporal_rows is not None,
         "comparisons": comparisons,
         "statuses": statuses,
         "passing_methods": passing,
@@ -294,7 +625,8 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
         "targeted_review_queue": review_queue,
         "claim_boundary": (
             "This development screen can reject a frozen map. Only a new "
-            "128-prompt suite can estimate final effect size or support a paper claim."
+            "128-prompt suite can estimate final effect size or support a paper claim. "
+            "A saturated Dynamic Degree supports non-regression, never motion improvement."
         ),
     }
 
@@ -306,14 +638,20 @@ def render(report: dict) -> str:
         f"- Recommendation: `{report['recommendation']}`",
         f"- Selected: `{report['selected_for_fresh128']}`",
         f"- Manual review required: `{report['manual_review_required']}`",
+        f"- Dynamic Degree informative: `{report['metric_validity']['dynamic_degree']['informative']}`",
+        f"- Dynamic Degree ceiling-only: `{report['metric_validity']['dynamic_degree']['ceiling_nonregression_only']}`",
+        f"- Temporal diagnostics available: `{report['temporal_diagnostics_available']}`",
         "",
-        "| Primary | Operator | Baseline | Head membership | Phase | Universal Coverage | Sparse routing | Full pass |",
-        "|---|---|---:|---:|---:|---:|---:|---:|",
+        "| Primary | Operator | Baseline | Head-only | Phase/layer-only | "
+        "Head membership | Phase shift | Universal Coverage | Sparse routing | Full pass |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for method in report["primary_methods"]:
         row = report["statuses"][method]
         lines.append(
             f"| {method} | {row['operator']} | {row['baseline_pass']} | "
+            f"{row['controls']['head_only_factor']['supported']} | "
+            f"{row['controls']['phase_layer_only_factor']['supported']} | "
             f"{row['controls']['head_membership']['supported']} | "
             f"{row['controls']['phase_membership']['supported']} | "
             f"{row['controls']['universal_coverage']['supported']} | "
@@ -328,6 +666,7 @@ def main() -> None:
     parser.add_argument("--comparison-root", type=Path, required=True)
     parser.add_argument("--summary", type=Path, required=True)
     parser.add_argument("--parts-root", type=Path, required=True)
+    parser.add_argument("--temporal-csv", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     manifest = json.loads(
@@ -336,7 +675,18 @@ def main() -> None:
         )
     )
     summary = json.loads(args.summary.read_text(encoding="utf-8"))
-    report = analyze(manifest, summary, args.parts_root)
+    methods = tuple(str(row["key"]) for row in manifest["methods"])
+    temporal_rows = load_temporal_rows(
+        args.temporal_csv,
+        methods=methods,
+        prompt_count=int(manifest["prompt_count"]),
+    )
+    report = analyze(
+        manifest,
+        summary,
+        args.parts_root,
+        temporal_rows=temporal_rows,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"

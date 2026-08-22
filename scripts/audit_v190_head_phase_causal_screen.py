@@ -332,6 +332,7 @@ def main() -> None:
         "decoded_video_contract": manifest["decoded_video_contract"],
         "seed": manifest["seed"],
         "methods": methods,
+        "control_aliases": manifest.get("control_aliases") or {},
         "input_manifest": str(args.input_manifest.resolve()),
         "input_manifest_sha256": sha256(args.input_manifest),
     }
