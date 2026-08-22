@@ -1,8 +1,55 @@
 # RCCP 方案回顾与 Coverage Operator 探索
 
+## 0. 重要澄清：实际对比的是什么
+
+### 0.1 Pyramid-Forcing (PF) 的真正默认配置
+
+PF 的默认配置（`pyramid-forcing.yaml` + `best_labels.csv`）使用 **三种 head 分类策略**：
+
+| PF Label | 含义 | Head 数量 | Cache 策略 |
+|----------|------|-----------|------------|
+| `-1` (osc) | 振荡头 | 156 | `sink1 + cyclic(period=6, bucket=4) + recent4` |
+| `1` (sta+) | 稳定+ | 172 | `sink3 + stride(interval=6, cap=4) + recent4` |
+| `2` (sta-) | 稳定- | 32 | `sink3 + merge(patch=2, cap=4) + recent4` |
+
+PF 的 middle 策略是 **cyclic/stride/merge** 三种，由 `best_labels.csv` 的 head 分类驱动。这是 PF 论文的方法。
+
+### 0.2 我们实验中实际使用的配置
+
+**所有实验（v181-v184）都没有使用 PF 的默认配置**。我们用了一套独立的 label 系统：
+
+| 我们的 Label | 含义 | Cache 策略 | 启用方式 |
+|-------------|------|------------|----------|
+| `20` (recent) | 纯近期 | `sink1 + recent8` | `--pyramidkv_cache_compatibility_policy` |
+| `21` (coverage) | 覆盖 | `sink1 + middle4 + recent4` | 同上 + `--pyramidkv_cache_compatibility_coverage_policy` |
+
+当传入 `--pyramidkv_cache_compatibility_policy` 时，PF 原生的 label 系统（-1/1/2 + cyclic/stride/merge）被**完全绕过**，替换为我们的 20/21 label 系统。
+
+### 0.3 各实验的实际配置
+
+| 实验 | Method | Head Config | Cache 策略 | 实际是什么 |
+|------|--------|-------------|-----------|-----------|
+| v181/v183 | `all_recent` | 全 20 (360) | 全 sink1+recent8 | **非 PF 默认！纯 recent baseline** |
+| v181/v183 | `rccp_matched` | 5×21 + 355×20 | 5 heads coverage + 355 recent | RCCP 选择性 coverage |
+| v181/v183 | `all_coverage` | 全 21 (360) | 全 sink1+middle4+recent4 | 全覆盖 |
+| v182 | `strict5_retrieval` | 5×21 + 355×20 | 5 heads coverage(retrieval) | RCCP + retrieval operator |
+| v184 | `all_coverage_retrieval` | 全 21 (360) | 全 coverage(retrieval) | 全覆盖 + retrieval |
+
+### 0.4 核心问题
+
+**我们没有与 PF 论文的方法对比。** 我们的 "all_recent" baseline 是一个我们自己构造的简化策略（纯 sink1+recent8），不是 PF 的 `best_labels.csv`（cyclic/stride/merge 三策略）。PF 默认配置比 pure recent 复杂得多，可能效果也更好。
+
+**正确的 PF baseline 应该是**：不传 `--pyramidkv_head_config_path` 和 `--pyramidkv_cache_compatibility_policy`，让 PF 用 yaml 中的默认 `best_labels.csv` 配置。
+
+### 0.5 与 Self-Forcing (sf_native) 的关系
+
+`sf_native` 是完全不同的 pipeline（Self-Forcing，非 Pyramid-Forcing），不使用 PyramidKV cache 压缩。它是作为另一个 baseline 存在的，不是 PF 的 baseline。
+
+---
+
 ## 1. 研究背景
 
-训练自由的长视频生成面临一个核心矛盾：**随着视频长度增加，KV cache 持续增长导致显存压力，同时生成质量（尤其是运动动态性）显著退化**。Self-Forcing 通过 next-frame 自回归生成长视频，但其原生 full cache 策略在长视频（60s+）中动态性衰减严重。Pyramid-Forcing (PF) 引入了 PyramidKV 分块缓存，通过 `sink1 + recent8` 的 recent 策略压缩 cache，但仍未解决动态性退化问题。
+训练自由的长视频生成面临一个核心矛盾：**随着视频长度增加，KV cache 持续增长导致显存压力，同时生成质量（尤其是运动动态性）显著退化**。Self-Forcing 通过 next-frame 自回归生成长视频，但其原生 full cache 策略在长视频（60s+）中动态性衰减严重。Pyramid-Forcing (PF) 引入了 PyramidKV 分块缓存，通过 head 分类（osc/sta+/sta-）驱动 cyclic/stride/merge 三种 middle 策略压缩 cache，但仍未解决动态性退化问题。
 
 **核心观察**：不同 attention head 对 cache 压缩的敏感度不同。一些 head 保留近期信息更有效（recent），而另一些 head 需要更广泛的覆盖（coverage: sink1 + middle4 + recent4）。如果能为每个 head 选择最优的 cache 策略，或许能在保持质量的同时提升动态性。
 
@@ -152,19 +199,27 @@ v182: Coverage Operator 探索 — 5 种 middle4 选择策略
 
 ---
 
-## 5. 与 Pyramid-Forcing (PF) 的关系
+## 5. 与 Pyramid-Forcing (PF) 的关系（已澄清）
 
-需要澄清一个重要区分：
+### 关键区分
 
 - **Pyramid-Forcing**：一种长视频生成 pipeline（分块生成），使用 PyramidKV 压缩 cache
-- **PyramidKV**：cache 压缩方法，默认用 `all_recent`（sink1+recent8）策略
-- **all_recent = PF 默认配置**：即标准 PyramidKV
+- **PyramidKV 默认配置**：通过 `best_labels.csv` 把 360 个 head 分为 osc(-1)/sta+(1)/sta-(2) 三类，分别用 cyclic/stride/merge 三种 middle 策略
+- **我们的 cache_compatibility_policy**：一套独立的 label 系统（20=recent/21=coverage/22=episode），**绕过** PF 原生的 head 分类
 
-我们的方案**都基于 PF pipeline**，区别在于 cache 策略：
-- RCCP：选择性 coverage（已舍弃）
-- Coverage Operator：全覆盖 + 智能 middle4 选择（当前方向）
+### 实际对比关系
 
-与标准 PF 相比，我们的 coverage operator 方案（strict5_retrieval）在 30s 视频中实现了 **+12% 动态性提升**（0.771 vs 0.688），且质量基本持平。这是在 PF 基础上的增量改进，而非替代 PF。
+| 对比 | 含义 | 是否公平 |
+|------|------|----------|
+| 我们 vs all_recent | coverage operator vs 纯 recent | **不公平** — all_recent 不是 PF 默认 |
+| 我们 vs sf_native | PF pipeline vs Self-Forcing pipeline | 不同 pipeline，参考性对比 |
+| 我们 vs PF 默认 | coverage operator vs cyclic/stride/merge | **未做** — 需要补跑 |
+
+### 下一步必须补做
+
+1. **生成真正的 PF baseline**：用 `best_labels.csv` + 不传 `--pyramidkv_cache_compatibility_policy`
+2. **在相同 prompt set 上对比**：PF baseline vs 我们的最优 coverage operator
+3. **确认 PF 的 head 分类是否本身已经解决了动态性问题**
 
 ---
 
