@@ -284,6 +284,7 @@ def test_v190_preparer_builds_count_and_phase_controls(tmp_path: Path) -> None:
     assert module.verify(output / "manifest.json") == payload
     assert payload["method_order"] == [
         "all_recent",
+        "landmark_all_coverage",
         "landmark_compatible",
         "landmark_membership_shift",
         "landmark_phase_shift",
@@ -303,6 +304,12 @@ def test_v190_preparer_builds_count_and_phase_controls(tmp_path: Path) -> None:
     assert payload["methods"]["landmark_dense_phase"][
         "coverage_count_by_call"
     ] == [360, 360, 0, 0]
+    assert payload["methods"]["landmark_all_coverage"][
+        "coverage_count_by_call"
+    ] == [360, 360, 360, 360]
+    assert payload["methods"]["landmark_compatible"][
+        "coverage_cell_count"
+    ] == 2
 
 
 def test_v190_analyzer_requires_baseline_membership_and_phase_support(
@@ -313,6 +320,7 @@ def test_v190_analyzer_requires_baseline_membership_and_phase_support(
     )
     methods = (
         "all_recent",
+        "landmark_all_coverage",
         "landmark_compatible",
         "landmark_membership_shift",
         "landmark_phase_shift",
@@ -320,6 +328,7 @@ def test_v190_analyzer_requires_baseline_membership_and_phase_support(
     )
     roles = {
         "all_recent": "local_control",
+        "landmark_all_coverage": "all_head_all_phase_control",
         "landmark_compatible": "primary_head_phase",
         "landmark_membership_shift": "layer_count_matched_membership_control",
         "landmark_phase_shift": "call_count_matched_phase_control",
@@ -329,13 +338,32 @@ def test_v190_analyzer_requires_baseline_membership_and_phase_support(
         "experiment": "v190_head_phase_causal_vbench_screen32",
         "prompt_count": 32,
         "methods": [
-            {"key": method, "role": roles[method], "operator": "landmark"}
+            {
+                "key": method,
+                "role": roles[method],
+                "operator": "landmark",
+                "coverage_cell_count": (
+                    0
+                    if method == "all_recent"
+                    else 1440
+                    if method == "landmark_all_coverage"
+                    else 2
+                ),
+                "coverage_exposure_fraction": (
+                    0.0
+                    if method == "all_recent"
+                    else 1.0
+                    if method == "landmark_all_coverage"
+                    else 2 / 1440
+                ),
+            }
             for method in methods
         ],
     }
     summary = {"methods": {method: {} for method in methods}, "missing": []}
     values = {
         "all_recent": (80.0, 0.9700, 0.9800, 0.40),
+        "landmark_all_coverage": (80.4, 0.9698, 0.9800, 0.455),
         "landmark_compatible": (80.5, 0.9705, 0.9805, 0.44),
         "landmark_membership_shift": (80.2, 0.9700, 0.9800, 0.41),
         "landmark_phase_shift": (80.2, 0.9700, 0.9800, 0.41),
@@ -368,4 +396,73 @@ def test_v190_analyzer_requires_baseline_membership_and_phase_support(
         ]["supported"]
         is True
     )
+    assert (
+        report["statuses"]["landmark_compatible"]["controls"][
+            "universal_coverage"
+        ]["supported"]
+        is True
+    )
     assert report["recommendation"] == "advance_head_phase_method_to_fresh128"
+
+
+def test_v184_evidence_audit_rejects_comparative_claim_and_flags_dynamic(
+    tmp_path: Path,
+) -> None:
+    module = load_module(
+        "v184_evidence_audit",
+        SCRIPTS / "audit_v184_retrieval_evidence.py",
+    )
+    run_root = tmp_path / "v184"
+    video_dir = run_root / "published"
+    video_dir.mkdir(parents=True)
+    for index in range(128):
+        (video_dir / f"{index:06d}-0.mp4").write_bytes(b"video")
+    manifest = {
+        "experiment": "v184_retrieval_128_vbench",
+        "prompt_count": 128,
+        "methods": [
+            {
+                "key": "all_coverage_retrieval",
+                "video_dir": str(video_dir.resolve()),
+            }
+        ],
+        "prompt_items": [
+            {"index": index, "text": f"prompt {index}"}
+            for index in range(128)
+        ],
+    }
+    manifest_path = run_root / "vbench_comparison" / "comparison_manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    logs = run_root / "logs"
+    logs.mkdir()
+    (logs / "shard00.log").write_text(
+        "recent=20:0 coverage=21:360 episode=22:0 "
+        "coverage_policy=retrieval\nNumber of prompts: 128\n",
+        encoding="utf-8",
+    )
+    metric_root = (
+        run_root
+        / "metrics"
+        / "vbench_long_parts"
+        / "all_coverage_retrieval"
+    )
+    for dimension in module.DIMENSIONS:
+        target = metric_root / dimension / f"v129_{dimension}_eval_results.json"
+        target.parent.mkdir(parents=True)
+        rows = [
+            {
+                "video_path": f"clip-{index}.mp4",
+                "video_results": (
+                    True if dimension == "dynamic_degree" else index % 2
+                ),
+            }
+            for index in range(128 * 15)
+        ]
+        target.write_text(
+            json.dumps({dimension: [0.5, rows]}), encoding="utf-8"
+        )
+    report = module.audit(run_root)
+    assert report["comparative_evidence_available"] is False
+    assert report["invalid_dimensions"] == ["dynamic_degree"]
+    assert report["video_count"] == 128

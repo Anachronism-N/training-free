@@ -98,6 +98,15 @@ def all_recent_map(operator: str) -> dict:
     )
 
 
+def all_coverage_map(operator: str) -> dict:
+    return _new_map(
+        [[[True for _ in range(HEADS)] for _ in range(LAYERS)] for _ in range(CALLS)],
+        operator=operator,
+        classification="all_coverage",
+        parent_map_id=None,
+    )
+
+
 def membership_shift_map(primary: dict) -> dict:
     masks = primary["coverage_masks"]
     shifted = [
@@ -217,6 +226,13 @@ def prepare(
             "head_phase_map_sha256": map_sha,
             "phase_map_id": map_payload["map_id"],
             "coverage_count_by_call": map_payload["coverage_count_by_call"],
+            "coverage_cell_count": int(
+                sum(map_payload["coverage_count_by_call"])
+            ),
+            "coverage_exposure_fraction": float(
+                sum(map_payload["coverage_count_by_call"])
+                / (CALLS * LAYERS * HEADS)
+            ),
             "head_bank_map": str(profile_map.resolve()),
             "head_bank_map_sha256": v189_manifest["profile_map_sha256"],
             "read_frame_equivalents": 9,
@@ -236,6 +252,13 @@ def prepare(
         if primary.get("map_id") != map_row["map_id"]:
             raise ValueError(f"v190 source map id drift: {operator}")
         primary_key = f"{operator}_compatible"
+        universal = all_coverage_map(operator)
+        add_method(
+            f"{operator}_all_coverage",
+            "all_head_all_phase_control",
+            operator,
+            universal,
+        )
         add_method(primary_key, "primary_head_phase", operator, primary)
 
         membership = membership_shift_map(primary)
@@ -259,7 +282,10 @@ def prepare(
             )
 
         dense = dense_phase_map(primary)
-        dense_informative = dense["coverage_masks"] != primary["coverage_masks"]
+        dense_informative = (
+            dense["coverage_masks"] != primary["coverage_masks"]
+            and dense["coverage_masks"] != universal["coverage_masks"]
+        )
         if dense_informative:
             add_method(
                 f"{operator}_dense_phase",
@@ -268,9 +294,15 @@ def prepare(
                 dense,
             )
         control_diagnostics[operator] = {
+            "all_coverage_cell_count": int(
+                sum(universal["coverage_count_by_call"])
+            ),
             "membership_shift_informative": membership_informative,
             "phase_shift_informative": phase_informative,
             "dense_phase_informative": dense_informative,
+            "dense_phase_deduplicated_against_all_coverage": bool(
+                dense["coverage_masks"] == universal["coverage_masks"]
+            ),
         }
 
     payload = {
@@ -347,10 +379,17 @@ def verify(manifest_path: Path) -> dict:
             raise ValueError(f"v190 map hash drift: {key}")
         map_payload = json.loads(map_path.read_text(encoding="utf-8"))
         validate_map(map_payload, operator=row["operator"])
+        coverage_cells = int(sum(map_payload["coverage_count_by_call"]))
         if (
             map_payload["map_id"] != row["phase_map_id"]
             or map_payload["coverage_count_by_call"]
             != row["coverage_count_by_call"]
+            or int(row.get("coverage_cell_count", -1)) != coverage_cells
+            or abs(
+                float(row.get("coverage_exposure_fraction", -1.0))
+                - coverage_cells / (CALLS * LAYERS * HEADS)
+            )
+            > 1e-12
         ):
             raise ValueError(f"v190 map metadata drift: {key}")
     return payload

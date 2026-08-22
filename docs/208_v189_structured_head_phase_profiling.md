@@ -188,14 +188,15 @@ advance_head_phase_maps_to_causal_screen
 才进入未参与 map fitting 的 32-prompt generation set。v190 已实现并自动比较：
 
 1. all-Recent；
-2. primary compatible Head x Phase map；
-3. 同 call、同 layer 数量的确定性 membership shift；
-4. 将同一 membership 循环平移到其他 denoising calls 的 phase control；
-5. 相同 active calls 的 all-head dense control。
+2. all-Coverage，即四个 noisy calls 的全部 360 heads 都读取长期历史；
+3. primary compatible Head x Phase map；
+4. 同 call、同 layer 数量的确定性 membership shift；
+5. 将同一 membership 循环平移到其他 denoising calls 的 phase control；
+6. 相同 active calls 的 all-head dense control。
 
-这五组能分别检验 operator utility、head membership、phase membership 和稀疏性。具体
+这些方法分别检验 operator utility、head membership、phase membership 和稀疏暴露。具体
 方法集合由 v189 自动冻结；若一个 control map 与 primary 完全相同，prepare 会将其删除，
-不会运行无信息的重复视频。
+若 dense-phase 等于 all-Coverage 也会自动去重，不会运行无信息的重复视频。
 
 这里的 `all-Recent` 是同一 shadow-cache runtime 下的 9-FFE 局部读取控制，不等同于
 原生 SF。它用于隔离 Head x Phase 路由的因果作用；只有 v190 通过后，新的 128-prompt
@@ -246,8 +247,9 @@ NODE_RANK=0 bash scripts/run_v190_vbench_long.sh decision
 NODE_RANK=0 bash scripts/run_v190_head_phase_causal_screen_32gpu.sh package
 ```
 
-只有 primary 相对 all-Recent 通过基本质量/身份/运动/时序 gate，并同时优于
-membership-shift 与 phase-shift，才输出：
+只有 primary 相对 all-Recent 通过基本质量/身份/运动/时序 gate，同时优于
+membership-shift 与 phase-shift，并在减少 Coverage cell-call 暴露量的前提下不劣于
+all-Coverage，才输出：
 
 ```text
 advance_head_phase_method_to_fresh128

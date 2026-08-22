@@ -103,7 +103,7 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
     comparisons = []
     for primary_index, primary in enumerate(primary_methods):
         operator = str(metadata[primary]["operator"])
-        controls = ["all_recent"] + [
+        controls = ["all_recent", f"{operator}_all_coverage"] + [
             f"{operator}_{suffix}"
             for suffix in ("membership_shift", "phase_shift", "dense_phase")
             if f"{operator}_{suffix}" in methods
@@ -162,9 +162,35 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
                     for metric in PRIMARY_METRICS
                 },
             }
+        universal_key = f"{operator}_all_coverage"
+        if universal_key not in methods:
+            raise ValueError(f"v190 lacks all-Coverage control for {operator}")
+        universal = comparison_metrics(comparisons, primary, universal_key)
+        universal_noninferior, _ = noninferior_and_better(universal)
+        primary_cells = int(metadata[primary]["coverage_cell_count"])
+        universal_cells = int(metadata[universal_key]["coverage_cell_count"])
+        exposure_reduction = bool(primary_cells < universal_cells)
+        controls["universal_coverage"] = {
+            "available": True,
+            "supported": bool(universal_noninferior and exposure_reduction),
+            "noninferior": universal_noninferior,
+            "coverage_exposure_reduced": exposure_reduction,
+            "candidate_coverage_cells": primary_cells,
+            "control_coverage_cells": universal_cells,
+            "candidate_exposure_fraction": float(
+                metadata[primary]["coverage_exposure_fraction"]
+            ),
+            "deltas": {
+                metric: universal[metric]["mean_delta"]
+                for metric in PRIMARY_METRICS
+            },
+        }
         attribution_pass = bool(
             controls["head_membership"]["supported"]
             and controls["phase_membership"]["supported"]
+        )
+        selective_exposure_pass = bool(
+            controls["universal_coverage"]["supported"]
         )
         statuses[primary] = {
             "operator": operator,
@@ -174,10 +200,19 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
             },
             "controls": controls,
             "head_phase_attribution_pass": attribution_pass,
-            "full_screen_pass": bool(baseline_pass and attribution_pass),
+            "selective_exposure_pass": selective_exposure_pass,
+            "full_screen_pass": bool(
+                baseline_pass and attribution_pass and selective_exposure_pass
+            ),
         }
     passing = [method for method in primary_methods if statuses[method]["full_screen_pass"]]
     baseline_only = [method for method in primary_methods if statuses[method]["baseline_pass"]]
+    attributed = [
+        method
+        for method in primary_methods
+        if statuses[method]["baseline_pass"]
+        and statuses[method]["head_phase_attribution_pass"]
+    ]
     selected = None
     if passing:
         selected = max(
@@ -191,6 +226,8 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
             ),
         )
         recommendation = "advance_head_phase_method_to_fresh128"
+    elif attributed:
+        recommendation = "head_phase_effect_not_competitive_with_all_coverage"
     elif baseline_only:
         recommendation = "operator_effect_without_head_phase_attribution"
     else:
@@ -199,9 +236,14 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
     review_queue = []
     if selected is not None:
         operator = statuses[selected]["operator"]
+        universal = f"{operator}_all_coverage"
         membership = f"{operator}_membership_shift"
         phase = f"{operator}_phase_shift"
-        controls = [value for value in ("all_recent", membership, phase) if value in methods]
+        controls = [
+            value
+            for value in ("all_recent", universal, membership, phase)
+            if value in methods
+        ]
         ranked = []
         for prompt in range(prompt_count):
             identity_delta = rows[(selected, prompt)]["identity_background"] - rows[
@@ -236,7 +278,7 @@ def analyze(manifest: dict, summary: dict, parts_root: Path) -> dict:
                 }
             )
     return {
-        "version": 1,
+        "version": 2,
         "experiment": manifest["experiment"],
         "development_only": True,
         "prompt_count": prompt_count,
@@ -265,8 +307,8 @@ def render(report: dict) -> str:
         f"- Selected: `{report['selected_for_fresh128']}`",
         f"- Manual review required: `{report['manual_review_required']}`",
         "",
-        "| Primary | Operator | Baseline | Head membership | Phase | Sparse routing | Full pass |",
-        "|---|---|---:|---:|---:|---:|---:|",
+        "| Primary | Operator | Baseline | Head membership | Phase | Universal Coverage | Sparse routing | Full pass |",
+        "|---|---|---:|---:|---:|---:|---:|---:|",
     ]
     for method in report["primary_methods"]:
         row = report["statuses"][method]
@@ -274,6 +316,7 @@ def render(report: dict) -> str:
             f"| {method} | {row['operator']} | {row['baseline_pass']} | "
             f"{row['controls']['head_membership']['supported']} | "
             f"{row['controls']['phase_membership']['supported']} | "
+            f"{row['controls']['universal_coverage']['supported']} | "
             f"{row['controls']['sparse_routing']['supported']} | "
             f"{row['full_screen_pass']} |"
         )

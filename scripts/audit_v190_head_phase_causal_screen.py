@@ -308,6 +308,10 @@ def main() -> None:
                 "operator": config["operator"],
                 "phase_map_id": config["phase_map_id"],
                 "coverage_count_by_call": config["coverage_count_by_call"],
+                "coverage_cell_count": config["coverage_cell_count"],
+                "coverage_exposure_fraction": config[
+                    "coverage_exposure_fraction"
+                ],
                 "video_dir": str((args.run_root / "published" / method).resolve()),
                 "audit": str(report_path.resolve()),
                 "audit_sha256": report_sha,

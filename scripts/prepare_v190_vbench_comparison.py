@@ -100,6 +100,10 @@ def prepare(run_root: Path, comparison_root: Path) -> dict:
                 "operator": row["operator"],
                 "phase_map_id": row["phase_map_id"],
                 "coverage_count_by_call": row["coverage_count_by_call"],
+                "coverage_cell_count": row["coverage_cell_count"],
+                "coverage_exposure_fraction": row[
+                    "coverage_exposure_fraction"
+                ],
                 "source_video_dir": str(source_dir.resolve()),
                 "video_dir": str(target_dir.resolve()),
             }
