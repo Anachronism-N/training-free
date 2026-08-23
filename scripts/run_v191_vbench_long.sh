@@ -5,21 +5,23 @@ ACTION="${1:-}"
 case "$ACTION" in
     prepare|split|preflight|eval|resume-missing|status|temporal|collect|decision) ;;
     *)
-        echo "usage: bash scripts/run_v190_vbench_long.sh {prepare|split|preflight|eval|resume-missing|status|temporal|collect|decision}"
+        echo "usage: bash scripts/run_v191_vbench_long.sh {prepare|split|preflight|eval|resume-missing|status|temporal|collect|decision}"
         exit 2
         ;;
 esac
 
 ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-RUN_ROOT="${RUN_ROOT:-$ROOT/runs/v190_head_phase_causal_screen/screen32}"
+OUT_BASE="${V191_OUT_ROOT:-$ROOT/runs/v191_head_phase_confirmation}"
+RUN_ROOT="${RUN_ROOT:-$OUT_BASE/confirm128}"
+INPUT_MANIFEST="${V191_INPUT_MANIFEST:-$OUT_BASE/inputs/manifest.json}"
 COMPARISON_ROOT="${COMPARISON_ROOT:-$RUN_ROOT/vbench_comparison}"
 VBENCH_ROOT="${VBENCH_ROOT:-$ROOT/../research_sprint/bench_baselines/VBench}"
 VBENCH_CACHE_DIR="${VBENCH_CACHE_DIR:-$ROOT/runs/vbench_cache}"
 PARTS_ROOT="${PARTS_ROOT:-$RUN_ROOT/metrics/vbench_long_parts}"
 SUMMARY_ROOT="${SUMMARY_ROOT:-$RUN_ROOT/metrics}"
 ANALYSIS_ROOT="${ANALYSIS_ROOT:-$RUN_ROOT/analysis}"
-TEMPORAL_CSV="${V190_TEMPORAL_CSV:-$RUN_ROOT/metrics/temporal_diagnostics.csv}"
-TEMPORAL_CONTRACT="${V190_TEMPORAL_CONTRACT:-$RUN_ROOT/metrics/temporal_diagnostics.contract.json}"
+TEMPORAL_CSV="${V191_TEMPORAL_CSV:-$RUN_ROOT/metrics/temporal_diagnostics.csv}"
+TEMPORAL_CONTRACT="${V191_TEMPORAL_CONTRACT:-$RUN_ROOT/metrics/temporal_diagnostics.contract.json}"
 CONDA_SH="${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}"
 CONDA_ENV="${CONDA_ENV:-longlive}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
@@ -27,67 +29,80 @@ NODE_RANK="${NODE_RANK:-0}"
 NUM_NODES="${NUM_NODES:-4}"
 GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7}"
 
+if (( NUM_NODES <= 0 || NODE_RANK < 0 || NODE_RANK >= NUM_NODES )); then
+    echo "[error] require 0 <= NODE_RANK < NUM_NODES"
+    exit 2
+fi
+if [[ "$ACTION" == "resume-missing" && \
+      ( "$NODE_RANK" != "0" || "$NUM_NODES" != "1" ) ]]; then
+    echo "[error] resume-missing requires NODE_RANK=0 NUM_NODES=1"
+    exit 2
+fi
+
+activate_env() {
+    source "$CONDA_SH"
+    conda activate "$CONDA_ENV"
+    export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
+}
+
 compute_temporal() {
     [[ "$NODE_RANK" == "0" ]] || {
         echo "[error] temporal diagnostics require node 0"; exit 2;
     }
     local comparison="$COMPARISON_ROOT/comparison_manifest.json"
     [[ -s "$comparison" ]] || {
-        echo "[error] missing v190 VBench manifest: $comparison; run prepare"; exit 2;
+        echo "[error] missing v191 VBench manifest: $comparison; run prepare"; exit 2;
     }
-    source "$CONDA_SH"
-    conda activate "$CONDA_ENV"
-    export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
+    activate_env
     mapfile -t video_dirs < <(
         "$PYTHON_BIN" - "$comparison" <<'PY'
 import json, sys
 from pathlib import Path
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-if payload.get("experiment") != "v190_head_phase_causal_vbench_screen32":
-    raise SystemExit("wrong v190 VBench comparison manifest")
+if (
+    payload.get("experiment") != "v191_unseen128_head_phase_vbench"
+    or payload.get("confirmatory") is not True
+    or int(payload.get("prompt_count", -1)) != 128
+):
+    raise SystemExit("wrong v191 VBench comparison manifest")
 for row in payload["methods"]:
     print(row["video_dir"])
 PY
     )
-    [[ "${#video_dirs[@]}" -gt 1 ]] || {
-        echo "[error] v190 temporal diagnostics found too few methods"; exit 2;
+    [[ "${#video_dirs[@]}" -eq 3 ]] || {
+        echo "[error] v191 temporal diagnostics require exactly three methods"; exit 2;
     }
     "$PYTHON_BIN" "$ROOT/scripts/compute_temporal_jump_diagnostic.py" \
         "${video_dirs[@]}" --output "$TEMPORAL_CSV" \
-        --expected-videos 32 --max-width "${V190_TEMPORAL_WIDTH:-256}" \
-        --frame-step "${V190_TEMPORAL_FRAME_STEP:-8}" \
-        --workers "${V190_TEMPORAL_WORKERS:-8}"
+        --expected-videos 128 --max-width "${V191_TEMPORAL_WIDTH:-256}" \
+        --frame-step "${V191_TEMPORAL_FRAME_STEP:-8}" \
+        --workers "${V191_TEMPORAL_WORKERS:-8}"
     "$PYTHON_BIN" "$ROOT/scripts/bind_temporal_diagnostics.py" bind \
         --comparison-manifest "$comparison" --temporal-csv "$TEMPORAL_CSV" \
         --output "$TEMPORAL_CONTRACT"
 }
 
-if (( NUM_NODES <= 0 || NODE_RANK < 0 || NODE_RANK >= NUM_NODES )); then
-    echo "[error] require 0 <= NODE_RANK < NUM_NODES"
-    exit 2
-fi
-
 if [[ "$ACTION" == "prepare" ]]; then
     [[ "$NODE_RANK" == "0" ]] || { echo "[error] prepare requires node 0"; exit 2; }
-    "$PYTHON_BIN" "$ROOT/scripts/prepare_v190_vbench_comparison.py" \
-        --run-root "$RUN_ROOT" --comparison-root "$COMPARISON_ROOT"
+    "$PYTHON_BIN" "$ROOT/scripts/prepare_v191_vbench_comparison.py" \
+        --run-root "$RUN_ROOT" --comparison-root "$COMPARISON_ROOT" \
+        --input-manifest "$INPUT_MANIFEST"
     exit $?
 fi
 
 if [[ "$ACTION" == "decision" ]]; then
     [[ "$NODE_RANK" == "0" ]] || { echo "[error] decision requires node 0"; exit 2; }
-    "$PYTHON_BIN" - "$ANALYSIS_ROOT/v190_head_phase_causal_screen.json" <<'PY'
+    "$PYTHON_BIN" - "$ANALYSIS_ROOT/v191_head_phase_confirmation.json" <<'PY'
 import json, sys
 from pathlib import Path
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-print(f"[v190-decision] {payload['recommendation']}")
-print(f"selected={payload['selected_for_fresh128']}")
-print(f"manual_review_required={str(payload['manual_review_required']).lower()}")
-dynamic = payload["metric_validity"]["dynamic_degree"]
-print(f"dynamic_informative={str(dynamic['informative']).lower()}")
-print(f"dynamic_ceiling_only={str(dynamic['ceiling_nonregression_only']).lower()}")
+print(f"[v191-decision] {payload['recommendation']}")
+print("confirmed=" + str(payload["head_phase_effect_confirmed"]).lower())
+print("operator=" + payload["selected_operator"])
+print("motion_claim=" + str(payload["motion_improvement_claim_supported"]).lower())
+print("manual_review_required=" + str(payload["manual_review_required_for_recommendation"]).lower())
 for row in payload["targeted_review_queue"]:
-    print(f"review={row['candidate']}:p{row['prompt_index']}")
+    print(f"review=p{row['prompt_index']}:source{row['source_index']}")
 PY
     exit $?
 fi
@@ -98,26 +113,22 @@ if [[ "$ACTION" == "temporal" ]]; then
 fi
 
 if [[ "$ACTION" == "split" ]]; then
-    source "$CONDA_SH"
-    conda activate "$CONDA_ENV"
-    export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
+    activate_env
     "$PYTHON_BIN" "$ROOT/scripts/prepare_v174_vbench_splits.py" \
         --comparison-root "$COMPARISON_ROOT" --vbench-root "$VBENCH_ROOT" \
-        --workers "${V190_SPLIT_WORKERS:-2}" \
+        --workers "${V191_SPLIT_WORKERS:-2}" \
         --node-rank "$NODE_RANK" --num-nodes "$NUM_NODES"
     exit $?
 fi
 
 if [[ "$ACTION" == "eval" || "$ACTION" == "resume-missing" ]]; then
-    source "$CONDA_SH"
-    conda activate "$CONDA_ENV"
-    export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
+    activate_env
 fi
 
-TORCH_HUB_DIR="${V190_TORCH_HUB_DIR:-$ROOT/runs/_model_cache/torch_hub}"
-RUNTIME_HOME="${V190_RUNTIME_HOME:-$ROOT/runs/_model_cache/dreamsim_home}"
+TORCH_HUB_DIR="${V191_TORCH_HUB_DIR:-$ROOT/runs/_model_cache/torch_hub}"
+RUNTIME_HOME="${V191_RUNTIME_HOME:-$ROOT/runs/_model_cache/dreamsim_home}"
 if [[ ( "$ACTION" == "eval" || "$ACTION" == "resume-missing" ) && \
-      "${V190_LOCAL_MODELS:-1}" == "1" ]]; then
+      "${V191_LOCAL_MODELS:-1}" == "1" ]]; then
     "$PYTHON_BIN" "$ROOT/scripts/prepare_v155_vbench_local_cache.py" \
         --vbench-cache "$VBENCH_CACHE_DIR" \
         --torch-hub-dir "$TORCH_HUB_DIR" --runtime-home "$RUNTIME_HOME"
@@ -126,7 +137,7 @@ fi
 PYTHON_ACTION="$ACTION"
 [[ "$ACTION" == "resume-missing" ]] && PYTHON_ACTION="eval-missing"
 EXTRA_ARGS=()
-if [[ "${V190_LOCAL_MODELS:-1}" == "1" ]]; then
+if [[ "${V191_LOCAL_MODELS:-1}" == "1" ]]; then
     EXTRA_ARGS+=(--local-models)
     EXTRA_ARGS+=(--torch-hub-dir "$TORCH_HUB_DIR")
     EXTRA_ARGS+=(--runtime-home "$RUNTIME_HOME")
@@ -139,8 +150,8 @@ fi
     --analysis-root "$ANALYSIS_ROOT" \
     --node-rank "$NODE_RANK" --num-nodes "$NUM_NODES" --gpu-list "$GPU_LIST" \
     --summary-stem vbench_core9_summary \
-    --analysis-stem v190_vbench_analysis \
-    --summary-title "v190 Head x Phase Causal Screen (holdout32)" \
+    --analysis-stem v191_vbench_analysis \
+    --summary-title "v191 Unseen-128 Head x Phase VBench-Long" \
     "${EXTRA_ARGS[@]}"
 
 if [[ "$ACTION" == "collect" ]]; then
@@ -151,11 +162,10 @@ if [[ "$ACTION" == "collect" ]]; then
             --comparison-manifest "$COMPARISON_ROOT/comparison_manifest.json" \
             --temporal-csv "$TEMPORAL_CSV" --output "$TEMPORAL_CONTRACT"
     fi
-    "$PYTHON_BIN" "$ROOT/scripts/analyze_v190_head_phase_causal_screen.py" \
+    "$PYTHON_BIN" "$ROOT/scripts/analyze_v191_head_phase_confirmation.py" \
         --comparison-root "$COMPARISON_ROOT" \
         --summary "$SUMMARY_ROOT/vbench_core9_summary.json" \
-        --parts-root "$PARTS_ROOT" \
-        --temporal-csv "$TEMPORAL_CSV" \
+        --parts-root "$PARTS_ROOT" --temporal-csv "$TEMPORAL_CSV" \
         --temporal-contract "$TEMPORAL_CONTRACT" \
-        --output "$ANALYSIS_ROOT/v190_head_phase_causal_screen.json"
+        --output "$ANALYSIS_ROOT/v191_head_phase_confirmation.json"
 fi

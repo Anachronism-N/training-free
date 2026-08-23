@@ -33,7 +33,10 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-INDEXED_VIDEO_PATTERN = re.compile(r"^(\d+)-(\d+)_[^.]+\.mp4$")
+# Raw generators append a suffix (for example ``-0_ema.mp4``), while the
+# audited VBench materialization uses ``-0.mp4``. Both names carry the same
+# prompt/sample contract.
+INDEXED_VIDEO_PATTERN = re.compile(r"^(\d+)-(\d+)(?:_[^.]+)?\.mp4$")
 
 
 def _indexed_video_paths(

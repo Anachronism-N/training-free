@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -12,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 import analyze_v174_paired_metrics as base
+from bind_temporal_diagnostics import verify_contract as verify_temporal_contract
 
 
 METRICS = base.METRICS
@@ -34,6 +36,14 @@ TEMPORAL_FEATURES = (
     "low_contrast_frame_fraction",
     "edge_density_outlier_fraction",
 )
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def finite(value: object, *, name: str) -> float:
@@ -168,14 +178,17 @@ def temporal_guard(
             flags.append("edge_density_failure")
         if flags:
             flagged.append({"prompt_index": prompt, "flags": flags})
-    # One isolated warning is queued for review. Repeated failures reject the
-    # candidate before any broad visual inspection.
+    # Keep the development allowance near three percent as the prompt suite
+    # scales. Repeated failures reject the candidate before broad review.
+    allowed_flagged = max(1, math.ceil(prompt_count / 32))
     return {
         "available": True,
-        "automatic_safety_pass": len(flagged) <= 1,
+        "automatic_safety_pass": len(flagged) <= allowed_flagged,
+        "allowed_flagged_prompt_count": allowed_flagged,
         "flagged_prompt_count": len(flagged),
         "flagged_prompts": flagged,
-        "mean_deltas_vs_recent": mean_deltas,
+        "control": control,
+        "mean_deltas_vs_control": mean_deltas,
         "use_boundary": (
             "Farneback diagnostics are an automatic failure guard and review "
             "localizer, not a paper metric or promotion effect size."
@@ -606,7 +619,7 @@ def analyze(
                 }
             )
     return {
-        "version": 4,
+        "version": 6,
         "experiment": manifest["experiment"],
         "development_only": True,
         "prompt_count": prompt_count,
@@ -667,15 +680,18 @@ def main() -> None:
     parser.add_argument("--summary", type=Path, required=True)
     parser.add_argument("--parts-root", type=Path, required=True)
     parser.add_argument("--temporal-csv", type=Path, required=True)
+    parser.add_argument("--temporal-contract", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    manifest = json.loads(
-        (args.comparison_root / "comparison_manifest.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    manifest_path = args.comparison_root / "comparison_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     summary = json.loads(args.summary.read_text(encoding="utf-8"))
     methods = tuple(str(row["key"]) for row in manifest["methods"])
+    verify_temporal_contract(
+        args.temporal_contract,
+        manifest_path,
+        args.temporal_csv,
+    )
     temporal_rows = load_temporal_rows(
         args.temporal_csv,
         methods=methods,
@@ -687,6 +703,16 @@ def main() -> None:
         args.parts_root,
         temporal_rows=temporal_rows,
     )
+    report["source"] = {
+        "comparison_manifest": str(manifest_path.resolve()),
+        "comparison_manifest_sha256": sha256(manifest_path),
+        "vbench_summary": str(args.summary.resolve()),
+        "vbench_summary_sha256": sha256(args.summary),
+        "temporal_diagnostics": str(args.temporal_csv.resolve()),
+        "temporal_diagnostics_sha256": sha256(args.temporal_csv),
+        "temporal_contract": str(args.temporal_contract.resolve()),
+        "temporal_contract_sha256": sha256(args.temporal_contract),
+    }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
