@@ -125,6 +125,24 @@ parser.add_argument(
     help="Skip prompts whose output video already exists.",
 )
 parser.add_argument(
+    "--checkpoint_state_key",
+    choices=("generator", "generator_ema"),
+    default=None,
+    help=(
+        "Require an exact top-level checkpoint branch instead of inferring one. "
+        "This is intended for checkpoint-transfer experiments with frozen provenance."
+    ),
+)
+parser.add_argument(
+    "--model_local_attn_size",
+    type=int,
+    default=None,
+    help=(
+        "Override model_kwargs.local_attn_size after YAML merge. Use -1 for "
+        "unbounded history or a positive frame count for a rolling window."
+    ),
+)
+parser.add_argument(
     "--skip_video_decode",
     action="store_true",
     help=(
@@ -810,20 +828,55 @@ def _normalize_generator_state_dict(state_dict: dict) -> dict:
     sd = state_dict
 
     # Common case: whole-model state_dict with generator namespace.
-    if any(k.startswith("model.generator.") for k in sd.keys()):
+    if any(k.startswith("model.generator.") for k in sd):
         sd = {k[len("model.generator."):]: v for k, v in sd.items() if k.startswith("model.generator.")}
-    elif any(k.startswith("generator.") for k in sd.keys()):
+    elif any(k.startswith("generator.") for k in sd):
         sd = {k[len("generator."):]: v for k, v in sd.items() if k.startswith("generator.")}
+
+    # Causal-Forcing chunkwise checkpoints can retain this FSDP wrapper
+    # inside the generator's ``model`` namespace.
+    internal_fsdp_prefix = "model._fsdp_wrapped_module."
+    if any(k.startswith(internal_fsdp_prefix) for k in sd):
+        sd = {
+            (
+                "model." + k[len(internal_fsdp_prefix):]
+                if k.startswith(internal_fsdp_prefix)
+                else k
+            ): v
+            for k, v in sd.items()
+        }
 
     # Remove known wrappers added by distributed/checkpoint wrappers.
     for prefix in ("module.", "_orig_mod.", "_checkpoint_wrapped_module."):
-        if sd and all(k.startswith(prefix) for k in sd.keys()):
+        if sd and all(k.startswith(prefix) for k in sd):
             sd = {k[len(prefix):]: v for k, v in sd.items()}
 
     return sd
 
 
-def _extract_generator_state_dict(checkpoint, use_ema: bool):
+def _extract_generator_state_dict(
+    checkpoint,
+    use_ema: bool,
+    required_key=None,
+):
+    if required_key is not None:
+        if use_ema != (required_key == "generator_ema"):
+            raise ValueError(
+                "--use_ema and --checkpoint_state_key disagree: "
+                f"use_ema={use_ema} state_key={required_key}"
+            )
+        if not isinstance(checkpoint, dict):
+            raise TypeError(
+                "an explicit checkpoint state key requires a mapping checkpoint"
+            )
+        if required_key not in checkpoint or not isinstance(
+            checkpoint[required_key], dict
+        ):
+            raise KeyError(
+                f"checkpoint has no mapping branch {required_key!r}; "
+                f"top-level keys={list(checkpoint)[:20]}"
+            )
+        return checkpoint[required_key]
     if not isinstance(checkpoint, dict):
         return checkpoint
 
@@ -910,6 +963,15 @@ if local_rank == 0:
 config = OmegaConf.load(args.config_path)
 default_config = OmegaConf.load("configs/default_config.yaml")
 config = OmegaConf.merge(default_config, config)
+if args.model_local_attn_size is not None:
+    if args.model_local_attn_size == 0 or args.model_local_attn_size < -1:
+        parser.error("--model_local_attn_size must be -1 or a positive frame count")
+    config.model_kwargs.local_attn_size = int(args.model_local_attn_size)
+    print(
+        "[ModelAttentionContract] "
+        f"local_attn_size={int(args.model_local_attn_size)} source=cli_override",
+        flush=True,
+    )
 if args.pyramidkv_history_value_renorm_strength is not None:
     config.pyramidkv_history_value_renorm_strength = args.pyramidkv_history_value_renorm_strength
 if args.pyramidkv_history_value_recent_frames is not None:
@@ -1590,9 +1652,19 @@ else:
 
 if args.checkpoint_path:
     checkpoint = torch.load(args.checkpoint_path, map_location="cpu", weights_only=False)
-    generator_state_dict = _extract_generator_state_dict(checkpoint, use_ema=args.use_ema)
+    generator_state_dict = _extract_generator_state_dict(
+        checkpoint,
+        use_ema=args.use_ema,
+        required_key=args.checkpoint_state_key,
+    )
     generator_state_dict = _normalize_generator_state_dict(generator_state_dict)
     pipeline.generator.load_state_dict(generator_state_dict, strict=True)
+    print(
+        "[CheckpointLoad] "
+        f"state_key={args.checkpoint_state_key or 'auto'} "
+        f"use_ema={bool(args.use_ema)} strict=true tensors={len(generator_state_dict)}",
+        flush=True,
+    )
 
 pipeline = pipeline.to(dtype=torch.bfloat16)
 if low_memory:
