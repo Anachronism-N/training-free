@@ -1816,6 +1816,15 @@ def _cache_compatibility_metadata():
             if args.pyramidkv_head_config_path is None
             else os.path.abspath(args.pyramidkv_head_config_path)
         ),
+        "config_path": os.path.abspath(args.config_path),
+        "checkpoint_path": os.path.abspath(args.checkpoint_path),
+        "checkpoint_state_key": args.checkpoint_state_key or "auto",
+        "use_ema": bool(args.use_ema),
+        "model_local_attn_size": (
+            None
+            if args.model_local_attn_size is None
+            else int(args.model_local_attn_size)
+        ),
         "skip_video_decode": bool(args.skip_video_decode),
     }
 # Per-prompt timing is reported via tqdm.write() AFTER each prompt's inner
