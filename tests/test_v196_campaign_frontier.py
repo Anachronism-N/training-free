@@ -383,8 +383,13 @@ def test_package_contains_state_and_hash_manifest(tmp_path: Path) -> None:
 def test_runbooks_audit_before_evaluation_and_package_last() -> None:
     module = load_module("v196_runbooks", SCRIPTS / "inspect_v196_campaign_frontier.py")
     runbooks = module._runbooks()
-    assert runbooks["v189"][-2].endswith(" analyze")
-    assert runbooks["v189"][-1].endswith(" package")
+    assert runbooks["v189"][-3].endswith(
+        "v189_structured_head_phase_profile_32gpu.sh analyze"
+    )
+    assert runbooks["v189"][-2].endswith(
+        "v189_structured_head_phase_profile_32gpu.sh package"
+    )
+    assert runbooks["v189"][-1].endswith("run_v197_head_phase_structure.sh package")
     for stage, audit_action in (
         ("v190", "audit-screen"),
         ("v191", "audit-confirm"),

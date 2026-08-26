@@ -484,6 +484,7 @@ def _runbooks() -> dict[str, list[str]]:
             "NODE_RANK=<0|1|2|3> NUM_NODES=4 bash scripts/run_v189_structured_head_phase_profile_32gpu.sh profile128",
             "NODE_RANK=0 NUM_NODES=4 bash scripts/run_v189_structured_head_phase_profile_32gpu.sh analyze",
             "NODE_RANK=0 NUM_NODES=4 bash scripts/run_v189_structured_head_phase_profile_32gpu.sh package",
+            "NODE_RANK=0 NUM_NODES=4 bash scripts/run_v197_head_phase_structure.sh package",
         ],
         "v190": [
             "NODE_RANK=0 NUM_NODES=4 bash scripts/run_v190_head_phase_causal_screen_32gpu.sh prepare",
@@ -811,6 +812,10 @@ def _candidate_bundle_files(
         "runs/v195_cross_checkpoint_head_phase_profile/profile_audit.json",
         "runs/v195_cross_checkpoint_head_phase_profile/analysis/cell_transfer.csv",
         "runs/v195_cross_checkpoint_head_phase_profile/analysis/holdout_prompt_effects.csv",
+        "runs/v197_head_phase_structure/analysis/analysis.json",
+        "runs/v197_head_phase_structure/analysis/analysis.md",
+        "runs/v197_head_phase_structure/analysis/threshold_grid.csv",
+        "runs/v197_head_phase_structure/analysis/crossfit_tests.csv",
     )
     for relative in extras:
         path = repo_root / relative

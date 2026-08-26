@@ -141,9 +141,11 @@ reason        = v189 final artifact is absent
 
 If the server also reports v189, run the generated v189 commands. They perform the
 128-prompt Landmark/Retrieval shadow profile, audit all 368,640 records, analyze the
-fixed 64/32/32 split, and package the small artifacts. If the server reports a later
-frontier, follow that report instead; server-side result files may be newer than the
-Git repository.
+fixed 64/32/32 split, and package the small artifacts. The runbook then invokes the
+CPU-only v197 cross-split Head x Phase structure audit; this adds no video generation
+or human review and does not change the frozen v189 map. If the server reports a
+later frontier, follow that report instead; server-side result files may be newer
+than the Git repository.
 
 ## 7. Why ABA remains deferred
 
