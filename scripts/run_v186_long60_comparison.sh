@@ -78,7 +78,9 @@ run_shard_pf_native() {
         export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
         export LIFECACHE_ENABLE=0 STRUCTURED_MEMORY_ENABLE=0 COMMIT_FORCING_ENABLE=0
         export HEAD_ROLE_ENABLE=0 HEAD_ROLE_POOL_ENABLE=0 SCENE_TRANSITION_RESET=0
-        # PF native: no head_config_path, no cache_compatibility_policy
+        # PF native: omitting the CLI override intentionally loads the PF
+        # repository default configs/head_configs/best_labels.csv.  The v198
+        # audit verifies that marker and also verifies cache-compat is absent.
         python inference.py \
             --config_path "$PF_CONFIG" --checkpoint_path "$PF_CHECKPOINT" \
             --data_path "$PROMPTS" --output_folder "$raw_dir" \
