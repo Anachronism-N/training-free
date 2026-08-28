@@ -562,6 +562,16 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--pyramidkv_semantic_retrieval_archive_capacity",
+    type=int,
+    default=None,
+    help=(
+        "Explicit number of exact full-frame candidates retained by each "
+        "semantic-retrieval route. This changes storage only; the retrieval "
+        "read capacity remains fixed by the selected cache policy."
+    ),
+)
+parser.add_argument(
     "--pyramidkv_scene_cache",
     action="store_true",
     help=(
@@ -1323,6 +1333,39 @@ if args.pyramidkv_cache_compatibility_policy:
         f"{sum(row.count(CACHE_COMPAT_EPISODE_LABEL) for row in compatibility_rows)} "
         f"coverage_policy={args.pyramidkv_cache_compatibility_coverage_policy} "
         "budget=9FFE read_budget=9FFE owner=HeadComposition",
+        flush=True,
+    )
+if args.pyramidkv_semantic_retrieval_archive_capacity is not None:
+    archive_capacity = int(args.pyramidkv_semantic_retrieval_archive_capacity)
+    read_map = dict(
+        getattr(config, "pyramidkv_label_semantic_retrieval_capacity_map", None)
+        or {}
+    )
+    active_reads = {
+        str(label): int(value)
+        for label, value in read_map.items()
+        if int(value) > 0
+    }
+    if not active_reads:
+        parser.error(
+            "--pyramidkv_semantic_retrieval_archive_capacity requires an "
+            "active semantic-retrieval policy"
+        )
+    maximum_read = max(active_reads.values())
+    if archive_capacity < maximum_read:
+        parser.error(
+            "--pyramidkv_semantic_retrieval_archive_capacity must be at "
+            f"least the maximum read capacity ({maximum_read})"
+        )
+    config.pyramidkv_label_semantic_retrieval_archive_capacity_map = {
+        str(label): archive_capacity for label in active_reads
+    }
+    print(
+        "[SemanticRetrievalArchive] "
+        f"labels={','.join(sorted(active_reads))} "
+        f"read_capacity={maximum_read} "
+        f"archive_capacity={archive_capacity} "
+        "read_budget_unchanged=true exact_frame_storage=true",
         flush=True,
     )
 if args.pyramidkv_cache_compatibility_denoise_schedule is not None:

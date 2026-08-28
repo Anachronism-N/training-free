@@ -337,6 +337,7 @@ def build_compositions(
     label_coherent_motion_state_stale_tie_age_map: dict | None = None,
     label_coherent_motion_state_motion_signature_mode_map: dict | None = None,
     label_semantic_retrieval_capacity_map: dict | None = None,
+    label_semantic_retrieval_archive_capacity_map: dict | None = None,
     label_semantic_retrieval_max_age_map: dict | None = None,
     semantic_retrieval_min_similarity: float = -0.25,
     semantic_retrieval_min_margin: float = 0.0,
@@ -440,6 +441,10 @@ def build_compositions(
     )
     semantic_retrieval_capacity_map = _build_int_map(
         label_semantic_retrieval_capacity_map,
+        min_value=0,
+    )
+    semantic_retrieval_archive_capacity_map = _build_int_map(
+        label_semantic_retrieval_archive_capacity_map,
         min_value=0,
     )
     semantic_retrieval_max_age_map = _build_int_map(
@@ -599,6 +604,9 @@ def build_compositions(
             semantic_retrieval_capacity = (
                 semantic_retrieval_capacity_map.get(label_key, 0)
             )
+            semantic_retrieval_archive_capacity = (
+                semantic_retrieval_archive_capacity_map.get(label_key, 0)
+            )
             semantic_retrieval_max_age = semantic_retrieval_max_age_map.get(
                 label_key,
                 0,
@@ -621,6 +629,18 @@ def build_compositions(
             use_landmark = landmark_capacity > 0
             use_coherent_motion = coherent_motion_pair_capacity > 0
             use_semantic_retrieval = semantic_retrieval_capacity > 0
+            if (
+                use_semantic_retrieval
+                and semantic_retrieval_archive_capacity > 0
+                and semantic_retrieval_archive_capacity
+                < semantic_retrieval_capacity
+            ):
+                raise ValueError(
+                    "semantic retrieval archive capacity must be at least "
+                    f"its read capacity for label {label_key}: "
+                    f"archive={semantic_retrieval_archive_capacity} "
+                    f"read={semantic_retrieval_capacity}"
+                )
             use_temporal_prototype = temporal_prototype_capacity > 0
             use_temporal_reservoir = temporal_reservoir_capacity > 0
             use_temporal_profile_anchor = temporal_profile_anchor_capacity > 0
@@ -842,6 +862,11 @@ def build_compositions(
                 strategies.append(
                     SemanticRetrievalStrategy(
                         capacity=semantic_retrieval_capacity,
+                        archive_capacity=(
+                            semantic_retrieval_archive_capacity
+                            if semantic_retrieval_archive_capacity > 0
+                            else None
+                        ),
                         context_key=(
                             "retrieval:all"
                             if shared_retrieval_context
