@@ -1,7 +1,7 @@
 # v199：Retrieval 存储预算归因与下一阶段实验
 
 > 日期：2026-08-29  
-> 状态：生成与严格审计代码已完成；自动指标选择代码随后补齐  
+> 状态：生成、严格审计、自动评测与容量选择代码均已完成
 > 人工 review：不需要
 
 ## 1. 本次同步结论
@@ -130,3 +130,87 @@ NODE_RANK=0 bash scripts/run_v199_retrieval_storage_attribution_32gpu.sh package
 
 v199 不替代 Head x Denoising Phase 的分类验证。它只保证后续分类实验使用的长期历史
 算子具有可解释、可归因的存储预算。
+
+## 6. 自动评测与容量选择
+
+生成审计通过后，Node 0：
+
+```bash
+NODE_RANK=0 bash scripts/run_v199_vbench_long.sh prepare
+NODE_RANK=0 NUM_NODES=4 GPU_LIST=0,1,2,3,4,5,6,7 \
+  bash scripts/run_v199_vbench_long.sh preflight
+```
+
+四个节点分别执行切片与 core-9：
+
+```bash
+NUM_NODES=4 NODE_RANK=<0|1|2|3> GPU_LIST=0,1,2,3,4,5,6,7 \
+  bash scripts/run_v199_vbench_long.sh split
+
+NUM_NODES=4 NODE_RANK=<0|1|2|3> GPU_LIST=0,1,2,3,4,5,6,7 \
+  bash scripts/run_v199_vbench_long.sh eval
+```
+
+Node 0 汇总；`collect` 自动计算 temporal jump、低运动区间、后段运动衰减和画面异常：
+
+```bash
+NODE_RANK=0 NUM_NODES=4 bash scripts/run_v199_vbench_long.sh status
+NODE_RANK=0 NUM_NODES=4 bash scripts/run_v199_vbench_long.sh collect
+```
+
+相机补偿局部运动是 CPU/共享存储任务。四个节点分别运行：
+
+```bash
+NUM_NODES=4 NODE_RANK=<0|1|2|3> V199_CAMERA_WORKERS=8 \
+  bash scripts/run_v199_vbench_long.sh camera-compute
+```
+
+最后 Node 0：
+
+```bash
+NODE_RANK=0 NUM_NODES=4 bash scripts/run_v199_vbench_long.sh camera-status
+NODE_RANK=0 NUM_NODES=4 bash scripts/run_v199_vbench_long.sh camera-collect
+NODE_RANK=0 NUM_NODES=4 bash scripts/run_v199_vbench_long.sh decision
+NODE_RANK=0 NUM_NODES=4 bash scripts/run_v199_vbench_long.sh package
+```
+
+容量选择不使用一个可事后调权重的总分。每个候选首先相对 all-Recent 独立通过：
+
+- full 与 late-half Quality 的 paired bootstrap CI 下界不低于 `-0.25`；
+- identity/background 不低于 `-0.002`；
+- temporal mechanics 不低于 `-0.004`；
+- visual quality 不低于 `-0.005`；
+- 自动 temporal guard 通过。
+
+这些是开发期非劣容忍区，不是论文显著性阈值。通过者中默认选择 archive 最小的方法。
+只有更大容量相对当前较小容量在所有主轴继续非劣，并且至少一个 full/late 主轴的 CI 下界
+大于 0 且 BH `q <= 0.10`，才升级容量。
+
+可能输出：
+
+| Recommendation | 含义 |
+|---|---|
+| `use_archive4_storage_matched_retrieval` | 等总存储下 Retrieval 有正向信号，优先进入 v189/v190 |
+| `archive4_noninferior_but_no_retrieval_gain` | 最小缓存安全，但没有选择 Retrieval 的证据 |
+| `use_retrieval_archive8_extra_storage_required` | 需要 8 FFE 候选池，论文必须披露额外存储 |
+| `use_retrieval_archive12_extra_storage_required` | 默认 12 FFE archive 才充分，存储混杂未消除 |
+| `reject_retrieval_under_current_runtime` | 三种容量均未通过安全非劣 gate |
+
+`Dynamic Degree` 若为常数或全 1，只记录 ceiling non-regression，不参与“运动提升”判断。
+相机补偿光流只用于开发期方向判断，不直接当作论文指标。分析器不要求人工 review；仅在
+自动异常出现时列出最多四个 debug prompt。
+
+需要推送的小文件：
+
+```text
+runs/v199_retrieval_storage_attribution/inputs/
+runs/v199_retrieval_storage_attribution/audits/*.json
+runs/v199_retrieval_storage_attribution/published_manifest.json
+runs/v199_retrieval_storage_attribution/vbench_comparison/comparison_manifest.json
+runs/v199_retrieval_storage_attribution/metrics/*.{json,csv,md}
+runs/v199_retrieval_storage_attribution/analysis/v199_retrieval_storage.{json,md}
+runs/v199_retrieval_storage_attribution/camera_motion/*/analysis/*.json
+runs/v199_retrieval_storage_attribution/evidence_manifest.json
+```
+
+无需上传 MP4、VBench clips 或 `vbench_long_parts/`。
