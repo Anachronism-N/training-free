@@ -1,0 +1,17 @@
+2026-08-29 11:36:31,211 - vbench.utils - INFO - [32m[Local Mode][0m Working in local mode, please make sure that the pre-trained model has been fully downloaded.
+Cloning into '/root/.cache/vbench/dino_model/facebookresearch_dino_main'...
+fatal: unable to access 'https://github.com/facebookresearch/dino/': Failed to connect to github.com port 443: Connection timed out
+Videos have been splitted into clips in /apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v186_long60_comparison/vbench_comparison/published/all_coverage_retrieval/split_clip
+Directory /root/.cache/vbench/dino_model/facebookresearch_dino_main/ does not exist. Cloning repository...
+Traceback (most recent call last):
+  File "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/scripts/eval_vbench_long_prompt_aware.py", line 269, in <module>
+    main()
+  File "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/scripts/eval_vbench_long_prompt_aware.py", line 229, in main
+    evaluator.evaluate(
+  File "/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/bench_baselines/VBench/vbench2_beta_long/__init__.py", line 98, in evaluate
+    submodules_dict = init_submodules(dimension_list, local=local, read_frame=read_frame)
+  File "/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/bench_baselines/VBench/vbench/utils.py", line 308, in init_submodules
+    subprocess.run(['git', 'clone', 'https://github.com/facebookresearch/dino', details['repo_or_dir']], check=True)
+  File "/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/lib/python3.10/subprocess.py", line 526, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['git', 'clone', 'https://github.com/facebookresearch/dino', '/root/.cache/vbench/dino_model/facebookresearch_dino_main/']' returned non-zero exit status 128.
