@@ -1,0 +1,56 @@
+Running on a single GPU (cuda); skipping NCCL initialization.
+Free VRAM 41.0433349609375 GB
+Loading CUDA extension (first run compiles ~60s; cached run ~3s)...
+CUDA extension ready in 9.7s.
+[PFHybridRetrieval] labels=-1/1/2 osc=cyclic sta=semantic_retrieval4 sink={'1': 1, '2': 1, '-1': 1} recent={'1': 4, '2': 4, '-1': 4} retrieval_capacity={'1': 4, '2': 4} owner=HeadComposition
+KV inference with 3 frames per block
+Number of prompts: 128
+Prompt index range: [0, 128)
+Loading PyramidKV config from configs/head_configs/best_labels.csv
+Warning: unknown classification labels ['-1', '1', '2'] not found in pyramidkv_code_map; falling back to default_capacity=32760.
+block 1/40 - 1/120  183344.7 ms
+block 2/40 - 4/120   9706.0 ms
+block 3/40 - 7/120   2473.5 ms
+block 4/40 - 10/120  14836.3 ms
+block 5/40 - 13/120  17954.4 ms
+block 6/40 - 16/120   3898.6 ms
+block 7/40 - 19/120   2987.2 ms
+block 8/40 - 22/120   4020.2 ms
+block 9/40 - 25/120  18122.5 ms
+block 10/40 - 28/120  15608.0 ms
+block 11/40 - 31/120   2952.6 ms
+block 12/40 - 34/120  17734.3 ms
+block 13/40 - 37/120  11089.4 ms
+block 14/40 - 40/120  12115.1 ms
+block 15/40 - 43/120   2872.5 ms
+block 16/40 - 46/120   3450.9 ms
+block 17/40 - 49/120  15172.9 ms
+block 18/40 - 52/120  15712.4 ms
+block 19/40 - 55/120   3418.5 ms
+block 20/40 - 58/120  12712.2 ms
+block 21/40 - 61/120  18356.0 ms
+block 22/40 - 64/120   6044.8 ms
+block 23/40 - 67/120   2999.2 ms
+block 24/40 - 70/120   5219.9 ms
+block 25/40 - 73/120  17991.6 ms
+block 26/40 - 76/120  14072.6 ms
+block 27/40 - 79/120  14948.0 ms
+block 28/40 - 82/120  18351.8 ms
+block 29/40 - 85/120   8899.8 ms
+block 30/40 - 88/120  11019.6 ms
+block 31/40 - 91/120  18300.4 ms
+block 32/40 - 94/120  11291.1 ms
+block 33/40 - 97/120   9711.3 ms
+block 34/40 - 100/120  14434.3 ms
+block 35/40 - 103/120  15098.6 ms
+block 36/40 - 106/120  10548.9 ms
+block 37/40 - 109/120  18268.0 ms
+block 38/40 - 112/120   4012.3 ms
+block 39/40 - 115/120  14610.1 ms
+block 40/40 - 118/120  11562.9 ms
+Traceback (most recent call last):
+  File "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/inference.py", line 1704, in <module>
+    video, latents = pipeline.inference(
+  File "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/third_party/Pyramid-Forcing/pipeline/causal_inference.py", line 982, in inference
+    video = (video * 0.5 + 0.5).clamp(0, 1)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.13 GiB. GPU 0 has a total capacity of 95.00 GiB of which 1.78 GiB is free. Process 2878826 has 59.71 GiB memory in use. Process 2980662 has 33.51 GiB memory in use. Of the allocated memory 32.14 GiB is allocated by PyTorch, and 880.92 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

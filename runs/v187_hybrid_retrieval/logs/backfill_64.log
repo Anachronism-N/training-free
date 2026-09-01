@@ -1,0 +1,53 @@
+Running on a single GPU (cuda); skipping NCCL initialization.
+Free VRAM 93.14923095703125 GB
+Loading CUDA extension (first run compiles ~60s; cached run ~3s)...
+CUDA extension ready in 148.0s.
+[PFHybridRetrieval] labels=-1/1/2 osc=cyclic sta=semantic_retrieval4 sink={'1': 1, '2': 1, '-1': 1} recent={'1': 4, '2': 4, '-1': 4} retrieval_capacity={'1': 4, '2': 4} owner=HeadComposition
+KV inference with 3 frames per block
+Number of prompts: 128
+Prompt index range: [0, 128)
+Loading PyramidKV config from configs/head_configs/best_labels.csv
+Warning: unknown classification labels ['-1', '1', '2'] not found in pyramidkv_code_map; falling back to default_capacity=32760.
+block 1/40 - 1/120  233881.9 ms
+block 2/40 - 4/120  30167.1 ms
+block 3/40 - 7/120  31034.4 ms
+block 4/40 - 10/120  31291.7 ms
+block 5/40 - 13/120  32065.0 ms
+block 6/40 - 16/120  32548.8 ms
+block 7/40 - 19/120  32786.6 ms
+block 8/40 - 22/120  32354.7 ms
+block 9/40 - 25/120  33009.0 ms
+block 10/40 - 28/120  32494.9 ms
+block 11/40 - 31/120  32493.5 ms
+block 12/40 - 34/120  32507.1 ms
+block 13/40 - 37/120  32592.0 ms
+block 14/40 - 40/120  32582.1 ms
+block 15/40 - 43/120  32592.6 ms
+block 16/40 - 46/120  32574.3 ms
+block 17/40 - 49/120  32573.3 ms
+block 18/40 - 52/120  32585.0 ms
+block 19/40 - 55/120  32573.2 ms
+block 20/40 - 58/120  32584.2 ms
+block 21/40 - 61/120  32595.2 ms
+block 22/40 - 64/120  32594.4 ms
+block 23/40 - 67/120  32586.9 ms
+block 24/40 - 70/120  32595.2 ms
+block 25/40 - 73/120  32601.4 ms
+block 26/40 - 76/120  32581.9 ms
+block 27/40 - 79/120  32591.6 ms
+block 28/40 - 82/120  32628.5 ms
+block 29/40 - 85/120  32588.7 ms
+block 30/40 - 88/120  32592.1 ms
+block 31/40 - 91/120  32605.9 ms
+block 32/40 - 94/120  32582.4 ms
+block 33/40 - 97/120  32599.2 ms
+block 34/40 - 100/120  32596.1 ms
+block 35/40 - 103/120  32587.3 ms
+block 36/40 - 106/120  32670.9 ms
+block 37/40 - 109/120  32597.9 ms
+block 38/40 - 112/120  32595.1 ms
+block 39/40 - 115/120  32598.6 ms
+block 40/40 - 118/120  32594.3 ms
+/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/envs/longlive/lib/python3.10/site-packages/torchvision/io/_video_deprecation_warning.py:9: UserWarning: The video decoding and encoding capabilities of torchvision are deprecated from version 0.22 and will be removed in version 0.24. We recommend that you migrate to TorchCodec, where we'll consolidate the future decoding/encoding capabilities of PyTorch: https://github.com/pytorch/torchcodec
+  warnings.warn(
+[65/128] elapsed=25.3m  avg=23.3s/prompt  eta=24.5m
