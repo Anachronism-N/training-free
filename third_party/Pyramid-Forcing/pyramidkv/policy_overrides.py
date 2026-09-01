@@ -1097,6 +1097,86 @@ def cache_compatibility_policy_overrides(
     return fields
 
 
+def pf_hybrid_retrieval_overrides(*, capacity: int = 32760) -> dict[str, object]:
+    """PF head classification with semantic-retrieval middle for stable heads.
+
+    Keeps PF's native per-label routing from ``best_labels.csv`` but swaps
+    the middle-memory operator for the two stable classes:
+
+    * label ``-1`` (osc heads): PF cyclic middle — **unchanged**;
+    * label ``1`` (sta+ heads): four-frame semantic-retrieval middle
+      (replaces stride);
+    * label ``2`` (sta- heads): four-frame semantic-retrieval middle
+      (replaces merge).
+
+    The retrieval middle is taken verbatim from the v173 cache-compatibility
+    Coverage route (``coverage_policy="retrieval"``) so the operator behaves
+    exactly as in the v182/v184/v186 experiments; only the label routing
+    changes from the neutral 20/21 namespace back to PF's -1/1/2 classes.
+    """
+
+    base = cache_compatibility_policy_overrides(
+        capacity=capacity,
+        coverage_policy="retrieval",
+    )
+    coverage_key = str(CACHE_COMPAT_COVERAGE_LABEL)
+
+    fields: dict[str, object] = {}
+    for field_name, field_value in base.items():
+        if not field_name.startswith("pyramidkv_label_") or not isinstance(
+            field_value, dict
+        ):
+            fields[field_name] = field_value
+            continue
+        remapped: dict[str, object] = {}
+        for key, value in field_value.items():
+            if key == coverage_key:
+                remapped["1"] = value
+                remapped["2"] = value
+        if remapped:
+            fields[field_name] = remapped
+        # Non-label dict fields fall through unchanged above.
+
+    # PF-native cyclic routing for oscillating heads (label -1).
+    fields.setdefault("pyramidkv_label_phase_bucket_map", {})
+    if isinstance(fields["pyramidkv_label_phase_bucket_map"], dict):
+        fields["pyramidkv_label_phase_bucket_map"]["-1"] = 4
+    fields.setdefault("pyramidkv_label_stride_enabled_map", {})
+    fields["pyramidkv_label_stride_enabled_map"]["-1"] = False
+    fields.setdefault("pyramidkv_label_merge_enabled_map", {})
+    fields["pyramidkv_label_merge_enabled_map"]["-1"] = False
+    # PF budget: osc = sink1 + cyclic4 + recent4; sta = sink1 + retrieval4 + recent4.
+    # sta heads use sink1 (not PF-native sink3) because the exclusive-owner
+    # warm start rejects sink3 (it would capture the whole 3-frame opening,
+    # leaving zero recent frames).
+    fields.setdefault("pyramidkv_label_sink_frames_map", {})
+    fields["pyramidkv_label_sink_frames_map"]["-1"] = 1
+    fields["pyramidkv_label_sink_frames_map"]["1"] = 1
+    fields["pyramidkv_label_sink_frames_map"]["2"] = 1
+    fields.setdefault("pyramidkv_label_recent_frames_map", {})
+    fields["pyramidkv_label_recent_frames_map"]["-1"] = 4
+    fields["pyramidkv_label_recent_frames_map"]["1"] = 4
+    fields["pyramidkv_label_recent_frames_map"]["2"] = 4
+    # Retrieval middle must be the only active operator for sta heads.
+    for middle_field, zero_value in (
+        ("pyramidkv_label_phase_bucket_map", 0),
+        ("pyramidkv_label_stride_enabled_map", False),
+        ("pyramidkv_label_merge_enabled_map", False),
+        ("pyramidkv_label_semantic_landmark_capacity_map", 0),
+        ("pyramidkv_label_temporal_prototype_capacity_map", 0),
+        ("pyramidkv_label_temporal_reservoir_capacity_map", 0),
+        ("pyramidkv_label_temporal_profile_anchor_capacity_map", 0),
+        ("pyramidkv_label_unique_snapshot_capacity_map", 0),
+        ("pyramidkv_label_sparse_snapshot_capacity_map", 0),
+    ):
+        field = fields.setdefault(middle_field, {})
+        if isinstance(field, dict):
+            field.setdefault("1", zero_value)
+            field.setdefault("2", zero_value)
+    fields["pyramidkv_composition_owns_dynamic"] = True
+    return fields
+
+
 def pf_class_extended_recent_overrides(
     target_class: str,
 ) -> dict[str, object]:

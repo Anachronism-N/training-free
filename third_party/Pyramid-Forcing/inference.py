@@ -625,6 +625,15 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--pyramidkv_pf_hybrid_retrieval",
+    action="store_true",
+    help=(
+        "Keep PF's native -1/1/2 head classification but replace the "
+        "stride/merge middle for stable heads with a four-frame "
+        "semantic-retrieval middle (v187 hybrid)."
+    ),
+)
+parser.add_argument(
     "--pyramidkv_probecache_mode",
     choices=("audit", "persistent", "reactive", "full"),
     default=None,
@@ -1152,12 +1161,14 @@ selected_policy_overrides = sum(
         args.pyramidkv_history_polarity,
         args.pyramidkv_cache_compatibility_policy,
         args.pyramidkv_pf_extended_recent_ablation is not None,
+        args.pyramidkv_pf_hybrid_retrieval,
     )
 )
 if selected_policy_overrides > 1:
     parser.error(
-        "binary, history-polarity, cache-compatibility, and PF "
-        "extended-recent policy overrides are mutually exclusive"
+        "binary, history-polarity, cache-compatibility, PF "
+        "extended-recent, and PF hybrid-retrieval policy overrides "
+        "are mutually exclusive"
     )
 if (
     not args.pyramidkv_cache_compatibility_policy
@@ -1480,6 +1491,24 @@ if args.pyramidkv_pf_extended_recent_ablation is not None:
         "replacement=label3 sink=native "
         f"recent={policy_overrides['pyramidkv_label_recent_frames_map']['3']} "
         "middle=none",
+        flush=True,
+    )
+if args.pyramidkv_pf_hybrid_retrieval:
+    from pyramidkv.policy_overrides import pf_hybrid_retrieval_overrides
+
+    policy_overrides = pf_hybrid_retrieval_overrides(
+        capacity=int(config.pyramidkv_default_capacity or 32760),
+    )
+    for field_name, field_value in policy_overrides.items():
+        setattr(config, field_name, field_value)
+    print(
+        "[PFHybridRetrieval] "
+        "labels=-1/1/2 osc=cyclic sta=semantic_retrieval4 "
+        f"sink={policy_overrides['pyramidkv_label_sink_frames_map']} "
+        f"recent={policy_overrides['pyramidkv_label_recent_frames_map']} "
+        "retrieval_capacity="
+        f"{policy_overrides.get('pyramidkv_label_semantic_retrieval_capacity_map')} "
+        "owner=HeadComposition",
         flush=True,
     )
 if args.pyramidkv_motion_event_top_k is not None:
