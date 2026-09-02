@@ -756,6 +756,7 @@ parser.add_argument(
         "late2",
         "late1",
         "head_phase",
+        "head_phase_horizon",
     ),
     default=None,
     help=(
@@ -770,6 +771,15 @@ parser.add_argument(
     help=(
         "JSON call x layer x head Coverage mask used by the head_phase "
         "denoising schedule."
+    ),
+)
+parser.add_argument(
+    "--pyramidkv_cache_compatibility_horizon_map",
+    type=str,
+    default=None,
+    help=(
+        "JSON AR-position x call x layer x head Coverage mask used by the "
+        "head_phase_horizon denoising schedule."
     ),
 )
 parser.add_argument(
@@ -1396,9 +1406,12 @@ if args.pyramidkv_cache_compatibility_denoise_schedule is not None:
         args.pyramidkv_cache_compatibility_denoise_coverage_policy
     ).strip().lower()
     phase_map = None
+    horizon_map = None
     if args.pyramidkv_cache_compatibility_denoise_schedule == "head_phase":
         if args.pyramidkv_cache_compatibility_head_phase_map is None:
             parser.error("head_phase schedule requires a head-phase map")
+        if args.pyramidkv_cache_compatibility_horizon_map is not None:
+            parser.error("head_phase schedule cannot use a horizon map")
         from pyramidkv.denoise_schedule import (
             load_cache_compatibility_head_phase_map,
         )
@@ -1418,10 +1431,43 @@ if args.pyramidkv_cache_compatibility_denoise_schedule is not None:
                 "head-phase map Coverage operator differs from runtime: "
                 f"{map_operator} != {denoise_coverage_policy}"
             )
-    elif args.pyramidkv_cache_compatibility_head_phase_map is not None:
+    elif (
+        args.pyramidkv_cache_compatibility_denoise_schedule
+        == "head_phase_horizon"
+    ):
+        if args.pyramidkv_cache_compatibility_horizon_map is None:
+            parser.error("head_phase_horizon schedule requires a horizon map")
+        if args.pyramidkv_cache_compatibility_head_phase_map is not None:
+            parser.error("head_phase_horizon schedule cannot use a head-phase map")
+        from pyramidkv.denoise_schedule import (
+            load_cache_compatibility_horizon_map,
+        )
+
+        horizon_map = load_cache_compatibility_horizon_map(
+            args.pyramidkv_cache_compatibility_horizon_map,
+            expected_call_count=len(config.denoising_step_list),
+        )
+        if (
+            int(horizon_map["layer_count"]) != 30
+            or int(horizon_map["head_count"]) != 12
+            or int(horizon_map["position_count"]) <= 1
+        ):
+            parser.error(
+                "head-phase-horizon map must have shape Tx4x30x12 with T>1"
+            )
+        map_operator = horizon_map.get("coverage_operator")
+        if map_operator is not None and str(map_operator) != denoise_coverage_policy:
+            parser.error(
+                "horizon map Coverage operator differs from runtime: "
+                f"{map_operator} != {denoise_coverage_policy}"
+            )
+    elif (
+        args.pyramidkv_cache_compatibility_head_phase_map is not None
+        or args.pyramidkv_cache_compatibility_horizon_map is not None
+    ):
         parser.error(
-            "--pyramidkv_cache_compatibility_head_phase_map requires "
-            "--pyramidkv_cache_compatibility_denoise_schedule head_phase"
+            "cache-compatibility route maps require their matching "
+            "head_phase or head_phase_horizon schedule"
         )
     history_policy_by_operator = {
         "reservoir": "reservoir4_multiscalemotion1",
@@ -1455,13 +1501,20 @@ if args.pyramidkv_cache_compatibility_denoise_schedule is not None:
         os.environ["PYRAMIDKV_CACHE_COMPAT_HEAD_PHASE_MAP"] = os.path.abspath(
             args.pyramidkv_cache_compatibility_head_phase_map
         )
+    if horizon_map is not None:
+        os.environ["PYRAMIDKV_CACHE_COMPAT_HORIZON_MAP"] = os.path.abspath(
+            args.pyramidkv_cache_compatibility_horizon_map
+        )
     os.environ["PYRAMIDKV_DISABLE_M6_FASTPATH"] = "1"
     os.environ["PYRAMIDKV_PATH_AB"] = "0"
     print(
         "[CacheCompatDenoiseSchedule] "
         f"schedule={args.pyramidkv_cache_compatibility_denoise_schedule} "
         f"coverage_operator={denoise_coverage_policy} "
-        f"phase_map_id={None if phase_map is None else phase_map.get('map_id')} "
+        "phase_map_id="
+        f"{None if phase_map is None and horizon_map is None else (phase_map or horizon_map).get('map_id')} "
+        "horizon_positions="
+        f"{None if horizon_map is None else horizon_map.get('position_count')} "
         "noisy_readout=scheduled clean_readout=recent "
         "recent=sink1+recent8 coverage=sink1+middle4+recent4 "
         "shared_updates=true read_budget=9FFE",
@@ -1476,6 +1529,11 @@ elif args.pyramidkv_cache_compatibility_head_phase_map is not None:
     parser.error(
         "--pyramidkv_cache_compatibility_head_phase_map requires "
         "--pyramidkv_cache_compatibility_denoise_schedule head_phase"
+    )
+elif args.pyramidkv_cache_compatibility_horizon_map is not None:
+    parser.error(
+        "--pyramidkv_cache_compatibility_horizon_map requires "
+        "--pyramidkv_cache_compatibility_denoise_schedule head_phase_horizon"
     )
 if args.pyramidkv_pf_extended_recent_ablation is not None:
     from pyramidkv.policy_overrides import pf_class_extended_recent_overrides

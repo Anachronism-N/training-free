@@ -3014,6 +3014,8 @@ class AdaptiveKVCache(PyramidKVCache):
         current_start: int,
         coverage_head_mask: tuple[bool, ...] | None = None,
         phase_map_id: str | None = None,
+        horizon_position_index: int | None = None,
+        horizon_reference_frame: int | None = None,
     ) -> None:
         """Select the active shadow readout without changing stored banks."""
 
@@ -3069,6 +3071,16 @@ class AdaptiveKVCache(PyramidKVCache):
             "update_mode": str(update_mode),
             "current_start": int(current_start),
             "phase_map_id": None if phase_map_id is None else str(phase_map_id),
+            "horizon_position_index": (
+                None
+                if horizon_position_index is None
+                else int(horizon_position_index)
+            ),
+            "horizon_reference_frame": (
+                None
+                if horizon_reference_frame is None
+                else int(horizon_reference_frame)
+            ),
             "coverage_heads": (
                 self.num_heads
                 if normalized_mask is None and normalized == "coverage"
@@ -3126,6 +3138,8 @@ class AdaptiveKVCache(PyramidKVCache):
                 ]
             ),
             "phase_map_id": context.get("phase_map_id"),
+            "horizon_position_index": context.get("horizon_position_index"),
+            "horizon_reference_frame": context.get("horizon_reference_frame"),
             "call_index": context.get("call_index"),
             "call_count": int(context.get("call_count", 0)),
             "update_mode": str(context.get("update_mode", "")),
@@ -3298,6 +3312,8 @@ class AdaptiveKVCache(PyramidKVCache):
                 self.num_heads - int(context.get("coverage_heads", 0))
             ),
             "phase_map_id": context.get("phase_map_id"),
+            "horizon_position_index": context.get("horizon_position_index"),
+            "horizon_reference_frame": context.get("horizon_reference_frame"),
             "call_index": context.get("call_index"),
             "call_count": int(context.get("call_count", 0)),
             "update_mode": str(context.get("update_mode", "")),

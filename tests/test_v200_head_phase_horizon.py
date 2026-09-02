@@ -102,6 +102,41 @@ def test_prompt_slopes_are_centered_and_length_agnostic() -> None:
     assert np.allclose(slopes, 0.4)
 
 
+def test_v200_runtime_maps_are_equal_exposure_and_holdout_clean() -> None:
+    module = load_module(
+        "v200_horizon_maps",
+        SCRIPTS / "analyze_v200_head_phase_horizon.py",
+    )
+    masks = np.zeros(
+        (
+            module.CALLS,
+            module.LAYERS,
+            module.HEADS,
+            module.EXPECTED_POSITIONS,
+        ),
+        dtype=np.bool_,
+    )
+    masks[:, :3, :, :] = True
+    payload = module._horizon_map_payload(
+        masks,
+        operator="retrieval",
+        classification="horizon_top10",
+        discovery=list(range(64)),
+        validation=list(range(64, 96)),
+        holdout=list(range(96, 128)),
+        source_manifest_sha256="a" * 64,
+        source_profile_shards=[{"path": "/tmp/shard.pt", "sha256": "b" * 64}],
+    )
+    assert payload["version"] == 2
+    assert payload["position_count"] == module.EXPECTED_POSITIONS
+    assert len(payload["coverage_masks"]) == module.EXPECTED_POSITIONS
+    assert len(set(payload["coverage_count_by_position"])) == 1
+    assert payload["constant_exposure_per_position"] is True
+    assert payload["generation_holdout_used_for_selection"] is False
+    assert payload["generation_holdout_prompt_ids"] == list(range(96, 128))
+    assert payload["map_id"].startswith("v200-retrieval-horizon_top10-")
+
+
 def test_v200_runner_is_zero_gpu_and_does_not_generate_video() -> None:
     runner = (SCRIPTS / "run_v200_head_phase_horizon_audit.sh").read_text(
         encoding="utf-8"
@@ -121,5 +156,7 @@ def test_v200_contract_keeps_generation_holdout_unused() -> None:
     assert '"generation_holdout_used": False' in source
     assert '"changes_v189_frozen_map": False' in source
     assert '"new_video_generation_required": False' in source
+    assert '"writes_separate_v200_runtime_maps": True' in source
+    assert '"generation_holdout_used_for_selection": False' in source
     assert "equal_exposure_verified" in source
     assert "time_assignment_permutation_p" in source

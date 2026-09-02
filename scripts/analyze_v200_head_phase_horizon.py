@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 from collections import Counter
@@ -37,6 +38,7 @@ EXPECTED_CURRENT_FRAMES = tuple(range(12, 120, 9))
 EXPECTED_POSITIONS = len(EXPECTED_CURRENT_FRAMES)
 SPARSITY_FRACTIONS = (0.01, 0.05, 0.10, 0.20)
 PRIMARY_FRACTION = 0.10
+HORIZON_SHIFT_POSITIONS = EXPECTED_POSITIONS // 2
 DEFAULT_BOOTSTRAP_SAMPLES = 5_000
 DEFAULT_PERMUTATIONS = 5_000
 
@@ -290,7 +292,9 @@ def _top_mask(scores: np.ndarray, count: int) -> np.ndarray:
     if not 0 < count < flat.size:
         raise ValueError("top-mask count must leave a non-empty complement")
     selected = np.zeros(flat.size, dtype=np.bool_)
-    indices = np.argpartition(flat, flat.size - count)[-count:]
+    # Stable sorting makes the frozen selector byte-reproducible even if
+    # multiple cells have exactly the same discovery score.
+    indices = np.argsort(flat, kind="mergesort")[-count:]
     selected[indices] = True
     return selected.reshape(np.asarray(scores).shape)
 
@@ -298,6 +302,37 @@ def _top_mask(scores: np.ndarray, count: int) -> np.ndarray:
 def _jaccard(left: np.ndarray, right: np.ndarray) -> float:
     union = np.logical_or(left, right).sum()
     return float(np.logical_and(left, right).sum() / union) if union else 1.0
+
+
+def build_selector_masks(
+    gain: np.ndarray,
+    discovery: list[int],
+    *,
+    fraction: float,
+) -> dict[str, np.ndarray | int]:
+    """Freeze equal-exposure static and horizon selectors from discovery only."""
+
+    gain = np.asarray(gain, dtype=np.float64)
+    if gain.ndim != 5 or not discovery:
+        raise ValueError("selector masks require [P,C,L,H,T] and discovery prompts")
+    cells = int(np.prod(gain.shape[1:-1]))
+    positions = int(gain.shape[-1])
+    count = max(1, min(cells - 1, round(cells * float(fraction))))
+    discovery_mean = gain[discovery].mean(axis=0)
+    static_cell_mask = _top_mask(discovery_mean.mean(axis=-1), count)
+    static = np.repeat(static_cell_mask[..., None], positions, axis=-1)
+    horizon = np.zeros_like(discovery_mean, dtype=np.bool_)
+    for position in range(positions):
+        horizon[..., position] = _top_mask(
+            discovery_mean[..., position], count
+        )
+    if int(static.sum()) != count * positions or int(horizon.sum()) != count * positions:
+        raise RuntimeError("static and horizon selector exposure budgets differ")
+    return {
+        "cells_per_position": count,
+        "static": static,
+        "horizon": horizon,
+    }
 
 
 def selector_test(
@@ -317,18 +352,12 @@ def selector_test(
         raise ValueError("selector test requires [P,C,L,H,T] and non-empty splits")
     if set(discovery) & set(validation):
         raise ValueError("discovery and validation prompts must be disjoint")
-    cells = int(np.prod(gain.shape[1:-1]))
     positions = int(gain.shape[-1])
-    count = max(1, min(cells - 1, round(cells * float(fraction))))
-    discovery_mean = gain[discovery].mean(axis=0)
     validation_gain = gain[validation]
-
-    static_scores = discovery_mean.mean(axis=-1)
-    static_cell_mask = _top_mask(static_scores, count)
-    static_mask = np.repeat(static_cell_mask[..., None], positions, axis=-1)
-    horizon_mask = np.zeros_like(discovery_mean, dtype=np.bool_)
-    for position in range(positions):
-        horizon_mask[..., position] = _top_mask(discovery_mean[..., position], count)
+    selectors = build_selector_masks(gain, discovery, fraction=fraction)
+    count = int(selectors["cells_per_position"])
+    static_mask = np.asarray(selectors["static"], dtype=np.bool_)
+    horizon_mask = np.asarray(selectors["horizon"], dtype=np.bool_)
     expected_exposures = count * positions
     if (
         int(static_mask.sum()) != expected_exposures
@@ -381,6 +410,81 @@ def selector_test(
         "static_horizon_membership_jaccard": _jaccard(static_mask, horizon_mask),
         "adjacent_horizon_membership_jaccard_mean": float(np.mean(adjacent_overlap)),
         "unique_horizon_cells": int(horizon_mask.any(axis=-1).sum()),
+    }
+
+
+def _horizon_map_payload(
+    masks: np.ndarray,
+    *,
+    operator: str,
+    classification: str,
+    discovery: list[int],
+    validation: list[int],
+    holdout: list[int],
+    source_manifest_sha256: str,
+    source_profile_shards: list[dict],
+    parent_map_id: str | None = None,
+) -> dict:
+    """Create the version-2 runtime contract [position, call, layer, head]."""
+
+    array = np.asarray(masks, dtype=np.bool_)
+    expected = (CALLS, LAYERS, HEADS, EXPECTED_POSITIONS)
+    if array.shape != expected:
+        raise ValueError(f"invalid horizon selector shape: {array.shape} != {expected}")
+    runtime_masks = np.moveaxis(array, -1, 0)
+    counts_by_position_call = runtime_masks.sum(axis=(2, 3)).astype(int)
+    counts_by_position = counts_by_position_call.sum(axis=1).astype(int)
+    payload = {
+        "version": 2,
+        "experiment": EXPERIMENT,
+        "classification": classification,
+        "coverage_operator": operator,
+        "call_count": CALLS,
+        "layer_count": LAYERS,
+        "head_count": HEADS,
+        "position_count": EXPECTED_POSITIONS,
+        "current_frames": list(EXPECTED_CURRENT_FRAMES),
+        "horizon_selection": "nearest_profile_frame",
+        "coverage_masks": runtime_masks.tolist(),
+        "coverage_count_by_position": counts_by_position.tolist(),
+        "coverage_count_by_position_call": counts_by_position_call.tolist(),
+        "constant_exposure_per_position": bool(
+            np.all(counts_by_position == counts_by_position[0])
+        ),
+        "discovery_prompt_ids": list(discovery),
+        "validation_prompt_ids": list(validation),
+        "generation_holdout_prompt_ids": list(holdout),
+        "generation_holdout_used_for_selection": False,
+        "source_manifest_sha256": source_manifest_sha256,
+        "source_profile_shards": [
+            {"sha256": row["sha256"], "path_name": Path(row["path"]).name}
+            for row in source_profile_shards
+        ],
+        "parent_map_id": parent_map_id,
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    payload["map_id"] = (
+        f"v200-{operator}-{classification}-"
+        f"{hashlib.sha256(canonical).hexdigest()[:12]}"
+    )
+    return payload
+
+
+def _write_horizon_map(path: Path, payload: dict) -> dict:
+    encoded = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(encoded)
+    return {
+        "path": str(path.resolve()),
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+        "map_id": payload["map_id"],
+        "classification": payload["classification"],
+        "coverage_count_by_position": payload["coverage_count_by_position"],
+        "coverage_count_by_position_call": payload[
+            "coverage_count_by_position_call"
+        ],
     }
 
 
@@ -459,6 +563,11 @@ def analyze_operator_tensor(
         and primary["time_assignment_permutation_p"] <= 0.05
         and adjacent_supported >= 1
     )
+    primary_selectors = build_selector_masks(
+        gain,
+        discovery,
+        fraction=PRIMARY_FRACTION,
+    )
     return {
         "shape": list(gain.shape),
         "continuous_reproducibility": {
@@ -499,6 +608,7 @@ def analyze_operator_tensor(
             "minimum_supported_adjacent_sparsities": 1,
             "global_positive_slope_required": False,
         },
+        "runtime_selectors": primary_selectors,
         "prompt_slopes": slopes,
         "discovery_cell_slope": discovery_slope,
         "validation_cell_slope": validation_slope,
@@ -575,6 +685,7 @@ def analyze(
     split = manifest["prompt_split"]
     discovery = list(split["discovery"])
     validation = list(split["validation"])
+    holdout = list(split["generation_holdout"])
     output_dir.mkdir(parents=True, exist_ok=True)
     operator_reports = {}
     cell_rows = []
@@ -594,6 +705,49 @@ def analyze(
             bootstrap_samples=bootstrap_samples,
             permutations=permutations,
         )
+        selectors = computed["runtime_selectors"]
+        static_masks = np.asarray(selectors["static"], dtype=np.bool_)
+        horizon_masks = np.asarray(selectors["horizon"], dtype=np.bool_)
+        shifted_masks = np.roll(
+            horizon_masks,
+            shift=-HORIZON_SHIFT_POSITIONS,
+            axis=-1,
+        )
+        common_map_args = {
+            "operator": operator,
+            "discovery": discovery,
+            "validation": validation,
+            "holdout": holdout,
+            "source_manifest_sha256": sha256(manifest_path),
+            "source_profile_shards": loaded_audit["shards"],
+        }
+        static_payload = _horizon_map_payload(
+            static_masks,
+            classification="static_top10",
+            **common_map_args,
+        )
+        horizon_payload = _horizon_map_payload(
+            horizon_masks,
+            classification="horizon_top10",
+            **common_map_args,
+        )
+        shifted_payload = _horizon_map_payload(
+            shifted_masks,
+            classification="horizon_half_cycle_shift_top10",
+            parent_map_id=horizon_payload["map_id"],
+            **common_map_args,
+        )
+        runtime_maps = {
+            name: _write_horizon_map(
+                output_dir / "maps" / f"{operator}_{name}.json",
+                payload,
+            )
+            for name, payload in (
+                ("static_top10", static_payload),
+                ("horizon_top10", horizon_payload),
+                ("horizon_shift_top10", shifted_payload),
+            )
+        }
         for position, current_frame in enumerate(EXPECTED_CURRENT_FRAMES):
             curve_rows.append(
                 {
@@ -636,6 +790,7 @@ def analyze(
             for key, value in computed.items()
             if key
             not in {
+                "runtime_selectors",
                 "prompt_slopes",
                 "discovery_cell_slope",
                 "validation_cell_slope",
@@ -644,6 +799,21 @@ def analyze(
             }
         }
         operator_reports[operator]["profile_audit"] = loaded_audit
+        operator_reports[operator]["runtime_maps"] = runtime_maps
+        operator_reports[operator]["runtime_map_contract"] = {
+            "version": 2,
+            "primary_fraction": PRIMARY_FRACTION,
+            "cells_per_position": int(selectors["cells_per_position"]),
+            "horizon_selection": "nearest_profile_frame",
+            "horizon_shift_positions": HORIZON_SHIFT_POSITIONS,
+            "equal_exposure_static_horizon_shift": bool(
+                static_payload["coverage_count_by_position"]
+                == horizon_payload["coverage_count_by_position"]
+                == shifted_payload["coverage_count_by_position"]
+            ),
+            "selection_uses_discovery_only": True,
+            "generation_holdout_used": False,
+        }
         operator_reports[operator]["v189_generation_candidate"] = operator in (
             source_analysis.get("generation_candidates") or []
         )
@@ -660,7 +830,7 @@ def analyze(
     else:
         recommendation = "no_reproducible_classifier_structure_do_not_generate"
     report = {
-        "version": 1,
+        "version": 2,
         "experiment": EXPERIMENT,
         "source_experiment": SOURCE_EXPERIMENT,
         "current_frames": list(EXPECTED_CURRENT_FRAMES),
@@ -678,6 +848,7 @@ def analyze(
         "recommendation": recommendation,
         "manual_review_required": False,
         "changes_v189_frozen_map": False,
+        "writes_separate_v200_runtime_maps": True,
         "new_video_generation_required": False,
         "claim_boundary": (
             "v200 is a cross-fit shadow-readout audit. It can authorize a new "
