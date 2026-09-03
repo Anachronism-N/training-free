@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Mutually exclusive VBench groups and official Quality Score constants."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
-
 
 # VBench's official score script uses these seven quality dimensions. Dynamic
 # degree has half weight; the other dimensions have unit weight.
@@ -76,10 +76,22 @@ def official_quality_score(row: Mapping[str, float]) -> float:
     weight_sum = 0.0
     for dimension in QUALITY_DIMENSIONS:
         minimum, maximum = QUALITY_NORMALIZATION[dimension]
-        normalized = (float(row[dimension]) - minimum) / (
-            maximum - minimum
-        )
+        normalized = (float(row[dimension]) - minimum) / (maximum - minimum)
         weight = QUALITY_WEIGHTS[dimension]
         weighted += weight * normalized
         weight_sum += weight
     return 100.0 * weighted / weight_sum
+
+
+def quality_score_with_fixed_dynamic(
+    row: Mapping[str, float], *, dynamic_value: float = 1.0
+) -> float:
+    """Use the official normalization while removing Dynamic Degree ranking.
+
+    This diagnostic is useful when Dynamic Degree is saturated or its RAFT
+    provenance is uncertain. It is not a replacement for the official score.
+    """
+
+    adjusted = dict(row)
+    adjusted["dynamic_degree"] = float(dynamic_value)
+    return official_quality_score(adjusted)

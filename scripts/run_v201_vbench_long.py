@@ -9,6 +9,7 @@ from pathlib import Path
 
 import run_v154_vbench_long as base
 from prepare_v201_head_phase_horizon_screen import (
+    BASELINE_METHOD,
     NUM_OUTPUT_FRAMES,
     PROMPT_COUNT,
 )
@@ -18,6 +19,7 @@ from vbench_quality_contract import (
     OFFICIAL_CONSTANTS_SOURCE,
     exclusive_scores,
     official_quality_score,
+    quality_score_with_fixed_dynamic,
 )
 
 METHODS: tuple[str, ...] = ()
@@ -55,6 +57,10 @@ def analyze(payload: dict) -> dict:
         "official_quality_score": {
             method: official_quality_score(rows[method]) for method in METHODS
         },
+        "quality_without_dynamic_degree": {
+            method: quality_score_with_fixed_dynamic(rows[method], dynamic_value=1.0)
+            for method in METHODS
+        },
         "official_constants_source": OFFICIAL_CONSTANTS_SOURCE,
         "duplicate_metric_audit": {
             "pair": ["overall_consistency", "temporal_style"],
@@ -63,9 +69,10 @@ def analyze(payload: dict) -> dict:
         },
         "metric_promotion_gate": False,
         "claim_boundary": (
-            "Aggregate metrics do not validate AR-horizon routing. The paired "
-            "v201 decision must support horizon-top10 over both static-top10 "
-            "and the equal-exposure horizon-shift control."
+            "Aggregate metrics alone do not validate AR-horizon routing. The "
+            "paired v201 decision first tests efficacy against canonical SF; "
+            "static-top10 and horizon-shift then provide separate mechanism "
+            "attribution. Dynamic Degree is never used for promotion."
         ),
     }
 
@@ -74,13 +81,14 @@ def render(report: dict) -> str:
     lines = [
         "# v201 Head x Phase x AR-Horizon VBench-Long",
         "",
-        "| Method | Quality | Identity/background | Temporal | Semantic | Visual | Dynamic |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Method | Quality | Quality w/o Dynamic | Identity/background | Temporal | Semantic | Visual | Dynamic |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for method in report["methods"]:
         row = report["exclusive_scores"][method]
         lines.append(
             f"| {method} | {report['official_quality_score'][method]:.4f} | "
+            f"{report['quality_without_dynamic_degree'][method]:.4f} | "
             f"{row['identity_background']:.5f} | "
             f"{row['temporal_mechanics']:.5f} | "
             f"{row['semantic_alignment']:.5f} | "
@@ -106,6 +114,9 @@ def configure() -> None:
         or int(manifest.get("prompt_count", -1)) != PROMPT_COUNT
         or int(manifest.get("num_output_frames", -1)) != NUM_OUTPUT_FRAMES
         or not METHODS
+        or METHODS[0] != BASELINE_METHOD
+        or manifest.get("primary_baseline") != BASELINE_METHOD
+        or (manifest.get("methods") or [{}])[0].get("runtime") != "sf_native"
         or tuple(manifest.get("vbench_long_dimensions") or ()) != DIMENSIONS
     ):
         raise ValueError("invalid v201 VBench comparison contract")

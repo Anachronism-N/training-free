@@ -57,6 +57,7 @@ def prepare(run_root: Path, comparison_root: Path) -> dict:
         or published.get("scope") != "screen32"
         or contract.get("scope") != "screen32"
         or int(contract.get("prompt_count", -1)) != PROMPT_COUNT
+        or contract.get("primary_baseline") != "sf_native"
         or contract.get("prompt_indices") != list(range(PROMPT_COUNT))
         or int(contract.get("num_output_frames", -1)) != NUM_OUTPUT_FRAMES
         or int(contract.get("seed", -1)) != SEED
@@ -65,8 +66,11 @@ def prepare(run_root: Path, comparison_root: Path) -> dict:
         raise ValueError("invalid v201 generation artifacts")
     rows = {str(row["key"]): row for row in published["methods"]}
     methods = [str(value) for value in contract["methods"]]
-    if set(rows) != set(methods) or any(
-        rows[key].get("ok") is not True for key in methods
+    if (
+        not methods
+        or methods[0] != "sf_native"
+        or set(rows) != set(methods)
+        or any(rows[key].get("ok") is not True for key in methods)
     ):
         raise ValueError("v201 method membership or audit drift")
     prompt_path = Path(contract["prompt_file"])
@@ -88,16 +92,11 @@ def prepare(run_root: Path, comparison_root: Path) -> dict:
         if {path.name for path in source_dir.glob("*.mp4")} != expected:
             raise ValueError(f"v201 incomplete video set: {method}")
         target_dir = comparison_root / "published" / method
-        expected_targets = {
-            f"{index:06d}-0.mp4" for index in range(PROMPT_COUNT)
-        }
-        unexpected = {
-            path.name for path in target_dir.glob("*.mp4")
-        } - expected_targets
+        expected_targets = {f"{index:06d}-0.mp4" for index in range(PROMPT_COUNT)}
+        unexpected = {path.name for path in target_dir.glob("*.mp4")} - expected_targets
         if unexpected:
             raise RuntimeError(
-                f"refusing stale v201 VBench videos for {method}: "
-                f"{sorted(unexpected)}"
+                f"refusing stale v201 VBench videos for {method}: {sorted(unexpected)}"
             )
         for index in range(PROMPT_COUNT):
             mode = link_or_validate(
@@ -111,12 +110,13 @@ def prepare(run_root: Path, comparison_root: Path) -> dict:
             {
                 "key": method,
                 "role": row["role"],
-                "operator": row["operator"],
-                "routing_map_id": row["routing_map_id"],
-                "map_classification": row["map_classification"],
-                "coverage_count_by_position": row["coverage_count_by_position"],
-                "coverage_exposure_count": row["coverage_exposure_count"],
-                "coverage_exposure_fraction": row["coverage_exposure_fraction"],
+                "runtime": row["runtime"],
+                "operator": row.get("operator"),
+                "routing_map_id": row.get("routing_map_id"),
+                "map_classification": row.get("map_classification"),
+                "coverage_count_by_position": row.get("coverage_count_by_position"),
+                "coverage_exposure_count": row.get("coverage_exposure_count"),
+                "coverage_exposure_fraction": row.get("coverage_exposure_fraction"),
                 "source_video_dir": str(source_dir.resolve()),
                 "video_dir": str(target_dir.resolve()),
             }
@@ -132,6 +132,7 @@ def prepare(run_root: Path, comparison_root: Path) -> dict:
         "decoded_video_contract": contract["decoded_video_contract"],
         "seed": SEED,
         "operators": contract["operators"],
+        "primary_baseline": "sf_native",
         "operator_contracts": contract["operator_contracts"],
         "methods": comparison_methods,
         "vbench_long_dimensions": list(DIMENSIONS),

@@ -46,11 +46,15 @@ DIRECTIONS = {
     "longest_low_residual_run_fraction": -1,
     "residual_accel_outlier_fraction": -1,
 }
+QUALITY_METRIC_CANDIDATES = (
+    "quality_without_dynamic_degree",
+    "official_quality_score",
+)
 QUALITY_MARGINS = {
-    "official_quality_score": -0.15,
     "identity_background": -0.001,
     "temporal_mechanics": -0.002,
 }
+QUALITY_SCORE_MARGIN = -0.15
 
 
 def _atomic_json(path: Path, payload: dict) -> str:
@@ -336,10 +340,32 @@ def load_quality_context(
         }
     payload = json.loads(path.read_text(encoding="utf-8"))
     comparisons = payload.get("comparisons") or ()
+    quality_metric = next(
+        (
+            metric
+            for metric in QUALITY_METRIC_CANDIDATES
+            if all(
+                any(
+                    row.get("candidate") == candidate
+                    and row.get("control") == control
+                    and row.get("metric") == metric
+                    and row.get("window", "full") == "full"
+                    for row in comparisons
+                )
+                for control in controls
+            )
+        ),
+        None,
+    )
+    margins = (
+        {quality_metric: QUALITY_SCORE_MARGIN, **QUALITY_MARGINS}
+        if quality_metric is not None
+        else dict(QUALITY_MARGINS)
+    )
     rows = {}
     for control in controls:
         metrics = {}
-        for metric, margin in QUALITY_MARGINS.items():
+        for metric, margin in margins.items():
             matches = [
                 row
                 for row in comparisons
@@ -359,8 +385,9 @@ def load_quality_context(
                 "noninferior": mean >= margin,
             }
         rows[control] = {
-            "complete": set(metrics) == set(QUALITY_MARGINS),
-            "noninferior": set(metrics) == set(QUALITY_MARGINS)
+            "complete": quality_metric is not None and set(metrics) == set(margins),
+            "noninferior": quality_metric is not None
+            and set(metrics) == set(margins)
             and all(row["noninferior"] for row in metrics.values()),
             "metrics": metrics,
         }
@@ -371,6 +398,10 @@ def load_quality_context(
         "available": complete,
         "report": str(path.resolve()),
         "report_sha256": sha256(path),
+        "primary_quality_metric": quality_metric,
+        "dynamic_degree_leaks_through_primary_quality": (
+            quality_metric == "official_quality_score"
+        ),
         "controls": rows,
         "all_controls_noninferior": complete
         and all(row["noninferior"] for row in rows.values()),

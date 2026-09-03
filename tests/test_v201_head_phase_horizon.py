@@ -149,6 +149,7 @@ def test_v201_preparer_freezes_equal_exposure_controls(tmp_path: Path) -> None:
     assert prepare.verify(output / "manifest.json") == manifest
     assert manifest["operators"] == ["retrieval"]
     assert manifest["method_order"] == [
+        "sf_native",
         "retrieval_all_recent",
         "retrieval_all_coverage",
         "retrieval_static_top10",
@@ -273,6 +274,7 @@ def test_v201_paired_decision_requires_static_and_shift_support() -> None:
         SCRIPTS / "analyze_v201_head_phase_horizon.py",
     )
     methods = (
+        "sf_native",
         "retrieval_all_recent",
         "retrieval_all_coverage",
         "retrieval_static_top10",
@@ -280,6 +282,7 @@ def test_v201_paired_decision_requires_static_and_shift_support() -> None:
         "retrieval_horizon_shift_top10",
     )
     roles = {
+        "sf_native": "canonical_sf_baseline",
         "retrieval_all_recent": "operator_matched_local_control",
         "retrieval_all_coverage": "operator_matched_universal_coverage_control",
         "retrieval_static_top10": "equal_exposure_static_head_phase_control",
@@ -297,9 +300,11 @@ def test_v201_paired_decision_requires_static_and_shift_support() -> None:
             {
                 "key": method,
                 "role": roles[method],
-                "operator": "retrieval",
+                "operator": None if method == "sf_native" else "retrieval",
                 "coverage_exposure_fraction": (
-                    0.0
+                    None
+                    if method == "sf_native"
+                    else 0.0
                     if method.endswith("all_recent")
                     else 1.0
                     if method.endswith("all_coverage")
@@ -312,6 +317,7 @@ def test_v201_paired_decision_requires_static_and_shift_support() -> None:
         "claim_boundary": "unit-test boundary",
     }
     values = {
+        "sf_native": (80.00, 0.9700, 0.9800, 0.240, 0.650),
         "retrieval_all_recent": (80.00, 0.9700, 0.9800, 0.240, 0.650),
         "retrieval_all_coverage": (80.20, 0.9700, 0.9800, 0.241, 0.651),
         "retrieval_static_top10": (80.10, 0.9700, 0.9800, 0.241, 0.651),
@@ -322,6 +328,7 @@ def test_v201_paired_decision_requires_static_and_shift_support() -> None:
     for method, (quality, identity, temporal, semantic, visual) in values.items():
         for prompt in range(32):
             rows[(method, prompt)] = {
+                "quality_without_dynamic_degree": quality,
                 "official_quality_score": quality,
                 "identity_background": identity,
                 "temporal_mechanics": temporal,
@@ -350,14 +357,35 @@ def test_v201_paired_decision_requires_static_and_shift_support() -> None:
     }
     report = module.analyze_from_rows(manifest, rows_by_window, temporal_rows)
     status = report["candidate_status"]["retrieval_horizon_top10"]
-    assert status["static_attribution_support"]["interval_pass"] is True
-    assert status["horizon_alignment_support"]["interval_pass"] is True
+    assert status["sf_efficacy"]["interval_supported_screen_pass"] is True
+    assert status["mechanism_attribution"]["static_support"]["interval_pass"] is True
+    assert (
+        status["mechanism_attribution"]["horizon_alignment_support"]["interval_pass"]
+        is True
+    )
     assert status["coverage_exposure_reduced"] is True
-    assert status["full_screen_pass"] is True
+    assert status["selected_for_fresh128"] is True
     assert report["selected_for_fresh128"] == ["retrieval_horizon_top10"]
-    assert report["recommendation"] == "advance_head_phase_horizon_to_fresh128"
+    assert (
+        report["recommendation"] == "advance_sf_significant_horizon_method_to_fresh128"
+    )
     assert report["manual_review_required_for_decision"] is False
     assert len(report["targeted_debug_queue"]) <= 4
+
+    for prompt in range(32):
+        horizon_row = dict(rows[("retrieval_horizon_top10", prompt)])
+        rows[("retrieval_static_top10", prompt)] = horizon_row
+        rows[("retrieval_horizon_shift_top10", prompt)] = dict(horizon_row)
+    unresolved = module.analyze_from_rows(manifest, rows_by_window, temporal_rows)
+    unresolved_status = unresolved["candidate_status"]["retrieval_horizon_top10"]
+    assert unresolved_status["selected_for_fresh128"] is True
+    assert (
+        unresolved_status["mechanism_attribution"]["interval_supported_pass"] is False
+    )
+    assert (
+        unresolved["recommendation"]
+        == "advance_sf_significant_method_to_fresh128_mechanism_unresolved"
+    )
 
 
 def test_v201_runner_is_hard_gated_and_review_light() -> None:
@@ -370,6 +398,8 @@ def test_v201_runner_is_hard_gated_and_review_light() -> None:
     ).read_text(encoding="utf-8")
     assert "--pyramidkv_cache_compatibility_horizon_map" in runner
     assert "head_phase_horizon" in runner
+    assert 'if [[ "$method" == "sf_native" ]]' in runner
+    assert "third_party/Self-Forcing" in runner
     assert "audit-smoke" in runner and "audit-screen" in runner
     assert "temporal_diagnostics" in evaluator
     assert "manual_review_required=false" in evaluator

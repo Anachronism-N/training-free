@@ -4,16 +4,16 @@ set -euo pipefail
 
 ACTION="${1:-}"
 case "$ACTION" in
-    prepare|split|preflight|eval|resume-missing|status|temporal|collect|decision|package) ;;
+    prepare|split|preflight|eval|resume-missing|status|temporal|collect|decision|package|motion-compute|motion-status|motion-collect|motion-analyze) ;;
     *)
         echo "usage: bash scripts/run_v201_vbench_long.sh ACTION"
-        echo "actions: prepare split preflight eval resume-missing status temporal collect decision package"
+        echo "actions: prepare split preflight eval resume-missing status temporal collect decision package motion-compute motion-status motion-collect motion-analyze"
         exit 2
         ;;
 esac
 
 ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-RUN_ROOT="${RUN_ROOT:-$ROOT/runs/v201_head_phase_horizon_causal_screen/screen32}"
+RUN_ROOT="${RUN_ROOT:-$ROOT/runs/v201_head_phase_horizon_sf_screen/screen32}"
 COMPARISON_ROOT="${COMPARISON_ROOT:-$RUN_ROOT/vbench_comparison}"
 VBENCH_ROOT="${VBENCH_ROOT:-$ROOT/../research_sprint/bench_baselines/VBench}"
 VBENCH_CACHE_DIR="${VBENCH_CACHE_DIR:-$ROOT/runs/vbench_cache}"
@@ -23,6 +23,10 @@ ANALYSIS_ROOT="${ANALYSIS_ROOT:-$RUN_ROOT/analysis}"
 TEMPORAL_CSV="${V201_TEMPORAL_CSV:-$RUN_ROOT/metrics/temporal_diagnostics.csv}"
 TEMPORAL_CONTRACT="${V201_TEMPORAL_CONTRACT:-$RUN_ROOT/metrics/temporal_diagnostics.contract.json}"
 REPORT="$ANALYSIS_ROOT/v201_head_phase_horizon.json"
+MOTION_ROOT="${V201_MOTION_ROOT:-$RUN_ROOT/motion_v203}"
+MOTION_CSV="$MOTION_ROOT/metrics/camera_compensated_motion.csv"
+MOTION_CONTRACT="$MOTION_ROOT/metrics/camera_compensated_motion.contract.json"
+MOTION_REPORT="$ANALYSIS_ROOT/v203_v201_continuous_motion.json"
 CONDA_SH="${CONDA_SH:-/apdcephfs_gy2/share_303214315/cedricnie/miniconda3/etc/profile.d/conda.sh}"
 CONDA_ENV="${CONDA_ENV:-longlive}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
@@ -65,6 +69,36 @@ PY
         --output "$TEMPORAL_CONTRACT"
 }
 
+motion_candidate() {
+    "$PYTHON_BIN" - "$COMPARISON_ROOT/comparison_manifest.json" <<'PY'
+import json, sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for row in payload.get("methods") or ():
+    if row.get("role") == "primary_head_phase_horizon":
+        print(f"{row['key']}|sf_native,{row['operator']}_all_recent")
+        break
+else:
+    raise SystemExit("no v201 horizon candidate in comparison manifest")
+PY
+}
+
+delegate_motion() {
+    local action="$1" descriptor candidate controls
+    [[ -s "$COMPARISON_ROOT/comparison_manifest.json" ]] || {
+        echo "[error] prepare v201 VBench comparison first"; exit 2;
+    }
+    descriptor="$(motion_candidate)"
+    candidate="${descriptor%%|*}"
+    controls="${descriptor#*|}"
+    TARGET=custom V193_SOURCE_RUN_ROOT="$RUN_ROOT" \
+        COMPARISON_MANIFEST="$COMPARISON_ROOT/comparison_manifest.json" \
+        QUALITY_REPORT="$REPORT" CANDIDATE="$candidate" CONTROLS="$controls" \
+        V193_OUT_ROOT="$MOTION_ROOT" NODE_RANK="$NODE_RANK" \
+        NUM_NODES="$NUM_NODES" \
+        bash "$ROOT/scripts/run_v193_camera_motion.sh" "$action"
+}
+
 if (( NUM_NODES <= 0 || NODE_RANK < 0 || NODE_RANK >= NUM_NODES )); then
     echo "[error] require 0 <= NODE_RANK < NUM_NODES"
     exit 2
@@ -85,6 +119,8 @@ from pathlib import Path
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 print(f"[v201-decision] {payload['recommendation']}")
 print("selected=" + ",".join(payload["selected_for_fresh128"]))
+print("sf_interval_supported=" + ",".join(payload["sf_interval_supported_candidates"]))
+print("mechanism_supported=" + ",".join(payload["mechanism_supported_candidates"]))
 print("directional_only=" + ",".join(payload["directional_only_candidates"]))
 print("manual_review_required=false")
 for row in payload["targeted_debug_queue"]:
@@ -98,15 +134,51 @@ if [[ "$ACTION" == "temporal" ]]; then
     exit $?
 fi
 
+if [[ "$ACTION" == "motion-compute" ]]; then
+    delegate_motion compute
+    exit $?
+fi
+
+if [[ "$ACTION" == "motion-status" ]]; then
+    delegate_motion status
+    exit $?
+fi
+
+if [[ "$ACTION" == "motion-collect" ]]; then
+    delegate_motion collect
+    exit $?
+fi
+
+if [[ "$ACTION" == "motion-analyze" ]]; then
+    [[ "$NODE_RANK" == "0" ]] || {
+        echo "[error] motion-analyze requires node 0"; exit 2;
+    }
+    for path in "$REPORT" "$MOTION_CSV" "$MOTION_CONTRACT"; do
+        [[ -s "$path" ]] || { echo "[error] missing v201 motion input: $path"; exit 2; }
+    done
+    source "$CONDA_SH"
+    conda activate "$CONDA_ENV"
+    export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
+    "$PYTHON_BIN" "$ROOT/scripts/analyze_v203_v201_continuous_motion.py" \
+        --comparison-manifest "$COMPARISON_ROOT/comparison_manifest.json" \
+        --motion-csv "$MOTION_CSV" --motion-contract "$MOTION_CONTRACT" \
+        --quality-report "$REPORT" --output "$MOTION_REPORT"
+    exit $?
+fi
+
 if [[ "$ACTION" == "package" ]]; then
     [[ "$NODE_RANK" == "0" ]] || { echo "[error] package requires node 0"; exit 2; }
     [[ -s "$REPORT" ]] || { echo "[error] missing $REPORT"; exit 2; }
     archive="$RUN_ROOT/v201_evaluation_small_artifacts.tar.gz"
+    optional=()
+    if [[ "$MOTION_ROOT" == "$RUN_ROOT/"* && -d "$MOTION_ROOT" ]]; then
+        optional+=("${MOTION_ROOT#"$RUN_ROOT/"}")
+    fi
     tar -C "$RUN_ROOT" -czf "$archive" \
         vbench_comparison/comparison_manifest.json \
         metrics/vbench_core9_summary.json metrics/vbench_core9_summary.md \
         metrics/temporal_diagnostics.csv \
-        metrics/temporal_diagnostics.contract.json analysis
+        metrics/temporal_diagnostics.contract.json analysis "${optional[@]}"
     echo "$archive"
     exit 0
 fi

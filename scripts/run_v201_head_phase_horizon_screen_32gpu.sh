@@ -13,14 +13,16 @@ case "$ACTION" in
 esac
 
 ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+SF="${SF_REPO:-$ROOT/third_party/Self-Forcing}"
 PF="${PF_REPO:-$ROOT/third_party/Pyramid-Forcing}"
-CONFIG="${PF_CONFIG:-$PF/configs/pyramid-forcing.yaml}"
+SF_CONFIG="${SF_CONFIG:-$SF/configs/self_forcing_dmd.yaml}"
+PF_CONFIG="${PF_CONFIG:-$PF/configs/pyramid-forcing.yaml}"
 CHECKPOINT="${PF_CHECKPOINT:-${SHARED_CHECKPOINT:-/apdcephfs_gy2/share_302533218/cedricnie/model_cache/self_forcing_dmd.pt}}"
 V189_ROOT="${V189_OUT_ROOT:-$ROOT/runs/v189_structured_head_phase_profile}"
 V189_MANIFEST="${V189_MANIFEST:-$V189_ROOT/inputs/manifest.json}"
 V200_ROOT="${V200_OUT_ROOT:-$ROOT/runs/v200_head_phase_horizon_audit}"
 V200_ANALYSIS="${V200_ANALYSIS:-$V200_ROOT/analysis/analysis.json}"
-OUT_BASE="${V201_OUT_ROOT:-$ROOT/runs/v201_head_phase_horizon_causal_screen}"
+OUT_BASE="${V201_OUT_ROOT:-$ROOT/runs/v201_head_phase_horizon_sf_screen}"
 INPUT_ROOT="$OUT_BASE/inputs"
 MANIFEST="$INPUT_ROOT/manifest.json"
 PROMPTS="$INPUT_ROOT/prompts/moviegen_qwen_holdout32.txt"
@@ -53,7 +55,17 @@ activate_env() {
     source "$CONDA_SH"
     conda activate "$CONDA_ENV"
     export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
-    export PYTHONPATH="$ROOT/scripts:$ROOT/src:$ROOT:$PF:${PYTHONPATH:-}"
+    export PYTHONPATH="$ROOT/scripts:$ROOT/src:$ROOT:$PF:$SF:${PYTHONPATH:-}"
+}
+
+scrub_experiment_env() {
+    local key
+    while IFS='=' read -r key _; do
+        case "$key" in
+            LIFECACHE_*|HEAD_ROLE_*|STRUCTURED_MEMORY_*|COMMIT_FORCING_*|\
+            SCENE_TRANSITION_*|CACHE_COMPAT_*|PYRAMIDKV_*) unset "$key" ;;
+        esac
+    done < <(env)
 }
 
 prepare() {
@@ -84,7 +96,8 @@ requested_methods() {
 
 preflight() {
     activate_env
-    for path in "$PF" "$CONFIG" "$CHECKPOINT" "$MANIFEST" "$PROMPTS"; do
+    for path in "$SF" "$PF" "$SF_CONFIG" "$PF_CONFIG" "$CHECKPOINT" \
+        "$MANIFEST" "$PROMPTS"; do
         [[ -e "$path" ]] || { echo "[error] missing $path; run prepare"; exit 2; }
     done
     python "$ROOT/scripts/prepare_v201_head_phase_horizon_screen.py" verify \
@@ -104,6 +117,7 @@ preflight() {
         seen[$method]=1
     done
     local -a runtime_paths=(
+        third_party/Self-Forcing/inference.py
         third_party/Pyramid-Forcing/inference.py
         third_party/Pyramid-Forcing/pyramidkv/denoise_schedule.py
         third_party/Pyramid-Forcing/pyramidkv/adaptive_cache.py
@@ -133,7 +147,7 @@ print(payload["methods"][sys.argv[2]][sys.argv[3]])
 PY
 }
 
-configure_runtime() {
+configure_cache_runtime() {
     export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
     export PYRAMIDKV_CPP_STRATEGY=0 PYRAMIDKV_USE_CPP_PACK=0
     export PYRAMIDKV_DISABLE_M6_FASTPATH=1 PYRAMIDKV_PATH_AB=0
@@ -141,10 +155,6 @@ configure_runtime() {
     export HEAD_ROLE_ENABLE=0 HEAD_ROLE_POOL_ENABLE=0 SCENE_TRANSITION_RESET=0
     export PYRAMIDKV_DENOISE_SCHEDULE_TRACE_LAYERS="$(seq -s, 0 29)"
     export PYRAMIDKV_DENOISE_SCHEDULE_TRACE_HEADS="$(seq -s, 0 11)"
-    unset CACHE_COMPAT_PROFILE CACHE_COMPAT_PROFILE_CONTRACT
-    unset PYRAMIDKV_CACHE_COMPAT_DENOISE_SCHEDULE
-    unset PYRAMIDKV_CACHE_COMPAT_HEAD_PHASE_MAP
-    unset PYRAMIDKV_CACHE_COMPAT_HORIZON_MAP
 }
 
 shard_complete() {
@@ -163,12 +173,6 @@ run_shard() {
     local log="$scope_root/logs/$method/$shard_name.log"
     local marker="$scope_root/status/$method/$shard_name.done"
     local trace="$scope_root/traces/$method/$shard_name.schedule.jsonl"
-    local operator history_policy horizon_map head_map
-    operator="$(manifest_value "$method" operator)"
-    history_policy="$(manifest_value "$method" history_policy)"
-    horizon_map="$(manifest_value "$method" horizon_map)"
-    head_map="$(manifest_value "$method" head_bank_map)"
-
     [[ "$rank" -lt "$prompt_count" ]] || return
     if [[ "$FORCE" == "1" ]]; then
         local index
@@ -184,25 +188,51 @@ run_shard() {
     fi
     mkdir -p "$raw_dir" "$(dirname "$log")" "$(dirname "$marker")" \
         "$(dirname "$trace")"
-    (
-        cd "$PF"
-        export CUDA_VISIBLE_DEVICES="$gpu"
-        export PYRAMIDKV_DENOISE_SCHEDULE_TRACE_PATH="$trace"
-        python inference.py \
-            --config_path "$CONFIG" --checkpoint_path "$CHECKPOINT" \
-            --data_path "$PROMPTS" --output_folder "$raw_dir" \
-            --num_output_frames "$FRAMES" --seed "$SEED" --num_samples 1 \
-            --use_ema --save_with_index --reseed_per_prompt --skip_existing \
-            --end_idx "$prompt_count" --prompt_stride "$stride" \
-            --prompt_offset "$rank" \
-            --pyramidkv_head_config_path "$head_map" \
-            --pyramidkv_history_polarity \
-            --pyramidkv_history_support_policy "$history_policy" \
-            --pyramidkv_history_suppress_policy "$history_policy" \
-            --pyramidkv_cache_compatibility_denoise_schedule head_phase_horizon \
-            --pyramidkv_cache_compatibility_denoise_coverage_policy "$operator" \
-            --pyramidkv_cache_compatibility_horizon_map "$horizon_map"
-    ) >"$log" 2>&1
+    if [[ "$method" == "sf_native" ]]; then
+        (
+            cd "$SF"
+            scrub_experiment_env
+            export CUDA_VISIBLE_DEVICES="$gpu"
+            export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
+            export LIFECACHE_ENABLE=0 STRUCTURED_MEMORY_ENABLE=0
+            export COMMIT_FORCING_ENABLE=0 HEAD_ROLE_ENABLE=0
+            export HEAD_ROLE_POOL_ENABLE=0 SCENE_TRANSITION_RESET=0
+            python inference.py \
+                --config_path "$SF_CONFIG" --checkpoint_path "$CHECKPOINT" \
+                --data_path "$PROMPTS" --output_folder "$raw_dir" \
+                --num_output_frames "$FRAMES" --seed "$SEED" --num_samples 1 \
+                --use_ema --save_with_index --reseed_per_prompt --skip_existing \
+                --end_idx "$prompt_count" --prompt_stride "$stride" \
+                --prompt_offset "$rank"
+        ) >"$log" 2>&1
+    else
+        local operator history_policy horizon_map head_map
+        operator="$(manifest_value "$method" operator)"
+        history_policy="$(manifest_value "$method" history_policy)"
+        horizon_map="$(manifest_value "$method" horizon_map)"
+        head_map="$(manifest_value "$method" head_bank_map)"
+        (
+            cd "$PF"
+            scrub_experiment_env
+            configure_cache_runtime
+            export CUDA_VISIBLE_DEVICES="$gpu"
+            export PYRAMIDKV_DENOISE_SCHEDULE_TRACE_PATH="$trace"
+            python inference.py \
+                --config_path "$PF_CONFIG" --checkpoint_path "$CHECKPOINT" \
+                --data_path "$PROMPTS" --output_folder "$raw_dir" \
+                --num_output_frames "$FRAMES" --seed "$SEED" --num_samples 1 \
+                --use_ema --save_with_index --reseed_per_prompt --skip_existing \
+                --end_idx "$prompt_count" --prompt_stride "$stride" \
+                --prompt_offset "$rank" \
+                --pyramidkv_head_config_path "$head_map" \
+                --pyramidkv_history_polarity \
+                --pyramidkv_history_support_policy "$history_policy" \
+                --pyramidkv_history_suppress_policy "$history_policy" \
+                --pyramidkv_cache_compatibility_denoise_schedule head_phase_horizon \
+                --pyramidkv_cache_compatibility_denoise_coverage_policy "$operator" \
+                --pyramidkv_cache_compatibility_horizon_map "$horizon_map"
+        ) >"$log" 2>&1
+    fi
     shard_complete "$raw_dir" "$prompt_count" "$rank" "$stride"
     printf 'ok\n' >"$marker"
 }
@@ -262,13 +292,11 @@ run_methods() {
 smoke() {
     [[ "$NODE_RANK" -eq 0 ]] || { echo "[error] smoke requires node 0"; exit 2; }
     preflight
-    configure_runtime
     run_methods "$OUT_BASE/smoke" 32 1
 }
 
 generate32() {
     preflight
-    configure_runtime
     run_methods "$OUT_BASE/screen32" 32 0
 }
 

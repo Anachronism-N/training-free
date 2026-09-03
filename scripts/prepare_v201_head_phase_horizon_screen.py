@@ -10,6 +10,7 @@ from pathlib import Path
 
 EXPERIMENT = "v201_head_phase_horizon_causal_screen"
 SOURCE_EXPERIMENT = "v200_head_phase_ar_horizon_audit"
+BASELINE_METHOD = "sf_native"
 PROMPT_COUNT = 32
 SOURCE_PROMPT_COUNT = 128
 CALLS = 4
@@ -218,8 +219,17 @@ def prepare(
     if sha256(head_bank_map) != v189["profile_map_sha256"]:
         raise ValueError("v201 all-head bank map drift")
 
-    methods: dict[str, dict] = {}
-    method_order: list[str] = []
+    methods: dict[str, dict] = {
+        BASELINE_METHOD: {
+            "runtime": "sf_native",
+            "role": "canonical_sf_baseline",
+            "operator": None,
+            "schedule": None,
+            "read_frame_equivalents": None,
+            "clean_policy": None,
+        }
+    }
+    method_order: list[str] = [BASELINE_METHOD]
     operator_contracts = {}
 
     def add_method(
@@ -239,6 +249,7 @@ def prepare(
         exposure_count = int(sum(map_payload["coverage_count_by_position"]))
         denominator = int(map_payload["position_count"]) * CALLS * LAYERS * HEADS
         methods[key] = {
+            "runtime": "head_phase_horizon_cache_runtime",
             "role": role,
             "operator": operator,
             "history_policy": operator,
@@ -337,7 +348,7 @@ def prepare(
         }
 
     payload = {
-        "version": 1,
+        "version": 2,
         "experiment": EXPERIMENT,
         "scope": "classifier_holdout32",
         "development_only": True,
@@ -371,11 +382,14 @@ def prepare(
             "v200_analysis_sha256": v200_sha,
         },
         "manual_review_required_before_generation": False,
+        "primary_baseline": BASELINE_METHOD,
+        "promotion_target": "paired_improvement_over_canonical_sf",
         "claim_boundary": (
             "v201 is a classifier-holdout causal screen. It tests whether the "
-            "frozen AR-horizon assignment matters beyond an equal-exposure "
-            "static selector and a time-misaligned selector; it is not a final "
-            "benchmark or cross-model result."
+            "frozen method improves canonical SF and separately tests whether "
+            "the AR-horizon assignment matters beyond equal-exposure static and "
+            "time-misaligned selectors. It is not a final benchmark or "
+            "cross-model result."
         ),
     }
     manifest_path = output_root / "manifest.json"
@@ -391,15 +405,26 @@ def verify(manifest_path: Path) -> dict:
     methods = payload.get("methods") or {}
     order = payload.get("method_order") or []
     if (
-        payload.get("experiment") != EXPERIMENT
+        int(payload.get("version", -1)) != 2
+        or payload.get("experiment") != EXPERIMENT
         or payload.get("scope") != "classifier_holdout32"
         or int(payload.get("prompt_count", -1)) != PROMPT_COUNT
         or int(payload.get("num_output_frames", -1)) != NUM_OUTPUT_FRAMES
         or not payload.get("operators")
+        or payload.get("primary_baseline") != BASELINE_METHOD
         or len(order) != len(set(order))
         or set(order) != set(methods)
+        or not order
+        or order[0] != BASELINE_METHOD
     ):
         raise ValueError("invalid v201 input manifest")
+    baseline = methods.get(BASELINE_METHOD) or {}
+    if (
+        baseline.get("runtime") != "sf_native"
+        or baseline.get("role") != "canonical_sf_baseline"
+        or baseline.get("operator") is not None
+    ):
+        raise ValueError("invalid v201 canonical SF baseline")
     prompt_path = Path(payload["prompt_file"])
     if sha256(prompt_path) != payload["prompt_file_sha256"]:
         raise ValueError("v201 prompt hash drift")
@@ -444,6 +469,11 @@ def verify(manifest_path: Path) -> dict:
             row != selector_counts[0] for row in selector_counts
         ):
             raise ValueError(f"v201 selector exposure drift for {operator}")
+    expected_order = [BASELINE_METHOD]
+    for operator in payload["operators"]:
+        expected_order.extend(payload["operator_contracts"][operator]["method_order"])
+    if order != expected_order:
+        raise ValueError("v201 global method order drift")
     return payload
 
 

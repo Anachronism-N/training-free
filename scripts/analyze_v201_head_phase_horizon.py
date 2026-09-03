@@ -14,10 +14,12 @@ import analyze_v190_head_phase_causal_screen as v190
 import numpy as np
 from bind_temporal_diagnostics import verify_contract as verify_temporal_contract
 from prepare_v201_head_phase_horizon_screen import (
+    BASELINE_METHOD,
     NUM_OUTPUT_FRAMES,
     PROMPT_COUNT,
 )
 from prepare_v201_vbench_comparison import DIMENSIONS, EXPERIMENT
+from vbench_quality_contract import quality_score_with_fixed_dynamic
 
 CLIPS_PER_VIDEO = NUM_OUTPUT_FRAMES // 8
 WINDOWS = {
@@ -26,26 +28,30 @@ WINDOWS = {
     "late_half": (CLIPS_PER_VIDEO // 2, CLIPS_PER_VIDEO),
 }
 PRIMARY_METRICS = (
-    "official_quality_score",
+    "quality_without_dynamic_degree",
     "identity_background",
     "temporal_mechanics",
     "semantic_alignment",
     "visual_quality",
 )
 NONINFERIORITY_MARGINS = {
-    "official_quality_score": -0.15,
+    "quality_without_dynamic_degree": -0.15,
     "identity_background": -0.0015,
     "temporal_mechanics": -0.0030,
     "semantic_alignment": -0.0030,
     "visual_quality": -0.0040,
 }
 POSITIVE_MEAN_THRESHOLDS = {
-    "official_quality_score": 0.05,
+    "quality_without_dynamic_degree": 0.05,
     "identity_background": 0.0003,
     "temporal_mechanics": 0.0005,
     "semantic_alignment": 0.0010,
     "visual_quality": 0.0010,
 }
+ANALYSIS_METRICS = (
+    "quality_without_dynamic_degree",
+    *base.METRICS,
+)
 
 
 def load_window_rows(
@@ -84,10 +90,15 @@ def load_window_rows(
                     raw_by_window[window][(method, prompt)][dimension] = factor * float(
                         np.mean(clips[prompt][start:end])
                     )
-    return {
-        window: base.derived_rows(rows, methods, PROMPT_COUNT)
-        for window, rows in raw_by_window.items()
-    }
+    result = {}
+    for window, raw_rows in raw_by_window.items():
+        derived = base.derived_rows(raw_rows, methods, PROMPT_COUNT)
+        for key, row in derived.items():
+            row["quality_without_dynamic_degree"] = quality_score_with_fixed_dynamic(
+                raw_rows[key], dynamic_value=1.0
+            )
+        result[window] = derived
+    return result
 
 
 def contrast(
@@ -226,7 +237,7 @@ def method_means(rows_by_window: dict[str, dict], methods: tuple[str, ...]) -> d
                         ]
                     )
                 )
-                for metric in base.METRICS
+                for metric in ANALYSIS_METRICS
             }
             for method in methods
         }
@@ -243,11 +254,12 @@ def targeted_queue(
     limit: int = 4,
 ) -> list[dict]:
     flagged: dict[int, list[str]] = {}
-    for candidate, guard in guards.items():
-        for item in guard.get("flagged_prompts") or ():
-            flagged.setdefault(int(item["prompt_index"]), []).extend(
-                f"{candidate}:{value}" for value in item["flags"]
-            )
+    for candidate, candidate_guards in guards.items():
+        for guard_name, guard in candidate_guards.items():
+            for item in guard.get("flagged_prompts") or ():
+                flagged.setdefault(int(item["prompt_index"]), []).extend(
+                    f"{candidate}:{guard_name}:{value}" for value in item["flags"]
+                )
     if not flagged and not selected:
         return []
     video_dirs = {
@@ -262,6 +274,7 @@ def targeted_queue(
         for candidate in candidates:
             operator = candidate.split("_", 1)[0]
             for control in (
+                BASELINE_METHOD,
                 f"{operator}_all_recent",
                 f"{operator}_static_top10",
                 f"{operator}_horizon_shift_top10",
@@ -284,6 +297,7 @@ def targeted_queue(
                 for candidate in candidates
                 for method in (
                     candidate,
+                    BASELINE_METHOD,
                     f"{candidate.split('_', 1)[0]}_all_recent",
                     f"{candidate.split('_', 1)[0]}_static_top10",
                     f"{candidate.split('_', 1)[0]}_horizon_shift_top10",
@@ -312,12 +326,15 @@ def analyze_from_rows(
 ) -> dict:
     methods = tuple(str(row["key"]) for row in manifest["methods"])
     operators = tuple(str(value) for value in manifest["operators"])
+    if not methods or methods[0] != BASELINE_METHOD:
+        raise ValueError("v201 requires canonical sf_native as its first method")
     pairs = []
     for operator in operators:
         horizon = f"{operator}_horizon_top10"
         pairs.extend(
             (horizon, control)
             for control in (
+                BASELINE_METHOD,
                 f"{operator}_all_recent",
                 f"{operator}_static_top10",
                 f"{operator}_horizon_shift_top10",
@@ -325,10 +342,11 @@ def analyze_from_rows(
             )
         )
         pairs.append((f"{operator}_static_top10", f"{operator}_all_recent"))
+        pairs.append((f"{operator}_all_recent", BASELINE_METHOD))
     comparisons = []
     for window_index, window in enumerate(WINDOWS):
         for pair_index, (candidate, control) in enumerate(pairs):
-            for metric_index, metric in enumerate(base.METRICS):
+            for metric_index, metric in enumerate(ANALYSIS_METRICS):
                 comparisons.append(
                     contrast(
                         rows_by_window[window],
@@ -344,7 +362,15 @@ def analyze_from_rows(
                         ),
                     )
                 )
-    primary = [
+    sf_primary = [
+        row
+        for row in comparisons
+        if row["candidate"].endswith("_horizon_top10")
+        and row["control"] == BASELINE_METHOD
+        and row["window"] in {"full", "late_half"}
+        and row["metric"] in PRIMARY_METRICS
+    ]
+    mechanism_primary = [
         row
         for row in comparisons
         if row["candidate"].endswith("_horizon_top10")
@@ -355,13 +381,18 @@ def analyze_from_rows(
         and row["window"] in {"full", "late_half"}
         and row["metric"] in PRIMARY_METRICS
     ]
-    base.bh(primary)
+    base.bh(sf_primary)
+    base.bh(mechanism_primary)
+    sf_primary_ids = {id(row) for row in sf_primary}
+    mechanism_primary_ids = {id(row) for row in mechanism_primary}
     for row in comparisons:
-        if "q_value" not in row:
+        if id(row) in sf_primary_ids:
+            row["inferential_role"] = "development_primary_sf_efficacy"
+        elif id(row) in mechanism_primary_ids:
+            row["inferential_role"] = "development_secondary_mechanism"
+        else:
             row["q_value"] = None
             row["inferential_role"] = "descriptive_context"
-        else:
-            row["inferential_role"] = "development_primary"
 
     dynamic = v190.dynamic_metric_validity(
         rows_by_window["full"], methods=methods, prompt_count=PROMPT_COUNT
@@ -369,6 +400,8 @@ def analyze_from_rows(
     statuses = {}
     guards = {}
     selected = []
+    sf_interval_supported = []
+    mechanism_supported = []
     directional_only = []
     for operator in operators:
         horizon = f"{operator}_horizon_top10"
@@ -376,17 +409,26 @@ def analyze_from_rows(
         static = f"{operator}_static_top10"
         shifted = f"{operator}_horizon_shift_top10"
         universal = f"{operator}_all_coverage"
-        guards[horizon] = v190.temporal_guard(
-            temporal_rows,
-            candidate=horizon,
-            control=recent,
-            prompt_count=PROMPT_COUNT,
-        )
-        baseline_ni = noninferiority(comparisons, horizon, recent)
+        guards[horizon] = {
+            "vs_sf": v190.temporal_guard(
+                temporal_rows,
+                candidate=horizon,
+                control=BASELINE_METHOD,
+                prompt_count=PROMPT_COUNT,
+            ),
+            "vs_recent": v190.temporal_guard(
+                temporal_rows,
+                candidate=horizon,
+                control=recent,
+                prompt_count=PROMPT_COUNT,
+            ),
+        }
+        sf_ni = noninferiority(comparisons, horizon, BASELINE_METHOD)
+        recent_ni = noninferiority(comparisons, horizon, recent)
         static_ni = noninferiority(comparisons, horizon, static)
         shifted_ni = noninferiority(comparisons, horizon, shifted)
         universal_ni = noninferiority(comparisons, horizon, universal)
-        baseline_positive = positive_support(comparisons, horizon, recent)
+        sf_positive = positive_support(comparisons, horizon, BASELINE_METHOD)
         static_positive = positive_support(comparisons, horizon, static)
         shifted_positive = positive_support(comparisons, horizon, shifted)
         horizon_exposure = next(
@@ -400,48 +442,78 @@ def analyze_from_rows(
             if row["key"] == universal
         )
         exposure_reduced = float(horizon_exposure) < float(universal_exposure)
-        directional_pass = bool(
-            baseline_ni["pass"]
-            and static_ni["pass"]
+        sf_screen_pass = bool(
+            sf_ni["pass"]
+            and sf_positive["directional_pass"]
+            and guards[horizon]["vs_sf"]["automatic_safety_pass"]
+            and guards[horizon]["vs_recent"]["automatic_safety_pass"]
+        )
+        sf_interval_pass = bool(sf_screen_pass and sf_positive["interval_pass"])
+        mechanism_directional_pass = bool(
+            static_ni["pass"]
             and shifted_ni["pass"]
-            and universal_ni["pass"]
-            and baseline_positive["directional_pass"]
             and static_positive["directional_pass"]
             and shifted_positive["directional_pass"]
-            and guards[horizon]["automatic_safety_pass"]
             and exposure_reduced
         )
-        full_pass = bool(
-            directional_pass
+        mechanism_interval_pass = bool(
+            mechanism_directional_pass
             and static_positive["interval_pass"]
             and shifted_positive["interval_pass"]
         )
-        if full_pass:
+        if sf_screen_pass:
             selected.append(horizon)
-        elif directional_pass:
-            directional_only.append(horizon)
+            if sf_interval_pass:
+                sf_interval_supported.append(horizon)
+            else:
+                directional_only.append(horizon)
+        if mechanism_interval_pass:
+            mechanism_supported.append(horizon)
         statuses[horizon] = {
             "operator": operator,
-            "baseline_noninferiority": baseline_ni,
-            "static_equal_exposure_noninferiority": static_ni,
-            "shift_equal_exposure_noninferiority": shifted_ni,
+            "sf_efficacy": {
+                "noninferiority": sf_ni,
+                "positive_support": sf_positive,
+                "temporal_guard": guards[horizon]["vs_sf"],
+                "directional_screen_pass": sf_screen_pass,
+                "interval_supported_screen_pass": sf_interval_pass,
+            },
+            "mechanism_attribution": {
+                "static_equal_exposure_noninferiority": static_ni,
+                "shift_equal_exposure_noninferiority": shifted_ni,
+                "static_support": static_positive,
+                "horizon_alignment_support": shifted_positive,
+                "directional_pass": mechanism_directional_pass,
+                "interval_supported_pass": mechanism_interval_pass,
+            },
+            "recent_noninferiority": recent_ni,
             "all_coverage_noninferiority": universal_ni,
-            "baseline_positive_support": baseline_positive,
-            "static_attribution_support": static_positive,
-            "horizon_alignment_support": shifted_positive,
-            "automatic_temporal_guard": guards[horizon],
+            "recent_temporal_guard": guards[horizon]["vs_recent"],
             "coverage_exposure_fraction": horizon_exposure,
             "all_coverage_exposure_fraction": universal_exposure,
             "coverage_exposure_reduced": exposure_reduced,
-            "directional_screen_pass": directional_pass,
-            "full_screen_pass": full_pass,
+            "selected_for_fresh128": sf_screen_pass,
         }
-    if selected:
-        recommendation = "advance_head_phase_horizon_to_fresh128"
-    elif directional_only:
-        recommendation = "repeat_horizon_screen_with_additional_seed_before_claim"
+    selected_with_mechanism = [
+        method for method in selected if method in mechanism_supported
+    ]
+    significant_with_mechanism = [
+        method for method in sf_interval_supported if method in mechanism_supported
+    ]
+    if significant_with_mechanism:
+        recommendation = "advance_sf_significant_horizon_method_to_fresh128"
+    elif sf_interval_supported:
+        recommendation = (
+            "advance_sf_significant_method_to_fresh128_mechanism_unresolved"
+        )
+    elif selected_with_mechanism:
+        recommendation = "advance_sf_positive_horizon_method_to_fresh128"
+    elif selected:
+        recommendation = "advance_sf_positive_method_to_fresh128_mechanism_unresolved"
+    elif mechanism_supported:
+        recommendation = "horizon_mechanism_without_sf_gain_do_not_confirm"
     else:
-        recommendation = "do_not_advance_head_phase_horizon"
+        recommendation = "do_not_advance_v201_no_sf_gain"
     queue = targeted_queue(
         manifest,
         rows_by_window,
@@ -449,16 +521,25 @@ def analyze_from_rows(
         selected or directional_only,
     )
     return {
-        "version": 1,
+        "version": 2,
         "experiment": EXPERIMENT,
         "development_only": True,
         "prompt_count": PROMPT_COUNT,
         "windows": {key: list(value) for key, value in WINDOWS.items()},
         "method_means": method_means(rows_by_window, methods),
         "comparisons": comparisons,
-        "metric_validity": {"dynamic_degree": dynamic},
+        "metric_validity": {
+            "dynamic_degree": dynamic,
+            "dynamic_degree_used_for_promotion": False,
+            "dynamic_degree_leaks_through_primary_quality": False,
+            "primary_quality_metric": "quality_without_dynamic_degree",
+        },
+        "primary_baseline": BASELINE_METHOD,
         "candidate_status": statuses,
         "selected_for_fresh128": selected,
+        "sf_interval_supported_candidates": sf_interval_supported,
+        "mechanism_supported_candidates": mechanism_supported,
+        "selected_with_mechanism_support": selected_with_mechanism,
         "directional_only_candidates": directional_only,
         "recommendation": recommendation,
         "manual_review_required_for_decision": False,
@@ -478,17 +559,19 @@ def render(report: dict) -> str:
         f"- Directional only: `{report['directional_only_candidates']}`",
         "- Manual review required for decision: `False`",
         "",
-        "| Candidate | Baseline NI | Static attribution | Shift alignment | All-Coverage NI | Temporal safe | Full pass |",
+        "| Candidate | SF NI | SF positive | SF interval | Motion safe | Static/shift mechanism | Fresh-128 |",
         "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for candidate, row in report["candidate_status"].items():
+        efficacy = row["sf_efficacy"]
+        mechanism = row["mechanism_attribution"]
         lines.append(
-            f"| {candidate} | {row['baseline_noninferiority']['pass']} | "
-            f"{row['static_attribution_support']['interval_pass']} | "
-            f"{row['horizon_alignment_support']['interval_pass']} | "
-            f"{row['all_coverage_noninferiority']['pass']} | "
-            f"{row['automatic_temporal_guard']['automatic_safety_pass']} | "
-            f"{row['full_screen_pass']} |"
+            f"| {candidate} | {efficacy['noninferiority']['pass']} | "
+            f"{efficacy['positive_support']['directional_pass']} | "
+            f"{efficacy['interval_supported_screen_pass']} | "
+            f"{efficacy['temporal_guard']['automatic_safety_pass']} | "
+            f"{mechanism['interval_supported_pass']} | "
+            f"{row['selected_for_fresh128']} |"
         )
     lines.extend(["", report["claim_boundary"], ""])
     return "\n".join(lines)

@@ -40,6 +40,46 @@ SOURCE_KIND = {
 }
 
 
+def audit_sf_logs(run_root: Path) -> dict:
+    paths = sorted((run_root / "logs" / "sf_native").glob("*.log"))
+    if not paths:
+        return {"ok": False, "errors": ["no SF logs"], "logs": []}
+    forbidden = (
+        "[CacheCompatibility",
+        "[HistoryPolarityPolicy]",
+        "schedule=head_phase",
+        "phase_map_id=",
+        "horizon_positions=",
+    )
+    errors = []
+    rows = []
+    for path in paths:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        failures = [pattern for pattern in FAILURE_PATTERNS if pattern in text]
+        leaked = [marker for marker in forbidden if marker in text]
+        if failures:
+            errors.append(f"{path.name}: failures={failures}")
+        if leaked:
+            errors.append(f"{path.name}: cache runtime leaked={leaked}")
+        rows.append(
+            {
+                "path": str(path.resolve()),
+                "sha256": sha256(path),
+                "failure_patterns": failures,
+                "forbidden_cache_markers": leaked,
+            }
+        )
+    trace_paths = sorted((run_root / "traces" / "sf_native").glob("*.jsonl"))
+    if trace_paths:
+        errors.append("SF native unexpectedly emitted cache schedule traces")
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "logs": rows,
+        "trace_files": [str(path.resolve()) for path in trace_paths],
+    }
+
+
 def write_json(path: Path, payload: dict) -> str:
     encoded = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -339,8 +379,12 @@ def main() -> None:
             allow_outside_interval=False,
             decode=not args.skip_decode,
         )
-        logs = audit_logs(args.run_root, method, config)
-        traces = audit_traces(args.run_root, method, config)
+        if config.get("runtime") == "sf_native":
+            logs = audit_sf_logs(args.run_root)
+            traces = {"ok": True, "not_applicable": True, "files": []}
+        else:
+            logs = audit_logs(args.run_root, method, config)
+            traces = audit_traces(args.run_root, method, config)
         report = {"media": media, "logs": logs, "schedule_traces": traces}
         report_path = args.run_root / "audits" / f"{method}.json"
         report_sha = write_json(report_path, report)
@@ -351,9 +395,7 @@ def main() -> None:
             expected_published = {
                 f"{int(item['prompt_idx']):06d}.mp4" for item in media["videos"]
             }
-            existing_published = {
-                path.name for path in published_dir.glob("*.mp4")
-            }
+            existing_published = {path.name for path in published_dir.glob("*.mp4")}
             unexpected = existing_published - expected_published
             if unexpected:
                 raise RuntimeError(
@@ -367,21 +409,20 @@ def main() -> None:
                     published_dir / f"{int(item['prompt_idx']):06d}.mp4",
                 )
                 link_counts[mode] += 1
-            observed_published = {
-                path.name for path in published_dir.glob("*.mp4")
-            }
+            observed_published = {path.name for path in published_dir.glob("*.mp4")}
             if observed_published != expected_published:
                 raise RuntimeError(f"incomplete v201 published set for {method}")
         method_rows.append(
             {
                 "key": method,
                 "role": config["role"],
-                "operator": config["operator"],
-                "routing_map_id": config["routing_map_id"],
-                "map_classification": config["map_classification"],
-                "coverage_count_by_position": config["coverage_count_by_position"],
-                "coverage_exposure_count": config["coverage_exposure_count"],
-                "coverage_exposure_fraction": config["coverage_exposure_fraction"],
+                "runtime": config["runtime"],
+                "operator": config.get("operator"),
+                "routing_map_id": config.get("routing_map_id"),
+                "map_classification": config.get("map_classification"),
+                "coverage_count_by_position": config.get("coverage_count_by_position"),
+                "coverage_exposure_count": config.get("coverage_exposure_count"),
+                "coverage_exposure_fraction": config.get("coverage_exposure_fraction"),
                 "video_dir": str((args.run_root / "published" / method).resolve()),
                 "audit": str(report_path.resolve()),
                 "audit_sha256": report_sha,
@@ -389,7 +430,7 @@ def main() -> None:
             }
         )
     contract = {
-        "version": 1,
+        "version": 2,
         "experiment": "v201_head_phase_horizon_causal_generation",
         "scope": args.scope,
         "development_only": True,
@@ -403,6 +444,7 @@ def main() -> None:
         "seed": SEED,
         "methods": methods,
         "operators": manifest["operators"],
+        "primary_baseline": "sf_native",
         "operator_contracts": manifest["operator_contracts"],
         "input_manifest": str(args.input_manifest.resolve()),
         "input_manifest_sha256": sha256(args.input_manifest),
