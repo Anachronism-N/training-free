@@ -17,6 +17,7 @@ from prepare_v201_head_phase_horizon_screen import (
     BASELINE_METHOD,
     NUM_OUTPUT_FRAMES,
     PROMPT_COUNT,
+    sha256,
 )
 from prepare_v201_vbench_comparison import DIMENSIONS, EXPERIMENT
 from vbench_quality_contract import quality_score_with_fixed_dynamic
@@ -627,9 +628,9 @@ def main() -> None:
     ):
         raise ValueError("v201 analysis received incomplete inputs")
     verify_temporal_contract(
+        args.temporal_contract,
         manifest_path,
         args.temporal_csv,
-        args.temporal_contract,
     )
     temporal_rows = v190.load_temporal_rows(
         args.temporal_csv,
@@ -638,6 +639,16 @@ def main() -> None:
     )
     rows_by_window = load_window_rows(args.parts_root, summary, methods)
     report = analyze_from_rows(manifest, rows_by_window, temporal_rows)
+    report["source"] = {
+        "comparison_manifest": str(manifest_path.resolve()),
+        "comparison_manifest_sha256": sha256(manifest_path),
+        "vbench_summary": str(args.summary.resolve()),
+        "vbench_summary_sha256": sha256(args.summary),
+        "temporal_diagnostics": str(args.temporal_csv.resolve()),
+        "temporal_diagnostics_sha256": sha256(args.temporal_csv),
+        "temporal_contract": str(args.temporal_contract.resolve()),
+        "temporal_contract_sha256": sha256(args.temporal_contract),
+    }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n",
