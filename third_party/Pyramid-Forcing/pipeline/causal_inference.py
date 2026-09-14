@@ -793,13 +793,19 @@ class CausalInferencePipeline(torch.nn.Module):
         # Pre-allocate reusable buffers for the denoising loop
         max_block_frames = max(all_num_frames)
         log_mode = get_log_mode()  # "tqdm" | "print" | "silent"
+        # Preserve fractional warped timesteps (for example 937.5). Using
+        # integer buffers silently truncated them to 937 and made the vendored
+        # runtime diverge immediately after the first scheduler update.
+        timestep_dtype = self.denoising_step_list.dtype
         timestep_buf = torch.empty(
-            [batch_size, max_block_frames], device=noise.device, dtype=torch.int64)
+            [batch_size, max_block_frames], device=noise.device,
+            dtype=timestep_dtype)
         noise_buf = torch.empty(
             [batch_size * max_block_frames, num_channels, height, width],
             device=noise.device, dtype=noise.dtype)
         scalar_buf = torch.empty(
-            [batch_size * max_block_frames], device=noise.device, dtype=torch.long)
+            [batch_size * max_block_frames], device=noise.device,
+            dtype=timestep_dtype)
 
         active_scene_index = 0
         for block_index, current_num_frames in enumerate(all_num_frames, start=1):
