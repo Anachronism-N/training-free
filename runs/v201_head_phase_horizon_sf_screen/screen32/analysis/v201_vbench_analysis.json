@@ -1,0 +1,164 @@
+{
+  "claim_boundary": "Aggregate metrics alone do not validate AR-horizon routing. The paired v201 decision first tests efficacy against canonical SF; static-top10 and horizon-shift then provide separate mechanism attribution. Dynamic Degree is never used for promotion.",
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "duplicate_metric_audit": {
+    "action": "count once as semantic_alignment",
+    "aggregate_exact_within_1e-12": true,
+    "pair": [
+      "overall_consistency",
+      "temporal_style"
+    ]
+  },
+  "exclusive_groups": {
+    "dynamic_degree": [
+      "dynamic_degree"
+    ],
+    "identity_background": [
+      "subject_consistency",
+      "background_consistency"
+    ],
+    "semantic_alignment": [
+      "overall_consistency"
+    ],
+    "temporal_mechanics": [
+      "temporal_flickering",
+      "motion_smoothness"
+    ],
+    "visual_quality": [
+      "aesthetic_quality",
+      "imaging_quality"
+    ]
+  },
+  "exclusive_scores": {
+    "landmark_all_coverage": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9677510164671156,
+      "semantic_alignment": 0.2411125785826395,
+      "temporal_mechanics": 0.9701374313957083,
+      "visual_quality": 0.6657904132052015
+    },
+    "landmark_all_recent": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9705303365885365,
+      "semantic_alignment": 0.24097512695007026,
+      "temporal_mechanics": 0.9733970800401823,
+      "visual_quality": 0.668868327020978
+    },
+    "landmark_horizon_shift_top10": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.96942547670131,
+      "semantic_alignment": 0.23956636395305395,
+      "temporal_mechanics": 0.9706587991907711,
+      "visual_quality": 0.6658088342404613
+    },
+    "landmark_horizon_top10": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9695683595133568,
+      "semantic_alignment": 0.23916032028306897,
+      "temporal_mechanics": 0.9707886855800025,
+      "visual_quality": 0.6646784239287178
+    },
+    "landmark_static_top10": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.969549492126988,
+      "semantic_alignment": 0.2428586607798934,
+      "temporal_mechanics": 0.9716749147702752,
+      "visual_quality": 0.6646608237133672
+    },
+    "retrieval_all_coverage": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.967461932442073,
+      "semantic_alignment": 0.23684222543767344,
+      "temporal_mechanics": 0.9697323902458799,
+      "visual_quality": 0.6645834870617837
+    },
+    "retrieval_all_recent": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9706588275988165,
+      "semantic_alignment": 0.24099540198221803,
+      "temporal_mechanics": 0.9733983794324352,
+      "visual_quality": 0.66897969953157
+    },
+    "retrieval_horizon_shift_top10": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9702843907790116,
+      "semantic_alignment": 0.23924315772019328,
+      "temporal_mechanics": 0.9733268599921425,
+      "visual_quality": 0.6666728776302189
+    },
+    "retrieval_horizon_top10": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9706889663660354,
+      "semantic_alignment": 0.23905778331682087,
+      "temporal_mechanics": 0.9731321055175635,
+      "visual_quality": 0.6688308481294662
+    },
+    "retrieval_static_top10": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9698788314473187,
+      "semantic_alignment": 0.24038076795016725,
+      "temporal_mechanics": 0.9736156336931456,
+      "visual_quality": 0.6667761052381247
+    },
+    "sf_native": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9686544721817049,
+      "semantic_alignment": 0.23071310999803246,
+      "temporal_mechanics": 0.9792735358460198,
+      "visual_quality": 0.6594775287980834
+    }
+  },
+  "experiment": "v201_head_phase_horizon_causal_vbench_screen32",
+  "methods": [
+    "sf_native",
+    "landmark_all_recent",
+    "landmark_all_coverage",
+    "landmark_static_top10",
+    "landmark_horizon_top10",
+    "landmark_horizon_shift_top10",
+    "retrieval_all_recent",
+    "retrieval_all_coverage",
+    "retrieval_static_top10",
+    "retrieval_horizon_top10",
+    "retrieval_horizon_shift_top10"
+  ],
+  "metric_promotion_gate": false,
+  "official_constants_source": "https://github.com/Vchitect/VBench/blob/master/scripts/constant.py",
+  "official_quality_score": {
+    "landmark_all_coverage": 85.86382939906298,
+    "landmark_all_recent": 86.3627492241197,
+    "landmark_horizon_shift_top10": 85.97220074497183,
+    "landmark_horizon_top10": 85.95806226305974,
+    "landmark_static_top10": 86.03188281513569,
+    "retrieval_all_coverage": 85.77311492551472,
+    "retrieval_all_recent": 86.37140844998757,
+    "retrieval_horizon_shift_top10": 86.27721186114192,
+    "retrieval_horizon_top10": 86.34055218016049,
+    "retrieval_static_top10": 86.2912793630304,
+    "sf_native": 86.52270647336387
+  },
+  "quality_without_dynamic_degree": {
+    "landmark_all_coverage": 85.86382939906298,
+    "landmark_all_recent": 86.3627492241197,
+    "landmark_horizon_shift_top10": 85.97220074497183,
+    "landmark_horizon_top10": 85.95806226305974,
+    "landmark_static_top10": 86.03188281513569,
+    "retrieval_all_coverage": 85.77311492551472,
+    "retrieval_all_recent": 86.37140844998757,
+    "retrieval_horizon_shift_top10": 86.27721186114192,
+    "retrieval_horizon_top10": 86.34055218016049,
+    "retrieval_static_top10": 86.2912793630304,
+    "sf_native": 86.52270647336387
+  },
+  "version": 1
+}
