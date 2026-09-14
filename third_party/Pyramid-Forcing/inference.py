@@ -1112,7 +1112,7 @@ for name in (
     if value is not None:
         setattr(config, f"pyramidkv_prompt_warmup_{name}", value)
 if (
-    config.pyramidkv_prompt_warmup_enabled
+    bool(getattr(config, "pyramidkv_prompt_warmup_enabled", False))
     and not (
         args.pyramidkv_cache_transition_role_config_path
         or getattr(config, "pyramidkv_cache_transition_role_config_path", None)
@@ -1162,8 +1162,8 @@ for name in (
     if value is not None:
         setattr(config, f"pyramidkv_cache_transition_{name}", value)
 if (
-    config.pyramidkv_cache_transition_role_conditioning
-    and not config.pyramidkv_cache_transition_role_config_path
+    bool(getattr(config, "pyramidkv_cache_transition_role_conditioning", False))
+    and not getattr(config, "pyramidkv_cache_transition_role_config_path", None)
 ):
     parser.error(
         "--pyramidkv_cache_transition_role_conditioning requires "
