@@ -36,7 +36,7 @@ SOURCE_KIND = {
     "landmark": "semantic_landmark",
 }
 RUNTIME_LINE = re.compile(
-    r"\[V207Runtime\] method=(\S+) elapsed_seconds=(\d+) videos=(\d+) "
+    r"\[V20(?:7|8)Runtime\] method=(\S+) elapsed_seconds=(\d+) videos=(\d+) "
     r"gpu=(\S+) rank=(\d+) stride=(\d+)"
 )
 
@@ -269,7 +269,7 @@ def audit_traces(run_root: Path, method: str, row: dict, *, scope: str) -> dict:
         errors.append(f"clean policies differ: {sorted(clean_policies)}")
     if expected_calls and not coverage_readouts:
         errors.append("scheduled Coverage produced no traced readout")
-    if scope == "screen32" and expected_calls and middle_frame_equivalents <= 0:
+    if scope != "smoke" and expected_calls and middle_frame_equivalents <= 0:
         errors.append("Coverage never exposed a populated middle bank")
     if middle_frame_equivalents > 0 and observed_sources != {expected_source}:
         errors.append(f"middle sources differ: {sorted(observed_sources)}")
