@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 
 from audit_indexed_videos import audit_interval
@@ -34,6 +35,10 @@ SOURCE_KIND = {
     "retrieval": "semantic_retrieval",
     "landmark": "semantic_landmark",
 }
+RUNTIME_LINE = re.compile(
+    r"\[V207Runtime\] method=(\S+) elapsed_seconds=(\d+) videos=(\d+) "
+    r"gpu=(\S+) rank=(\d+) stride=(\d+)"
+)
 
 
 def write_json(path: Path, payload: dict) -> str:
@@ -83,16 +88,20 @@ def audit_sf_logs(run_root: Path) -> dict:
         text = path.read_text(encoding="utf-8", errors="replace")
         failures = [token for token in FAILURE_PATTERNS if token in text]
         leaked = [token for token in forbidden if token in text]
+        runtime = RUNTIME_LINE.findall(text)
         if failures:
             errors.append(f"{path.name}: failures={failures}")
         if leaked:
             errors.append(f"{path.name}: cache runtime leaked={leaked}")
+        if len(runtime) != 1 or runtime[0][0] != "sf_native":
+            errors.append(f"{path.name}: invalid runtime record={runtime}")
         rows.append(
             {
                 "path": str(path.resolve()),
                 "sha256": sha256(path),
                 "failure_patterns": failures,
                 "forbidden_cache_markers": leaked,
+                "runtime_record": runtime[0] if len(runtime) == 1 else None,
             }
         )
     traces = sorted((run_root / "traces" / "sf_native").glob("*.jsonl"))
@@ -113,6 +122,7 @@ def audit_cache_logs(run_root: Path, method: str, row: dict) -> dict:
     for path in paths:
         text = path.read_text(encoding="utf-8", errors="replace")
         failures = [token for token in FAILURE_PATTERNS if token in text]
+        runtime = RUNTIME_LINE.findall(text)
         required = {
             "local21": "[ModelAttentionContract] local_attn_size=21" in text,
             "history": (
@@ -138,12 +148,15 @@ def audit_cache_logs(run_root: Path, method: str, row: dict) -> dict:
             errors.append(f"{path.name}: failures={failures}")
         if not all(required.values()):
             errors.append(f"{path.name}: runtime contract={required}")
+        if len(runtime) != 1 or runtime[0][0] != method:
+            errors.append(f"{path.name}: invalid runtime record={runtime}")
         records.append(
             {
                 "path": str(path.resolve()),
                 "sha256": sha256(path),
                 "required_markers": required,
                 "failure_patterns": failures,
+                "runtime_record": runtime[0] if len(runtime) == 1 else None,
             }
         )
     return {"ok": not errors, "errors": errors, "logs": records}

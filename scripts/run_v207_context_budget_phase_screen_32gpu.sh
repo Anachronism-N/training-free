@@ -4,10 +4,10 @@ set -euo pipefail
 
 ACTION="${1:-}"
 case "$ACTION" in
-    prepare|preflight|smoke|generate32|status|audit-smoke|audit-screen|package) ;;
+    prepare|preflight|smoke|generate32|status|audit-smoke|audit-screen|efficiency|package) ;;
     *)
         echo "usage: bash scripts/run_v207_context_budget_phase_screen_32gpu.sh ACTION"
-        echo "actions: prepare preflight smoke generate32 status audit-smoke audit-screen package"
+        echo "actions: prepare preflight smoke generate32 status audit-smoke audit-screen efficiency package"
         exit 2
         ;;
 esac
@@ -172,6 +172,7 @@ run_shard() {
     local log="$scope_root/logs/$method/$shard_name.log"
     local marker="$scope_root/status/$method/$shard_name.done"
     local trace="$scope_root/traces/$method/$shard_name.schedule.jsonl"
+    local started_at
     [[ "$rank" -lt "$prompt_count" ]] || return
     if [[ "$FORCE" == "1" ]]; then
         local index
@@ -187,6 +188,7 @@ run_shard() {
     fi
     mkdir -p "$raw_dir" "$(dirname "$log")" "$(dirname "$marker")" \
         "$(dirname "$trace")"
+    started_at="$(date +%s)"
     if [[ "$method" == "sf_native" ]]; then
         (
             cd "$SF"
@@ -237,6 +239,14 @@ run_shard() {
         ) >"$log" 2>&1
     fi
     shard_complete "$raw_dir" "$prompt_count" "$rank" "$stride"
+    local finished_at videos=0 index
+    finished_at="$(date +%s)"
+    for ((index=rank; index<prompt_count; index+=stride)); do
+        [[ -s "$raw_dir/${index}-0_ema.mp4" ]] && videos=$((videos + 1))
+    done
+    printf '[V207Runtime] method=%s elapsed_seconds=%s videos=%s gpu=%s rank=%s stride=%s\n' \
+        "$method" "$((finished_at - started_at))" "$videos" "$gpu" "$rank" "$stride" \
+        >>"$log"
     printf 'ok\n' >"$marker"
 }
 
@@ -345,6 +355,17 @@ package() {
     echo "$target"
 }
 
+efficiency() {
+    [[ "$NODE_RANK" -eq 0 ]] || { echo "[error] efficiency requires node 0"; exit 2; }
+    [[ -s "$OUT_BASE/screen32/published_manifest.json" ]] || {
+        echo "[error] audit-screen must pass before efficiency"; exit 2;
+    }
+    activate_env
+    python "$ROOT/scripts/analyze_v207_efficiency.py" \
+        --input-manifest "$MANIFEST" --run-root "$OUT_BASE/screen32" \
+        --output "$OUT_BASE/screen32/analysis/v207_efficiency.json"
+}
+
 case "$ACTION" in
     prepare) prepare ;;
     preflight) preflight ;;
@@ -353,5 +374,6 @@ case "$ACTION" in
     status) status ;;
     audit-smoke) audit_scope smoke ;;
     audit-screen) audit_scope screen32 ;;
+    efficiency) efficiency ;;
     package) package ;;
 esac
