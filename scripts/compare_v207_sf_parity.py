@@ -409,10 +409,14 @@ def analyze(
         )
         for left_name, right_name, label in PAIRS
     }
+    require_cache_membership = int(EXPECTED_COUNTS.get("cache_readout", 0)) > 0
     for label in GATED_PAIRS:
-        summaries[label]["cache_membership_pass"] = cache_membership[label]["pass"]
+        membership_pass = (
+            cache_membership[label]["pass"] if require_cache_membership else True
+        )
+        summaries[label]["cache_membership_pass"] = membership_pass
         summaries[label]["pass"] = bool(
-            summaries[label]["pass"] and cache_membership[label]["pass"]
+            summaries[label]["pass"] and membership_pass
         )
     parity_pass = all(
         summaries[label]["pass"] for label in sorted(GATED_PAIRS)
