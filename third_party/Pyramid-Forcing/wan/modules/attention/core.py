@@ -801,6 +801,42 @@ def pyramidkv_attention(
         else "global_attention_counter"
     )
 
+    def _record_parity_readout(
+        *,
+        query_tensor,
+        key_tensor,
+        value_tensor,
+        cu_seqlens_tensor,
+        frame_ids_tensor,
+        subcall,
+        query_chunk_starts=None,
+    ):
+        try:
+            from lifecycle_kv import parity_trace
+
+            if parity_trace.enabled():
+                parity_trace.record_varlen_cache_readout(
+                    layer=int(cache_layer_idx if cache_layer_idx is not None else -1),
+                    query=query_tensor,
+                    key=key_tensor,
+                    value=value_tensor,
+                    cu_seqlens=cu_seqlens_tensor,
+                    frame_ids=frame_ids_tensor,
+                    rope_positions=getattr(kv_cache, "last_flat_pos_ids", None),
+                    backend="adaptive_varlen_flash_attention",
+                    subcall=str(subcall),
+                    query_chunk_starts=query_chunk_starts,
+                    frame_token_count=int(frame_seqlen or 1),
+                )
+        except Exception as parity_error:  # pragma: no cover - debug only
+            if not getattr(kv_cache, "_sf_parity_trace_warned", False):
+                print(
+                    f"[SFParityTraceWarning] layer={cache_layer_idx} "
+                    f"{parity_error!r}",
+                    flush=True,
+                )
+                kv_cache._sf_parity_trace_warned = True
+
     def half(x):
         return x if x.dtype in half_dtypes else x.to(dtype)
 
@@ -1600,6 +1636,15 @@ def pyramidkv_attention(
                 v_flat_m = _refresh_stale_history_values(
                     v_flat_m, cu_seqlens_k_m, k_frame_ids_m, sync_frames
                 )
+                _record_parity_readout(
+                    query_tensor=q,
+                    key_tensor=k_flat_m,
+                    value_tensor=v_flat_m,
+                    cu_seqlens_tensor=cu_seqlens_k_m,
+                    frame_ids_tensor=k_frame_ids_m,
+                    subcall="merged_query_block",
+                    query_chunk_starts=current_starts,
+                )
                 # Q: [b, lq, h, d] → chunk-first layout for FA varlen
                 # Target: [b*num_chunks*h*frame_seqlen, 1, d] ordered as
                 #   chunk0_head0, chunk0_head1, ..., chunk1_head0, ...
@@ -1673,6 +1718,15 @@ def pyramidkv_attention(
                     k_frame_ids_flat,
                     (base_start + offset) // frame_seqlen,
                 )
+                _record_parity_readout(
+                    query_tensor=q_chunk,
+                    key_tensor=k_flat,
+                    value_tensor=v_flat,
+                    cu_seqlens_tensor=cu_seqlens_k,
+                    frame_ids_tensor=k_frame_ids_flat,
+                    subcall=f"query_frame_{offset // frame_seqlen}",
+                    query_chunk_starts=[base_start + offset],
+                )
                 _capture_varlen_frame_attention(
                     q_chunk=q_chunk,
                     k_flat_chunk=k_flat,
@@ -1739,6 +1793,16 @@ def pyramidkv_attention(
                 k_frame_ids_flat,
                 int(current_start or 0) // frame_seqlen,
             )
+
+        _record_parity_readout(
+            query_tensor=q,
+            key_tensor=k_flat,
+            value_tensor=v_flat,
+            cu_seqlens_tensor=cu_seqlens_k,
+            frame_ids_tensor=k_frame_ids_flat,
+            subcall="single_query_block",
+            query_chunk_starts=[int(current_start or 0)],
+        )
 
         _capture_varlen_frame_attention(
             q_chunk=q,

@@ -302,6 +302,50 @@ class CausalWanSelfAttention(nn.Module):
         # at this exact point lets us align call-by-call across runs to
         # find the first divergence.
         try:
+            from lifecycle_kv import parity_trace
+
+            if parity_trace.enabled():
+                layer_index = int(getattr(self, "_block_index", -1))
+                if isinstance(kv_cache, dict):
+                    dense_start = max(
+                        0, int(local_end_index) - int(self.max_attention_size)
+                    )
+                    window_tokens = int(local_end_index) - dense_start
+                    window_start = int(current_end) - window_tokens
+                    frame_start = window_start // int(frame_seqlen)
+                    frame_end = (
+                        int(current_end) + int(frame_seqlen) - 1
+                    ) // int(frame_seqlen)
+                    parity_trace.record_dense_cache_readout(
+                        layer=layer_index,
+                        query=roped_query,
+                        key=kv_cache["k"][:, dense_start:local_end_index],
+                        value=kv_cache["v"][:, dense_start:local_end_index],
+                        frame_ids=range(frame_start, frame_end),
+                        backend="pf_plain_dense_flash_attention",
+                    )
+                parity_trace.record_event(
+                    "attention_output",
+                    {"attention": x},
+                    metadata={
+                        "layer": layer_index,
+                        "backend": (
+                            "pf_plain_dense_flash_attention"
+                            if isinstance(kv_cache, dict)
+                            else "adaptive_varlen_flash_attention"
+                        ),
+                    },
+                    keep_full=False,
+                )
+        except Exception as parity_error:  # pragma: no cover - debug only
+            if not getattr(self, "_sf_parity_trace_warned", False):
+                print(
+                    f"[SFParityTraceWarning] {parity_error!r}",
+                    flush=True,
+                )
+                self._sf_parity_trace_warned = True
+
+        try:
             from pyramidkv import _parity_dump
             if _parity_dump.enabled():
                 _parity_dump.dump_x(x)
@@ -925,6 +969,8 @@ class CausalWanModel(ModelMixin, ConfigMixin):
             x = self.teacache.apply_cached_residual(x)
         else:
             for block_index, block in enumerate(self.blocks):
+                # Stable layer identity for the opt-in cross-runtime parity trace.
+                block.self_attn._block_index = block_index
                 if torch.is_grad_enabled() and self.gradient_checkpointing:
                     kwargs.update(
                         {

@@ -23,6 +23,7 @@ OUT_BASE="${V207_OUT_ROOT:-$ROOT/runs/v207_context_budget_phase_recovery}"
 INPUT_ROOT="$OUT_BASE/inputs"
 MANIFEST="$INPUT_ROOT/manifest.json"
 PROMPTS="$INPUT_ROOT/prompts/moviegen_qwen_systematic32.txt"
+PARITY_REPORT="$OUT_BASE/parity/report/parity_report.json"
 
 NODE_RANK="${NODE_RANK:-0}"
 NUM_NODES="${NUM_NODES:-4}"
@@ -145,6 +146,24 @@ preflight() {
             tests/test_v207_context_budget_phase_screen.py)
     fi
     echo "[v207-preflight] PASS methods=${#requested[@]} prompts=32 budgets=13,21"
+}
+
+require_sf_parity() {
+    [[ -s "$PARITY_REPORT" ]] || {
+        echo "[error] missing SF parity report: $PARITY_REPORT"
+        echo "[error] run scripts/run_v207_sf_parity.sh prepare|run|analyze first"
+        exit 2
+    }
+    python - "$PARITY_REPORT" <<'PY'
+import json, sys
+from pathlib import Path
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if report.get("parity_pass") is not True:
+    raise SystemExit(
+        "[error] numerical SF parity failed: " + str(report.get("decision"))
+    )
+print("[v207-parity-gate] PASS " + str(report.get("decision")))
+PY
 }
 
 configure_cache_runtime() {
@@ -307,6 +326,7 @@ smoke() {
 
 generate32() {
     preflight
+    require_sf_parity
     run_methods "$OUT_BASE/screen32" 32 0
 }
 

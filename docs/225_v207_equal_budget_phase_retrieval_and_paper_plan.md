@@ -1,8 +1,14 @@
 # v207 等上下文预算的 Phase-Gated Retrieval 与论文收束计划
 
-> 状态：代码已进入 32-prompt development screen；在 v207 自动门禁通过前，不能写成论文结论。
+> 状态：32-prompt development screen 代码已就绪，但必须先通过数值级 SF runtime parity；
+> 在 parity 与 v207 自动门禁均通过前，不能写成论文结论。
 >
 > 当前分支：`codex/v178-v179-causal-validation`
+
+> 2026-09-15 修正：`recent21 = sink1 + recent20` 只保证与 SF 同为 21 FFE，不能据此称为
+> SF parity。原生 SF、vendored PF plain-SF21 和 Adaptive recent21 的 cache 容器、读出布局、
+> RoPE 与 attention kernel 仍可能不同。新增的 parity 合约与命令见
+> `docs/226_v207_sf_runtime_parity_supplement.md`。
 
 ## 1. 为什么需要 v207
 
@@ -131,6 +137,18 @@ Development non-inferiority margin 沿用 v201 冻结合约：
 ```bash
 git pull origin codex/v178-v179-causal-validation
 ```
+
+首先只在节点 0 使用 3 张卡运行短轨迹 parity（SF A/B 中的 B 会在 A 所用卡上串行执行）：
+
+```bash
+bash scripts/run_v207_sf_parity.sh prepare
+GPU_LIST=0,1,2 bash scripts/run_v207_sf_parity.sh run
+bash scripts/run_v207_sf_parity.sh analyze
+cat runs/v207_context_budget_phase_recovery/parity/report/parity_report.md
+```
+
+只有报告为 `parity_pass_proceed_to_budget_phase_screen`，才进入下面的 32-prompt screen。
+若失败，只上传 `report/`、`logs/`、`cache_schedule.jsonl` 和 input manifest；不要先追加更多视频。
 
 节点 0：
 

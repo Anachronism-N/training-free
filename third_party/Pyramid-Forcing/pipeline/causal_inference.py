@@ -77,6 +77,7 @@ class CausalInferencePipeline(torch.nn.Module):
         self.kv_cache1 = None
         self.kv_cache_uncond = None
         self.crossattn_cache_uncond = None
+        self._parity_trace_video_index = 0
         self.args = args
         self.few_step_cfg_enabled = bool(getattr(args, "few_step_cfg_enabled", False))
         self.few_step_cfg_mode = str(getattr(args, "few_step_cfg_mode", "fixed"))
@@ -393,6 +394,23 @@ class CausalInferencePipeline(torch.nn.Module):
                 It is normalized to be in the range [0, 1].
         """
         batch_size, num_frames, num_channels, height, width = noise.shape
+        parity_trace = None
+        parity_video_index = int(self._parity_trace_video_index)
+        self._parity_trace_video_index += 1
+        if os.environ.get("SF_PARITY_TRACE_DIR"):
+            from lifecycle_kv import parity_trace as parity_trace_module
+
+            parity_trace = parity_trace_module
+            parity_trace.set_context(
+                video_index=parity_video_index,
+                runtime=os.environ.get("SF_PARITY_RUN_KIND", "pf_runtime"),
+            )
+            parity_trace.record_event(
+                "input_noise",
+                {"noise": noise},
+                metadata={"num_frames": int(num_frames)},
+                keep_full=True,
+            )
         assert batch_size == 1, (
             f"CausalInferencePipeline hardcodes batch_size=1 (VAE streaming requirement), got {batch_size}"
         )
@@ -846,6 +864,18 @@ class CausalInferencePipeline(torch.nn.Module):
             for index, current_timestep in enumerate(self.denoising_step_list):
                 # set current timestep (reuse pre-allocated buffer)
                 timestep = ts_buf.fill_(current_timestep)
+                if parity_trace is not None:
+                    parity_trace.set_context(
+                        ar_block=int(block_index - 1),
+                        current_start_frame=int(current_start_frame),
+                        call_kind="noisy",
+                        call_index=int(index),
+                        call_count=int(len(self.denoising_step_list)),
+                        timestep=float(current_timestep.item()),
+                    )
+                    parity_trace.record_event(
+                        "noisy_input", {"latent": noisy_input}, keep_full=True
+                    )
                 teacache_force_calc = (
                     index == 0 or index == len(self.denoising_step_list) - 1
                 )
@@ -911,6 +941,16 @@ class CausalInferencePipeline(torch.nn.Module):
                 else:
                     denoised_pred = denoised_cond
 
+                if parity_trace is not None:
+                    parity_trace.record_event(
+                        "flow_prediction", {"flow": flow_cond}, keep_full=True
+                    )
+                    parity_trace.record_event(
+                        "denoised_prediction",
+                        {"x0": denoised_pred},
+                        keep_full=True,
+                    )
+
                 if index < len(self.denoising_step_list) - 1:
                     next_timestep = self.denoising_step_list[index + 1]
                     ns_buf.normal_()
@@ -919,15 +959,52 @@ class CausalInferencePipeline(torch.nn.Module):
                         ns_buf,
                         sc_buf.fill_(next_timestep),
                     ).unflatten(0, denoised_pred.shape[:2])
+                    if parity_trace is not None:
+                        parity_trace.record_event(
+                            "scheduler_noise",
+                            {"noise": ns_buf},
+                            keep_full=True,
+                        )
+                        parity_trace.record_event(
+                            "scheduler_output",
+                            {"latent": noisy_input},
+                            keep_full=True,
+                        )
 
                 if self._timestep_pbar is not None:
                     self._timestep_pbar.update(1)
 
             # Step 3.2: record the model's output
             output[:, current_start_frame:current_start_frame + current_num_frames] = denoised_pred
+            if parity_trace is not None:
+                parity_trace.set_context(
+                    ar_block=int(block_index - 1),
+                    current_start_frame=int(current_start_frame),
+                    call_kind="block_commit",
+                    call_index=None,
+                    call_count=int(len(self.denoising_step_list)),
+                    timestep=0.0,
+                )
+                parity_trace.record_event(
+                    "committed_latent", {"latent": denoised_pred}, keep_full=True
+                )
 
             # Step 3.3: rerun with timestep zero to update KV cache using clean context
             context_timestep = torch.ones_like(timestep) * self.args.context_noise
+            if parity_trace is not None:
+                parity_trace.set_context(
+                    ar_block=int(block_index - 1),
+                    current_start_frame=int(current_start_frame),
+                    call_kind="clean",
+                    call_index=int(len(self.denoising_step_list)),
+                    call_count=int(len(self.denoising_step_list)),
+                    timestep=float(self.args.context_noise),
+                )
+                parity_trace.record_event(
+                    "clean_refresh_input",
+                    {"latent": denoised_pred},
+                    keep_full=True,
+                )
             if profile:
                 clean_pass_start.record()
             set_cache_compatibility_denoise_state(
@@ -937,7 +1014,7 @@ class CausalInferencePipeline(torch.nn.Module):
                 update_mode="clean",
                 current_start=current_start_frame * self.frame_seq_length,
             )
-            self.generator(
+            clean_flow_pred, _ = self.generator(
                 noisy_image_or_video=denoised_pred,
                 conditional_dict=conditional_dict,
                 timestep=context_timestep,
@@ -947,6 +1024,12 @@ class CausalInferencePipeline(torch.nn.Module):
                 cache_update_mode="clean",
                 skip_x0=True,
             )
+            if parity_trace is not None:
+                parity_trace.record_event(
+                    "clean_flow_prediction",
+                    {"flow": clean_flow_pred},
+                    keep_full=False,
+                )
             if self.few_step_cfg_enabled:
                 set_cache_compatibility_denoise_state(
                     self.kv_cache_uncond,
@@ -1016,6 +1099,23 @@ class CausalInferencePipeline(torch.nn.Module):
             self.vae.decode_streaming_finalize()
         else:
             video = None
+
+        if parity_trace is not None:
+            parity_trace.set_context(
+                ar_block=None,
+                current_start_frame=int(num_output_frames),
+                call_kind="final",
+                call_index=None,
+                timestep=0.0,
+            )
+            parity_trace.record_event(
+                "final_latents", {"latent": output}, keep_full=True
+            )
+            if video is not None:
+                parity_trace.record_event(
+                    "decoded_video", {"video": video}, keep_full=False
+                )
+            parity_trace.clear_context()
 
         if profile:
             # Compute VAE timing from recorded events (requires sync already done above)
