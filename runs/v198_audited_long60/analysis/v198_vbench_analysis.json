@@ -1,0 +1,80 @@
+{
+  "claim_boundary": "Aggregate means are descriptive. Use the paired full/late-window v198 analysis, temporal diagnostics, camera-compensated motion, and runtime provenance before deciding whether another generation control is needed.",
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "exclusive_groups": {
+    "dynamic_degree": [
+      "dynamic_degree"
+    ],
+    "identity_background": [
+      "subject_consistency",
+      "background_consistency"
+    ],
+    "semantic_alignment": [
+      "overall_consistency"
+    ],
+    "temporal_mechanics": [
+      "temporal_flickering",
+      "motion_smoothness"
+    ],
+    "visual_quality": [
+      "aesthetic_quality",
+      "imaging_quality"
+    ]
+  },
+  "exclusive_scores": {
+    "all_coverage_retrieval": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9662631130066677,
+      "semantic_alignment": 0.22499505973925504,
+      "temporal_mechanics": 0.976360619557572,
+      "visual_quality": 0.6461043362692774
+    },
+    "all_recent": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9666663574043508,
+      "semantic_alignment": 0.219434649006962,
+      "temporal_mechanics": 0.9759482181779412,
+      "visual_quality": 0.6286544948689019
+    },
+    "pf_native": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9707619067338888,
+      "semantic_alignment": 0.232858512395372,
+      "temporal_mechanics": 0.9778709309927802,
+      "visual_quality": 0.6501391758153525
+    },
+    "sf_native": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9664456176413447,
+      "semantic_alignment": 0.21199018153868868,
+      "temporal_mechanics": 0.9805978845945209,
+      "visual_quality": 0.6198532475437581
+    }
+  },
+  "experiment": "v198_audited_long60_operator_comparison",
+  "methods": [
+    "sf_native",
+    "all_recent",
+    "pf_native",
+    "all_coverage_retrieval"
+  ],
+  "metric_promotion_gate": false,
+  "official_constants_source": "https://github.com/Vchitect/VBench/blob/master/scripts/constant.py",
+  "official_quality_score": {
+    "all_coverage_retrieval": 85.77378900102036,
+    "all_recent": 85.21040102287452,
+    "pf_native": 86.20584000525221,
+    "sf_native": 85.33249871950292
+  },
+  "version": 1
+}

@@ -1,0 +1,115 @@
+{
+  "claim_boundary": "Aggregate metrics do not validate the classifier. Matched must also beat swapped and the count-matched random replicas in the paired prompt-level analysis.",
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "duplicate_metric_audit": {
+    "action": "count once as semantic_alignment",
+    "aggregate_exact_within_1e-12": true,
+    "pair": [
+      "overall_consistency",
+      "temporal_style"
+    ]
+  },
+  "exclusive_groups": {
+    "dynamic_degree": [
+      "dynamic_degree"
+    ],
+    "identity_background": [
+      "subject_consistency",
+      "background_consistency"
+    ],
+    "semantic_alignment": [
+      "overall_consistency"
+    ],
+    "temporal_mechanics": [
+      "temporal_flickering",
+      "motion_smoothness"
+    ],
+    "visual_quality": [
+      "aesthetic_quality",
+      "imaging_quality"
+    ]
+  },
+  "exclusive_scores": {
+    "all_recent": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.971488757823932,
+      "semantic_alignment": 0.2382465727782498,
+      "temporal_mechanics": 0.975520726859501,
+      "visual_quality": 0.6641397365517914
+    },
+    "retrieval_all_coverage": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9682082690398197,
+      "semantic_alignment": 0.239746282036261,
+      "temporal_mechanics": 0.9731484166900943,
+      "visual_quality": 0.663335725247239
+    },
+    "retrieval_compatible": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9713613273024034,
+      "semantic_alignment": 0.2405300851057594,
+      "temporal_mechanics": 0.9766148445900027,
+      "visual_quality": 0.6640178808526446
+    },
+    "retrieval_dense_phase": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.969506824358688,
+      "semantic_alignment": 0.2381387716004004,
+      "temporal_mechanics": 0.9742789405194227,
+      "visual_quality": 0.6681964257247746
+    },
+    "retrieval_head_only": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9705977525984406,
+      "semantic_alignment": 0.23982570762746036,
+      "temporal_mechanics": 0.9769681921785502,
+      "visual_quality": 0.6628629407205929
+    },
+    "retrieval_membership_shift": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9696485649702046,
+      "semantic_alignment": 0.24076534708340963,
+      "temporal_mechanics": 0.9753595899148344,
+      "visual_quality": 0.6650099334542949
+    },
+    "retrieval_phase_shift": {
+      "dynamic_degree": 1.0,
+      "identity_background": 0.9709877581165549,
+      "semantic_alignment": 0.24057337194293116,
+      "temporal_mechanics": 0.9766271224530657,
+      "visual_quality": 0.6647983357161282
+    }
+  },
+  "experiment": "v190_head_phase_causal_vbench_screen32",
+  "methods": [
+    "all_recent",
+    "retrieval_all_coverage",
+    "retrieval_compatible",
+    "retrieval_head_only",
+    "retrieval_membership_shift",
+    "retrieval_phase_shift",
+    "retrieval_dense_phase"
+  ],
+  "metric_promotion_gate": false,
+  "official_constants_source": "https://github.com/Vchitect/VBench/blob/master/scripts/constant.py",
+  "official_quality_score": {
+    "all_recent": 86.44374513074628,
+    "retrieval_all_coverage": 86.081989836326,
+    "retrieval_compatible": 86.53389718350344,
+    "retrieval_dense_phase": 86.38041802727255,
+    "retrieval_head_only": 86.50560724045755,
+    "retrieval_membership_shift": 86.39408585548414,
+    "retrieval_phase_shift": 86.54604106049945
+  },
+  "version": 1
+}

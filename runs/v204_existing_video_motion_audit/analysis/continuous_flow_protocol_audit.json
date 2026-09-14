@@ -1,0 +1,187 @@
+{
+  "claim_boundary": "Raw RAFT magnitude is camera-sensitive and the producing implementation is not committed in this repository. Cross-protocol aggregate differences are invalid. Use the repository-owned camera-compensated v193 diagnostic and paired quality evidence before making a motion claim.",
+  "comparisons": [
+    {
+      "candidate": "all_coverage_retrieval",
+      "control": "all_recent",
+      "protocol_match": false,
+      "protocol_mismatches": [
+        "prompt_text_sha256",
+        "source_index_sha256",
+        "reseed_per_prompt"
+      ],
+      "statistics": [],
+      "status": "invalid_cross_protocol_comparison"
+    },
+    {
+      "candidate": "pf_hybrid_retrieval",
+      "control": "pf_native",
+      "protocol_match": true,
+      "protocol_mismatches": [],
+      "statistics": [
+        {
+          "bootstrap_ci95": [
+            13.271092994042558,
+            71.84677331462831
+          ],
+          "candidate_mean": 588.1067413642672,
+          "control_mean": 545.8358664502039,
+          "mean_delta": 42.27087491406334,
+          "median_delta": 23.49485124376085,
+          "p_value": 0.13262480132498225,
+          "q_value": 0.13262480132498225,
+          "relative_delta": 0.07744246487312807,
+          "win_fraction": 0.5703125,
+          "window": "full"
+        },
+        {
+          "bootstrap_ci95": [
+            23.652258719298107,
+            72.8402271933144
+          ],
+          "candidate_mean": 582.5514721067179,
+          "control_mean": 533.8252540396792,
+          "mean_delta": 48.72621806703863,
+          "median_delta": 27.3379402523949,
+          "p_value": 0.010090139809438577,
+          "q_value": 0.03027041942831573,
+          "relative_delta": 0.0912774689812948,
+          "win_fraction": 0.6171875,
+          "window": "early"
+        },
+        {
+          "bootstrap_ci95": [
+            -2.3004069287755646,
+            74.81447070569507
+          ],
+          "candidate_mean": 591.1818299035232,
+          "control_mean": 554.4547250239623,
+          "mean_delta": 36.727104879560926,
+          "median_delta": 24.979532223656065,
+          "p_value": 0.13262480132498225,
+          "q_value": 0.13262480132498225,
+          "relative_delta": 0.06624004309454422,
+          "win_fraction": 0.5703125,
+          "window": "late"
+        }
+      ],
+      "status": "valid_paired_diagnostic"
+    }
+  ],
+  "diagnostic_only": true,
+  "experiment": "v204_continuous_flow_protocol_audit",
+  "implementation_provenance_available": false,
+  "manual_review_required": false,
+  "methods": {
+    "all_coverage_retrieval": {
+      "aggregate_continuous_flow": 584.5660844737291,
+      "clip_count": 1920,
+      "contract": {
+        "decoded_video_contract": {
+          "fps": 16.0,
+          "frames": 477,
+          "height": 480,
+          "width": 832
+        },
+        "num_output_frames": 120,
+        "prompt_count": 128,
+        "prompt_suite_label": "moviegen_128_full",
+        "prompt_text_sha256": "e05fc8e0f538aff5a810146b2c695ca23e5b5a9f0768ea996dfef6e4ccde2d9c",
+        "reseed_per_prompt": true,
+        "seed": 0,
+        "source_index_max": 127,
+        "source_index_min": 0,
+        "source_index_sha256": "4497d32c822ad4ae57132a3462f6a0630d5d4a7863915c4ee08634841c4fee9f"
+      },
+      "manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v184_retrieval_128/vbench_comparison/comparison_manifest.json",
+      "manifest_sha256": "99080ee006723ece485aff8f41010d4bb7f5c689a131c348d2e153860d42116a",
+      "name": "all_coverage_retrieval",
+      "result": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v184_retrieval_128/metrics/vbench_long_parts/all_coverage_retrieval/dynamic_degree/cont/v129_dynamic_degree_eval_results.json",
+      "result_sha256": "e50dfb537966e551747f8b8116dd44a495bf21a4bd00cfdabe80df3a4a33a7e0"
+    },
+    "all_recent": {
+      "aggregate_continuous_flow": 535.8182618951798,
+      "clip_count": 1920,
+      "contract": {
+        "decoded_video_contract": {
+          "fps": 16.0,
+          "frames": 477,
+          "height": 480,
+          "width": 832
+        },
+        "num_output_frames": 120,
+        "prompt_count": 128,
+        "prompt_suite_label": "moviegen_source_indices_0128_0255",
+        "prompt_text_sha256": "29b0390350dad3d14aa7acb10caacadded411cd94a39e9690b12c0b519bd4ac5",
+        "reseed_per_prompt": null,
+        "seed": 0,
+        "source_index_max": 255,
+        "source_index_min": 128,
+        "source_index_sha256": "b3dc4889eaaf0c4400bbd3cc5b5a2079e75785e5e8e76b5ab3b1d8190acbdf01"
+      },
+      "manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v180_rccp_fresh128/recovery_v183/vbench_comparison/comparison_manifest.json",
+      "manifest_sha256": "5bd585ad67a10b2f039d64b9144ef888c48dfbabd86d200040d61b68273b3573",
+      "name": "all_recent",
+      "result": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v180_rccp_fresh128/recovery_v183/metrics/vbench_long_parts/all_recent/dynamic_degree/cont/v129_dynamic_degree_eval_results.json",
+      "result_sha256": "7412c2619d1ec630bbc1e4718fd7203e29f9037795cb0ae0c61e4b89666b18ad"
+    },
+    "pf_hybrid_retrieval": {
+      "aggregate_continuous_flow": 588.1067413642672,
+      "clip_count": 1920,
+      "contract": {
+        "decoded_video_contract": {
+          "fps": 16.0,
+          "frames": 477,
+          "height": 480,
+          "width": 832
+        },
+        "num_output_frames": 120,
+        "prompt_count": 128,
+        "prompt_suite_label": "moviegen_128_full",
+        "prompt_text_sha256": "e05fc8e0f538aff5a810146b2c695ca23e5b5a9f0768ea996dfef6e4ccde2d9c",
+        "reseed_per_prompt": true,
+        "seed": 0,
+        "source_index_max": 127,
+        "source_index_min": 0,
+        "source_index_sha256": "4497d32c822ad4ae57132a3462f6a0630d5d4a7863915c4ee08634841c4fee9f"
+      },
+      "manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v187_hybrid_retrieval/vbench_comparison/comparison_manifest.json",
+      "manifest_sha256": "df34712ef994acad1c851afcaf68ff8e09b973a2589bce90f32354afbf3fbc76",
+      "name": "pf_hybrid_retrieval",
+      "result": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v187_hybrid_retrieval/metrics/vbench_long_parts/pf_hybrid_retrieval/dynamic_degree/cont/v129_dynamic_degree_eval_results.json",
+      "result_sha256": "e69921249dc6bd0e24f0ea84169fb1bc28ac32b90cc686ff98d893158b9a251d"
+    },
+    "pf_native": {
+      "aggregate_continuous_flow": 545.8358664502039,
+      "clip_count": 1920,
+      "contract": {
+        "decoded_video_contract": {
+          "fps": 16.0,
+          "frames": 477,
+          "height": 480,
+          "width": 832
+        },
+        "num_output_frames": 120,
+        "prompt_count": 128,
+        "prompt_suite_label": "moviegen_128_full",
+        "prompt_text_sha256": "e05fc8e0f538aff5a810146b2c695ca23e5b5a9f0768ea996dfef6e4ccde2d9c",
+        "reseed_per_prompt": true,
+        "seed": 0,
+        "source_index_max": 127,
+        "source_index_min": 0,
+        "source_index_sha256": "4497d32c822ad4ae57132a3462f6a0630d5d4a7863915c4ee08634841c4fee9f"
+      },
+      "manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v185_pf_baseline/vbench_comparison/comparison_manifest.json",
+      "manifest_sha256": "feac57a45c37f7d8dd5a31652b918776b4ee7423fcaad5c04317a3affc4701bb",
+      "name": "pf_native",
+      "result": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v185_pf_baseline/metrics/vbench_long_parts/pf_native/dynamic_degree/cont/v129_dynamic_degree_eval_results.json",
+      "result_sha256": "f403d55b6985b1e78fd2ae915bf5d2eb446eaee01664ace356d36d4507e2988a"
+    }
+  },
+  "metric": "uncompensated_raft_flow_magnitude",
+  "paper_metric_ready": false,
+  "recommendation": "no_same_protocol_sf_comparison",
+  "valid_comparison_count": 1,
+  "valid_sf_comparison_count": 0,
+  "version": 1
+}

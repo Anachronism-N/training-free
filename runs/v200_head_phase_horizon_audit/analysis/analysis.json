@@ -1,0 +1,1639 @@
+{
+  "changes_v189_frozen_map": false,
+  "claim_boundary": "v200 is a cross-fit shadow-readout audit. It can authorize a new runtime design, but it cannot establish generated-video quality or replace a causal equal-exposure generation screen.",
+  "current_frame_role": "Ordered AR-horizon readout locations; they are not denoising timesteps.",
+  "current_frames": [
+    12,
+    21,
+    30,
+    39,
+    48,
+    57,
+    66,
+    75,
+    84,
+    93,
+    102,
+    111
+  ],
+  "experiment": "v200_head_phase_ar_horizon_audit",
+  "generation_candidates": [
+    "landmark",
+    "retrieval"
+  ],
+  "manual_review_required": false,
+  "new_video_generation_required": false,
+  "operators": {
+    "landmark": {
+      "adjacent_fractions": [
+        0.05,
+        0.2
+      ],
+      "adjacent_supported_count": 2,
+      "continuous_reproducibility": {
+        "cell_slope_pearson": 0.9852940475019052,
+        "cell_slope_spearman": 0.9789188829019817,
+        "gain_spearman_all_cell_positions": 0.990576250832849,
+        "horizon_interaction_spearman": 0.885180843448416
+      },
+      "gate_contract": {
+        "global_positive_slope_required": false,
+        "minimum_supported_adjacent_sparsities": 1,
+        "primary_paired_ci_lower_strictly_positive": true,
+        "primary_validation_win_fraction_min": 0.55,
+        "time_assignment_permutation_p_max": 0.05
+      },
+      "global_horizon_slope": {
+        "discovery_mean": -0.22551786397343487,
+        "monotonic_increase_is_required": false,
+        "validation_ci95": [
+          -0.2561196257350116,
+          -0.06223684172596374
+        ],
+        "validation_mean": -0.16586028361010058,
+        "validation_win_fraction": 0.21875
+      },
+      "horizon_conditioning_gate": true,
+      "horizon_curves": {
+        "discovery_full_budget_fraction": [
+          0.0010416666666666667,
+          0.0203125,
+          0.049479166666666664,
+          0.071875,
+          0.0890625,
+          0.10677083333333333,
+          0.12395833333333334,
+          0.14322916666666666,
+          0.1578125,
+          0.17447916666666666,
+          0.18385416666666668,
+          0.19635416666666666
+        ],
+        "discovery_mean_gain": [
+          -2.4277254117667924,
+          -3.731502384993224,
+          -3.6448418229422828,
+          -3.607772600944341,
+          -3.608098739031207,
+          -3.6351374715742533,
+          -3.640479667707873,
+          -3.63755459476316,
+          -3.6211975217454766,
+          -3.632199999122545,
+          -3.6151141744713526,
+          -3.582460068195789
+        ],
+        "discovery_reference_energy": [
+          22630.062218520376,
+          22572.65973837475,
+          22560.971407632034,
+          22619.082045396168,
+          22447.219373483127,
+          22634.6966809637,
+          22547.35613819758,
+          22627.721383880908,
+          22689.5291458918,
+          22808.607079093985,
+          22814.475858397615,
+          22900.143921471965
+        ],
+        "validation_full_budget_fraction": [
+          0.0,
+          0.022916666666666665,
+          0.057291666666666664,
+          0.07291666666666667,
+          0.09166666666666666,
+          0.10833333333333334,
+          0.121875,
+          0.1375,
+          0.15833333333333333,
+          0.1625,
+          0.17083333333333334,
+          0.18125
+        ],
+        "validation_mean_gain": [
+          -2.438144457008065,
+          -3.6864532700832475,
+          -3.6165204134532156,
+          -3.663896052141801,
+          -3.614670566781155,
+          -3.5636548783720494,
+          -3.5706796614918006,
+          -3.5594566921194155,
+          -3.488633895598262,
+          -3.5128093276580086,
+          -3.5059898213668372,
+          -3.5299454579465026
+        ],
+        "validation_reference_energy": [
+          21974.306937003137,
+          22221.83864365816,
+          22240.69956616693,
+          22216.148065744506,
+          22275.46811807553,
+          22271.923864403037,
+          22245.07451943424,
+          22613.715347136393,
+          22479.750909749666,
+          22419.773393613763,
+          22652.556788143847,
+          22833.090927109453
+        ]
+      },
+      "primary_fraction": 0.1,
+      "profile_audit": {
+        "current_frames": [
+          12,
+          21,
+          30,
+          39,
+          48,
+          57,
+          66,
+          75,
+          84,
+          93,
+          102,
+          111
+        ],
+        "operator": "landmark",
+        "record_count": 184320,
+        "shape": [
+          128,
+          4,
+          30,
+          12,
+          12
+        ],
+        "shard_count": 8,
+        "shards": [
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/landmark/shard00.pt",
+            "prompt_ids": [
+              0,
+              8,
+              16,
+              24,
+              32,
+              40,
+              48,
+              56,
+              64,
+              72,
+              80,
+              88,
+              96,
+              104,
+              112,
+              120
+            ],
+            "record_count": 23040,
+            "sha256": "c5e7dcfeeb04c7e74c1ccfa835a7e4b3298ffb48848c00545dc8a9e3d445ec58"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/landmark/shard01.pt",
+            "prompt_ids": [
+              1,
+              9,
+              17,
+              25,
+              33,
+              41,
+              49,
+              57,
+              65,
+              73,
+              81,
+              89,
+              97,
+              105,
+              113,
+              121
+            ],
+            "record_count": 23040,
+            "sha256": "b2e198aca94a8643a2e0c0c8a497f6850f97dce0931fd3ddc5d34162af0c09ab"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/landmark/shard02.pt",
+            "prompt_ids": [
+              2,
+              10,
+              18,
+              26,
+              34,
+              42,
+              50,
+              58,
+              66,
+              74,
+              82,
+              90,
+              98,
+              106,
+              114,
+              122
+            ],
+            "record_count": 23040,
+            "sha256": "d39f9cf9cf4ec5f0405c4e66343fc056470d0f6a59fadc3b2cd7bb36ab4004f4"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/landmark/shard03.pt",
+            "prompt_ids": [
+              3,
+              11,
+              19,
+              27,
+              35,
+              43,
+              51,
+              59,
+              67,
+              75,
+              83,
+              91,
+              99,
+              107,
+              115,
+              123
+            ],
+            "record_count": 23040,
+            "sha256": "a0e04f765c8f234503f9eb7ac75221309ccbeb4310147b7b110aff38493a0a8c"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/landmark/shard04.pt",
+            "prompt_ids": [
+              4,
+              12,
+              20,
+              28,
+              36,
+              44,
+              52,
+              60,
+              68,
+              76,
+              84,
+              92,
+              100,
+              108,
+              116,
+              124
+            ],
+            "record_count": 23040,
+            "sha256": "54b6a56ea537a9a2e067306b584690a93e36d4b51135235862f07bd962124f06"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/landmark/shard05.pt",
+            "prompt_ids": [
+              5,
+              13,
+              21,
+              29,
+              37,
+              45,
+              53,
+              61,
+              69,
+              77,
+              85,
+              93,
+              101,
+              109,
+              117,
+              125
+            ],
+            "record_count": 23040,
+            "sha256": "ad2957b3f71e45a47a3e53b6c12907b00ffb1516f89c84c29398defd3eb13a76"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/landmark/shard06.pt",
+            "prompt_ids": [
+              6,
+              14,
+              22,
+              30,
+              38,
+              46,
+              54,
+              62,
+              70,
+              78,
+              86,
+              94,
+              102,
+              110,
+              118,
+              126
+            ],
+            "record_count": 23040,
+            "sha256": "2855b3139b9ee821aafe121f99de56fc4d92e33e2a0d5b8c02dd492ecb281fa8"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/landmark/shard07.pt",
+            "prompt_ids": [
+              7,
+              15,
+              23,
+              31,
+              39,
+              47,
+              55,
+              63,
+              71,
+              79,
+              87,
+              95,
+              103,
+              111,
+              119,
+              127
+            ],
+            "record_count": 23040,
+            "sha256": "0ad956f19edafa343adeb06050075588014f7cda47833b47eb07485c40e6bd8e"
+          }
+        ],
+        "source_codebook_counts": {
+          "anchor_dynamic_rope:semantic_landmark": 24576,
+          "dynamic_saved_rope": 24576,
+          "static_dynamic_rope": 24576
+        }
+      },
+      "runtime_map_contract": {
+        "cells_per_position": 144,
+        "equal_exposure_static_horizon_shift": true,
+        "generation_holdout_used": false,
+        "horizon_selection": "nearest_profile_frame",
+        "horizon_shift_positions": 6,
+        "primary_fraction": 0.1,
+        "selection_uses_discovery_only": true,
+        "version": 2
+      },
+      "runtime_maps": {
+        "horizon_shift_top10": {
+          "classification": "horizon_half_cycle_shift_top10",
+          "coverage_count_by_position": [
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144
+          ],
+          "coverage_count_by_position_call": [
+            [
+              39,
+              35,
+              34,
+              36
+            ],
+            [
+              39,
+              35,
+              35,
+              35
+            ],
+            [
+              40,
+              36,
+              33,
+              35
+            ],
+            [
+              40,
+              36,
+              34,
+              34
+            ],
+            [
+              40,
+              36,
+              33,
+              35
+            ],
+            [
+              40,
+              36,
+              32,
+              36
+            ],
+            [
+              39,
+              38,
+              34,
+              33
+            ],
+            [
+              40,
+              33,
+              33,
+              38
+            ],
+            [
+              41,
+              35,
+              34,
+              34
+            ],
+            [
+              40,
+              33,
+              34,
+              37
+            ],
+            [
+              39,
+              34,
+              34,
+              37
+            ],
+            [
+              39,
+              34,
+              35,
+              36
+            ]
+          ],
+          "map_id": "v200-landmark-horizon_half_cycle_shift_top10-408b87b08573",
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v200_head_phase_horizon_audit/analysis/maps/landmark_horizon_shift_top10.json",
+          "sha256": "2ff4b1a24bd6effc105344ea0f62453f7f2abd8e4d68b9fac17d6024344acf0e"
+        },
+        "horizon_top10": {
+          "classification": "horizon_top10",
+          "coverage_count_by_position": [
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144
+          ],
+          "coverage_count_by_position_call": [
+            [
+              39,
+              38,
+              34,
+              33
+            ],
+            [
+              40,
+              33,
+              33,
+              38
+            ],
+            [
+              41,
+              35,
+              34,
+              34
+            ],
+            [
+              40,
+              33,
+              34,
+              37
+            ],
+            [
+              39,
+              34,
+              34,
+              37
+            ],
+            [
+              39,
+              34,
+              35,
+              36
+            ],
+            [
+              39,
+              35,
+              34,
+              36
+            ],
+            [
+              39,
+              35,
+              35,
+              35
+            ],
+            [
+              40,
+              36,
+              33,
+              35
+            ],
+            [
+              40,
+              36,
+              34,
+              34
+            ],
+            [
+              40,
+              36,
+              33,
+              35
+            ],
+            [
+              40,
+              36,
+              32,
+              36
+            ]
+          ],
+          "map_id": "v200-landmark-horizon_top10-620987b0b876",
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v200_head_phase_horizon_audit/analysis/maps/landmark_horizon_top10.json",
+          "sha256": "7b8c19a9abbe5fec25b5b7229f450f191101212b9aa1abd6e04d7adc775a56dd"
+        },
+        "static_top10": {
+          "classification": "static_top10",
+          "coverage_count_by_position": [
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144
+          ],
+          "coverage_count_by_position_call": [
+            [
+              38,
+              36,
+              33,
+              37
+            ],
+            [
+              38,
+              36,
+              33,
+              37
+            ],
+            [
+              38,
+              36,
+              33,
+              37
+            ],
+            [
+              38,
+              36,
+              33,
+              37
+            ],
+            [
+              38,
+              36,
+              33,
+              37
+            ],
+            [
+              38,
+              36,
+              33,
+              37
+            ],
+            [
+              38,
+              36,
+              33,
+              37
+            ],
+            [
+              38,
+              36,
+              33,
+              37
+            ],
+            [
+              38,
+              36,
+              33,
+              37
+            ],
+            [
+              38,
+              36,
+              33,
+              37
+            ],
+            [
+              38,
+              36,
+              33,
+              37
+            ],
+            [
+              38,
+              36,
+              33,
+              37
+            ]
+          ],
+          "map_id": "v200-landmark-static_top10-39b9c60bfcbd",
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v200_head_phase_horizon_audit/analysis/maps/landmark_static_top10.json",
+          "sha256": "ed9c729c119390196532ba5ec2753ac243621a2623f79fbbf8bf27b51f6bc9c4"
+        }
+      },
+      "selector_tests": [
+        {
+          "adjacent_horizon_membership_jaccard_mean": 0.8863636363636364,
+          "cells_per_position": 14,
+          "coverage_exposures": 168,
+          "equal_exposure_verified": true,
+          "fraction": 0.01,
+          "horizon_validation_utility": 2.85910145297139,
+          "paired_delta_ci95": [
+            0.4923672881022584,
+            0.5682528111846173
+          ],
+          "paired_delta_mean": 0.53053487131195,
+          "paired_delta_median": 0.5206749131445139,
+          "paired_sign_p": 2.3283064365386963e-10,
+          "paired_win_fraction": 1.0,
+          "position_count": 12,
+          "static_horizon_membership_jaccard": 0.7319587628865979,
+          "static_validation_utility": 2.32856658165944,
+          "time_assignment_null_mean": 1.8186177328329438,
+          "time_assignment_null_std": 0.30992054296250715,
+          "time_assignment_permutation_p": 0.006998600279944011,
+          "unique_horizon_cells": 30
+        },
+        {
+          "adjacent_horizon_membership_jaccard_mean": 0.8442301298537781,
+          "cells_per_position": 72,
+          "coverage_exposures": 864,
+          "equal_exposure_verified": true,
+          "fraction": 0.05,
+          "horizon_validation_utility": 0.17184480285905013,
+          "paired_delta_ci95": [
+            0.4608664133362164,
+            0.48260312334701216
+          ],
+          "paired_delta_mean": 0.47168711583802037,
+          "paired_delta_median": 0.46996114874556116,
+          "paired_sign_p": 2.3283064365386963e-10,
+          "paired_win_fraction": 1.0,
+          "position_count": 12,
+          "static_horizon_membership_jaccard": 0.7525354969574036,
+          "static_validation_utility": -0.29984231297897024,
+          "time_assignment_null_mean": -0.5587748282624266,
+          "time_assignment_null_std": 0.220451444603857,
+          "time_assignment_permutation_p": 0.0001999600079984003,
+          "unique_horizon_cells": 155
+        },
+        {
+          "adjacent_horizon_membership_jaccard_mean": 0.848162663949579,
+          "cells_per_position": 144,
+          "coverage_exposures": 1728,
+          "equal_exposure_verified": true,
+          "fraction": 0.1,
+          "horizon_validation_utility": -0.5627144392104872,
+          "paired_delta_ci95": [
+            0.3346313309654803,
+            0.4007952646512858
+          ],
+          "paired_delta_mean": 0.3687393851571179,
+          "paired_delta_median": 0.3895877868592126,
+          "paired_sign_p": 2.3283064365386963e-10,
+          "paired_win_fraction": 1.0,
+          "position_count": 12,
+          "static_horizon_membership_jaccard": 0.6858536585365854,
+          "static_validation_utility": -0.931453824367605,
+          "time_assignment_null_mean": -1.185797241741305,
+          "time_assignment_null_std": 0.18364789706635906,
+          "time_assignment_permutation_p": 0.0001999600079984003,
+          "unique_horizon_cells": 314
+        },
+        {
+          "adjacent_horizon_membership_jaccard_mean": 0.8587939864641473,
+          "cells_per_position": 288,
+          "coverage_exposures": 3456,
+          "equal_exposure_verified": true,
+          "fraction": 0.2,
+          "horizon_validation_utility": -1.2204814583997263,
+          "paired_delta_ci95": [
+            0.2492246771979012,
+            0.2860050466825146
+          ],
+          "paired_delta_mean": 0.26743498250365105,
+          "paired_delta_median": 0.2775974692700347,
+          "paired_sign_p": 2.3283064365386963e-10,
+          "paired_win_fraction": 1.0,
+          "position_count": 12,
+          "static_horizon_membership_jaccard": 0.7512034456549278,
+          "static_validation_utility": -1.4879164409033774,
+          "time_assignment_null_mean": -1.6639840424313632,
+          "time_assignment_null_std": 0.13038820957257674,
+          "time_assignment_permutation_p": 0.0001999600079984003,
+          "unique_horizon_cells": 578
+        }
+      ],
+      "shape": [
+        128,
+        4,
+        30,
+        12,
+        12
+      ],
+      "v189_generation_candidate": false
+    },
+    "retrieval": {
+      "adjacent_fractions": [
+        0.05,
+        0.2
+      ],
+      "adjacent_supported_count": 2,
+      "continuous_reproducibility": {
+        "cell_slope_pearson": 0.9882435349039019,
+        "cell_slope_spearman": 0.9843289694230498,
+        "gain_spearman_all_cell_positions": 0.9941742837086044,
+        "horizon_interaction_spearman": 0.9354974389121815
+      },
+      "gate_contract": {
+        "global_positive_slope_required": false,
+        "minimum_supported_adjacent_sparsities": 1,
+        "primary_paired_ci_lower_strictly_positive": true,
+        "primary_validation_win_fraction_min": 0.55,
+        "time_assignment_permutation_p_max": 0.05
+      },
+      "global_horizon_slope": {
+        "discovery_mean": -0.39607152274888546,
+        "monotonic_increase_is_required": false,
+        "validation_ci95": [
+          -0.40744997981444614,
+          -0.31533718457215604
+        ],
+        "validation_mean": -0.3644695283205167,
+        "validation_win_fraction": 0.03125
+      },
+      "horizon_conditioning_gate": true,
+      "horizon_curves": {
+        "discovery_full_budget_fraction": [
+          0.0234375,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "discovery_mean_gain": [
+          -0.9887355427220813,
+          -1.9350105254111971,
+          -1.9416218929631437,
+          -1.9627001330167748,
+          -2.0347052582489584,
+          -2.1167033882121644,
+          -2.1466875287425013,
+          -2.1955657585893795,
+          -2.1987904566716066,
+          -2.2264470317185876,
+          -2.2628212081036114,
+          -2.2577018888672384
+        ],
+        "discovery_reference_energy": [
+          22614.51228178872,
+          22653.129282640748,
+          22680.324412854512,
+          22728.102641845413,
+          22499.46751811173,
+          22653.034625364675,
+          22546.444525696836,
+          22621.74699058864,
+          22673.94593376716,
+          22789.64148045977,
+          22783.51591736674,
+          22865.51505057282
+        ],
+        "validation_full_budget_fraction": [
+          0.011458333333333333,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "validation_mean_gain": [
+          -1.025716004634225,
+          -1.9555204556198293,
+          -1.9416271415078648,
+          -1.9862468953818826,
+          -2.079598069035861,
+          -2.10967986304198,
+          -2.124704343209969,
+          -2.1931900150361088,
+          -2.1519258871140403,
+          -2.193250750790343,
+          -2.1971072874052484,
+          -2.283222681433431
+        ],
+        "validation_reference_energy": [
+          21952.811310006513,
+          22305.381005285846,
+          22371.593093530337,
+          22321.79503523376,
+          22345.12801785734,
+          22307.412063328426,
+          22276.44104713334,
+          22626.367667137252,
+          22494.65325672759,
+          22414.59915035963,
+          22639.663445703187,
+          22802.61903722551
+        ]
+      },
+      "primary_fraction": 0.1,
+      "profile_audit": {
+        "current_frames": [
+          12,
+          21,
+          30,
+          39,
+          48,
+          57,
+          66,
+          75,
+          84,
+          93,
+          102,
+          111
+        ],
+        "operator": "retrieval",
+        "record_count": 184320,
+        "shape": [
+          128,
+          4,
+          30,
+          12,
+          12
+        ],
+        "shard_count": 8,
+        "shards": [
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/retrieval/shard00.pt",
+            "prompt_ids": [
+              0,
+              8,
+              16,
+              24,
+              32,
+              40,
+              48,
+              56,
+              64,
+              72,
+              80,
+              88,
+              96,
+              104,
+              112,
+              120
+            ],
+            "record_count": 23040,
+            "sha256": "7fb6c2eed7927197011c4429bf40f051bc06426071430efee6746875eb302254"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/retrieval/shard01.pt",
+            "prompt_ids": [
+              1,
+              9,
+              17,
+              25,
+              33,
+              41,
+              49,
+              57,
+              65,
+              73,
+              81,
+              89,
+              97,
+              105,
+              113,
+              121
+            ],
+            "record_count": 23040,
+            "sha256": "05cef77b1198119758742974be14d42356b26195dcb2f3a460399f87dd9c9efd"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/retrieval/shard02.pt",
+            "prompt_ids": [
+              2,
+              10,
+              18,
+              26,
+              34,
+              42,
+              50,
+              58,
+              66,
+              74,
+              82,
+              90,
+              98,
+              106,
+              114,
+              122
+            ],
+            "record_count": 23040,
+            "sha256": "df061e3ee5fe4ec9d2feae0b1ef880e5dabc58223fb617aeb0b8bbb8407e0eff"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/retrieval/shard03.pt",
+            "prompt_ids": [
+              3,
+              11,
+              19,
+              27,
+              35,
+              43,
+              51,
+              59,
+              67,
+              75,
+              83,
+              91,
+              99,
+              107,
+              115,
+              123
+            ],
+            "record_count": 23040,
+            "sha256": "8f67e760150c3e93e0d239c7438704b6bdae76f5d3ecfab4b7bd9f520de61fa9"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/retrieval/shard04.pt",
+            "prompt_ids": [
+              4,
+              12,
+              20,
+              28,
+              36,
+              44,
+              52,
+              60,
+              68,
+              76,
+              84,
+              92,
+              100,
+              108,
+              116,
+              124
+            ],
+            "record_count": 23040,
+            "sha256": "2f37f4147bbb8fb12553dc4e380c36373ec8d4e687f4ae0c400d7c0a294a85fa"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/retrieval/shard05.pt",
+            "prompt_ids": [
+              5,
+              13,
+              21,
+              29,
+              37,
+              45,
+              53,
+              61,
+              69,
+              77,
+              85,
+              93,
+              101,
+              109,
+              117,
+              125
+            ],
+            "record_count": 23040,
+            "sha256": "cc94c752bda394bc03d5206fe9b202d7f9ab2c9a0989656dd6685b8d108aafdc"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/retrieval/shard06.pt",
+            "prompt_ids": [
+              6,
+              14,
+              22,
+              30,
+              38,
+              46,
+              54,
+              62,
+              70,
+              78,
+              86,
+              94,
+              102,
+              110,
+              118,
+              126
+            ],
+            "record_count": 23040,
+            "sha256": "1d9bc2b85d3cbdd3754188d0051a35490a31e05f9c89dac703d828811f301731"
+          },
+          {
+            "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profiles/retrieval/shard07.pt",
+            "prompt_ids": [
+              7,
+              15,
+              23,
+              31,
+              39,
+              47,
+              55,
+              63,
+              71,
+              79,
+              87,
+              95,
+              103,
+              111,
+              119,
+              127
+            ],
+            "record_count": 23040,
+            "sha256": "a1cf10f995cb340cbb9abb6a096c1a53e5b9309a8fd72cb3c71409c56c34e178"
+          }
+        ],
+        "source_codebook_counts": {
+          "anchor_dynamic_rope:semantic_retrieval": 24576,
+          "dynamic_saved_rope": 24576,
+          "static_dynamic_rope": 24576
+        }
+      },
+      "runtime_map_contract": {
+        "cells_per_position": 144,
+        "equal_exposure_static_horizon_shift": true,
+        "generation_holdout_used": false,
+        "horizon_selection": "nearest_profile_frame",
+        "horizon_shift_positions": 6,
+        "primary_fraction": 0.1,
+        "selection_uses_discovery_only": true,
+        "version": 2
+      },
+      "runtime_maps": {
+        "horizon_shift_top10": {
+          "classification": "horizon_half_cycle_shift_top10",
+          "coverage_count_by_position": [
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144
+          ],
+          "coverage_count_by_position_call": [
+            [
+              45,
+              35,
+              32,
+              32
+            ],
+            [
+              45,
+              34,
+              32,
+              33
+            ],
+            [
+              44,
+              34,
+              33,
+              33
+            ],
+            [
+              44,
+              36,
+              32,
+              32
+            ],
+            [
+              45,
+              35,
+              32,
+              32
+            ],
+            [
+              43,
+              36,
+              32,
+              33
+            ],
+            [
+              40,
+              37,
+              34,
+              33
+            ],
+            [
+              48,
+              33,
+              33,
+              30
+            ],
+            [
+              47,
+              36,
+              32,
+              29
+            ],
+            [
+              44,
+              35,
+              33,
+              32
+            ],
+            [
+              44,
+              35,
+              33,
+              32
+            ],
+            [
+              45,
+              35,
+              32,
+              32
+            ]
+          ],
+          "map_id": "v200-retrieval-horizon_half_cycle_shift_top10-92cec64b2483",
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v200_head_phase_horizon_audit/analysis/maps/retrieval_horizon_shift_top10.json",
+          "sha256": "6add17f263d792f034499a8339e7094de4e55f3cda68d477ca9eee0a1f0de86a"
+        },
+        "horizon_top10": {
+          "classification": "horizon_top10",
+          "coverage_count_by_position": [
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144
+          ],
+          "coverage_count_by_position_call": [
+            [
+              40,
+              37,
+              34,
+              33
+            ],
+            [
+              48,
+              33,
+              33,
+              30
+            ],
+            [
+              47,
+              36,
+              32,
+              29
+            ],
+            [
+              44,
+              35,
+              33,
+              32
+            ],
+            [
+              44,
+              35,
+              33,
+              32
+            ],
+            [
+              45,
+              35,
+              32,
+              32
+            ],
+            [
+              45,
+              35,
+              32,
+              32
+            ],
+            [
+              45,
+              34,
+              32,
+              33
+            ],
+            [
+              44,
+              34,
+              33,
+              33
+            ],
+            [
+              44,
+              36,
+              32,
+              32
+            ],
+            [
+              45,
+              35,
+              32,
+              32
+            ],
+            [
+              43,
+              36,
+              32,
+              33
+            ]
+          ],
+          "map_id": "v200-retrieval-horizon_top10-4ce879b4cb3d",
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v200_head_phase_horizon_audit/analysis/maps/retrieval_horizon_top10.json",
+          "sha256": "ea0ec0d60aea76b28cb2fd2ba6e944db061cf59e3e6c67038820ddac2091cc55"
+        },
+        "static_top10": {
+          "classification": "static_top10",
+          "coverage_count_by_position": [
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144,
+            144
+          ],
+          "coverage_count_by_position_call": [
+            [
+              43,
+              35,
+              33,
+              33
+            ],
+            [
+              43,
+              35,
+              33,
+              33
+            ],
+            [
+              43,
+              35,
+              33,
+              33
+            ],
+            [
+              43,
+              35,
+              33,
+              33
+            ],
+            [
+              43,
+              35,
+              33,
+              33
+            ],
+            [
+              43,
+              35,
+              33,
+              33
+            ],
+            [
+              43,
+              35,
+              33,
+              33
+            ],
+            [
+              43,
+              35,
+              33,
+              33
+            ],
+            [
+              43,
+              35,
+              33,
+              33
+            ],
+            [
+              43,
+              35,
+              33,
+              33
+            ],
+            [
+              43,
+              35,
+              33,
+              33
+            ],
+            [
+              43,
+              35,
+              33,
+              33
+            ]
+          ],
+          "map_id": "v200-retrieval-static_top10-b4938352e785",
+          "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v200_head_phase_horizon_audit/analysis/maps/retrieval_static_top10.json",
+          "sha256": "5fecb5b8cb7523dfe0bdd33097cb6c1e6f0387a41a1de5337d4a221ee19d5907"
+        }
+      },
+      "selector_tests": [
+        {
+          "adjacent_horizon_membership_jaccard_mean": 0.844871794871795,
+          "cells_per_position": 14,
+          "coverage_exposures": 168,
+          "equal_exposure_verified": true,
+          "fraction": 0.01,
+          "horizon_validation_utility": 4.864170219496211,
+          "paired_delta_ci95": [
+            0.39535278128322265,
+            0.5430087205130383
+          ],
+          "paired_delta_mean": 0.4692016708469766,
+          "paired_delta_median": 0.4600804257998017,
+          "paired_sign_p": 2.3283064365386963e-10,
+          "paired_win_fraction": 1.0,
+          "position_count": 12,
+          "static_horizon_membership_jaccard": 0.75,
+          "static_validation_utility": 4.394968548649235,
+          "time_assignment_null_mean": 3.9109893976475427,
+          "time_assignment_null_std": 0.28019965024001775,
+          "time_assignment_permutation_p": 0.0001999600079984003,
+          "unique_horizon_cells": 31
+        },
+        {
+          "adjacent_horizon_membership_jaccard_mean": 0.8159720074647455,
+          "cells_per_position": 72,
+          "coverage_exposures": 864,
+          "equal_exposure_verified": true,
+          "fraction": 0.05,
+          "horizon_validation_utility": 1.695765727277522,
+          "paired_delta_ci95": [
+            0.48069008856754003,
+            0.53008326862045
+          ],
+          "paired_delta_mean": 0.5054842084996937,
+          "paired_delta_median": 0.5037850711407181,
+          "paired_sign_p": 2.3283064365386963e-10,
+          "paired_win_fraction": 1.0,
+          "position_count": 12,
+          "static_horizon_membership_jaccard": 0.6711798839458414,
+          "static_validation_utility": 1.1902815187778284,
+          "time_assignment_null_mean": 0.8606677290948909,
+          "time_assignment_null_std": 0.23261059414248852,
+          "time_assignment_permutation_p": 0.0001999600079984003,
+          "unique_horizon_cells": 164
+        },
+        {
+          "adjacent_horizon_membership_jaccard_mean": 0.821830492073974,
+          "cells_per_position": 144,
+          "coverage_exposures": 1728,
+          "equal_exposure_verified": true,
+          "fraction": 0.1,
+          "horizon_validation_utility": 0.9335707733688097,
+          "paired_delta_ci95": [
+            0.39025888959620525,
+            0.42165625156084247
+          ],
+          "paired_delta_mean": 0.40608604981054475,
+          "paired_delta_median": 0.40654184480392946,
+          "paired_sign_p": 2.3283064365386963e-10,
+          "paired_win_fraction": 1.0,
+          "position_count": 12,
+          "static_horizon_membership_jaccard": 0.7176938369781312,
+          "static_validation_utility": 0.5274847235582649,
+          "time_assignment_null_mean": 0.2432065781701019,
+          "time_assignment_null_std": 0.18925988266244742,
+          "time_assignment_permutation_p": 0.0001999600079984003,
+          "unique_horizon_cells": 326
+        },
+        {
+          "adjacent_horizon_membership_jaccard_mean": 0.8454577489804062,
+          "cells_per_position": 288,
+          "coverage_exposures": 3456,
+          "equal_exposure_verified": true,
+          "fraction": 0.2,
+          "horizon_validation_utility": 0.2636203145797403,
+          "paired_delta_ci95": [
+            0.2731987097940651,
+            0.300485853161249
+          ],
+          "paired_delta_mean": 0.28648620922501233,
+          "paired_delta_median": 0.2748782831686236,
+          "paired_sign_p": 2.3283064365386963e-10,
+          "paired_win_fraction": 1.0,
+          "position_count": 12,
+          "static_horizon_membership_jaccard": 0.7366834170854272,
+          "static_validation_utility": -0.022865894645272083,
+          "time_assignment_null_mean": -0.23084623101375865,
+          "time_assignment_null_std": 0.1406205127523744,
+          "time_assignment_permutation_p": 0.0001999600079984003,
+          "unique_horizon_cells": 606
+        }
+      ],
+      "shape": [
+        128,
+        4,
+        30,
+        12,
+        12
+      ],
+      "v189_generation_candidate": true
+    }
+  },
+  "recommendation": "advance_head_phase_horizon_to_runtime_design",
+  "source": {
+    "manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/manifest.json",
+    "manifest_sha256": "932ea22b8331797174c0a69d6040bdf1acca4f9c3b7e9f22c0fe944e0df1f0fc",
+    "v189_analysis": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/analysis/analysis.json",
+    "v189_analysis_sha256": "84cfccc82a10937ac45378d45975cdcdac228bfed9d6e7787b674a566c1d1024",
+    "v189_profile_audit": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/profile_audit.json",
+    "v189_profile_audit_sha256": "d739ed9f0521d15d9521a5c342324cca5e7394996fc3ab7927cef069cf327249"
+  },
+  "source_experiment": "v189_structured_head_phase_profile",
+  "split": {
+    "discovery": [
+      6,
+      9,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      28,
+      29,
+      30,
+      32,
+      35,
+      36,
+      37,
+      38,
+      39,
+      41,
+      42,
+      44,
+      45,
+      46,
+      47,
+      50,
+      51,
+      52,
+      55,
+      56,
+      59,
+      61,
+      62,
+      65,
+      66,
+      68,
+      69,
+      72,
+      74,
+      75,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      89,
+      92,
+      93,
+      94,
+      96,
+      97,
+      102,
+      103,
+      107,
+      109,
+      110,
+      111,
+      112,
+      114,
+      117,
+      118,
+      119,
+      122,
+      125
+    ],
+    "generation_holdout": [
+      1,
+      2,
+      5,
+      8,
+      12,
+      13,
+      14,
+      22,
+      23,
+      24,
+      31,
+      34,
+      40,
+      48,
+      49,
+      58,
+      63,
+      64,
+      67,
+      70,
+      71,
+      73,
+      76,
+      78,
+      79,
+      81,
+      90,
+      100,
+      104,
+      121,
+      123,
+      124
+    ],
+    "generation_holdout_used": false,
+    "validation": [
+      0,
+      3,
+      4,
+      7,
+      10,
+      11,
+      25,
+      26,
+      27,
+      33,
+      43,
+      53,
+      54,
+      57,
+      60,
+      77,
+      80,
+      88,
+      91,
+      95,
+      98,
+      99,
+      101,
+      105,
+      106,
+      108,
+      113,
+      115,
+      116,
+      120,
+      126,
+      127
+    ]
+  },
+  "version": 2,
+  "writes_separate_v200_runtime_maps": true
+}

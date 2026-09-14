@@ -60,7 +60,12 @@ def _indexed_video_paths(
                     f"{prior_root}, {resolved_root}"
                 )
             directory_methods[method] = resolved_root
-            candidates = sorted(value.rglob("*.mp4"))
+            # Only canonical source videos live directly under the method
+            # directory. VBench creates nested derived clips and first-frame
+            # videos whose filenames reuse the same prompt/sample indices.
+            # Recursing into those directories produces false duplicates and
+            # can mix derived media into the temporal diagnostic.
+            candidates = sorted(value.glob("*.mp4"))
         elif value.suffix.lower() == ".mp4" and value.is_file():
             method = value.parent.name
             candidates = [value]

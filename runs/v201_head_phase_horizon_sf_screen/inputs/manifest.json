@@ -1,0 +1,1489 @@
+{
+  "claim_boundary": "v201 is a classifier-holdout causal screen. It tests whether the frozen method improves canonical SF and separately tests whether the AR-horizon assignment matters beyond equal-exposure static and time-misaligned selectors. It is not a final benchmark or cross-model result.",
+  "decoded_video_contract": {
+    "fps": 16.0,
+    "frames": 477,
+    "height": 480,
+    "width": 832
+  },
+  "development_only": true,
+  "experiment": "v201_head_phase_horizon_causal_screen",
+  "manual_review_required_before_generation": false,
+  "method_order": [
+    "sf_native",
+    "landmark_all_recent",
+    "landmark_all_coverage",
+    "landmark_static_top10",
+    "landmark_horizon_top10",
+    "landmark_horizon_shift_top10",
+    "retrieval_all_recent",
+    "retrieval_all_coverage",
+    "retrieval_static_top10",
+    "retrieval_horizon_top10",
+    "retrieval_horizon_shift_top10"
+  ],
+  "methods": {
+    "landmark_all_coverage": {
+      "clean_policy": "recent",
+      "coverage_count_by_position": [
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440
+      ],
+      "coverage_count_by_position_call": [
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ]
+      ],
+      "coverage_exposure_count": 17280,
+      "coverage_exposure_fraction": 1.0,
+      "current_frames": [
+        12,
+        21,
+        30,
+        39,
+        48,
+        57,
+        66,
+        75,
+        84,
+        93,
+        102,
+        111
+      ],
+      "head_bank_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/profile_all_heads.csv",
+      "head_bank_map_sha256": "ee6c6fa1e4902d23c0eb29d07a7e22ba4700773e5ec4cb238cdac917efefaecf",
+      "history_policy": "landmark",
+      "horizon_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v201_head_phase_horizon_sf_screen/inputs/maps/landmark_all_coverage.json",
+      "horizon_map_sha256": "8e444e2ac3114c5b0ffd02ab11e8456f4d78a2d79e96237a2ab1e3d8b454bf86",
+      "map_classification": "all_coverage",
+      "map_source_role": "v201_endpoint_control",
+      "operator": "landmark",
+      "read_frame_equivalents": 9,
+      "role": "operator_matched_universal_coverage_control",
+      "routing_map_id": "v201-landmark-all_coverage-b0c1428552db",
+      "runtime": "head_phase_horizon_cache_runtime",
+      "schedule": "head_phase_horizon"
+    },
+    "landmark_all_recent": {
+      "clean_policy": "recent",
+      "coverage_count_by_position": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "coverage_count_by_position_call": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "coverage_exposure_count": 0,
+      "coverage_exposure_fraction": 0.0,
+      "current_frames": [
+        12,
+        21,
+        30,
+        39,
+        48,
+        57,
+        66,
+        75,
+        84,
+        93,
+        102,
+        111
+      ],
+      "head_bank_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/profile_all_heads.csv",
+      "head_bank_map_sha256": "ee6c6fa1e4902d23c0eb29d07a7e22ba4700773e5ec4cb238cdac917efefaecf",
+      "history_policy": "landmark",
+      "horizon_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v201_head_phase_horizon_sf_screen/inputs/maps/landmark_all_recent.json",
+      "horizon_map_sha256": "e2e85ebb782a231184194c0556e3824f9a9724a6fd26fda2906ea18c092f3169",
+      "map_classification": "all_recent",
+      "map_source_role": "v201_endpoint_control",
+      "operator": "landmark",
+      "read_frame_equivalents": 9,
+      "role": "operator_matched_local_control",
+      "routing_map_id": "v201-landmark-all_recent-0013f012e456",
+      "runtime": "head_phase_horizon_cache_runtime",
+      "schedule": "head_phase_horizon"
+    },
+    "landmark_horizon_shift_top10": {
+      "clean_policy": "recent",
+      "coverage_count_by_position": [
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144
+      ],
+      "coverage_count_by_position_call": [
+        [
+          39,
+          35,
+          34,
+          36
+        ],
+        [
+          39,
+          35,
+          35,
+          35
+        ],
+        [
+          40,
+          36,
+          33,
+          35
+        ],
+        [
+          40,
+          36,
+          34,
+          34
+        ],
+        [
+          40,
+          36,
+          33,
+          35
+        ],
+        [
+          40,
+          36,
+          32,
+          36
+        ],
+        [
+          39,
+          38,
+          34,
+          33
+        ],
+        [
+          40,
+          33,
+          33,
+          38
+        ],
+        [
+          41,
+          35,
+          34,
+          34
+        ],
+        [
+          40,
+          33,
+          34,
+          37
+        ],
+        [
+          39,
+          34,
+          34,
+          37
+        ],
+        [
+          39,
+          34,
+          35,
+          36
+        ]
+      ],
+      "coverage_exposure_count": 1728,
+      "coverage_exposure_fraction": 0.1,
+      "current_frames": [
+        12,
+        21,
+        30,
+        39,
+        48,
+        57,
+        66,
+        75,
+        84,
+        93,
+        102,
+        111
+      ],
+      "head_bank_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/profile_all_heads.csv",
+      "head_bank_map_sha256": "ee6c6fa1e4902d23c0eb29d07a7e22ba4700773e5ec4cb238cdac917efefaecf",
+      "history_policy": "landmark",
+      "horizon_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v201_head_phase_horizon_sf_screen/inputs/maps/landmark_horizon_shift_top10.json",
+      "horizon_map_sha256": "2ff4b1a24bd6effc105344ea0f62453f7f2abd8e4d68b9fac17d6024344acf0e",
+      "map_classification": "horizon_half_cycle_shift_top10",
+      "map_source_role": "v200_discovery_selector",
+      "operator": "landmark",
+      "read_frame_equivalents": 9,
+      "role": "equal_exposure_horizon_alignment_control",
+      "routing_map_id": "v200-landmark-horizon_half_cycle_shift_top10-408b87b08573",
+      "runtime": "head_phase_horizon_cache_runtime",
+      "schedule": "head_phase_horizon"
+    },
+    "landmark_horizon_top10": {
+      "clean_policy": "recent",
+      "coverage_count_by_position": [
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144
+      ],
+      "coverage_count_by_position_call": [
+        [
+          39,
+          38,
+          34,
+          33
+        ],
+        [
+          40,
+          33,
+          33,
+          38
+        ],
+        [
+          41,
+          35,
+          34,
+          34
+        ],
+        [
+          40,
+          33,
+          34,
+          37
+        ],
+        [
+          39,
+          34,
+          34,
+          37
+        ],
+        [
+          39,
+          34,
+          35,
+          36
+        ],
+        [
+          39,
+          35,
+          34,
+          36
+        ],
+        [
+          39,
+          35,
+          35,
+          35
+        ],
+        [
+          40,
+          36,
+          33,
+          35
+        ],
+        [
+          40,
+          36,
+          34,
+          34
+        ],
+        [
+          40,
+          36,
+          33,
+          35
+        ],
+        [
+          40,
+          36,
+          32,
+          36
+        ]
+      ],
+      "coverage_exposure_count": 1728,
+      "coverage_exposure_fraction": 0.1,
+      "current_frames": [
+        12,
+        21,
+        30,
+        39,
+        48,
+        57,
+        66,
+        75,
+        84,
+        93,
+        102,
+        111
+      ],
+      "head_bank_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/profile_all_heads.csv",
+      "head_bank_map_sha256": "ee6c6fa1e4902d23c0eb29d07a7e22ba4700773e5ec4cb238cdac917efefaecf",
+      "history_policy": "landmark",
+      "horizon_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v201_head_phase_horizon_sf_screen/inputs/maps/landmark_horizon_top10.json",
+      "horizon_map_sha256": "7b8c19a9abbe5fec25b5b7229f450f191101212b9aa1abd6e04d7adc775a56dd",
+      "map_classification": "horizon_top10",
+      "map_source_role": "v200_discovery_selector",
+      "operator": "landmark",
+      "read_frame_equivalents": 9,
+      "role": "primary_head_phase_horizon",
+      "routing_map_id": "v200-landmark-horizon_top10-620987b0b876",
+      "runtime": "head_phase_horizon_cache_runtime",
+      "schedule": "head_phase_horizon"
+    },
+    "landmark_static_top10": {
+      "clean_policy": "recent",
+      "coverage_count_by_position": [
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144
+      ],
+      "coverage_count_by_position_call": [
+        [
+          38,
+          36,
+          33,
+          37
+        ],
+        [
+          38,
+          36,
+          33,
+          37
+        ],
+        [
+          38,
+          36,
+          33,
+          37
+        ],
+        [
+          38,
+          36,
+          33,
+          37
+        ],
+        [
+          38,
+          36,
+          33,
+          37
+        ],
+        [
+          38,
+          36,
+          33,
+          37
+        ],
+        [
+          38,
+          36,
+          33,
+          37
+        ],
+        [
+          38,
+          36,
+          33,
+          37
+        ],
+        [
+          38,
+          36,
+          33,
+          37
+        ],
+        [
+          38,
+          36,
+          33,
+          37
+        ],
+        [
+          38,
+          36,
+          33,
+          37
+        ],
+        [
+          38,
+          36,
+          33,
+          37
+        ]
+      ],
+      "coverage_exposure_count": 1728,
+      "coverage_exposure_fraction": 0.1,
+      "current_frames": [
+        12,
+        21,
+        30,
+        39,
+        48,
+        57,
+        66,
+        75,
+        84,
+        93,
+        102,
+        111
+      ],
+      "head_bank_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/profile_all_heads.csv",
+      "head_bank_map_sha256": "ee6c6fa1e4902d23c0eb29d07a7e22ba4700773e5ec4cb238cdac917efefaecf",
+      "history_policy": "landmark",
+      "horizon_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v201_head_phase_horizon_sf_screen/inputs/maps/landmark_static_top10.json",
+      "horizon_map_sha256": "ed9c729c119390196532ba5ec2753ac243621a2623f79fbbf8bf27b51f6bc9c4",
+      "map_classification": "static_top10",
+      "map_source_role": "v200_discovery_selector",
+      "operator": "landmark",
+      "read_frame_equivalents": 9,
+      "role": "equal_exposure_static_head_phase_control",
+      "routing_map_id": "v200-landmark-static_top10-39b9c60bfcbd",
+      "runtime": "head_phase_horizon_cache_runtime",
+      "schedule": "head_phase_horizon"
+    },
+    "retrieval_all_coverage": {
+      "clean_policy": "recent",
+      "coverage_count_by_position": [
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440,
+        1440
+      ],
+      "coverage_count_by_position_call": [
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ],
+        [
+          360,
+          360,
+          360,
+          360
+        ]
+      ],
+      "coverage_exposure_count": 17280,
+      "coverage_exposure_fraction": 1.0,
+      "current_frames": [
+        12,
+        21,
+        30,
+        39,
+        48,
+        57,
+        66,
+        75,
+        84,
+        93,
+        102,
+        111
+      ],
+      "head_bank_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/profile_all_heads.csv",
+      "head_bank_map_sha256": "ee6c6fa1e4902d23c0eb29d07a7e22ba4700773e5ec4cb238cdac917efefaecf",
+      "history_policy": "retrieval",
+      "horizon_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v201_head_phase_horizon_sf_screen/inputs/maps/retrieval_all_coverage.json",
+      "horizon_map_sha256": "f448127017059176da60f135eef52e1ce7c6714a30b9f1c3cc9caa8e65b6d251",
+      "map_classification": "all_coverage",
+      "map_source_role": "v201_endpoint_control",
+      "operator": "retrieval",
+      "read_frame_equivalents": 9,
+      "role": "operator_matched_universal_coverage_control",
+      "routing_map_id": "v201-retrieval-all_coverage-ba73824b8b19",
+      "runtime": "head_phase_horizon_cache_runtime",
+      "schedule": "head_phase_horizon"
+    },
+    "retrieval_all_recent": {
+      "clean_policy": "recent",
+      "coverage_count_by_position": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "coverage_count_by_position_call": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "coverage_exposure_count": 0,
+      "coverage_exposure_fraction": 0.0,
+      "current_frames": [
+        12,
+        21,
+        30,
+        39,
+        48,
+        57,
+        66,
+        75,
+        84,
+        93,
+        102,
+        111
+      ],
+      "head_bank_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/profile_all_heads.csv",
+      "head_bank_map_sha256": "ee6c6fa1e4902d23c0eb29d07a7e22ba4700773e5ec4cb238cdac917efefaecf",
+      "history_policy": "retrieval",
+      "horizon_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v201_head_phase_horizon_sf_screen/inputs/maps/retrieval_all_recent.json",
+      "horizon_map_sha256": "ecf25073d2d4bbfc21353e3556096ea0faf8d09ae1dfc67c199b7f9b2812b5ce",
+      "map_classification": "all_recent",
+      "map_source_role": "v201_endpoint_control",
+      "operator": "retrieval",
+      "read_frame_equivalents": 9,
+      "role": "operator_matched_local_control",
+      "routing_map_id": "v201-retrieval-all_recent-85d6c7f44819",
+      "runtime": "head_phase_horizon_cache_runtime",
+      "schedule": "head_phase_horizon"
+    },
+    "retrieval_horizon_shift_top10": {
+      "clean_policy": "recent",
+      "coverage_count_by_position": [
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144
+      ],
+      "coverage_count_by_position_call": [
+        [
+          45,
+          35,
+          32,
+          32
+        ],
+        [
+          45,
+          34,
+          32,
+          33
+        ],
+        [
+          44,
+          34,
+          33,
+          33
+        ],
+        [
+          44,
+          36,
+          32,
+          32
+        ],
+        [
+          45,
+          35,
+          32,
+          32
+        ],
+        [
+          43,
+          36,
+          32,
+          33
+        ],
+        [
+          40,
+          37,
+          34,
+          33
+        ],
+        [
+          48,
+          33,
+          33,
+          30
+        ],
+        [
+          47,
+          36,
+          32,
+          29
+        ],
+        [
+          44,
+          35,
+          33,
+          32
+        ],
+        [
+          44,
+          35,
+          33,
+          32
+        ],
+        [
+          45,
+          35,
+          32,
+          32
+        ]
+      ],
+      "coverage_exposure_count": 1728,
+      "coverage_exposure_fraction": 0.1,
+      "current_frames": [
+        12,
+        21,
+        30,
+        39,
+        48,
+        57,
+        66,
+        75,
+        84,
+        93,
+        102,
+        111
+      ],
+      "head_bank_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/profile_all_heads.csv",
+      "head_bank_map_sha256": "ee6c6fa1e4902d23c0eb29d07a7e22ba4700773e5ec4cb238cdac917efefaecf",
+      "history_policy": "retrieval",
+      "horizon_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v201_head_phase_horizon_sf_screen/inputs/maps/retrieval_horizon_shift_top10.json",
+      "horizon_map_sha256": "6add17f263d792f034499a8339e7094de4e55f3cda68d477ca9eee0a1f0de86a",
+      "map_classification": "horizon_half_cycle_shift_top10",
+      "map_source_role": "v200_discovery_selector",
+      "operator": "retrieval",
+      "read_frame_equivalents": 9,
+      "role": "equal_exposure_horizon_alignment_control",
+      "routing_map_id": "v200-retrieval-horizon_half_cycle_shift_top10-92cec64b2483",
+      "runtime": "head_phase_horizon_cache_runtime",
+      "schedule": "head_phase_horizon"
+    },
+    "retrieval_horizon_top10": {
+      "clean_policy": "recent",
+      "coverage_count_by_position": [
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144
+      ],
+      "coverage_count_by_position_call": [
+        [
+          40,
+          37,
+          34,
+          33
+        ],
+        [
+          48,
+          33,
+          33,
+          30
+        ],
+        [
+          47,
+          36,
+          32,
+          29
+        ],
+        [
+          44,
+          35,
+          33,
+          32
+        ],
+        [
+          44,
+          35,
+          33,
+          32
+        ],
+        [
+          45,
+          35,
+          32,
+          32
+        ],
+        [
+          45,
+          35,
+          32,
+          32
+        ],
+        [
+          45,
+          34,
+          32,
+          33
+        ],
+        [
+          44,
+          34,
+          33,
+          33
+        ],
+        [
+          44,
+          36,
+          32,
+          32
+        ],
+        [
+          45,
+          35,
+          32,
+          32
+        ],
+        [
+          43,
+          36,
+          32,
+          33
+        ]
+      ],
+      "coverage_exposure_count": 1728,
+      "coverage_exposure_fraction": 0.1,
+      "current_frames": [
+        12,
+        21,
+        30,
+        39,
+        48,
+        57,
+        66,
+        75,
+        84,
+        93,
+        102,
+        111
+      ],
+      "head_bank_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/profile_all_heads.csv",
+      "head_bank_map_sha256": "ee6c6fa1e4902d23c0eb29d07a7e22ba4700773e5ec4cb238cdac917efefaecf",
+      "history_policy": "retrieval",
+      "horizon_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v201_head_phase_horizon_sf_screen/inputs/maps/retrieval_horizon_top10.json",
+      "horizon_map_sha256": "ea0ec0d60aea76b28cb2fd2ba6e944db061cf59e3e6c67038820ddac2091cc55",
+      "map_classification": "horizon_top10",
+      "map_source_role": "v200_discovery_selector",
+      "operator": "retrieval",
+      "read_frame_equivalents": 9,
+      "role": "primary_head_phase_horizon",
+      "routing_map_id": "v200-retrieval-horizon_top10-4ce879b4cb3d",
+      "runtime": "head_phase_horizon_cache_runtime",
+      "schedule": "head_phase_horizon"
+    },
+    "retrieval_static_top10": {
+      "clean_policy": "recent",
+      "coverage_count_by_position": [
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144,
+        144
+      ],
+      "coverage_count_by_position_call": [
+        [
+          43,
+          35,
+          33,
+          33
+        ],
+        [
+          43,
+          35,
+          33,
+          33
+        ],
+        [
+          43,
+          35,
+          33,
+          33
+        ],
+        [
+          43,
+          35,
+          33,
+          33
+        ],
+        [
+          43,
+          35,
+          33,
+          33
+        ],
+        [
+          43,
+          35,
+          33,
+          33
+        ],
+        [
+          43,
+          35,
+          33,
+          33
+        ],
+        [
+          43,
+          35,
+          33,
+          33
+        ],
+        [
+          43,
+          35,
+          33,
+          33
+        ],
+        [
+          43,
+          35,
+          33,
+          33
+        ],
+        [
+          43,
+          35,
+          33,
+          33
+        ],
+        [
+          43,
+          35,
+          33,
+          33
+        ]
+      ],
+      "coverage_exposure_count": 1728,
+      "coverage_exposure_fraction": 0.1,
+      "current_frames": [
+        12,
+        21,
+        30,
+        39,
+        48,
+        57,
+        66,
+        75,
+        84,
+        93,
+        102,
+        111
+      ],
+      "head_bank_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/profile_all_heads.csv",
+      "head_bank_map_sha256": "ee6c6fa1e4902d23c0eb29d07a7e22ba4700773e5ec4cb238cdac917efefaecf",
+      "history_policy": "retrieval",
+      "horizon_map": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v201_head_phase_horizon_sf_screen/inputs/maps/retrieval_static_top10.json",
+      "horizon_map_sha256": "5fecb5b8cb7523dfe0bdd33097cb6c1e6f0387a41a1de5337d4a221ee19d5907",
+      "map_classification": "static_top10",
+      "map_source_role": "v200_discovery_selector",
+      "operator": "retrieval",
+      "read_frame_equivalents": 9,
+      "role": "equal_exposure_static_head_phase_control",
+      "routing_map_id": "v200-retrieval-static_top10-b4938352e785",
+      "runtime": "head_phase_horizon_cache_runtime",
+      "schedule": "head_phase_horizon"
+    },
+    "sf_native": {
+      "clean_policy": null,
+      "operator": null,
+      "read_frame_equivalents": null,
+      "role": "canonical_sf_baseline",
+      "runtime": "sf_native",
+      "schedule": null
+    }
+  },
+  "num_output_frames": 120,
+  "operator_contracts": {
+    "landmark": {
+      "coverage_cells_per_position": 144,
+      "equal_exposure_selector_methods": [
+        "landmark_static_top10",
+        "landmark_horizon_top10",
+        "landmark_horizon_shift_top10"
+      ],
+      "equal_exposure_verified": true,
+      "method_order": [
+        "landmark_all_recent",
+        "landmark_all_coverage",
+        "landmark_static_top10",
+        "landmark_horizon_top10",
+        "landmark_horizon_shift_top10"
+      ],
+      "v200_horizon_gate": true
+    },
+    "retrieval": {
+      "coverage_cells_per_position": 144,
+      "equal_exposure_selector_methods": [
+        "retrieval_static_top10",
+        "retrieval_horizon_top10",
+        "retrieval_horizon_shift_top10"
+      ],
+      "equal_exposure_verified": true,
+      "method_order": [
+        "retrieval_all_recent",
+        "retrieval_all_coverage",
+        "retrieval_static_top10",
+        "retrieval_horizon_top10",
+        "retrieval_horizon_shift_top10"
+      ],
+      "v200_horizon_gate": true
+    }
+  },
+  "operators": [
+    "landmark",
+    "retrieval"
+  ],
+  "primary_baseline": "sf_native",
+  "promotion_target": "paired_improvement_over_canonical_sf",
+  "prompt_count": 32,
+  "prompt_file": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v201_head_phase_horizon_sf_screen/inputs/prompts/moviegen_qwen_holdout32.txt",
+  "prompt_file_sha256": "9ea647b6be6ebf2ef4c0cafecb9f9440963df6da87843e00837c0b7e9d5b39a9",
+  "prompt_items": [
+    {
+      "index": 0,
+      "source_index": 1,
+      "text": "A stunning mid-afternoon landscape with a low camera angle, showcasing several giant wooly mammoths treading through a snowy meadow. Their long, wooly fur gently billows as they move, creating natural movement. Snow-covered trees and dramatic snow-capped mountains loom in the distance. Wispy clouds and a high sun cast a warm glow, enhancing the serene and awe-inspiring atmosphere. The depth of field brings out detailed textures, capturing every nuance of these prehistoric giants in breathtaking clarity."
+    },
+    {
+      "index": 1,
+      "source_index": 2,
+      "text": "A movie trailer in a classic cinematic style, featuring the adventurous journey of a 30-year-old space man wearing a vibrant red wool knitted motorcycle helmet. He navigates through a vast blue sky and desolate salt desert landscape with determination, his helmet glinting under the sun. The background showcases sweeping desert vistas and distant horizons, with shimmering light reflecting off the salt flats. A dynamic medium shot with a sweeping overhead angle emphasizes his resilience and the vastness of his adventure. Shot on 35mm film, capturing vivid and rich colors."
+    },
+    {
+      "index": 2,
+      "source_index": 5,
+      "text": "A beautifully detailed papercraft illustration of a vibrant coral reef teeming with colorful fish and sea creatures. Intricately designed coral formations with each polyp and branch meticulously crafted. Schools of tropical fish swim gracefully, scales shimmering in hues of turquoise, orange, and purple. Sea turtles glide smoothly, while clownfish dart playfully around an anemone. Soft, pastel-colored ocean with gentle waves and sunlight breaking through. Lifelike and textured papercraft style, capturing a thriving underwater ecosystem. Close-up view from a slightly elevated angle, showcasing vivid motion and detail."
+    },
+    {
+      "index": 3,
+      "source_index": 8,
+      "text": "A vibrant anime illustration in a thick painting style, featuring a young man in his 20s sitting on a fluffy white cloud in the sky, engrossedly reading a classic leather-bound book. He has short, messy black hair and expressive brown eyes, wearing a casual white t-shirt and blue jeans. His relaxed yet attentive posture includes one leg crossed over the other. The vivid sky has cotton-like clouds and a soft sunset glow, casting a warm orange hue. The scene has a dreamy and ethereal quality, with a medium shot from a slightly downward angle."
+    },
+    {
+      "index": 4,
+      "source_index": 12,
+      "text": "A vibrant cartoon-style illustration showing a kangaroo performing a lively disco dance. The kangaroo has a joyful expression, large expressive eyes, and a mischievous grin. It wears a colorful sequined outfit with sparkles, including a glittery top and matching pants. Its tail is fluffed out and swaying rhythmically. The kangaroo moves with natural fluidity, one foot lifted and the other stepping forward. The background features a blurred dance floor with colorful lights and dancing figures, creating a festive atmosphere. The illustration has a smooth, hand-drawn style with exaggerated proportions. A dynamic close-up shot from a slightly elevated angle."
+    },
+    {
+      "index": 5,
+      "source_index": 13,
+      "text": "A beautifully crafted homemade video set in Lagos, Nigeria in 2056, captured with a mobile phone camera. The footage showcases diverse people going about their daily lives in a vibrant and bustling urban environment. Young Nigerian women in colorful traditional attire walk down a crowded street, a man in a smart business suit hurries past a futuristic billboard, and a family gathers around a street vendor selling fresh fruits. Modern skyscrapers, traditional market stalls, and electric vehicles zip by in the background. The video has a warm, nostalgic feel with occasional blurs and graininess. Handheld shots and close-ups capture the dynamic energy of the city."
+    },
+    {
+      "index": 6,
+      "source_index": 14,
+      "text": "A high-resolution digital artwork in a realistic botanical style, showcasing a petri dish where a miniature bamboo forest thrives. Slender green bamboo stalks sway gently, and tiny red pandas run playfully among them, sometimes climbing or nibbling leaves. The red pandas have distinctive reddish-brown fur and black legs. Nutrient-rich soil fills the dish, set against a blurred but recognizable forest landscape with distant mountains and clear blue skies. The scene exudes harmony and tranquility, capturing the wonder of nature in a microscopic world. A macro shot from a low angle emphasizes the intricate details of the red pandas and bamboo."
+    },
+    {
+      "index": 7,
+      "source_index": 22,
+      "text": "A charming comic-style illustration showing a cozy living room scene. A fluffy gray cat with large, round eyes and a mischievous look is waking up its sleeping owner, who lies on the couch with a sleepy, resigned expression. The cat paws at the owner's face and meows insistently. The owner turns away slightly but the cat jumps onto their chest and nuzzles their hand. The owner finally reaches under the pillow, pulls out a small bag of treats, and offers it playfully. Soft, warm lighting from a nearby lamp illuminates the scene, with scattered books and a blanket on the couch. A medium shot from a slightly elevated angle captures the cat and owner's interaction."
+    },
+    {
+      "index": 8,
+      "source_index": 23,
+      "text": "A nature photography style photo capturing a family of orangutans along the Kinabatangan River in Borneo. The mother orangutan, with long reddish-brown fur and expressive brown eyes, gently holds her baby tightly. The baby, smaller and with lighter fur, clings to its mother\u2019s chest, both gazing curiously at the camera. The father, larger and more muscular, stands nearby, looking contemplative. The lush riverbank is filled with green foliage, and the water reflects the surrounding tropical rainforest. A medium shot from a slightly elevated angle, capturing the family interaction in vivid, naturalistic detail. Orangutans in focus with a blurred background of dense jungle."
+    },
+    {
+      "index": 9,
+      "source_index": 24,
+      "text": "A vibrant and lively Chinese Lunar New Year celebration video featuring a majestic Chinese dragon performing traditional dance moves. The dragon, made of colorful silk and adorned with intricate patterns, has flowing scales and a fierce expression, moving gracefully with fluid movements. It dances amidst a sea of joyful people in festive red and gold attire, accompanied by drummers and musicians playing traditional instruments. The background showcases bustling streets filled with lanterns, paper decorations, and colorful stalls. The video has a dynamic and energetic feel, capturing the essence of the festival. A wide-angle shot with dynamic camera movements following the dragon's path, capturing its powerful leaps and graceful turns."
+    },
+    {
+      "index": 10,
+      "source_index": 31,
+      "text": "A surreal and dreamlike cyberpunk scene in New York City submerged underwater, resembling Atlantis. Fish, whales, sea turtles, and sharks swim through bustling, algae-covered streets now underwater. Murky water filters sunlight, casting colorful hues. Graceful merfolk pedestrians interact with aquatic creatures. The camera sweeps low, capturing the vast expanse of this submerged metropolis."
+    },
+    {
+      "index": 11,
+      "source_index": 34,
+      "text": "A nature-inspired illustration in a soft watercolor style showing five playful gray wolf pups frolicking and chasing each other along a remote gravel road. The pups run, leap, and playfully nip at one another, their tails wagging joyfully. Covered in a fine layer of dirt and grass, they add to their lively energy. Tall grass sways gently in the breeze behind them, with a few wildflowers scattered about. Warm, golden sunlight casts a serene and natural atmosphere. A dynamic close-up from a low angle captures the wolves' joyful antics."
+    },
+    {
+      "index": 12,
+      "source_index": 40,
+      "text": "A charming 3D digital render art style image showing an adorable and happy otter confidently standing on a surfboard, wearing a bright yellow lifejacket. The otter glides gracefully through turquoise tropical waters with soft, detailed fur and a joyful expression. Background features lush tropical islands with vibrant green foliage and palm trees. Water is crystal clear with gentle waves and sunlight filtering through. A medium shot captures the otter mid-glide, with a slight tilt to the camera angle emphasizing its playful and adventurous spirit."
+    },
+    {
+      "index": 13,
+      "source_index": 48,
+      "text": "A dynamic scene in the style of vibrant food photography, showcasing a middle-aged chef with a weathered face and determined expression skillfully chopping onions in a bustling kitchen. He slices the onions with quick, practiced movements, wearing a neat white apron and chef's hat. The background features a well-equipped kitchen with stainless steel appliances and cluttered countertops. Steam rises from a pot on the stove, and sunlight filters through the window, casting a warm glow. A medium shot captures the chef's intense focus and skilled actions."
+    },
+    {
+      "index": 14,
+      "source_index": 49,
+      "text": "A detailed digital painting style illustration of a small man with a cheerful expression, wearing round glasses and a warm smile, holding several colorful building blocks. He stands near a large painting of a serene landscape in a modern art gallery filled with various artworks, including modern abstract and classic pieces. The polished wooden floor and comfortable chairs add to the ambiance. Soft, warm lighting highlights the textures. A medium shot from a slightly lower angle captures both the man and the gallery scene."
+    },
+    {
+      "index": 15,
+      "source_index": 58,
+      "text": "A vibrant tropical fish with bright blue and yellow scales, a small orange spot on its side, swims gracefully among colorful coral reefs in a clear, turquoise ocean. Schools of colorful fish and sea turtles glide by. The crystal-clear water reveals a sandy ocean floor, and the reef is adorned with hard and soft corals in shades of red, orange, and green. The fish moves lively, captured from a slightly elevated angle, with dynamic close-up shots emphasizing its movements and vibrant surroundings."
+    },
+    {
+      "index": 16,
+      "source_index": 63,
+      "text": "A detailed oil painting in a romantic style, showcasing a young woman standing amidst a vibrant garden filled with blooming flowers. She wears a floral-patterned dress and has loosely tied hair adorned with wildflowers, her expression serene and joyful with a gentle smile. Surrounded by colorful blooms like roses, tulips, and daisies in a natural, organic arrangement, she stands in a medium shot with a slightly tilted angle. The background features a soft, pastel-colored sky with fluffy clouds, and a gentle breeze rustles through the petals, capturing the essence of spring and renewal."
+    },
+    {
+      "index": 17,
+      "source_index": 64,
+      "text": "A rugged man rides a powerful horse through the vast Gobi Desert at sunset, reins tight on the horse\u2019s neck as he gallops across the golden sands. Dust rises as the sun sets dramatically behind them, casting long shadows and warm hues. Rolling dunes and sparse rocky outcrops fill the background, emphasizing the harsh beauty. A dynamic wide shot from a low angle captures both the man and the expansive desert vista."
+    },
+    {
+      "index": 18,
+      "source_index": 67,
+      "text": "A sleek, vibrant red rally car with black accents speeds through a tight turn on a winding track, tires screeching. The driver, a determined man with focused eyes, grips the steering wheel tightly as he navigates with precision. The car's headlights glow brightly in the night, and the background shows blurred glimpses of the track with wet pavement reflections. The camera angle is from slightly above, capturing the intense energy and movement."
+    },
+    {
+      "index": 19,
+      "source_index": 70,
+      "text": "A subtle and elegant Japanese-style photograph, capturing a woman with gentle, contemplative eyes and flowing dark hair sitting by the window of a high-speed train. The train moves rapidly through a bustling cityscape, with blurred reflections of city lights and buildings on the window pane. The woman appears serene, her hands resting gently on her lap. The background blends traditional Japanese architecture with modern skyscrapers, featuring a soft, muted color palette. The photo has a vintage film texture, emphasizing the movement and energy of the scene. A medium shot from a slightly angled perspective, highlighting the woman's thoughtful gaze and the dynamic motion of the train."
+    },
+    {
+      "index": 20,
+      "source_index": 71,
+      "text": "An astronaut in a bright white spacesuit, adorned with technical patches, runs energetically through a narrow alley in Rio de Janeiro. The spacesuit reflects sunlight, and the astronaut balances with one hand on the hip and the other forward. Colorful street art and vibrant buildings surround, with people bustling about. Shadows cast by narrow walls add depth. A mid-shot from a low angle captures the excitement, contrasting urban life with space exploration gear."
+    },
+    {
+      "index": 21,
+      "source_index": 73,
+      "text": "A dynamic and surreal scene from a conceptual digital art piece, showcasing an empty warehouse where flora suddenly bursts forth from the ground, rapidly covering exposed brick walls and floors. Green vines and flowers create a chaotic yet vibrant explosion of nature. The camera angle is from a low, sweeping perspective, capturing the full extent of the transformation. Background features old machinery and newer plant life, with sunlight filtering through gaps in the roof, casting dappled light. The hyper-realistic style emphasizes the sudden and dramatic change."
+    },
+    {
+      "index": 22,
+      "source_index": 76,
+      "text": "A first-person view (FPV) shot zooms through a narrow tunnel, illuminated by colorful lights, creating a mesmerizing effect. Bubbles rise gently, and seaweed sways gracefully inside. The underwater world transitions vividly, filled with colorful fish like neon blue tangs and vibrant orange clownfish. Coral reefs in pink, purple, and green add depth. Clear water reveals diverse marine life. The camera angle is slightly tilted, capturing the excitement and adventure."
+    },
+    {
+      "index": 23,
+      "source_index": 78,
+      "text": "An ultra-fast disorienting hyperlapse photograph captures a car racing through a tunnel with peeling paint and graffiti, its headlights illuminating the walls. The camera transitions into a chaotic labyrinth of rapidly growing vines, with the car navigating a treacherous path. The vines sway wildly, forming a maze-like structure. The driver focuses intently as the car speeds into a dense forest of vines, with blurred, green foliage and twisted branches creating a sense of urgency. Shot from a low angle, the wide-angle perspective emphasizes the dynamic movement and intense visual effects."
+    },
+    {
+      "index": 24,
+      "source_index": 79,
+      "text": "A high-speed FPV shot inside the vintage European train's cab, filled with intricate mechanical details like dials and switches. Steam and smoke swirl as the train moves through bustling streets, capturing blurred, colorful buildings and narrow cobblestone streets. The camera angle provides a dynamic, immersive view, emphasizing the intense motion and rich architectural details. The style is detailed and realistic, highlighting the speed and energy of the journey."
+    },
+    {
+      "index": 25,
+      "source_index": 81,
+      "text": "A hyper-realistic digital art piece showing a wide-angle view inside a high-speed train moving through an old European city. The sleek, modern train interior has passengers seated in comfortable leather seats, reading books or using laptops. Clear windows display bustling streets, ancient cobblestone, ornate facades, and medieval spires rushing past at incredible speed. People walk hurriedly, and horse-drawn carriages pass by. The train's motion is vividly depicted, creating a sense of dynamic movement and adventure. The cityscape is richly detailed, blurred and streaked to emphasize speed. The atmosphere blends futuristic technology with historical charm."
+    },
+    {
+      "index": 26,
+      "source_index": 90,
+      "text": "A cinematic wide-angle shot of a man with a rugged, determined expression leaning forward slightly in a vintage wooden armchair. His dark, slightly disheveled hair and worn leather jacket over a plain white shirt are illuminated by the warm glow of a TV screen showing static with a faint news broadcast in the corner. The cluttered living room background features old books, newspapers, and framed photos. The scene has a nostalgic, gritty feel with a rich color palette and soft, grainy texture."
+    },
+    {
+      "index": 27,
+      "source_index": 100,
+      "text": "An oil painting-style natural forest scene with a rich blend of autumn colors, featuring vibrant maple trees casting vivid hues across the landscape. The painting employs a cinematic parallax technique, creating deep and immersive visual depth. In the foreground, vividly colored maple leaves range from deep red to bright orange, while in the midground, tall, majestic trees reach towards the sky. The background reveals a misty distance with softer shades of green and brown, enhancing the sense of depth. Soft golden light filters through the canopy, creating a warm and inviting atmosphere. The composition is a layered, panoramic view with a slight tilt to the right."
+    },
+    {
+      "index": 28,
+      "source_index": 104,
+      "text": "A vibrant and whimsical digital illustration in a cartoon style, depicting a giant humanoid figure made of fluffy blue cotton candy stomping its feet on the ground, causing a playful disturbance, and roaring towards the clear blue sky. The background features a bright, cloudless sky with soft, pastel tones, enhancing the dreamlike quality. The humanoid has expressive eyes, a mischievous smile, and arms and legs made of swirling cotton candy. A dynamic, full-body shot from a slightly elevated angle captures the energetic movement and playful nature of the creature."
+    },
+    {
+      "index": 29,
+      "source_index": 121,
+      "text": "A surreal digital art piece showing a majestic bird with vibrant plumage and long spread wings gently landing on a tranquil lake. As it transforms mid-mutation, its body elongates and turns silver, fins forming from its wings and legs. The bird retains bird-like features like large eyes and a curved beak. Soft ripples on the water and gentle sunlight cast a warm glow. The background has a dreamy, ethereal quality with a slight blur effect. A medium shot from a slightly elevated angle captures the transformation in motion."
+    },
+    {
+      "index": 30,
+      "source_index": 123,
+      "text": "A high-resolution, realistic-style photograph showing a vibrant green lizard with small black spots, perched on a leaf with its tail coiled for balance. The lizard's sharp eyes focus intently as it extends its tongue to catch a cricket, positioned just within reach. Set in a lush, tropical forest with dappled sunlight and dense foliage, this medium shot from a slightly elevated angle captures the lizard's dynamic action with crisp clarity."
+    },
+    {
+      "index": 31,
+      "source_index": 124,
+      "text": "A dramatic and surreal scene in the style of a fantasy comic: a lightning bolt strikes a turtle in a tranquil lake, instantly transforming it into a fierce alligator. The alligator, with a longer snout and sharper teeth, stands in the water, its body contorted from the shock. The lake background shows ripples and splashes, with water reflecting the stormy sky. The alligator's wide-eyed surprise and tiny scales are visible. Intense lighting with flashes of lightning illuminates the scene. A dynamic close-up from a slightly elevated angle captures the transformation and the alligator's immediate reaction."
+    }
+  ],
+  "scope": "classifier_holdout32",
+  "seed": 20100,
+  "source": {
+    "v189_manifest": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v189_structured_head_phase_profile/inputs/manifest.json",
+    "v189_manifest_sha256": "932ea22b8331797174c0a69d6040bdf1acca4f9c3b7e9f22c0fe944e0df1f0fc",
+    "v200_analysis": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v200_head_phase_horizon_audit/analysis/analysis.json",
+    "v200_analysis_sha256": "f9cbbeb481bb112ec02782787463ca7ce9bf0fa6b02318e26570ef57220f018d"
+  },
+  "source_indices": [
+    1,
+    2,
+    5,
+    8,
+    12,
+    13,
+    14,
+    22,
+    23,
+    24,
+    31,
+    34,
+    40,
+    48,
+    49,
+    58,
+    63,
+    64,
+    67,
+    70,
+    71,
+    73,
+    76,
+    78,
+    79,
+    81,
+    90,
+    100,
+    104,
+    121,
+    123,
+    124
+  ],
+  "source_prompt_count": 128,
+  "source_prompt_file": "/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/Causal-Forcing/prompts/MovieGen_128_qwen.txt",
+  "source_prompt_file_sha256": "99468409fe54322bc383376e6037196e922cfbae47814a7a4e51740ee0571281",
+  "version": 2
+}

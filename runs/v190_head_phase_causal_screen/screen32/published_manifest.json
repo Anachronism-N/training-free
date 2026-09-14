@@ -1,0 +1,141 @@
+{
+  "experiment": "v190_head_phase_causal_generation",
+  "experiment_contract": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/contracts/experiment.json",
+  "experiment_contract_sha256": "875756baa7c824d71f353d5efb76da8addd2a870f0df445abf6a88c7cf2d0e96",
+  "link_counts": {
+    "existing": 160,
+    "hardlink": 64,
+    "symlink": 0
+  },
+  "methods": [
+    {
+      "audit": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/audits/all_recent.json",
+      "audit_sha256": "b57f92f04f22630f85096cd0b0cede95877e842686fc9a2ddf25847dd99b5b9d",
+      "coverage_cell_count": 0,
+      "coverage_count_by_call": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "coverage_exposure_fraction": 0.0,
+      "key": "all_recent",
+      "ok": true,
+      "operator": "retrieval",
+      "phase_map_id": "v190-retrieval-all_recent-08a7601e0f8d",
+      "role": "local_control",
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/published/all_recent"
+    },
+    {
+      "audit": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/audits/retrieval_all_coverage.json",
+      "audit_sha256": "008f40ce2c205d8f833cf77bc653c22ee1b59a6e6a43592d6430a0f1608b8c2d",
+      "coverage_cell_count": 1440,
+      "coverage_count_by_call": [
+        360,
+        360,
+        360,
+        360
+      ],
+      "coverage_exposure_fraction": 1.0,
+      "key": "retrieval_all_coverage",
+      "ok": true,
+      "operator": "retrieval",
+      "phase_map_id": "v190-retrieval-all_coverage-f77ea6c70414",
+      "role": "all_head_all_phase_control",
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/published/retrieval_all_coverage"
+    },
+    {
+      "audit": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/audits/retrieval_compatible.json",
+      "audit_sha256": "7626db9399891bb7d5b5110a8149a3de26547cdaa8fb434f2188faaca3ff81b4",
+      "coverage_cell_count": 66,
+      "coverage_count_by_call": [
+        20,
+        15,
+        15,
+        16
+      ],
+      "coverage_exposure_fraction": 0.04583333333333333,
+      "key": "retrieval_compatible",
+      "ok": true,
+      "operator": "retrieval",
+      "phase_map_id": "v189-retrieval-compatible-013aa520b402",
+      "role": "primary_head_phase",
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/published/retrieval_compatible"
+    },
+    {
+      "audit": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/audits/retrieval_head_only.json",
+      "audit_sha256": "3bd0ff211a395fb653e32dd0e7babb4859616686ca92ffea3e3097ad51d4ba9b",
+      "coverage_cell_count": 68,
+      "coverage_count_by_call": [
+        17,
+        17,
+        17,
+        17
+      ],
+      "coverage_exposure_fraction": 0.04722222222222222,
+      "key": "retrieval_head_only",
+      "ok": true,
+      "operator": "retrieval",
+      "phase_map_id": "v189-retrieval-head_only_compatible-d4958ba06c0c",
+      "role": "call_invariant_head_factor_control",
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/published/retrieval_head_only"
+    },
+    {
+      "audit": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/audits/retrieval_membership_shift.json",
+      "audit_sha256": "3c6dcdb6a547d0f99f4a2dff45da00482b42b7af7a9d5e81de002cbce07f6c75",
+      "coverage_cell_count": 66,
+      "coverage_count_by_call": [
+        20,
+        15,
+        15,
+        16
+      ],
+      "coverage_exposure_fraction": 0.04583333333333333,
+      "key": "retrieval_membership_shift",
+      "ok": true,
+      "operator": "retrieval",
+      "phase_map_id": "v190-retrieval-layer_count_matched_membership_shift-d9eb3f6fba8a",
+      "role": "layer_count_matched_membership_control",
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/published/retrieval_membership_shift"
+    },
+    {
+      "audit": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/audits/retrieval_phase_shift.json",
+      "audit_sha256": "28988bb89ef8bd491a37150dac71224de9bf34101040d5e365846e308fe8fcfa",
+      "coverage_cell_count": 66,
+      "coverage_count_by_call": [
+        16,
+        20,
+        15,
+        15
+      ],
+      "coverage_exposure_fraction": 0.04583333333333333,
+      "key": "retrieval_phase_shift",
+      "ok": true,
+      "operator": "retrieval",
+      "phase_map_id": "v190-retrieval-cyclic_phase_shift-d8b0203463f5",
+      "role": "call_count_matched_phase_control",
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/published/retrieval_phase_shift"
+    },
+    {
+      "audit": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/audits/retrieval_dense_phase.json",
+      "audit_sha256": "1ce83923a1481ca4757544e9f370257b6e27610fb4218c3d3cb9894f8a0fcb74",
+      "coverage_cell_count": 552,
+      "coverage_count_by_call": [
+        156,
+        120,
+        132,
+        144
+      ],
+      "coverage_exposure_fraction": 0.38333333333333336,
+      "key": "retrieval_dense_phase",
+      "ok": true,
+      "operator": "retrieval",
+      "phase_map_id": "v190-retrieval-same_active_call_layer_cells_all_heads-426cbe79a49f",
+      "role": "same_active_call_layer_cells_dense_control",
+      "video_dir": "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free/runs/v190_head_phase_causal_screen/screen32/published/retrieval_dense_phase"
+    }
+  ],
+  "ok": true,
+  "scope": "screen32",
+  "version": 1
+}
