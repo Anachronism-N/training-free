@@ -783,6 +783,16 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--pyramidkv_cache_compatibility_read_budget_frames",
+    type=int,
+    default=9,
+    help=(
+        "Total per-head read budget in full-frame equivalents (FFE) for "
+        "cache-compatibility generation. Recent uses sink1+recent(B-1); "
+        "Coverage uses sink1+middle4+recent(B-5). Valid range: 6..21."
+    ),
+)
+parser.add_argument(
     "--pyramidkv_cache_compatibility_denoise_coverage_policy",
     choices=("reservoir", "landmark", "prototype", "retrieval"),
     default="reservoir",
@@ -1341,6 +1351,9 @@ if args.pyramidkv_cache_compatibility_policy:
     policy_overrides = cache_compatibility_policy_overrides(
         capacity=int(config.pyramidkv_default_capacity or 32760),
         coverage_policy=args.pyramidkv_cache_compatibility_coverage_policy,
+        read_budget_frames=(
+            args.pyramidkv_cache_compatibility_read_budget_frames
+        ),
     )
     for field_name, field_value in policy_overrides.items():
         setattr(config, field_name, field_value)
@@ -1353,7 +1366,11 @@ if args.pyramidkv_cache_compatibility_policy:
         f"episode={CACHE_COMPAT_EPISODE_LABEL}:"
         f"{sum(row.count(CACHE_COMPAT_EPISODE_LABEL) for row in compatibility_rows)} "
         f"coverage_policy={args.pyramidkv_cache_compatibility_coverage_policy} "
-        "budget=9FFE read_budget=9FFE owner=HeadComposition",
+        "budget="
+        f"{args.pyramidkv_cache_compatibility_read_budget_frames}FFE "
+        "read_budget="
+        f"{args.pyramidkv_cache_compatibility_read_budget_frames}FFE "
+        "owner=HeadComposition",
         flush=True,
     )
 if args.pyramidkv_semantic_retrieval_archive_capacity is not None:
@@ -1489,8 +1506,24 @@ if args.pyramidkv_cache_compatibility_denoise_schedule is not None:
         parser.error("denoise scheduling requires AdaptiveKVCache")
     if not bool(getattr(config, "sink_grid_decoupling", False)):
         parser.error("denoise scheduling requires sink-grid decoupling")
+    read_budget_frames = int(
+        args.pyramidkv_cache_compatibility_read_budget_frames
+    )
+    if not 6 <= read_budget_frames <= 21:
+        parser.error(
+            "--pyramidkv_cache_compatibility_read_budget_frames must be "
+            "within [6, 21]"
+        )
+    recent_route_frames = read_budget_frames - 1
+    coverage_recent_frames = read_budget_frames - 5
+    recent_map = dict(
+        getattr(config, "pyramidkv_label_recent_frames_map", None) or {}
+    )
+    for label in (HISTORY_SUPPORT_LABEL, HISTORY_SUPPRESS_LABEL):
+        recent_map[str(label)] = coverage_recent_frames
+    config.pyramidkv_label_recent_frames_map = recent_map
     config.pyramidkv_cache_compat_profile_enabled = True
-    config.pyramidkv_cache_compat_profile_recent_frames = 8
+    config.pyramidkv_cache_compat_profile_recent_frames = recent_route_frames
     os.environ["PYRAMIDKV_CACHE_COMPAT_DENOISE_SCHEDULE"] = (
         args.pyramidkv_cache_compatibility_denoise_schedule
     )
@@ -1516,8 +1549,9 @@ if args.pyramidkv_cache_compatibility_denoise_schedule is not None:
         "horizon_positions="
         f"{None if horizon_map is None else horizon_map.get('position_count')} "
         "noisy_readout=scheduled clean_readout=recent "
-        "recent=sink1+recent8 coverage=sink1+middle4+recent4 "
-        "shared_updates=true read_budget=9FFE",
+        f"recent=sink1+recent{recent_route_frames} "
+        f"coverage=sink1+middle4+recent{coverage_recent_frames} "
+        f"shared_updates=true read_budget={read_budget_frames}FFE",
         flush=True,
     )
 elif args.pyramidkv_cache_compatibility_denoise_coverage_policy != "reservoir":

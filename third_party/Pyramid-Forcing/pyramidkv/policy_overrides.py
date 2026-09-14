@@ -1003,6 +1003,7 @@ def cache_compatibility_policy_overrides(
     *,
     capacity: int = 32760,
     coverage_policy: str = "reservoir",
+    read_budget_frames: int = 9,
 ) -> dict[str, object]:
     """Build the three v173 cache-operator routes.
 
@@ -1025,6 +1026,13 @@ def cache_compatibility_policy_overrides(
             "cache compatibility Coverage policy must be one of "
             + ", ".join(CACHE_COMPAT_COVERAGE_POLICIES)
         )
+    read_budget_frames = int(read_budget_frames)
+    if not 6 <= read_budget_frames <= 21:
+        raise ValueError(
+            "cache compatibility read budget must be within [6, 21] FFE"
+        )
+    recent_only_frames = read_budget_frames - 1
+    middle_route_recent_frames = read_budget_frames - 5
     recent_key = str(CACHE_COMPAT_RECENT_LABEL)
     coverage_key = str(CACHE_COMPAT_COVERAGE_LABEL)
     episode_key = str(CACHE_COMPAT_EPISODE_LABEL)
@@ -1065,7 +1073,15 @@ def cache_compatibility_policy_overrides(
         fields.setdefault(field_name, {})[recent_key] = value
     fields["pyramidkv_code_map"][recent_key] = max(1, int(capacity))
     fields["pyramidkv_label_sink_frames_map"][recent_key] = 1
-    fields["pyramidkv_label_recent_frames_map"][recent_key] = 8
+    fields["pyramidkv_label_recent_frames_map"][recent_key] = (
+        recent_only_frames
+    )
+    fields["pyramidkv_label_recent_frames_map"][coverage_key] = (
+        middle_route_recent_frames
+    )
+    fields["pyramidkv_label_recent_frames_map"][episode_key] = (
+        middle_route_recent_frames
+    )
 
     expected = {recent_key, coverage_key, episode_key}
     if set(fields["pyramidkv_code_map"]) != expected:
@@ -1090,7 +1106,8 @@ def cache_compatibility_policy_overrides(
         )
     if (
         int(fields["pyramidkv_label_sink_frames_map"][coverage_key]) != 1
-        or int(fields["pyramidkv_label_recent_frames_map"][coverage_key]) != 4
+        or int(fields["pyramidkv_label_recent_frames_map"][coverage_key])
+        != middle_route_recent_frames
     ):
         raise RuntimeError("cache compatibility Coverage budget drift")
     fields["pyramidkv_composition_owns_dynamic"] = True

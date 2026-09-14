@@ -118,6 +118,40 @@ def test_cache_compatibility_coverage_operator_is_configurable_and_exclusive() -
         module.cache_compatibility_policy_overrides(coverage_policy="random")
 
 
+def test_cache_compatibility_generalizes_equal_read_budget() -> None:
+    module = load_module(
+        "v207_policy_overrides",
+        ROOT
+        / "third_party"
+        / "Pyramid-Forcing"
+        / "pyramidkv"
+        / "policy_overrides.py",
+    )
+
+    for budget, recent_only, middle_recent in (
+        (9, 8, 4),
+        (13, 12, 8),
+        (21, 20, 16),
+    ):
+        fields = module.cache_compatibility_policy_overrides(
+            coverage_policy="retrieval",
+            read_budget_frames=budget,
+        )
+        assert fields["pyramidkv_label_recent_frames_map"] == {
+            "20": recent_only,
+            "21": middle_recent,
+            "22": middle_recent,
+        }
+        assert 1 + recent_only == budget
+        assert 1 + 4 + middle_recent == budget
+
+    for budget in (5, 22):
+        with pytest.raises(ValueError, match="read budget"):
+            module.cache_compatibility_policy_overrides(
+                read_budget_frames=budget
+            )
+
+
 @pytest.mark.skipif(torch is None, reason="torch is available on the GPU server")
 def test_residual_space_metric_uses_head_slice_of_output_projection() -> None:
     module = load_module(

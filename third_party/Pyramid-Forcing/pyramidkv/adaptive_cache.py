@@ -3153,6 +3153,12 @@ class AdaptiveKVCache(PyramidKVCache):
                 str(context.get("update_mode", "")) != "clean"
                 or int(context.get("coverage_heads", 0)) == 0
             ),
+            "read_budget_frame_equivalents": int(
+                1 + self.cache_compat_profile_recent_frames
+            ),
+            "recent_route_frames": int(
+                self.cache_compat_profile_recent_frames
+            ),
         }
         try:
             directory = os.path.dirname(path)
@@ -3212,26 +3218,34 @@ class AdaptiveKVCache(PyramidKVCache):
             )
         for seq_idx, row in enumerate(counts):
             sequence_policy = policy_for_sequence(seq_idx)
+            head_idx = seq_idx % self.num_heads
+            coverage_recent_frames = self._head_recent_frames(head_idx)
+            read_budget_frames = 1 + self.cache_compat_profile_recent_frames
             total = sum(row.values())
-            if total > 9 or row["static"] > 1:
+            if total > read_budget_frames or row["static"] > 1:
                 raise RuntimeError(
                     "scheduled cache read budget drift: "
                     f"layer={self.layer_idx} seq={seq_idx} policy={policy} "
-                    f"counts={row} total={total}"
+                    f"counts={row} total={total} budget={read_budget_frames}"
                 )
             if sequence_policy == "recent" and (
-                row["anchor"] != 0 or row["dynamic"] > 8
+                row["anchor"] != 0
+                or row["dynamic"] > self.cache_compat_profile_recent_frames
             ):
                 raise RuntimeError(
                     "Recent schedule leaked middle memory: "
                     f"layer={self.layer_idx} seq={seq_idx} counts={row}"
                 )
             if sequence_policy == "coverage" and (
-                row["anchor"] > 4 or row["dynamic"] > 4
+                row["anchor"] > 4
+                or row["dynamic"] > coverage_recent_frames
             ):
                 raise RuntimeError(
-                    "Coverage schedule exceeded its 4+4 budget: "
-                    f"layer={self.layer_idx} seq={seq_idx} counts={row}"
+                    "Coverage schedule exceeded its 4+4 budget at B=9 "
+                    "or generalized 4+recent budget: "
+                    f"layer={self.layer_idx} seq={seq_idx} counts={row} "
+                    f"recent_budget={coverage_recent_frames} "
+                    f"total_budget={read_budget_frames}"
                 )
 
         path = self._cache_compat_schedule_trace_path
@@ -3322,6 +3336,12 @@ class AdaptiveKVCache(PyramidKVCache):
             "max_total_frame_equivalents": max(
                 (sum(row.values()) for row in counts),
                 default=0,
+            ),
+            "read_budget_frame_equivalents": int(
+                1 + self.cache_compat_profile_recent_frames
+            ),
+            "recent_route_frames": int(
+                self.cache_compat_profile_recent_frames
             ),
             "budget_pass": True,
         }
@@ -5561,7 +5581,12 @@ class AdaptiveKVCache(PyramidKVCache):
                 f"{contract} {policy} readout requires episode reservoir2"
             )
 
-        recent_frames = 8 if policy in {"recent", "union"} else 4
+        coverage_recent_frames = self._head_recent_frames(head_idx)
+        recent_frames = (
+            self.cache_compat_profile_recent_frames
+            if policy in {"recent", "union"}
+            else coverage_recent_frames
+        )
         recent_min_t = sync_t_raw - recent_frames + 1
         if contract in {"v177", "v189"}:
             frame_seqlen = int(self._frame_seqlen or self.frame_seq_length or 0)
@@ -5586,7 +5611,7 @@ class AdaptiveKVCache(PyramidKVCache):
         # middle bank with its candidate boundary, then deduplicates it against
         # Union's recent8 tail below.
         middle_recent_min_t = (
-            int(sync_t_raw) + current_block_frames - 4
+            int(sync_t_raw) + current_block_frames - coverage_recent_frames
             if policy == "union" and contract in {"v177", "v189"}
             else recent_min_t
         )
@@ -5806,7 +5831,7 @@ class AdaptiveKVCache(PyramidKVCache):
                         recent_frames = (
                             self.cache_compat_profile_recent_frames
                             if sequence_compatibility_policy in {"recent", "union"}
-                            else 4
+                            else self._head_recent_frames(head_idx)
                         )
                     else:
                         recent_frames = self._head_recent_frames(head_idx)
