@@ -3,7 +3,20 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current task is the **v129 no-PF MovieBench-128 paper comparison**. v125 is
+The current stage is **v207 SF runtime parity and equal-budget recovery**,
+followed conditionally by **v208 MovieGen-128 30/60-second replication**.
+v201 did not establish a gain over native SF. v208 requires a passing parity
+report and one automatically promoted v207 candidate. Its primary paired
+tests use the 96 prompts outside v207 selection; historical prompt freshness
+is not claimed. Server commands and evidence boundaries:
+
+- [v207 runtime parity](docs/226_v207_sf_runtime_parity_supplement.md)
+- [v207 recovery screen](docs/225_v207_equal_budget_phase_retrieval_and_paper_plan.md)
+- [v208 generation, evaluation, and reporting](docs/227_v208_paper_confirmation_runbook.md)
+
+The following sections retain historical experiment context.
+
+The **v129 no-PF MovieBench-128 paper comparison** followed v125, which is
 complete and selected Prototype4 plus age-bounded Retrieval1 as the strongest
 effect-oriented base candidate, with the highest observed Dynamic Degree.
 v129 reuses validated v125 SF and Ours videos, adds confidence/margin-gated
