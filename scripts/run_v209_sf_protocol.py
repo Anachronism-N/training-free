@@ -77,8 +77,9 @@ def run_job(args, manifest: dict, *, scope: str, method: str, config_key: str, r
                         "--pyramidkv_history_suppress_policy", operator,
                         "--pyramidkv_cache_compatibility_denoise_schedule", "recent",
                         "--pyramidkv_cache_compatibility_denoise_coverage_policy", operator,
-                        "--pyramidkv_cache_compatibility_read_budget_frames", str(budget),
-                        "--pyramidkv_semantic_retrieval_archive_capacity", "12"])
+                        "--pyramidkv_cache_compatibility_read_budget_frames", str(budget)])
+        if operator == "retrieval":
+            command.extend(["--pyramidkv_semantic_retrieval_archive_capacity", "12"])
     (job / "invocation.json").write_text(json.dumps({"command": command, "stamp": stamp, "environment": {key: value for key, value in env.items() if key.startswith(("SF_PARITY_", "PYRAMIDKV_", "CUDA_", "PYTORCH_"))}}, indent=2), encoding="utf-8")
     print(f"[v209-start] {scope}/{method}/{job_name} gpu={gpu}", flush=True)
     started = time.monotonic()
