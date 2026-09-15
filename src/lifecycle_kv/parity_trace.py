@@ -254,7 +254,7 @@ def record_dense_cache_readout(
             "frame_ids_per_sequence": [ids],
             "sequence_count": int(query.shape[0] * query.shape[2]),
         },
-        keep_full=False,
+        keep_full=int(layer) == 0,
     )
 
 
@@ -334,7 +334,7 @@ def record_varlen_cache_readout(
             ),
             "sequence_count": max(0, int(cu_seqlens.numel()) - 1),
         },
-        keep_full=False,
+        keep_full=int(layer) == 0,
     )
 
 
