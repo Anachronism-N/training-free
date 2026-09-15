@@ -1357,8 +1357,8 @@ def pyramidkv_attention(
         ):
             dense_lk = int(dense_lengths[0].item())
             dense_k = kv_cache.apply_rope_to_flat_k(dense_k, dense_pos, freqs=freqs)
-            dense_k = dense_k.reshape(b, h, dense_lk, d).transpose(1, 2)
-            dense_v = dense_v.reshape(b, h, dense_lk, d).transpose(1, 2)
+            dense_k = dense_k.reshape(b, h, dense_lk, d).transpose(1, 2).contiguous()
+            dense_v = dense_v.reshape(b, h, dense_lk, d).transpose(1, 2).contiguous()
             _record_parity_readout(
                 query_tensor=q,
                 key_tensor=dense_k,
