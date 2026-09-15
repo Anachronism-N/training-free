@@ -1369,7 +1369,7 @@ def pyramidkv_attention(
                 query_chunk_starts=[int(current_start or 0)],
             )
             dense_out = attention(
-                q=q,
+                q=q.contiguous(),
                 k=dense_k,
                 v=dense_v,
                 dropout_p=dropout_p,

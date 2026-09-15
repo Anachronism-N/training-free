@@ -191,6 +191,17 @@ run_one() {
 
 run_all() {
     preflight
+    if [[ "${SF_PARITY_SINGLE_GPU:-1}" == "1" ]]; then
+        # Numerical parity must not confound runtime changes with cross-GPU
+        # kernel scheduling. Run every trajectory sequentially on the exact
+        # same device; the jobs are intentionally short (9 latent frames).
+        local gpu="${GPUS[0]}"
+        run_one sf_native_a "$gpu"
+        run_one sf_native_b "$gpu"
+        run_one pf_plain_sf21 "$gpu"
+        run_one adaptive_recent21 "$gpu"
+        return
+    fi
     local -a pids=()
     run_one sf_native_a "${GPUS[0]}" & pids+=("$!")
     run_one pf_plain_sf21 "${GPUS[1]}" & pids+=("$!")
@@ -198,7 +209,6 @@ run_all() {
     local pid failed=0
     for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
     [[ "$failed" -eq 0 ]] || { echo "[error] first parity wave failed"; exit 1; }
-    # Repeat on the exact GPU used by native A to measure the native floor.
     run_one sf_native_b "${GPUS[0]}"
 }
 
