@@ -1336,6 +1336,52 @@ def pyramidkv_attention(
             'Flash attention 3 is not available, use flash attention 2 instead.'
         )
 
+    # Numerical-compatibility path for equal-length per-head readouts. The
+    # Adaptive cache still owns storage and frame selection, but once every
+    # (batch, head) sequence has the same token count it can be reshaped back
+    # to [B, Lk, H, D] and evaluated by the same dense FlashAttention entry
+    # point as native SF. This removes a varlen-kernel numerical confound from
+    # the v207 parity and fixed-budget selector comparisons.
+    if (
+        os.environ.get("PYRAMIDKV_DENSE_COMPAT_ATTENTION", "0") == "1"
+        and getattr(kv_cache, "post_prune_rope", False)
+        and hasattr(kv_cache, "get_flat_kv_and_pos")
+        and hasattr(kv_cache, "apply_rope_to_flat_k")
+    ):
+        if freqs is None:
+            raise ValueError("freqs is required for dense compatibility attention")
+        dense_k, dense_v, dense_cu, _, dense_pos = kv_cache.get_flat_kv_and_pos()
+        dense_lengths = dense_cu[1:] - dense_cu[:-1]
+        if dense_lengths.numel() == b * h and bool(
+            torch.all(dense_lengths == dense_lengths[0]).item()
+        ):
+            dense_lk = int(dense_lengths[0].item())
+            dense_k = kv_cache.apply_rope_to_flat_k(dense_k, dense_pos, freqs=freqs)
+            dense_k = dense_k.reshape(b, h, dense_lk, d).transpose(1, 2)
+            dense_v = dense_v.reshape(b, h, dense_lk, d).transpose(1, 2)
+            _record_parity_readout(
+                query_tensor=q,
+                key_tensor=dense_k,
+                value_tensor=dense_v,
+                cu_seqlens_tensor=dense_cu,
+                frame_ids_tensor=dense_pos[:, 0].to(dtype=torch.long),
+                subcall="dense_compatibility",
+                query_chunk_starts=[int(current_start or 0)],
+            )
+            dense_out = attention(
+                q=q,
+                k=dense_k,
+                v=dense_v,
+                dropout_p=dropout_p,
+                softmax_scale=softmax_scale,
+                q_scale=q_scale,
+                causal=causal,
+                deterministic=deterministic,
+                dtype=dtype,
+                fa_version=fa_version,
+            )
+            return _fuse_structured_memory(dense_out.type(out_dtype))
+
     def run_varlen(
         q_chunk: torch.Tensor,
         k_flat_chunk: torch.Tensor,
