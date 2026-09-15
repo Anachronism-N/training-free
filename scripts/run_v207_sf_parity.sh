@@ -51,7 +51,7 @@ scrub_experiment_env() {
     while IFS='=' read -r key _; do
         case "$key" in
             LIFECACHE_*|HEAD_ROLE_*|STRUCTURED_MEMORY_*|COMMIT_FORCING_*|\
-            SCENE_TRANSITION_*|CACHE_COMPAT_*|PYRAMIDKV_*|SF_PARITY_*) unset "$key" ;;
+            SCENE_TRANSITION_*|CACHE_COMPAT_*) unset "$key" ;;
         esac
     done < <(env)
 }
