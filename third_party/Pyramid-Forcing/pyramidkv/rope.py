@@ -1,3 +1,5 @@
+import os
+
 import torch
 
 # Auto-detect Triton availability for fused RoPE kernel
@@ -51,7 +53,14 @@ def _pytorch_apply_rope_to_flat_k(
         x_idx = pos_3d[:, 2].clamp(min=0, max=max(0, fx.shape[0] - 1))
         parts.append(fx[x_idx])
 
-    compute_dtype = torch.float32 if k_flat.dtype in (torch.float16, torch.bfloat16, torch.float32) else torch.float64
+    reference_mode = os.environ.get("PYRAMIDKV_ROPE_REFERENCE", "0") == "1"
+    compute_dtype = (
+        torch.float64
+        if reference_mode
+        else torch.float32
+        if k_flat.dtype in (torch.float16, torch.bfloat16, torch.float32)
+        else torch.float64
+    )
     complex_dtype = torch.complex64 if compute_dtype == torch.float32 else torch.complex128
 
     if parts:
@@ -78,7 +87,11 @@ def apply_rope_to_flat_k(
     """Apply 3D RoPE to flat K tensor. Auto-dispatches to Triton when available."""
     if k_flat.numel() == 0:
         return out if out is not None else k_flat
-    if _TRITON_ROPE_AVAILABLE and k_flat.is_cuda:
+    if (
+        _TRITON_ROPE_AVAILABLE
+        and k_flat.is_cuda
+        and os.environ.get("PYRAMIDKV_ROPE_REFERENCE", "0") != "1"
+    ):
         return _triton_apply_rope_to_flat_k(k_flat, pos_3d, freqs, freq_parts, out=out)
     return _pytorch_apply_rope_to_flat_k(k_flat, pos_3d, freqs, freq_parts, out=out)
 
