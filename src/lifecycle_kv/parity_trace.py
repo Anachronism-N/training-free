@@ -9,6 +9,7 @@ this module so event identities and numerical summaries are directly aligned.
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
 import os
 import platform
@@ -93,7 +94,19 @@ def _initialize() -> None:
         ),
         "sample_values": _STATE["sample_values"],
         "full_events": sorted(_FULL_EVENTS),
+        "reference_attention": os.environ.get("SF_PARITY_REFERENCE_ATTENTION", "0") == "1",
+        "dense_compat_attention": os.environ.get("PYRAMIDKV_DENSE_COMPAT_ATTENTION", "0") == "1",
+        "rope_reference": os.environ.get("PYRAMIDKV_ROPE_REFERENCE", "0") == "1",
+        "gpu_name": torch.cuda.get_device_name() if torch.cuda.is_available() else None,
+        "gpu_capability": list(torch.cuda.get_device_capability()) if torch.cuda.is_available() else None,
+        "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+        "allow_tf32_matmul": torch.backends.cuda.matmul.allow_tf32,
+        "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
     }
+    try:
+        metadata["flash_attn_version"] = importlib.metadata.version("flash-attn")
+    except importlib.metadata.PackageNotFoundError:
+        metadata["flash_attn_version"] = None
     (directory / "trace_meta.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -142,13 +155,12 @@ def _sample_indices(numel: int, count: int, device: torch.device) -> torch.Tenso
 
 def _tensor_payload(tensor: torch.Tensor, *, keep_full: bool) -> dict[str, Any]:
     detached = tensor.detach()
-    value = detached.float()
-    flat = value.reshape(-1)
+    flat = detached.reshape(-1)
     indices = _sample_indices(
         flat.numel(), min(flat.numel(), int(_STATE["sample_values"])), flat.device
     )
-    sample = flat.index_select(0, indices).cpu()
-    stats_value = value if keep_full else sample
+    sample = flat.index_select(0, indices).float().cpu()
+    stats_value = detached.float() if keep_full else sample
     stats_flat = stats_value.reshape(-1)
     sample_bytes = sample.contiguous().numpy().tobytes()
     result: dict[str, Any] = {
@@ -254,7 +266,7 @@ def record_dense_cache_readout(
             "frame_ids_per_sequence": [ids],
             "sequence_count": int(query.shape[0] * query.shape[2]),
         },
-        keep_full=int(layer) == 0,
+        keep_full=_full_cache_layer(layer),
     )
 
 
@@ -334,8 +346,16 @@ def record_varlen_cache_readout(
             ),
             "sequence_count": max(0, int(cu_seqlens.numel()) - 1),
         },
-        keep_full=int(layer) == 0,
+        keep_full=_full_cache_layer(layer),
     )
+
+
+def _full_cache_layer(layer: int) -> bool:
+    raw = os.environ.get("SF_PARITY_FULL_CACHE_LAYERS", "0").strip().lower()
+    if raw in {"none", "off"}:
+        return False
+    layers = _parse_layers(raw)
+    return layers is None or int(layer) in layers
 
 
 def reset_for_tests() -> None:

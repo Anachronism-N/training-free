@@ -3,7 +3,13 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current stage is **v207 SF runtime parity and equal-budget recovery**,
+The current priority is **v209 explicit SF protocols and post-eviction budget
+attribution**. It adds FIFO21 and Sink1+Recent20 controls, a native 21/13/9-FFE
+ladder, and separate production/reference backend diagnostics. This follows
+v207 runtime repairs; v208 remains conditional rather than an immediate run.
+See [v209 commands and paper convergence](docs/228_v209_sf_protocol_budget_and_paper_convergence.md).
+
+The preceding stage is **v207 SF runtime parity and equal-budget recovery**,
 followed conditionally by **v208 MovieGen-128 30/60-second replication**.
 v201 did not establish a gain over native SF. v208 requires a passing parity
 report and one automatically promoted v207 candidate. Its primary paired
