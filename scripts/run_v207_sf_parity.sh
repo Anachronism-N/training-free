@@ -105,6 +105,7 @@ configure_trace() {
     local run_kind="$1" trace_dir="$2"
     export SF_PARITY_TRACE_DIR="$trace_dir"
     export SF_PARITY_RUN_KIND="$run_kind"
+    export SF_PARITY_REFERENCE_ATTENTION=1
     export SF_PARITY_CONTRACT_SHA256
     SF_PARITY_CONTRACT_SHA256="$(sha256sum "$MANIFEST" | awk '{print $1}')"
     export SF_PARITY_TRACE_LAYERS=all

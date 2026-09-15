@@ -1879,6 +1879,28 @@ def attention(
     dtype=torch.bfloat16,
     fa_version=None,
 ):
+    if (
+        os.environ.get("SF_PARITY_REFERENCE_ATTENTION", "0") == "1"
+        and q_lens is None
+        and k_lens is None
+    ):
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+
+        q_ref = q.transpose(1, 2).contiguous()
+        k_ref = k.transpose(1, 2).contiguous()
+        v_ref = v.transpose(1, 2).contiguous()
+        if q_scale is not None:
+            q_ref = q_ref * q_scale
+        with sdpa_kernel(SDPBackend.MATH):
+            out = torch.nn.functional.scaled_dot_product_attention(
+                q_ref,
+                k_ref,
+                v_ref,
+                dropout_p=dropout_p,
+                is_causal=causal,
+                scale=softmax_scale,
+            )
+        return out.transpose(1, 2).contiguous().type_as(q)
     # 优先检查流式帧级捕获（内存高效）
     if (
         FRAME_ATTENTION_CAPTURE.enabled
