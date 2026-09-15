@@ -980,18 +980,21 @@ class CausalWanSelfAttention(nn.Module):
 
                 if parity_trace.enabled():
                     layer_index = int(getattr(self, "_block_index", -1))
-                    window_tokens = int(local_end_index - attn_start)
-                    window_start = int(current_end - window_tokens)
-                    frame_start = window_start // int(frame_seqlen)
-                    frame_end = (
-                        int(current_end) + int(frame_seqlen) - 1
-                    ) // int(frame_seqlen)
+                    from lifecycle_kv.dense_cache_trace import observe_write
+
+                    traced_ids = observe_write(
+                        kv_cache, current_start=int(current_start) // int(frame_seqlen),
+                        write_start=int(local_start_index) // int(frame_seqlen),
+                        write_end=int(local_end_index) // int(frame_seqlen),
+                        capacity=int(kv_cache_size) // int(frame_seqlen),
+                        sink=int(self.sink_size), read_start=int(attn_start) // int(frame_seqlen),
+                    )
                     parity_trace.record_dense_cache_readout(
                         layer=layer_index,
                         query=roped_query,
                         key=kv_cache["k"][:, attn_start:local_end_index],
                         value=kv_cache["v"][:, attn_start:local_end_index],
-                        frame_ids=range(frame_start, frame_end),
+                        frame_ids=traced_ids,
                         backend="sf_dense_flash_attention",
                     )
                     parity_trace.record_event(
