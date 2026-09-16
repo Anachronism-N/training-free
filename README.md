@@ -3,7 +3,15 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current priority is **v209 explicit SF protocols and post-eviction budget
+The current plan is **v210 effect-first development on six A800 nodes**:
+reuse v209 native-budget and v207 phase-retrieval screens, then test a planned
+full-local SF historical-correction branch before paper writing. The new
+residual method is not implemented or validated yet. Hardware assumptions,
+the two worker pools, ready-to-run commands, promotion criteria, and staged
+implementation are in
+[the six-node experiment plan](docs/229_v210_six_node_effect_first_experiment_plan.md).
+
+The current runnable priority is **v209 explicit SF protocols and post-eviction budget
 attribution**. It adds FIFO21 and Sink1+Recent20 controls, a native 21/13/9-FFE
 ladder, and separate production/reference backend diagnostics. This follows
 v207 runtime repairs; v208 remains conditional rather than an immediate run.
