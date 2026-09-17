@@ -76,9 +76,10 @@ def valid_decision(path: Path, stage: str, manifest_path: Path, manifest: dict) 
         report = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
-    stage = path.stem
     valid = bool(
-        report.get("pass") is True
+        path.stem == stage
+        and report.get("stage") == stage
+        and report.get("pass") is True
         and report.get("errors") == []
         and report.get("input_manifest_sha256") == sha256(manifest_path)
         and report.get("source_commit") == manifest["source_commit"]

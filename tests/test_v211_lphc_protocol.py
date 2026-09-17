@@ -70,6 +70,7 @@ def test_default_root_binds_full_commit_and_rejects_legacy_roots():
     assert prepare.DEFAULT_WAN_MODEL == Path(
         "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/Wan2.1-T2V-1.3B"
     )
+    assert prepare.default_wan_model(ROOT) == prepare.DEFAULT_WAN_MODEL
     commit = prepare.git_commit(ROOT)
     default = prepare.default_output_root(ROOT)
     assert commit in default.name
@@ -193,10 +194,24 @@ def test_v211_node_identity_and_screen_schedule(monkeypatch):
             worker.assert_authorized_node(manifest, forbidden, interface_addresses=frozenset({forbidden}))
     gpus = tuple(str(index) for index in range(8))
     assignments = [controller.screen_assignments(rank, gpus) for rank in range(6)]
+    node_jobs = [
+        {job for lane in assignment.values() for job in lane}
+        for assignment in assignments
+    ]
     jobs = [job for assignment in assignments for lane in assignment.values() for job in lane]
+    expected_jobs = {
+        (method, source_index)
+        for method in prepare.METHODS
+        for source_index in prepare.SCREEN8_SOURCE_INDICES
+    }
     assert len(jobs) == 32
-    assert len(set(jobs)) == 32
-    assert all(sum(len(lane) for lane in assignment.values()) > 0 for assignment in assignments)
+    assert set(jobs) == expected_jobs
+    assert all(node_jobs)
+    assert all(
+        node_jobs[left].isdisjoint(node_jobs[right])
+        for left in range(6)
+        for right in range(left + 1, 6)
+    )
     assert sum(prepare.METHOD_SPECS[method]["lphc"] for method, _ in jobs) == 16
 
 
@@ -445,6 +460,30 @@ def test_smoke_runs_both_r4_candidates_on_source_three(tmp_path, monkeypatch):
     assert list(smoke_decision.parent.glob("smoke*.json")) == [smoke_decision]
 
 
+def test_combined_smoke_decision_requires_exactly_both_candidates(tmp_path, monkeypatch):
+    output_root, manifest = prepared(tmp_path)
+    manifest_path = output_root / "inputs" / "manifest.json"
+    source_index = prepare.SCREEN8_SOURCE_INDICES[0]
+    report = {
+        "stage": "smoke",
+        "pass": True,
+        "errors": [],
+        "input_manifest_sha256": prepare.sha256(manifest_path),
+        "source_commit": manifest["source_commit"],
+        "source_index": source_index,
+        "latent_frames": prepare.SCREEN_FRAMES,
+        "audits": {method: {"pass": True} for method in prepare.SMOKE_METHODS},
+        "completions": {method: {"method": method} for method in prepare.SMOKE_METHODS},
+    }
+    path = controller.decision_path(output_root, "smoke")
+    controller.write_decision(path, report)
+    monkeypatch.setattr(controller, "done_matches", lambda *_args: True)
+    assert controller.valid_decision(path, "smoke", manifest_path, manifest)
+    report["audits"].pop(prepare.SMOKE_METHODS[-1])
+    path.write_text(json.dumps(report), encoding="utf-8")
+    assert not controller.valid_decision(path, "smoke", manifest_path, manifest)
+
+
 def test_gate_and_smoke_decisions_are_both_required_for_screen(tmp_path, monkeypatch):
     output_root, manifest = prepared(tmp_path)
     manifest_path = output_root / "inputs" / "manifest.json"
@@ -456,6 +495,7 @@ def test_gate_and_smoke_decisions_are_both_required_for_screen(tmp_path, monkeyp
     }
     gate = {
         **valid,
+        "stage": "gate0",
         "attention": "production",
         "same_gpu_sequential": True,
         "sequence": [
@@ -474,7 +514,7 @@ def test_gate_and_smoke_decisions_are_both_required_for_screen(tmp_path, monkeyp
         ],
     }
     controller.write_decision(controller.decision_path(output_root, "gate0"), gate)
-    stale = dict(valid, input_manifest_sha256="bad")
+    stale = dict(valid, stage="smoke", input_manifest_sha256="bad")
     smoke = controller.decision_path(output_root, "smoke")
     smoke.parent.mkdir(parents=True, exist_ok=True)
     smoke.write_text(json.dumps(stale), encoding="utf-8")

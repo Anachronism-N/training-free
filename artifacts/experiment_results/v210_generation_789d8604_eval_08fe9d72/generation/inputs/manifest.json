@@ -1,0 +1,429 @@
+{
+  "authorized_nodes": [
+    "28.216.19.213",
+    "28.216.19.143",
+    "28.216.19.137",
+    "28.216.19.225",
+    "28.216.18.144",
+    "28.216.18.136"
+  ],
+  "base_seed": 21000,
+  "checkpoint": {
+    "bytes": 5676252553,
+    "mtime_ns": 1785048789870345336,
+    "path": "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/self_forcing_dmd.pt",
+    "sha256": "a0413986d9734e02c09504e1520f5697ba6df731bb2f0f35577485e9cc8f56a3"
+  },
+  "claim_boundary": "Source-bound v210 screen. LPHC claims require gate0 native equivalence and a passing smoke trace audit; production attention only.",
+  "configs": {
+    "lphc_e1_a002_correct": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/configs/lphc_e1_a002_correct.yaml",
+      "sha256": "bdc5758f6787f3769d533a94c545720fce15911200cd91433fc96ad46bb4a668"
+    },
+    "lphc_e1_a005_correct": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/configs/lphc_e1_a005_correct.yaml",
+      "sha256": "00a30f7dd5e52667ac026d193954d0054da51a01a5398092fbbf3dc234d9c637"
+    },
+    "lphc_e1_a010_correct": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/configs/lphc_e1_a010_correct.yaml",
+      "sha256": "5450191092ccd1bed0c450613ca70db159ff88b9ae3391f6a59b28dd56a21716"
+    },
+    "lphc_e2_a010_correct": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/configs/lphc_e2_a010_correct.yaml",
+      "sha256": "2c0b7b59596461dc71ddd0cb71828a1168a156604f8397e53f2a5c9b998a67c1"
+    },
+    "lphc_full_a010_correct": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/configs/lphc_full_a010_correct.yaml",
+      "sha256": "c1aa2eedf7807467ad8f8782c3c28bd85e2bb6b5438200337631e0374bb86adb"
+    },
+    "sf_fifo21": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/configs/sf_fifo21.yaml",
+      "sha256": "48a2b9938e6d4a4b9bdf398a7673248768f38c5688a99ade4583824ea1ad26fa"
+    },
+    "sf_fifo25": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/configs/sf_fifo25.yaml",
+      "sha256": "9ed4894d65d6df0562f150737618302b1c0d5df30c6bf94d28325fe025a2e31d"
+    },
+    "sf_sink1_21": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/configs/sf_sink1_21.yaml",
+      "sha256": "13e8d925673bc771b0ed1ca9d8a7eac392517fbfac13af8fbab593467f97bb12"
+    }
+  },
+  "execution": {
+    "gpu_slots": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+    ],
+    "node_count": 6,
+    "node_rank_by_address": {
+      "28.216.18.136": 5,
+      "28.216.18.144": 4,
+      "28.216.19.137": 2,
+      "28.216.19.143": 1,
+      "28.216.19.213": 0,
+      "28.216.19.225": 3
+    },
+    "screen_assignment": "method-major jobs round-robin over frozen node-rank/GPU slots",
+    "ssh_port": 36000
+  },
+  "experiment": "v210_lphc",
+  "gate0": {
+    "attention": "production",
+    "modes": {
+      "lphc_alpha0": {
+        "alpha": 0.0,
+        "config": "sf_fifo21",
+        "lphc": true,
+        "phase": "full",
+        "retrieval_mode": "correct"
+      },
+      "native": {
+        "alpha": 0.0,
+        "config": "sf_fifo21",
+        "lphc": false,
+        "phase": "full",
+        "retrieval_mode": "correct"
+      }
+    },
+    "same_gpu_sequential": true,
+    "source_indices": [
+      1,
+      65
+    ]
+  },
+  "gate_frames": 30,
+  "git_commit": "789d860403c58449efb65067bd034ad2e6212d5d",
+  "large_file_hash_provenance": {
+    "manifest_path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_58157ec1_sixnode/inputs/manifest.json",
+    "manifest_sha256": "7e38f52198ff9930d5dbcd9f10e8f985fd20180b43c0feca64aafa8b9212eb7d",
+    "policy": "reuse_sha256_when_size_and_mtime_match",
+    "source_commit": "58157ec11ac37404885c7402e090d4f79e15ab8d"
+  },
+  "lphc_defaults": {
+    "archive_size": 12,
+    "history_size": 4
+  },
+  "method_specs": {
+    "lphc_e1_a002_correct": {
+      "alpha": 0.02,
+      "local_attn_size": 21,
+      "lphc": true,
+      "phase": "e1",
+      "retrieval_mode": "correct",
+      "sink_size": 0
+    },
+    "lphc_e1_a005_correct": {
+      "alpha": 0.05,
+      "local_attn_size": 21,
+      "lphc": true,
+      "phase": "e1",
+      "retrieval_mode": "correct",
+      "sink_size": 0
+    },
+    "lphc_e1_a010_correct": {
+      "alpha": 0.1,
+      "local_attn_size": 21,
+      "lphc": true,
+      "phase": "e1",
+      "retrieval_mode": "correct",
+      "sink_size": 0
+    },
+    "lphc_e2_a010_correct": {
+      "alpha": 0.1,
+      "local_attn_size": 21,
+      "lphc": true,
+      "phase": "e2",
+      "retrieval_mode": "correct",
+      "sink_size": 0
+    },
+    "lphc_full_a010_correct": {
+      "alpha": 0.1,
+      "local_attn_size": 21,
+      "lphc": true,
+      "phase": "full",
+      "retrieval_mode": "correct",
+      "sink_size": 0
+    },
+    "sf_fifo21": {
+      "local_attn_size": 21,
+      "lphc": false,
+      "sink_size": 0
+    },
+    "sf_fifo25": {
+      "local_attn_size": 25,
+      "lphc": false,
+      "sink_size": 0
+    },
+    "sf_sink1_21": {
+      "local_attn_size": 21,
+      "lphc": false,
+      "sink_size": 1
+    }
+  },
+  "methods": [
+    "sf_fifo21",
+    "sf_sink1_21",
+    "sf_fifo25",
+    "lphc_e1_a002_correct",
+    "lphc_e1_a005_correct",
+    "lphc_e1_a010_correct",
+    "lphc_e2_a010_correct",
+    "lphc_full_a010_correct"
+  ],
+  "prompt_count": 8,
+  "prompt_items": [
+    {
+      "effective_seed": 21001,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/prompts/source_001.txt",
+      "sha256": "279552d591d1dda79928f78b9d8c7a3416e3739172f54917d3ea2de74b0f2cd3",
+      "source_index": 1,
+      "text": "A stunning mid-afternoon landscape with a low camera angle, showcasing several giant wooly mammoths treading through a snowy meadow. Their long, wooly fur gently billows as they move, creating natural movement. Snow-covered trees and dramatic snow-capped mountains loom in the distance. Wispy clouds and a high sun cast a warm glow, enhancing the serene and awe-inspiring atmosphere. The depth of field brings out detailed textures, capturing every nuance of these prehistoric giants in breathtaking clarity."
+    },
+    {
+      "effective_seed": 21017,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/prompts/source_017.txt",
+      "sha256": "b6c0bf4071a22fec35b9ba1e26e3ae3f29746960caa3aa470cbeffeed93992c5",
+      "source_index": 17,
+      "text": "A dynamic shot from behind a white vintage SUV with a black roof rack as it speeds up a steep dirt road surrounded by towering redwood trees on a rugged mountain slope. Dust kicks up from its tires, and the sunlight shines on the SUV, casting a warm glow. The dirt road curves gently into the distance, with dense redwoods on either side and patches of greenery. The car navigates the curve with ease, making it seem thrilling. The road is framed by steep hills and mountains, with a clear blue sky and wispy clouds. The camera captures the vehicle\u2019s powerful and adventurous journey."
+    },
+    {
+      "effective_seed": 21033,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/prompts/source_033.txt",
+      "sha256": "eebdfa0d5f71a01b408ebf038dfb50b9aac608705d8d6a81b5431e46433aca55",
+      "source_index": 33,
+      "text": "A cinematic 35mm film captures a dynamic step-printing scene of a young man with short, tousled brown hair and determined eyes sprinting down a city street lined with tall buildings and neon signs. His arms pump vigorously as he runs, looking focused and energetic. The background features blurred motion with the cityscape fading into a soft, sepia tone. The camera follows him closely, capturing every stride and movement. A nostalgic and vintage film texture enhances the dramatic intensity. Close-up shot from a slightly behind-the-subject angle."
+    },
+    {
+      "effective_seed": 21049,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/prompts/source_049.txt",
+      "sha256": "d09ec37d2b0de81fcb545dd821674211ced7e35da2c6280adf43a62ef40ce902",
+      "source_index": 49,
+      "text": "A detailed digital painting style illustration of a small man with a cheerful expression, wearing round glasses and a warm smile, holding several colorful building blocks. He stands near a large painting of a serene landscape in a modern art gallery filled with various artworks, including modern abstract and classic pieces. The polished wooden floor and comfortable chairs add to the ambiance. Soft, warm lighting highlights the textures. A medium shot from a slightly lower angle captures both the man and the gallery scene."
+    },
+    {
+      "effective_seed": 21065,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/prompts/source_065.txt",
+      "sha256": "7082e7e83559a83ac57d2a10754022e49053eb46dad776a2d3f024978e88c5b7",
+      "source_index": 65,
+      "text": "A vibrant and lively cartoon illustration of a panda playing the guitar. The panda has black and white fur, round eyes, and a friendly expression. It sits comfortably on a small stool, strumming the guitar with one paw while the other rests on its knee. The small acoustic guitar is plucked with precision. The background features a cozy room with plants and colorful decorations, creating a warm and inviting atmosphere. The camera angle is slightly from above, capturing the panda's joyful and focused performance."
+    },
+    {
+      "effective_seed": 21081,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/prompts/source_081.txt",
+      "sha256": "6f368ec4da2fb47d82b8422d4a428e0637c035a0198762e56accbecacd364e5d",
+      "source_index": 81,
+      "text": "A hyper-realistic digital art piece showing a wide-angle view inside a high-speed train moving through an old European city. The sleek, modern train interior has passengers seated in comfortable leather seats, reading books or using laptops. Clear windows display bustling streets, ancient cobblestone, ornate facades, and medieval spires rushing past at incredible speed. People walk hurriedly, and horse-drawn carriages pass by. The train's motion is vividly depicted, creating a sense of dynamic movement and adventure. The cityscape is richly detailed, blurred and streaked to emphasize speed. The atmosphere blends futuristic technology with historical charm."
+    },
+    {
+      "effective_seed": 21097,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/prompts/source_097.txt",
+      "sha256": "43549d00fd935f96da5c8942b8bcea91e45404fb09446fe54a1e50f82e142bf8",
+      "source_index": 97,
+      "text": "A dramatic moment in a realistic photographic style, showing a middle-aged bald man initially appearing solemn. Suddenly, a curly wig and sunglasses fall onto his head from above, transforming his appearance instantly. His face lights up with joy and surprise, eyes widening and a broad smile forming. He stands in a cluttered office space with scattered papers and a desk lamp casting shadows, creating a stark contrast. Taken from a low-angle perspective, emphasizing the dramatic change."
+    },
+    {
+      "effective_seed": 21113,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v210_runs/v210_lphc_789d8604_sixnode/inputs/prompts/source_113.txt",
+      "sha256": "8b3b745beabcf081f26276ea13dbffa0bacaaa5a070a6961d30f67b630042293",
+      "source_index": 113,
+      "text": "A dramatic overhead aerial shot of the ocean, capturing a mesmerizing maelstrom forming in the water, swirling violently before revealing the fiery depths below. Intense churning water creates a whirlpool effect stretching from the surface to the murky depths, illuminating the underwater landscape with vivid colors and textures. The camera angle emphasizes the dynamic motion and vastness of the ocean."
+    }
+  ],
+  "prompt_source": {
+    "count": 128,
+    "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/Causal-Forcing/prompts/MovieGen_128_qwen.txt",
+    "sha256": "99468409fe54322bc383376e6037196e922cfbae47814a7a4e51740ee0571281"
+  },
+  "runtime_paths": {
+    "scripts/audit_v210_lphc_trace.py": "29321f8a4565bd69dbf2410f277457d8af69e67eea0cc62a3bed6864497d67b4",
+    "scripts/prepare_v210_lphc.py": "33016b209a2fed9c68d3da2b79ef1f1453409d6dec68befa2161f19a64f0b9f0",
+    "scripts/run_v210_lphc.py": "a90e3b46e3d1305e809fc574e96ba31c0c810a52bb9be6a25b05aec406d560be",
+    "scripts/run_v210_worker.py": "27d6294cfc2efc5d005f408b3b89d9b60919a83c551df4a00650213d343284de",
+    "src/lifecycle_kv/__init__.py": "73b9dfad9cd4ba019cad45985e94a5dfe3ef5a63310c231048165406b9f972a4",
+    "src/lifecycle_kv/active_cache.py": "079ce244ce3b1c223b707dfa9d2bd3aa9ed91131ced8a2bad172e9411b4a1e1b",
+    "src/lifecycle_kv/anchor.py": "e68e9336c9c8fc5cffc775becdb4d1e278c3bf5cf5ce77ba7d8639ec63bd6746",
+    "src/lifecycle_kv/attention_fusion.py": "f191b34177b6a10fc15c292a16fd473a42ff36d933ba5b8b6f34ab167b686d1a",
+    "src/lifecycle_kv/bank.py": "cc15439cb13aa2e10ec5c4621a28a9c9e5386a2c573d1d3f24dd4a10c1c258d0",
+    "src/lifecycle_kv/cache_types.py": "2a0218e06966c587ca514b190ecd7f684d3cf15d54fe3a23c9e530aa9ce95a2a",
+    "src/lifecycle_kv/commit_forcing.py": "ace349bc9b5d38e326a6c5b805309868bf4c85d03f1a3be53810b29dad614564",
+    "src/lifecycle_kv/compression.py": "68ee03edac29e9669bc33fcb6ba146a604892cb1c9218cf668b7004dccb2b28e",
+    "src/lifecycle_kv/dense_cache_trace.py": "0af91818306652087de17bea862acef176e9588b8cd0e638f73c2f94a6bd13f3",
+    "src/lifecycle_kv/downstream_probe.py": "163c27d7dd68a46341d9538688fa173bf84d7e010683a52991b9b059f3a05dba",
+    "src/lifecycle_kv/episodic_archive.py": "d9d9c97f37a3adb4ebb7f6ea7ecd8d8d980e6fd649bfa93a1efbe25f496b8443",
+    "src/lifecycle_kv/episodic_pool.py": "c3934058d7beef46a3ed10408256e2a7cd1460d2bb097aa615c018f8ed4f3324",
+    "src/lifecycle_kv/head_classifier.py": "1b577453b07209fe611976058e9ee3811984f8ab88a4bc961f4203e21759979e",
+    "src/lifecycle_kv/head_diagnostic.py": "9dafe08839ae6a8f90d3700459ff8aa7e2f0827b47315a905e4ae7bf66ec73e7",
+    "src/lifecycle_kv/head_profile.py": "9aa53d2001a3c8d247f69be58527e34193f509da81c7e751729075972dee8d73",
+    "src/lifecycle_kv/head_profiler.py": "062c5fc44a57b3aea49285ecfba13164f230dfeff141fad30c741d61f148bbbf",
+    "src/lifecycle_kv/head_roles.py": "732e278e899a0478e6036444f1445462e8d3249e0dc5be5425af4d3b49f00819",
+    "src/lifecycle_kv/head_taxonomy.py": "4bb8c8be31d8c9289bf26d49959ba0ba1a26420e6412b6f2e40a6ea2115ecf40",
+    "src/lifecycle_kv/history_interventions.py": "3f4f874415e2140ceb589819cec1813f36032b8fd4e9df2294148a48c5234f22",
+    "src/lifecycle_kv/index.py": "16611b83073559f12bec6e488447e4aa50bc6a9a8077f2a361e61e922aa9ad9b",
+    "src/lifecycle_kv/instrumentation.py": "a86490c0293c5d2a5011e5b42bf6d185d398e73c0da1d6e0084c924387550655",
+    "src/lifecycle_kv/intervention_router.py": "2177298e72087b479d934f09e0a30f6c1c36a21b3ab3285b147b4a3062005635",
+    "src/lifecycle_kv/k_stability.py": "0cf6c1a0567374085d079780dac65275a9cde8c40cb5e126d5576f9fed042f3f",
+    "src/lifecycle_kv/latent_trace.py": "3abc03d662b5bc551ac0462168d914ecf432da8286cd9adca0444844ca1ec010",
+    "src/lifecycle_kv/lifecycle_cache.py": "60676c6562b8ab2b8c0988771e7a3c8b0a49cc6291769755bdef6165fc0af7e0",
+    "src/lifecycle_kv/lphc.py": "e0a050b4d9e48848b370a631cc3dda539b810a71fa4701ba76dc7c9fda54e35d",
+    "src/lifecycle_kv/motion.py": "4c6c73ad20f863a7890e74029698dde0be2d3769db9bd5e47a6efe2712d5f5bf",
+    "src/lifecycle_kv/oracle.py": "4b139a80b84f6feee50d3b63fea82949deae3cdddc7ae910e7e621d89c596a64",
+    "src/lifecycle_kv/parity_trace.py": "c5c04505b788d1401057d9c0533bb81dbf0999aebf521ddfb076acd4f5bcd8dd",
+    "src/lifecycle_kv/recall.py": "5cd72516b9ba098b85baafc35329e4d900fc32b6968d93f74ace0629be2dae0b",
+    "src/lifecycle_kv/role_episodic.py": "5a1f035d358faa89245e4183071808fa6d84eecc03577482663bd82ce22f2485",
+    "src/lifecycle_kv/runtime.py": "c6f2de6b6051dc75fc2093b2b16c9c41e95a91dcc63064e32d49eb8bf0dae084",
+    "src/lifecycle_kv/structured_visual_memory.py": "419b9566112c3d814888e4ada34508369eaa28129a1f3e034e1d528a92fe06f4",
+    "src/lifecycle_kv/tokenset.py": "1b049ef93dbaa16acf64f634de8fe2a420fdb096f301773741596503a502a338",
+    "src/lifecycle_kv/typed_memory.py": "89fd1e44d32566e2cdb530f3043cda6ff888c966eb229a63ff2d8a3af4113e0d",
+    "third_party/Self-Forcing/configs/default_config.yaml": "18303f1bacbfbebaa02893cc8e106941753f21a7d1a7109519a90762375ee772",
+    "third_party/Self-Forcing/configs/self_forcing_dmd.yaml": "65f616cd57fd524bb43b51846c3a846cba12225fe45299f1b2764f327b85d9d8",
+    "third_party/Self-Forcing/configs/self_forcing_sid.yaml": "a107a8090bac42e19f031c248be824a020bf1c952064f094305f0a64b4e26433",
+    "third_party/Self-Forcing/demo.py": "236e67db81331e69697537a4e73c4484a6178c2d20ce77321c817d4344c17451",
+    "third_party/Self-Forcing/demo_utils/constant.py": "d1c53d7d5209bd5065bf566948333849a3bf9c71d151a0d7325acf67f46cb3d9",
+    "third_party/Self-Forcing/demo_utils/memory.py": "ca0b31c93019f802e1312d512591ae6bea35b450064cdde19b6202779f50bb7f",
+    "third_party/Self-Forcing/demo_utils/taehv.py": "865b1dd0516682c02352bd76bce2ad0472588330ea9fab30ca0895630f263244",
+    "third_party/Self-Forcing/demo_utils/utils.py": "f539911c5317323e24cdbcb331dc66645f6e7a1e6c68aa8ed4bb24effefa9843",
+    "third_party/Self-Forcing/demo_utils/vae.py": "0b938e1e356a221b8c9ac1c64e554bfd01016b609752ab760805829303deb034",
+    "third_party/Self-Forcing/demo_utils/vae_block3.py": "2a9a50fd1731992a32232a79bf0457d50c12d12db1ea9c14d9adb4201816e0f4",
+    "third_party/Self-Forcing/demo_utils/vae_torch2trt.py": "8a267d73ac8a506a402c340726c6dbcdeca3328a909ce61922114bbe3fcb7068",
+    "third_party/Self-Forcing/inference.py": "9911e100e7a748e5412e7a16d200eede828e83faf7b0ad788756bf824d8436c0",
+    "third_party/Self-Forcing/model/__init__.py": "2c22d7df9de307a7b3d8e6ef69c0cf2cf5c47590d0cd2386d33f87b494c5a378",
+    "third_party/Self-Forcing/model/base.py": "3e39cd61b25a753cf064101e8ffca653d6cce07a7c60a50fd8e3475425362d4f",
+    "third_party/Self-Forcing/model/causvid.py": "870beb90c2af5233a19c733c4cbd72f79b9ef03fae5a2915e37b94f4355c0000",
+    "third_party/Self-Forcing/model/diffusion.py": "e4bbae3554722cac0e2ce6709f287c088d95cd96da2c3a89683188b6df232528",
+    "third_party/Self-Forcing/model/dmd.py": "7b8dd78a48220e6868956a7cd639215756747b7b8e58c07f27e50090c4291e19",
+    "third_party/Self-Forcing/model/gan.py": "da30e3ff2d770646643b4994fa1607581851a39ee28b9ab70460a71ca4125b1a",
+    "third_party/Self-Forcing/model/ode_regression.py": "3a581d436a1ebc8c7bc9191fef203784008cec313827ea0afe6ed961810dac20",
+    "third_party/Self-Forcing/model/sid.py": "4b6536ec27b1f3a555169b8c887190f06aaa9f929c2d7f9fcd8c289d819973ba",
+    "third_party/Self-Forcing/pipeline/__init__.py": "deb77d9f0f8175067cb9feb939c60b29bd68bc9130fd2b1b0019148c29b9fa6a",
+    "third_party/Self-Forcing/pipeline/bidirectional_diffusion_inference.py": "8a5f9daee9e0274aeb4ac3a69ddf7a0f84ca1aa19d4e3df30eab6b8cec712248",
+    "third_party/Self-Forcing/pipeline/bidirectional_inference.py": "675a723275359d579749250b5651180e46249c5269c783e7e49c4fab14c5d90d",
+    "third_party/Self-Forcing/pipeline/causal_diffusion_inference.py": "3d0f2c509bfb39409b3b2d2322cf7b879502226c7e8af375f064082486f5d4f3",
+    "third_party/Self-Forcing/pipeline/causal_inference.py": "230dad5b55961cc3a7c0bee9db580ba7b876ce26de0a88f92e931981be8063b7",
+    "third_party/Self-Forcing/pipeline/self_forcing_training.py": "0fbef7cae39a13338ae555acc2f114dc28a0e15f4dfcf4303640192e42ab7e96",
+    "third_party/Self-Forcing/scripts/create_lmdb_14b_shards.py": "2364186c378ac8d5bad4f18f9e8206094843cd36b094fa9aff74838ca0f07ee1",
+    "third_party/Self-Forcing/scripts/create_lmdb_iterative.py": "78cd5748dd7dbaaf9884d1410033c014eb5e36960ff38fd63472ad328cc7b423",
+    "third_party/Self-Forcing/scripts/generate_ode_pairs.py": "e7fc4e7e402d808aa80038fbb4515b0bfe075b7d38a4c1f28ee8ce537657eebe",
+    "third_party/Self-Forcing/scripts/lifecache_manager.py": "c9c4781fc52161bcdb8a550565f169d7b9ae133a4b2d4907eddc9c8387170e76",
+    "third_party/Self-Forcing/setup.py": "3930afa782e69358f4f1856adba265ad6b0d454e67c63540fc9964e86fa18dbd",
+    "third_party/Self-Forcing/train.py": "e7a0a036ad091393f102e5c1f0827390304f077dabd09d11cd7c40b54a97915c",
+    "third_party/Self-Forcing/trainer/__init__.py": "c7ca5d93f80e88897c6cc0f5002551a5337d047de49bd52048cb886e22b95d3c",
+    "third_party/Self-Forcing/trainer/diffusion.py": "525cb9e839a6f801c78ae8527d3eca8631427a0e7992d246101e4e4cfc1214e6",
+    "third_party/Self-Forcing/trainer/distillation.py": "ec7b49b31c06411e913c46c7ac5d86c63fee0033e4b8cb6e12ed073e0a5f1fde",
+    "third_party/Self-Forcing/trainer/gan.py": "c420592ef0c648e9bef770ddca2a0b1b35ce687ef5d3d0ba516304d90d1e9a32",
+    "third_party/Self-Forcing/trainer/ode.py": "a311ccae5b974912fe9406df2626fec5df1efa02f1ed7c24c0a038c711de407a",
+    "third_party/Self-Forcing/utils/dataset.py": "2ced021a06123db94204bd2c7a915cf39b19d7220c62a4fad6c5e14725ff640d",
+    "third_party/Self-Forcing/utils/distributed.py": "8560b35c3e5fa77ff7f98c54344775393b1cd3c1ed37740f6284b27aad4f0ba7",
+    "third_party/Self-Forcing/utils/lmdb.py": "d8bfb912cd75a947a8214955b1022662c99d4b23ff882d6e68bb717faafe8b1e",
+    "third_party/Self-Forcing/utils/loss.py": "5a08ba589ef54d5deb50d1ff1984f2969b1fdc2f03c53751167eb23a7082ecfe",
+    "third_party/Self-Forcing/utils/misc.py": "610bead16d50d99fabdccb2e9ce3c20fa1fa1cd3bdf735d7ff7ffda978bfe195",
+    "third_party/Self-Forcing/utils/scheduler.py": "4194ef1324bb06527621749c7f9a82f431ccf011823aa65099cb7bdf116b642e",
+    "third_party/Self-Forcing/utils/wan_wrapper.py": "52d3598ea2c87f415625a7c4b81f1627b1ee4fb80f3f52eea92e1b8edc2337dd",
+    "third_party/Self-Forcing/wan/__init__.py": "d9390f993a448bd679ac8d5254620ca6b5d2bc450f65bbf5f4a64c82cb4f4a99",
+    "third_party/Self-Forcing/wan/configs/__init__.py": "7b782183abca0e09c3efbc8ff02ab12c50c023d59642f6077cc16d1a23fa8bac",
+    "third_party/Self-Forcing/wan/configs/shared_config.py": "e3785cd01cff5763f83159ccc242f2d17435ba8dcef99f4a70db958c88e7f5ab",
+    "third_party/Self-Forcing/wan/configs/wan_i2v_14B.py": "2d5a3ff4326a5b1c1c8d564f8a8829fe30879cb99fe0ad1b18c236ecb43aac54",
+    "third_party/Self-Forcing/wan/configs/wan_t2v_14B.py": "a1d8f5f876fa20c4f58c5ee5433ca0d5e2cdf37accef7c97bc0c5aee7ba8db8c",
+    "third_party/Self-Forcing/wan/configs/wan_t2v_1_3B.py": "28dea1d8ef2095d7ddd1e2506e7b498ba698b32e962bdbc79d6d7da3ca5a6d0c",
+    "third_party/Self-Forcing/wan/distributed/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "third_party/Self-Forcing/wan/distributed/fsdp.py": "a20cbd8ea747db64226eb21e5e848c44cc2ccf95a76efbf13956efe8e9f900a3",
+    "third_party/Self-Forcing/wan/distributed/xdit_context_parallel.py": "b3b16b38dd08b0e857d90e4c97c7a41a06368be477abafa460ce3a44ea596474",
+    "third_party/Self-Forcing/wan/image2video.py": "46348294457e81210c70d40c6a1be6e24e5b749a48bf4aaac3febb6bd8e155ee",
+    "third_party/Self-Forcing/wan/modules/__init__.py": "6cba8c084de01455a914a3b5620e0a286d4dee2c39143b6508bb8fac87e71b4b",
+    "third_party/Self-Forcing/wan/modules/attention.py": "5f5b4ca52559c19f3089893f99355fe1cc151a7ddb54d0b91ba615bfeb420f8d",
+    "third_party/Self-Forcing/wan/modules/causal_model.py": "fb525b93290f0a0c2c8e72890ba567fe605c3af6581e2e3e0b5742662643041c",
+    "third_party/Self-Forcing/wan/modules/clip.py": "2ab8672603a998422defb897e16531608750737ab8d631520b055bda93aba35c",
+    "third_party/Self-Forcing/wan/modules/model.py": "f15214485a5297e6f9e79684bbad80acbcdc88c3272596b256a739a734529449",
+    "third_party/Self-Forcing/wan/modules/t5.py": "8b0cebf3192c542f92a344255a06c203df3ba24160715899a055cc8de0cd930f",
+    "third_party/Self-Forcing/wan/modules/tokenizers.py": "cf5b189c1ae017326efadab2fc6380ba223fa7a59d0be6464bd264db53c76934",
+    "third_party/Self-Forcing/wan/modules/vae.py": "a4c1d9362f25a1bef463ac51caed4097317c007d4d87887b02a3a733fdbc48d5",
+    "third_party/Self-Forcing/wan/modules/xlm_roberta.py": "7e27d93573b5fb0fef1c9db9205264453bd30dcb1404c38031f24ed9c84b8d4a",
+    "third_party/Self-Forcing/wan/text2video.py": "ca344c0f24d3d305dd93a0433dc88a212e5d815bb8a784f8f54fc9fa98ff06c1",
+    "third_party/Self-Forcing/wan/utils/__init__.py": "4a8d71cd9feefa65d51770ee8351a07cd6ebe82f9b75fef1ddaf0f30b4db502c",
+    "third_party/Self-Forcing/wan/utils/fm_solvers.py": "f7254e3ac5c6c6715317cdf991d927cde61c1400ad73851be41fc51ce5ecba5d",
+    "third_party/Self-Forcing/wan/utils/fm_solvers_unipc.py": "de622aced9aa5022622509295e5a0e40589b53f59ce13cf64061af9e99af5f66",
+    "third_party/Self-Forcing/wan/utils/prompt_extend.py": "f00f7f03ed5dc6d7648290c3d9b0f80b33d71692958542c447d722acc42dcbd6",
+    "third_party/Self-Forcing/wan/utils/qwen_vl_utils.py": "9ae8190bdb0c6ad5b283fd9fecae65f3adfe45bc90326d3851fb5c8d777995c9",
+    "third_party/Self-Forcing/wan/utils/utils.py": "ebf33b0c4dc69a62faca6243d58bfa890ea4fb9c056e7c1ef0fa501cbbe22566"
+  },
+  "screen_frames": 120,
+  "seed_policy": "effective_seed = 21000 + source_index",
+  "source_commit": "789d860403c58449efb65067bd034ad2e6212d5d",
+  "source_indices": [
+    1,
+    17,
+    33,
+    49,
+    65,
+    81,
+    97,
+    113
+  ],
+  "version": 1,
+  "wan_model": {
+    "inventory": [
+      {
+        "bytes": 507609880,
+        "mtime_ns": 1785048846128333793,
+        "relative_path": "Wan2.1_VAE.pth",
+        "sha256": "38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981"
+      },
+      {
+        "bytes": 249,
+        "mtime_ns": 1785048808720011300,
+        "relative_path": "config.json",
+        "sha256": "ab37994c43740513f94b3ba6233a784035a67b43c8cde83c8f31aa90468c67ce"
+      },
+      {
+        "bytes": 5676070424,
+        "mtime_ns": 1785048808694775715,
+        "relative_path": "diffusion_pytorch_model.safetensors",
+        "sha256": "96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f"
+      },
+      {
+        "bytes": 6623,
+        "mtime_ns": 1785048846248909465,
+        "relative_path": "google/umt5-xxl/special_tokens_map.json",
+        "sha256": "7b8a9f5040adb67b5805abdfd42c1f8d0f3d0e711f10726580eb3789cd0ad61d"
+      },
+      {
+        "bytes": 4548313,
+        "mtime_ns": 1785048846336137102,
+        "relative_path": "google/umt5-xxl/spiece.model",
+        "sha256": "e3909a67b780650b35cf529ac782ad2b6b26e6d1f849d3fbb6a872905f452458"
+      },
+      {
+        "bytes": 16853013,
+        "mtime_ns": 1785048846427347250,
+        "relative_path": "google/umt5-xxl/tokenizer.json",
+        "sha256": "af904105ce1071b1202bba0059a841f4a7b85b48b6ec179c4948e3483476e0dd"
+      },
+      {
+        "bytes": 61728,
+        "mtime_ns": 1785048846273738957,
+        "relative_path": "google/umt5-xxl/tokenizer_config.json",
+        "sha256": "ed9a3a8b0faa71a70a32847e0435fe036e6e112d4df4edb7bb48a921e344dc05"
+      },
+      {
+        "bytes": 11361920418,
+        "mtime_ns": 1785048844597214212,
+        "relative_path": "models_t5_umt5-xxl-enc-bf16.pth",
+        "sha256": "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d"
+      }
+    ],
+    "name": "Wan2.1-T2V-1.3B",
+    "required_files": [
+      "/tmp/training-free-v210-sources/789d860403c58449efb65067bd034ad2e6212d5d/third_party/Self-Forcing/wan/__init__.py",
+      "/tmp/training-free-v210-sources/789d860403c58449efb65067bd034ad2e6212d5d/third_party/Self-Forcing/wan/configs/wan_t2v_14B.py"
+    ],
+    "runtime_path": "/tmp/training-free-v210-sources/789d860403c58449efb65067bd034ad2e6212d5d/third_party/Self-Forcing/wan",
+    "runtime_present": true,
+    "weights_path": "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/Wan2.1-T2V-1.3B",
+    "weights_present": true
+  }
+}

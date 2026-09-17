@@ -160,7 +160,8 @@ def default_output_root(root: Path) -> Path:
 
 
 def default_wan_model(root: Path) -> Path:
-    return root / "third_party" / "Self-Forcing" / "wan_models" / "Wan2.1-T2V-1.3B"
+    del root
+    return DEFAULT_WAN_MODEL
 
 
 def validate_output_root(path: Path) -> Path:
