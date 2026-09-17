@@ -231,6 +231,8 @@ class WanDiffusionWrapper(torch.nn.Module):
         structured_memory_archives=None,
         structured_memory_config=None,
         structured_memory_mode: str = "noisy",
+        lphc_controllers=None,
+        lphc_context=None,
     ) -> torch.Tensor:
         prompt_embeds = conditional_dict["prompt_embeds"]
 
@@ -255,6 +257,8 @@ class WanDiffusionWrapper(torch.nn.Module):
                 structured_memory_archives=structured_memory_archives,
                 structured_memory_config=structured_memory_config,
                 structured_memory_mode=structured_memory_mode,
+                lphc_controllers=lphc_controllers,
+                lphc_context=lphc_context,
             ).permute(0, 2, 1, 3, 4)
         else:
             if clean_x is not None:

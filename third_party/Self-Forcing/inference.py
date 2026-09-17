@@ -175,6 +175,21 @@ parser.add_argument("--role_keep_fraction", type=float, default=None,
                     help="Target top-head fraction for relative/hybrid calibration.")
 parser.add_argument("--role_min_evidence_spread", type=float, default=None,
                     help="Fail closed when per-head role evidence spread is below this value.")
+
+# --- Local-Preserving Historical Correction (LPHC) ----------------------
+parser.add_argument("--lphc_enable", action="store_true", default=False,
+                    help="Enable the native-FIFO21 LPHC sidecar.")
+parser.add_argument("--lphc_alpha", type=float, default=None,
+                    help="Maximum per-head RMS correction ratio in [0, 1].")
+parser.add_argument("--lphc_phase", type=str, default=None,
+                    choices=("e1", "e2", "full"))
+parser.add_argument("--lphc_retrieval_mode", type=str, default=None,
+                    choices=("correct", "random"))
+parser.add_argument("--lphc_archive_frames", type=int, default=None)
+parser.add_argument("--lphc_history_frames", type=int, default=None)
+parser.add_argument("--lphc_control_seed", type=int, default=None)
+parser.add_argument("--lphc_source_index", type=int, default=None)
+parser.add_argument("--lphc_trace_path", type=str, default=None)
 args = parser.parse_args()
 
 # --- Forward structured-memory CLI overrides into env -------------------
@@ -241,6 +256,23 @@ if args.structured_memory_debug:
     os.environ["STRUCTURED_MEMORY_DEBUG"] = "1"
 if args.dual_allow_disagreement:
     os.environ["STRUCTURED_MEMORY_DUAL_REQUIRE_AGREEMENT"] = "0"
+
+if args.lphc_enable:
+    os.environ["LPHC_ENABLE"] = "1"
+_LPHC_CLI_ENV = {
+    "lphc_alpha": "LPHC_ALPHA",
+    "lphc_phase": "LPHC_PHASE",
+    "lphc_retrieval_mode": "LPHC_RETRIEVAL_MODE",
+    "lphc_archive_frames": "LPHC_ARCHIVE_FRAMES",
+    "lphc_history_frames": "LPHC_HISTORY_FRAMES",
+    "lphc_control_seed": "LPHC_CONTROL_SEED",
+    "lphc_source_index": "LPHC_SOURCE_INDEX",
+    "lphc_trace_path": "LPHC_TRACE_PATH",
+}
+for cli_name, env_name in _LPHC_CLI_ENV.items():
+    value = getattr(args, cli_name)
+    if value is not None:
+        os.environ[env_name] = str(value)
 
 # Initialize distributed inference
 if "LOCAL_RANK" in os.environ:

@@ -16,20 +16,25 @@ import torch.nn as nn
 import torch
 import math
 import torch.distributed as dist
+from dataclasses import replace
 
 try:
     from lifecycle_kv.attention_fusion import fuse_parallel_attention
     from lifecycle_kv.cache_types import HeadRole
     from lifecycle_kv.head_profile import get_head_profile_session
     from lifecycle_kv.history_interventions import (
+        apply_history_rope,
         build_history_interventions,
     )
+    from lifecycle_kv.lphc import apply_lphc_attention
     from lifecycle_kv.tokenset import CacheRegion
 except ImportError:
     fuse_parallel_attention = None  # type: ignore
     HeadRole = None  # type: ignore
     get_head_profile_session = lambda: None  # type: ignore
+    apply_history_rope = None  # type: ignore
     build_history_interventions = None  # type: ignore
+    apply_lphc_attention = None  # type: ignore
     CacheRegion = None  # type: ignore
 
 # wan 1.3B model has a weird channel / head configurations and require max-autotune to work with flexattention
@@ -212,6 +217,8 @@ class CausalWanSelfAttention(nn.Module):
         structured_memory_archive=None,
         structured_memory_config=None,
         structured_memory_mode="noisy",
+        lphc_controller=None,
+        lphc_context=None,
     ):
         r"""
         Args:
@@ -330,6 +337,7 @@ class CausalWanSelfAttention(nn.Module):
                     sink_tokens != 0
                     or lifecache_manager is not None
                     or structured_memory_archive is not None
+                    or lphc_controller is not None
                     or bool(getattr(self, "full_window_aar", False))
                     or bool(getattr(self, "head_cache_policy_on", False))
                 ):
@@ -431,6 +439,7 @@ class CausalWanSelfAttention(nn.Module):
                 or structured_memory_active
                 or commit_forcing_capture
                 or profile_history_interventions
+                or lphc_controller is not None
             )
             # --- Anchor-Adjacent RoPE (AAR) ---------------------------------
             # BUG (doc 102/103): sink frames are stored pre-roped at absolute
@@ -876,11 +885,58 @@ class CausalWanSelfAttention(nn.Module):
                         qh, kh, vh, attn_mask=bias)  # bias [H,q,k] broadcasts over B
                     x = xo.permute(0, 2, 1, 3)
                 else:
-                    x = attention(
-                        roped_query,
-                        kv_cache["k"][:, attn_start:local_end_index],
-                        kv_cache["v"][:, attn_start:local_end_index]
-                    )
+                    local_key = kv_cache["k"][:, attn_start:local_end_index]
+                    local_value = kv_cache["v"][:, attn_start:local_end_index]
+                    x = attention(roped_query, local_key, local_value)
+                    if lphc_controller is not None:
+                        if (
+                            sink_tokens != 0
+                            or lifecache_manager is not None
+                            or structured_memory_archive is not None
+                            or hcp
+                            or aar
+                            or fwaar
+                        ):
+                            raise RuntimeError("LPHC requires the native FIFO attention branch")
+                        if apply_lphc_attention is None or apply_history_rope is None:
+                            raise RuntimeError("LPHC runtime is unavailable")
+                        if lphc_context is None:
+                            raise RuntimeError("LPHC requires an explicit call context")
+                        absolute_read_start = current_end - local_end_index + attn_start
+                        if absolute_read_start % frame_seqlen or current_end % frame_seqlen:
+                            raise RuntimeError("LPHC local cache does not contain complete frames")
+                        actual_context = replace(
+                            lphc_context,
+                            local_frame_ids=tuple(
+                                range(
+                                    absolute_read_start // frame_seqlen,
+                                    current_end // frame_seqlen,
+                                )
+                            ),
+                        )
+
+                        def _history_rope(raw_history_key, history_frame_ids):
+                            history_grid = grid_sizes.clone()
+                            history_grid[:, 0] = int(history_frame_ids.numel())
+                            return apply_history_rope(
+                                raw_history_key,
+                                grid_sizes=history_grid,
+                                freqs=freqs,
+                                temporal_positions=history_frame_ids,
+                            ).type_as(local_key)
+
+                        x = apply_lphc_attention(
+                            x,
+                            roped_query,
+                            local_key,
+                            local_value,
+                            history_provider=lphc_controller.retrieve,
+                            attention_fn=attention,
+                            context=actual_context,
+                            config=lphc_controller.config,
+                            controller=lphc_controller,
+                            history_rope_fn=_history_rope,
+                        )
             if profile_session is not None and block_index is not None:
                 profile_session.capture_persistent_tokens(
                     layer=int(block_index),
@@ -2058,6 +2114,8 @@ class CausalWanAttentionBlock(nn.Module):
         structured_memory_archive=None,
         structured_memory_config=None,
         structured_memory_mode="noisy",
+        lphc_controller=None,
+        lphc_context=None,
     ):
         r"""
         Args:
@@ -2081,7 +2139,9 @@ class CausalWanAttentionBlock(nn.Module):
             lifecache_manager=lifecache_manager,
             structured_memory_archive=structured_memory_archive,
             structured_memory_config=structured_memory_config,
-            structured_memory_mode=structured_memory_mode)
+            structured_memory_mode=structured_memory_mode,
+            lphc_controller=lphc_controller,
+            lphc_context=lphc_context)
 
         # with amp.autocast(dtype=torch.float32):
         x = x + (y.unflatten(dim=1, sizes=(num_frames, frame_seqlen)) * e[2]).flatten(1, 2)
@@ -2493,6 +2553,8 @@ class CausalWanModel(ModelMixin, ConfigMixin):
         structured_memory_archives=None,
         structured_memory_config=None,
         structured_memory_mode="noisy",
+        lphc_controllers=None,
+        lphc_context=None,
     ):
         r"""
         Run the diffusion model with kv caching.
@@ -2589,6 +2651,11 @@ class CausalWanModel(ModelMixin, ConfigMixin):
                 and bool(getattr(structured_memory_archives[block_index], "_sm_active", True))
             ):
                 block_archive = structured_memory_archives[block_index]
+            block_lphc_controller = None
+            if lphc_controllers is not None:
+                if block_index >= len(lphc_controllers):
+                    raise RuntimeError("LPHC controller count does not match transformer blocks")
+                block_lphc_controller = lphc_controllers[block_index]
             if torch.is_grad_enabled() and self.gradient_checkpointing:
                 kwargs.update(
                     {
@@ -2599,6 +2666,8 @@ class CausalWanModel(ModelMixin, ConfigMixin):
                         "structured_memory_archive": block_archive,
                         "structured_memory_config": structured_memory_config,
                         "structured_memory_mode": structured_memory_mode,
+                        "lphc_controller": block_lphc_controller,
+                        "lphc_context": lphc_context,
                     }
                 )
                 block.self_attn._block_index = block_index
@@ -2622,6 +2691,8 @@ class CausalWanModel(ModelMixin, ConfigMixin):
                         "structured_memory_archive": block_archive,
                         "structured_memory_config": structured_memory_config,
                         "structured_memory_mode": structured_memory_mode,
+                        "lphc_controller": block_lphc_controller,
+                        "lphc_context": lphc_context,
                     }
                 )
                 x = block(x, **kwargs)

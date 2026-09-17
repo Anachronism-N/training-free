@@ -1,4 +1,5 @@
 from typing import List, Optional
+import json
 import os
 import torch
 
@@ -219,6 +220,14 @@ class CausalInferencePipeline(torch.nn.Module):
         ):
             self._init_structured_memory()
 
+        # --- Local-Preserving Historical Correction -----------------------
+        self.lphc_controllers = None
+        self.lphc_config = None
+        self.lphc_trace_path = None
+        self._lphc_trace_counters = {}
+        if os.environ.get("LPHC_ENABLE", "0") == "1":
+            self._init_lphc()
+
         # --- Commit Forcing: reliability-gated pathwise correction -------
         # The reference cache participates in a complete extra denoising
         # forward at selected timesteps. It is not fused into attention
@@ -308,6 +317,121 @@ class CausalInferencePipeline(torch.nn.Module):
 
         if self.num_frame_per_block > 1:
             self.generator.model.num_frame_per_block = self.num_frame_per_block
+
+    def _init_lphc(self) -> None:
+        """Build the fail-closed v210 native-FIFO21 history sidecar."""
+        from lifecycle_kv.lphc import LPHCCallContext, LPHCConfig, LPHCController
+
+        if self.lifecache_manager is not None or self.structured_memory_archives is not None:
+            raise ValueError("LPHC is mutually exclusive with LifeCache and Structured Memory")
+        if self.local_attn_size != 21:
+            raise ValueError("LPHC v210 requires native FIFO21 local attention")
+        if bool(getattr(self.args, "use_pyramidkv", False)):
+            raise ValueError("LPHC v210 rejects PyramidKV")
+        if any(
+            bool(getattr(block.self_attn, name, False))
+            for block in self.generator.model.blocks
+            for name in ("anchor_adjacent_rope", "full_window_aar", "head_cache_policy_on")
+        ):
+            raise ValueError("LPHC v210 requires unmodified native FIFO attention")
+        if len(self.denoising_step_list) != 4:
+            raise ValueError("LPHC v210 requires exactly four noisy attention calls")
+        if getattr(self.args, "batch_size", 1) != 1:
+            raise ValueError("LPHC v210 requires inference batch_size=1")
+        if any(int(block.self_attn.sink_size) != 0 for block in self.generator.model.blocks):
+            raise ValueError("LPHC v210 requires sink_size=0")
+        incompatible_env = {
+            "COMMIT_FORCING_ENABLE": "1",
+            "HEAD_ROLE_ENABLE": "1",
+            "SCENE_TRANSITION_RESET": "1",
+            "SF_PARITY_REFERENCE_ATTENTION": "1",
+            "LIFECACHE_ENABLE": "1",
+            "STRUCTURED_MEMORY_ENABLE": "1",
+        }
+        active = [
+            name for name, forbidden in incompatible_env.items()
+            if os.environ.get(name, "0") == forbidden
+        ]
+        if os.environ.get("SF_FULL_ATTN_MAX_FRAMES", "").strip():
+            active.append("SF_FULL_ATTN_MAX_FRAMES")
+        if self.head_profile_session is not None:
+            active.append("HEAD_PROFILE")
+        if active:
+            raise ValueError(f"LPHC v210 incompatible runtime flags: {sorted(active)}")
+
+        config = LPHCConfig(
+            alpha=float(os.environ.get("LPHC_ALPHA", "0")),
+            mode=str(os.environ.get("LPHC_RETRIEVAL_MODE", "correct")),
+            schedule=str(os.environ.get("LPHC_PHASE", "e1")),
+            archive_capacity=int(os.environ.get("LPHC_ARCHIVE_FRAMES", "12")),
+            history_budget=int(os.environ.get("LPHC_HISTORY_FRAMES", "4")),
+            control_seed=int(os.environ.get("LPHC_CONTROL_SEED", "210")),
+        )
+        self.lphc_config = config
+        self._lphc_context_cls = LPHCCallContext
+        self.lphc_controllers = [
+            LPHCController(config, layer_idx=layer_idx)
+            for layer_idx in range(self.num_transformer_blocks)
+        ]
+        trace_path = os.environ.get("LPHC_TRACE_PATH")
+        self.lphc_trace_path = os.path.abspath(trace_path) if trace_path else None
+        for block in self.generator.model.blocks:
+            block.self_attn._lphc_capture_pre_rope = True
+        print(
+            "[LPHC] enabled "
+            f"alpha={config.alpha} schedule={config.schedule} mode={config.mode} "
+            f"archive={config.archive_capacity} history={config.history_budget}",
+            flush=True,
+        )
+
+    def _write_lphc_trace(self, event: str, **payload) -> None:
+        if self.lphc_trace_path is None:
+            return
+        os.makedirs(os.path.dirname(self.lphc_trace_path), exist_ok=True)
+        with open(self.lphc_trace_path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"event": event, **payload}, sort_keys=True) + "\n")
+
+    def _trace_lphc_call(self, context) -> None:
+        if self.lphc_controllers is None:
+            return
+        for controller in self.lphc_controllers:
+            diagnostics = controller.diagnostics()
+            previous = self._lphc_trace_counters.get(
+                controller.layer_idx,
+                {"lookup_count": 0, "random_count": 0, "second_attention_count": 0},
+            )
+            deltas = {
+                key: int(diagnostics[key]) - int(previous[key])
+                for key in previous
+            }
+            if any(value < 0 for value in deltas.values()):
+                raise RuntimeError("LPHC trace counters moved backwards")
+            self._lphc_trace_counters[controller.layer_idx] = {
+                key: int(diagnostics[key]) for key in previous
+            }
+            self._write_lphc_trace(
+                "attention_call",
+                layer_idx=int(controller.layer_idx),
+                block_id=int(context.block_id),
+                call_kind=context.call_kind,
+                phase_index=int(context.phase_index),
+                local_frame_indices=list(diagnostics["last_local_frame_ids"]),
+                archive_frame_indices=list(diagnostics["archive_frame_ids"]),
+                archive_frames=int(diagnostics["archive_frames"]),
+                eligible_frame_indices=list(diagnostics["last_eligible_frame_ids"]),
+                selected_history_frames=list(diagnostics["last_selected_frame_ids"]),
+                selected_count=len(diagnostics["last_selected_frame_ids"]),
+                clean_history_reads=int(diagnostics.get("clean_history_reads", 0)),
+                correction_ratio=float(diagnostics.get(
+                    "last_correction_ratio", diagnostics.get("last_correction_ratio_max", 0.0)
+                )),
+                max_correction_ratio=float(diagnostics.get(
+                    "max_correction_ratio", diagnostics.get("last_correction_ratio_max", 0.0)
+                )),
+                lookup_count=deltas["lookup_count"],
+                random_count=deltas["random_count"],
+                second_attention_count=deltas["second_attention_count"],
+            )
 
     def _init_structured_memory(self) -> None:
         """Build per-layer :class:`EpisodicArchive` and bridge config from env.
@@ -1103,6 +1227,27 @@ class CausalInferencePipeline(torch.nn.Module):
             )
         trace_video_index = self._latent_trace_video_index
         self._latent_trace_video_index += 1
+        if self.lphc_controllers is not None:
+            if batch_size != 1:
+                raise ValueError("LPHC v210 requires inference batch_size=1")
+            self._lphc_trace_counters = {}
+            for controller in self.lphc_controllers:
+                controller.reset(
+                    trajectory_id=trace_video_index,
+                    source_index=int(os.environ.get("LPHC_SOURCE_INDEX", trace_video_index)),
+                    generation_seed=int(os.environ.get("V210_EFFECTIVE_SEED", 0)),
+                )
+            if self.lphc_trace_path is not None:
+                with open(self.lphc_trace_path, "w", encoding="utf-8"):
+                    pass
+            self._write_lphc_trace(
+                "video_start",
+                trajectory_id=int(trace_video_index),
+                source_index=int(os.environ.get("LPHC_SOURCE_INDEX", trace_video_index)),
+                alpha=float(self.lphc_config.alpha),
+                schedule=self.lphc_config.schedule,
+                retrieval_mode=self.lphc_config.mode,
+            )
         if self.structured_memory_archives is not None:
             for archive in self.structured_memory_archives:
                 archive.set_trace_trajectory(trace_video_index)
@@ -1148,6 +1293,11 @@ class CausalInferencePipeline(torch.nn.Module):
                     "head profiling rejects prompt schedules unless "
                     "HEAD_PROFILE_ALLOW_PROMPT_SCHEDULE=1"
                 )
+        if self.lphc_controllers is not None and any(
+            "||" in prompt for prompt in text_prompts
+        ):
+            raise ValueError("LPHC v210 rejects prompt schedules")
+
         # Controlled scene schedule: a single prompt may contain block-aligned
         # segments separated by `||`, e.g. A1 || B || A2.  The archive persists
         # across segments while cross-attention is invalidated at boundaries.
@@ -1583,6 +1733,18 @@ class CausalInferencePipeline(torch.nn.Module):
                         nominal_timestep=nominal_timestep_value,
                         actual_timestep=actual_timestep_value,
                     )
+                lphc_call_context = (
+                    None
+                    if self.lphc_controllers is None
+                    else self._lphc_context_cls(
+                        call_kind="noisy",
+                        phase_index=int(index),
+                        block_id=int(block_index - 1),
+                        source_index=int(os.environ.get("LPHC_SOURCE_INDEX", trace_video_index)),
+                        local_frame_ids=(),
+                        trajectory_id=int(trace_video_index),
+                    )
+                )
                 flow_pred, denoised_pred = self.generator(
                     noisy_image_or_video=noisy_input,
                     conditional_dict=conditional_dict,
@@ -1593,7 +1755,11 @@ class CausalInferencePipeline(torch.nn.Module):
                     structured_memory_archives=self.structured_memory_archives,
                     structured_memory_config=self.structured_memory_config,
                     structured_memory_mode="noisy",
+                    lphc_controllers=self.lphc_controllers,
+                    lphc_context=lphc_call_context,
                 )
+                if lphc_call_context is not None:
+                    self._trace_lphc_call(lphc_call_context)
                 if parity_trace is not None:
                     parity_trace.record_event(
                         "flow_prediction", {"flow": flow_pred}, keep_full=True
@@ -1727,6 +1893,18 @@ class CausalInferencePipeline(torch.nn.Module):
                     nominal_timestep=0,
                     actual_timestep=float(self.args.context_noise),
                 )
+            lphc_clean_context = (
+                None
+                if self.lphc_controllers is None
+                else self._lphc_context_cls(
+                    call_kind="clean",
+                    phase_index=int(len(self.denoising_step_list)),
+                    block_id=int(block_index - 1),
+                    source_index=int(os.environ.get("LPHC_SOURCE_INDEX", trace_video_index)),
+                    local_frame_ids=(),
+                    trajectory_id=int(trace_video_index),
+                )
+            )
             clean_flow_pred, clean_x0_pred = self.generator(
                 noisy_image_or_video=denoised_pred,
                 conditional_dict=conditional_dict,
@@ -1737,7 +1915,11 @@ class CausalInferencePipeline(torch.nn.Module):
                 structured_memory_archives=self.structured_memory_archives,
                 structured_memory_config=self.structured_memory_config,
                 structured_memory_mode="clean",
+                lphc_controllers=self.lphc_controllers,
+                lphc_context=lphc_clean_context,
             )
+            if lphc_clean_context is not None:
+                self._trace_lphc_call(lphc_clean_context)
             if parity_trace is not None:
                 parity_trace.record_event(
                     "clean_flow_prediction",
@@ -1786,6 +1968,57 @@ class CausalInferencePipeline(torch.nn.Module):
                     reliability=block_reliability,
                     frame_seq_length=self.frame_seq_length,
                 )
+
+            # --- LPHC: commit exact clean-context K/V frames -------------
+            if self.lphc_controllers is not None:
+                frame_seqlen = self.frame_seq_length
+                new_tokens = current_num_frames * frame_seqlen
+                frame_ids = tuple(
+                    range(current_start_frame, current_start_frame + current_num_frames)
+                )
+                clean_context = self._lphc_context_cls(
+                    call_kind="clean",
+                    phase_index=int(len(self.denoising_step_list)),
+                    block_id=int(block_index - 1),
+                    source_index=int(os.environ.get("LPHC_SOURCE_INDEX", trace_video_index)),
+                    local_frame_ids=(),
+                    trajectory_id=int(trace_video_index),
+                )
+                for layer_id, (cache, controller) in enumerate(
+                    zip(self.kv_cache1, self.lphc_controllers)
+                ):
+                    k_pre = cache.get("k_pre_rope")
+                    v_tensor = cache.get("v")
+                    if k_pre is None or v_tensor is None:
+                        raise RuntimeError(f"LPHC clean K/V sidecar missing at layer {layer_id}")
+                    local_end_value = cache.get("local_end_index", 0)
+                    local_end = int(
+                        local_end_value.item()
+                        if hasattr(local_end_value, "item")
+                        else local_end_value
+                    )
+                    block_start = local_end - new_tokens
+                    if block_start < 0:
+                        raise RuntimeError(f"LPHC incomplete clean block at layer {layer_id}")
+                    block_k = k_pre[:, block_start:local_end]
+                    block_v = v_tensor[:, block_start:local_end]
+                    if block_k.shape[1] != new_tokens:
+                        raise RuntimeError(f"LPHC clean block token mismatch at layer {layer_id}")
+                    read_diagnostics = controller.diagnostics()
+                    controller.commit_clean(
+                        block_k, block_v, frame_ids, context=clean_context
+                    )
+                    controller.finish_clean_block(
+                        block_v, frame_ids, context=clean_context
+                    )
+                    self._write_lphc_trace(
+                        "clean_commit",
+                        block_id=int(block_index - 1),
+                        layer_id=int(layer_id),
+                        frame_ids=list(frame_ids),
+                        read_diagnostics=read_diagnostics,
+                        diagnostics=controller.diagnostics(),
+                    )
 
             # --- Structured memory: commit clean-context K/V frames ------
             # The clean-context forward above wrote the just-denoised block
@@ -2014,6 +2247,12 @@ class CausalInferencePipeline(torch.nn.Module):
         if profile_session is not None:
             profile_session.end_video(
                 expected_layers=self.num_transformer_blocks
+            )
+        if self.lphc_controllers is not None:
+            self._write_lphc_trace(
+                "video_end",
+                trajectory_id=int(trace_video_index),
+                layers=[controller.diagnostics() for controller in self.lphc_controllers],
             )
 
         if profile:
