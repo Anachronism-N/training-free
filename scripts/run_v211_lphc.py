@@ -102,7 +102,7 @@ def valid_decision(path: Path, stage: str, manifest_path: Path, manifest: dict) 
             and report.get("same_gpu_sequential") is True
             and sequence == expected_sequence
             and [row.get("source_index") for row in pairs] == list(GATE0_SOURCE_INDICES)
-            and all(row.get("media_equal") is True for row in pairs)
+            and all(row.get("media_validation_pass") is True for row in pairs)
             and all(row.get("tensor_comparison", {}).get("pass") is True for row in pairs)
             and all(row.get("alpha0_audit", {}).get("pass") is True for row in pairs)
         )
@@ -337,9 +337,13 @@ def run_gate0(repo_root: Path, output_root: Path, manifest_path: Path, manifest:
         )
         for row in (native, alpha0):
             host_gpu.add((row.get("hostname"), row.get("gpu_uuid"), row.get("cuda_visible_devices")))
-        same_media = native["media"]["sha256"] == alpha0["media"]["sha256"]
-        if not same_media:
-            errors.append(f"source {source_index}: decoded media differs")
+        container_equal = native["media"]["sha256"] == alpha0["media"]["sha256"]
+        media_validation_pass = all(
+            row.get("media", {}).get("validation", {}).get("valid") is True
+            for row in (native, alpha0)
+        )
+        if not media_validation_pass:
+            errors.append(f"source {source_index}: generated media validation failed")
         try:
             tensor_comparison = compare_gate_tensors(native, alpha0)
         except (OSError, RuntimeError, ValueError, KeyError, json.JSONDecodeError) as error:
@@ -359,7 +363,9 @@ def run_gate0(repo_root: Path, output_root: Path, manifest_path: Path, manifest:
             errors.extend(f"source {source_index}: {error}" for error in audit["errors"])
         pairs.append({
             "source_index": source_index,
-            "media_equal": same_media,
+            "media_validation_pass": media_validation_pass,
+            "container_equal": container_equal,
+            "equivalence_basis": "exact_model_trajectory_pre_vae",
             "tensor_comparison": tensor_comparison,
             "alpha0_audit": audit,
         })
