@@ -53,9 +53,7 @@ GATE_EVENT_COUNTS = {
 }
 GATE_FULL_EVENTS = set(GATE_EVENT_COUNTS) - {"decoded_video"}
 CONDA_ACTIVATION = "/apdcephfs_gy2/share_303214315/cedricnie/activate_conda_gy2.sh"
-REMOTE_SOURCE_BASE = Path(
-    "/apdcephfs_gy2/share_302533218/cedricnie/v210_sources"
-)
+REMOTE_SOURCE_BASE = Path("/tmp/training-free-v210-sources")
 
 
 def decision_path(output_root: Path, stage: str) -> Path:
