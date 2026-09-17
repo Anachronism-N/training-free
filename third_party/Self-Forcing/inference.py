@@ -178,7 +178,13 @@ parser.add_argument("--role_min_evidence_spread", type=float, default=None,
 
 # --- Local-Preserving Historical Correction (LPHC) ----------------------
 parser.add_argument("--lphc_enable", action="store_true", default=False,
-                    help="Enable the native-FIFO21 LPHC sidecar.")
+                    help="Enable the versioned LPHC sidecar (v210 FIFO21 by default).")
+parser.add_argument("--lphc_protocol", type=str, default=None,
+                    choices=("v210", "v211"),
+                    help="LPHC protocol version (default v210; v211 must be explicit).")
+parser.add_argument("--lphc_local_policy", type=str, default=None,
+                    choices=("fifo21", "sink1_recent20"),
+                    help="LPHC local-cache topology (default fifo21).")
 parser.add_argument("--lphc_alpha", type=float, default=None,
                     help="Maximum per-head RMS correction ratio in [0, 1].")
 parser.add_argument("--lphc_phase", type=str, default=None,
@@ -260,6 +266,8 @@ if args.dual_allow_disagreement:
 if args.lphc_enable:
     os.environ["LPHC_ENABLE"] = "1"
 _LPHC_CLI_ENV = {
+    "lphc_protocol": "LPHC_PROTOCOL",
+    "lphc_local_policy": "LPHC_LOCAL_POLICY",
     "lphc_alpha": "LPHC_ALPHA",
     "lphc_phase": "LPHC_PHASE",
     "lphc_retrieval_mode": "LPHC_RETRIEVAL_MODE",

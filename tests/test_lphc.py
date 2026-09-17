@@ -85,9 +85,20 @@ def test_frozen_config_validation_and_schedules():
         {"alpha": 0.1, "schedule": "late"},
         {"alpha": 0.1, "archive_capacity": 11},
         {"alpha": 0.1, "history_budget": 3},
+        {"alpha": 0.1, "history_budget": 1},
+        {"alpha": 0.1, "protocol": "v210", "local_policy": "sink1_recent20"},
     ):
         with pytest.raises(ValueError):
             LPHCConfig(**kwargs)
+
+    v211 = LPHCConfig(
+        alpha=0.1,
+        protocol="v211",
+        local_policy="sink1_recent20",
+        history_budget=1,
+    )
+    assert v211.history_budget == 1
+    assert v211.protocol == "v211"
 
 
 def test_config_from_env_uses_frozen_v210_names_and_rejects_partial_enable():
@@ -111,6 +122,22 @@ def test_config_from_env_uses_frozen_v210_names_and_rejects_partial_enable():
         LPHCConfig.from_env({"LPHC_ENABLE": "true"})
     with pytest.raises(ValueError, match="LPHC_ENABLE"):
         LPHCConfig.from_env({"LPHC_ENABLE": "sometimes"})
+
+    v211 = LPHCConfig.from_env(
+        {
+            "LPHC_ENABLE": "1",
+            "LPHC_ALPHA": "0.1",
+            "LPHC_PROTOCOL": "v211",
+            "LPHC_LOCAL_POLICY": "sink1_recent20",
+            "LPHC_HISTORY_FRAMES": "1",
+        }
+    )
+    assert v211 == LPHCConfig(
+        alpha=0.1,
+        protocol="v211",
+        local_policy="sink1_recent20",
+        history_budget=1,
+    )
 
 
 def test_alpha_zero_is_exact_identity_without_provider_attention_or_rng_change():
@@ -297,6 +324,23 @@ def test_correct_and_random_use_same_pool_count_and_private_deterministic_rng():
     assert random_history_a.frame_ids.tolist() == random_history_b.frame_ids.tolist()
     assert random_history_a.frame_ids.tolist() == sorted(random_history_a.frame_ids.tolist())
     assert torch.equal(torch.random.get_rng_state(), state)
+
+
+def test_v211_budget_one_selects_one_deterministically_and_freezes_block():
+    config = LPHCConfig(alpha=0.1, protocol="v211", history_budget=1)
+    first = _ready_controller(config)
+    second = _ready_controller(config)
+    context = _context(local=(1, 4, 7), block=9)
+
+    first_history = first.retrieve(context)
+    second_history = second.retrieve(context)
+    assert first_history.frame_ids.numel() == 1
+    assert torch.equal(first_history.frame_ids, second_history.frame_ids)
+    frozen_id = first_history.frame_ids.item()
+
+    first.previous_clean_descriptor = -first.previous_clean_descriptor
+    assert first.retrieve(context).frame_ids.tolist() == [frozen_id]
+    assert first.diagnostics()["selected_count"] == 1
 
 
 def test_correct_ties_choose_lower_ids_then_return_chronological_order():

@@ -319,27 +319,40 @@ class CausalInferencePipeline(torch.nn.Module):
             self.generator.model.num_frame_per_block = self.num_frame_per_block
 
     def _init_lphc(self) -> None:
-        """Build the fail-closed v210 native-FIFO21 history sidecar."""
+        """Build the fail-closed, explicitly versioned LPHC history sidecar."""
         from lifecycle_kv.lphc import LPHCCallContext, LPHCConfig, LPHCController
 
+        protocol = str(os.environ.get("LPHC_PROTOCOL", "v210"))
+        local_policy = str(os.environ.get("LPHC_LOCAL_POLICY", "fifo21"))
         if self.lifecache_manager is not None or self.structured_memory_archives is not None:
             raise ValueError("LPHC is mutually exclusive with LifeCache and Structured Memory")
         if self.local_attn_size != 21:
-            raise ValueError("LPHC v210 requires native FIFO21 local attention")
+            raise ValueError(f"LPHC {protocol} requires local_attn_size=21")
         if bool(getattr(self.args, "use_pyramidkv", False)):
-            raise ValueError("LPHC v210 rejects PyramidKV")
+            raise ValueError(f"LPHC {protocol} rejects PyramidKV")
         if any(
             bool(getattr(block.self_attn, name, False))
             for block in self.generator.model.blocks
             for name in ("anchor_adjacent_rope", "full_window_aar", "head_cache_policy_on")
         ):
-            raise ValueError("LPHC v210 requires unmodified native FIFO attention")
+            raise ValueError(f"LPHC {protocol} requires unmodified native local attention")
         if len(self.denoising_step_list) != 4:
-            raise ValueError("LPHC v210 requires exactly four noisy attention calls")
+            raise ValueError(f"LPHC {protocol} requires exactly four noisy attention calls")
         if getattr(self.args, "batch_size", 1) != 1:
-            raise ValueError("LPHC v210 requires inference batch_size=1")
-        if any(int(block.self_attn.sink_size) != 0 for block in self.generator.model.blocks):
-            raise ValueError("LPHC v210 requires sink_size=0")
+            raise ValueError(f"LPHC {protocol} requires inference batch_size=1")
+        sink_sizes = tuple(
+            int(block.self_attn.sink_size) for block in self.generator.model.blocks
+        )
+        if local_policy == "fifo21":
+            if any(sink_size != 0 for sink_size in sink_sizes):
+                raise ValueError(f"LPHC {protocol} fifo21 requires sink_size=0")
+        elif local_policy == "sink1_recent20":
+            if protocol != "v211":
+                raise ValueError("LPHC sink1_recent20 requires protocol=v211")
+            if any(sink_size != 1 for sink_size in sink_sizes):
+                raise ValueError("LPHC v211 sink1_recent20 requires sink_size=1")
+        else:
+            raise ValueError("LPHC local policy must be fifo21 or sink1_recent20")
         incompatible_env = {
             "COMMIT_FORCING_ENABLE": "1",
             "HEAD_ROLE_ENABLE": "1",
@@ -357,7 +370,7 @@ class CausalInferencePipeline(torch.nn.Module):
         if self.head_profile_session is not None:
             active.append("HEAD_PROFILE")
         if active:
-            raise ValueError(f"LPHC v210 incompatible runtime flags: {sorted(active)}")
+            raise ValueError(f"LPHC {protocol} incompatible runtime flags: {sorted(active)}")
 
         config = LPHCConfig(
             alpha=float(os.environ.get("LPHC_ALPHA", "0")),
@@ -366,6 +379,8 @@ class CausalInferencePipeline(torch.nn.Module):
             archive_capacity=int(os.environ.get("LPHC_ARCHIVE_FRAMES", "12")),
             history_budget=int(os.environ.get("LPHC_HISTORY_FRAMES", "4")),
             control_seed=int(os.environ.get("LPHC_CONTROL_SEED", "210")),
+            protocol=protocol,
+            local_policy=local_policy,
         )
         self.lphc_config = config
         self._lphc_context_cls = LPHCCallContext
@@ -1229,7 +1244,9 @@ class CausalInferencePipeline(torch.nn.Module):
         self._latent_trace_video_index += 1
         if self.lphc_controllers is not None:
             if batch_size != 1:
-                raise ValueError("LPHC v210 requires inference batch_size=1")
+                raise ValueError(
+                    f"LPHC {self.lphc_config.protocol} requires inference batch_size=1"
+                )
             self._lphc_trace_counters = {}
             for controller in self.lphc_controllers:
                 controller.reset(
@@ -1247,6 +1264,15 @@ class CausalInferencePipeline(torch.nn.Module):
                 alpha=float(self.lphc_config.alpha),
                 schedule=self.lphc_config.schedule,
                 retrieval_mode=self.lphc_config.mode,
+                **(
+                    {
+                        "protocol": self.lphc_config.protocol,
+                        "local_policy": self.lphc_config.local_policy,
+                        "history_frames": int(self.lphc_config.history_budget),
+                    }
+                    if self.lphc_config.protocol == "v211"
+                    else {}
+                ),
             )
         if self.structured_memory_archives is not None:
             for archive in self.structured_memory_archives:
@@ -1296,7 +1322,7 @@ class CausalInferencePipeline(torch.nn.Module):
         if self.lphc_controllers is not None and any(
             "||" in prompt for prompt in text_prompts
         ):
-            raise ValueError("LPHC v210 rejects prompt schedules")
+            raise ValueError(f"LPHC {self.lphc_config.protocol} rejects prompt schedules")
 
         # Controlled scene schedule: a single prompt may contain block-aligned
         # segments separated by `||`, e.g. A1 || B || A2.  The archive persists

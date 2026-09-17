@@ -19,7 +19,7 @@ _PHASE_SCHEDULES = {
 
 @dataclass(frozen=True)
 class LPHCConfig:
-    """Frozen v210 LPHC experiment configuration."""
+    """Versioned LPHC experiment configuration; v210 remains frozen."""
 
     alpha: float
     mode: str = "correct"
@@ -28,6 +28,8 @@ class LPHCConfig:
     history_budget: int = 4
     control_seed: int = 0
     eps: float = 1e-6
+    protocol: str = "v210"
+    local_policy: str = "fifo21"
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.alpha <= 1.0:
@@ -36,10 +38,22 @@ class LPHCConfig:
             raise ValueError("mode must be correct or random")
         if self.schedule not in _PHASE_SCHEDULES:
             raise ValueError("schedule must be e1, e2, or full")
+        if self.protocol not in {"v210", "v211"}:
+            raise ValueError("protocol must be v210 or v211")
         if self.archive_capacity != 12:
             raise ValueError("the frozen LPHC archive capacity is 12 frames")
-        if self.history_budget != 4:
-            raise ValueError("the frozen LPHC history budget is 4 frames")
+        if self.protocol == "v210":
+            if self.history_budget != 4:
+                raise ValueError("the frozen v210 LPHC history budget is 4 frames")
+            if self.local_policy != "fifo21":
+                raise ValueError("LPHC v210 requires local_policy=fifo21")
+        else:
+            if self.history_budget not in {1, 4}:
+                raise ValueError("LPHC v211 history budget must be 1 or 4 frames")
+            if self.local_policy not in {"fifo21", "sink1_recent20"}:
+                raise ValueError(
+                    "LPHC v211 local_policy must be fifo21 or sink1_recent20"
+                )
         if self.eps <= 0:
             raise ValueError("eps must be positive")
 
@@ -51,7 +65,7 @@ class LPHCConfig:
     def from_env(
         cls, environ: Mapping[str, str] | None = None
     ) -> LPHCConfig | None:
-        """Build the frozen configuration from the v210 runtime environment."""
+        """Build a versioned configuration from the runtime environment."""
         values = os.environ if environ is None else environ
         enabled = values.get("LPHC_ENABLE", "0").strip().lower()
         if enabled in {"0", "false", "no", "off", ""}:
@@ -67,6 +81,8 @@ class LPHCConfig:
             archive_capacity=int(values.get("LPHC_ARCHIVE_FRAMES", "12")),
             history_budget=int(values.get("LPHC_HISTORY_FRAMES", "4")),
             control_seed=int(values.get("LPHC_CONTROL_SEED", "0")),
+            protocol=values.get("LPHC_PROTOCOL", "v210"),
+            local_policy=values.get("LPHC_LOCAL_POLICY", "fifo21"),
         )
 
 
@@ -514,6 +530,8 @@ class LPHCController:
                 self._increment("random_selections")
             selected = tuple(sorted(selected))
             self._frozen_selections[key] = selected
+        if set(selected).intersection(context.local_frame_ids):
+            raise RuntimeError("LPHC history selection overlaps the local cache")
         self.last_selected_frame_ids = selected
         if not selected:
             self._increment("empty_retrievals")
@@ -602,6 +620,11 @@ def apply_lphc_attention(
         raise ValueError("history K/V must share shape [B, token, head, dim]")
     if history.frame_ids.ndim != 1:
         raise ValueError("history frame_ids must be one-dimensional")
+    history_ids = {
+        int(frame_id) for frame_id in history.frame_ids.detach().cpu().tolist()
+    }
+    if history_ids.intersection(context.local_frame_ids):
+        raise ValueError("LPHC history must be disjoint from the local cache")
 
     history_k = history.k
     if not history.key_is_roped:

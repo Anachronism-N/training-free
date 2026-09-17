@@ -96,12 +96,12 @@ def _frequency_table(rows: int = 64, complex_dim: int = 3) -> torch.Tensor:
     return torch.polar(torch.ones_like(angles), angles)
 
 
-def _attention(native_module, *, capacity_frames: int = 4):
+def _attention(native_module, *, capacity_frames: int = 4, sink_size: int = 0):
     layer = native_module.CausalWanSelfAttention(
         dim=12,
         num_heads=2,
         local_attn_size=capacity_frames,
-        sink_size=0,
+        sink_size=sink_size,
         qk_norm=False,
     )
     with torch.no_grad():
@@ -177,6 +177,86 @@ def test_native_attention_captures_absolute_local_ids_before_capacity_and_after_
     )
     assert controller.last_local_frame_ids == (1, 2, 3)
     assert (cache["global_end_index"].item(), cache["local_end_index"].item()) == (4, 3)
+
+
+def test_v211_sink1_recent20_reports_exact_ids_before_and_after_rollover(native_module):
+    layer = _attention(native_module, capacity_frames=21, sink_size=1)
+    controller = LPHCController(
+        LPHCConfig(
+            alpha=0.0,
+            protocol="v211",
+            local_policy="sink1_recent20",
+            history_budget=1,
+        ),
+        layer_idx=0,
+    )
+    cache = _cache(21)
+
+    _forward(
+        layer,
+        torch.arange(24, dtype=torch.float32).reshape(1, 2, 12),
+        cache,
+        start=0,
+        controller=controller,
+        context=_context(block=0),
+    )
+    assert controller.last_local_frame_ids == (0, 1)
+
+    _forward(
+        layer,
+        torch.arange(24, 264, dtype=torch.float32).reshape(1, 20, 12),
+        cache,
+        start=2,
+        controller=controller,
+        context=_context(block=1),
+    )
+    assert controller.last_local_frame_ids == (0, *range(2, 22))
+    assert len(controller.last_local_frame_ids) == 21
+    assert len(set(controller.last_local_frame_ids)) == 21
+    assert (cache["global_end_index"].item(), cache["local_end_index"].item()) == (22, 21)
+
+
+def test_invalid_protocol_and_sink_policy_combinations_fail_closed(native_module):
+    with pytest.raises(ValueError, match="v210.*fifo21"):
+        LPHCConfig(
+            alpha=0.0,
+            protocol="v210",
+            local_policy="sink1_recent20",
+        )
+
+    x = torch.arange(12, dtype=torch.float32).reshape(1, 1, 12)
+    sink_policy = LPHCController(
+        LPHCConfig(
+            alpha=0.0,
+            protocol="v211",
+            local_policy="sink1_recent20",
+            history_budget=1,
+        ),
+        layer_idx=0,
+    )
+    with pytest.raises(RuntimeError, match="sink1_recent20"):
+        _forward(
+            _attention(native_module, capacity_frames=21, sink_size=0),
+            x,
+            _cache(21),
+            start=0,
+            controller=sink_policy,
+            context=_context(),
+        )
+
+    fifo_policy = LPHCController(
+        LPHCConfig(alpha=0.0, protocol="v211", local_policy="fifo21"),
+        layer_idx=0,
+    )
+    with pytest.raises(RuntimeError, match="fifo21"):
+        _forward(
+            _attention(native_module, capacity_frames=21, sink_size=1),
+            x,
+            _cache(21),
+            start=0,
+            controller=fifo_policy,
+            context=_context(),
+        )
 
 
 def test_clean_tail_commit_preserves_sentinel_provenance(native_module):

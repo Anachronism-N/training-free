@@ -889,30 +889,71 @@ class CausalWanSelfAttention(nn.Module):
                     local_value = kv_cache["v"][:, attn_start:local_end_index]
                     x = attention(roped_query, local_key, local_value)
                     if lphc_controller is not None:
+                        config = lphc_controller.config
+                        sink1_recent20 = (
+                            config.protocol == "v211"
+                            and config.local_policy == "sink1_recent20"
+                        )
                         if (
-                            sink_tokens != 0
-                            or lifecache_manager is not None
+                            lifecache_manager is not None
                             or structured_memory_archive is not None
                             or hcp
                             or aar
                             or fwaar
                         ):
-                            raise RuntimeError("LPHC requires the native FIFO attention branch")
+                            raise RuntimeError("LPHC requires the native local attention branch")
+                        if config.local_policy == "fifo21":
+                            if sink_tokens != 0:
+                                raise RuntimeError("LPHC fifo21 requires sink_size=0")
+                        elif sink1_recent20:
+                            if self.local_attn_size != 21 or self.sink_size != 1:
+                                raise RuntimeError(
+                                    "LPHC v211 sink1_recent20 requires local_attn_size=21 "
+                                    "and sink_size=1"
+                                )
+                        else:
+                            raise RuntimeError("invalid LPHC protocol/local policy combination")
                         if apply_lphc_attention is None or apply_history_rope is None:
                             raise RuntimeError("LPHC runtime is unavailable")
                         if lphc_context is None:
                             raise RuntimeError("LPHC requires an explicit call context")
-                        absolute_read_start = current_end - local_end_index + attn_start
-                        if absolute_read_start % frame_seqlen or current_end % frame_seqlen:
+                        local_token_count = int(local_key.shape[1])
+                        if (
+                            local_token_count != int(local_value.shape[1])
+                            or local_token_count % frame_seqlen
+                            or current_end % frame_seqlen
+                        ):
                             raise RuntimeError("LPHC local cache does not contain complete frames")
-                        actual_context = replace(
-                            lphc_context,
-                            local_frame_ids=tuple(
+                        local_frame_count = local_token_count // frame_seqlen
+                        if sink1_recent20:
+                            recent_frame_count = local_frame_count - 1
+                            if recent_frame_count < 0:
+                                raise RuntimeError("LPHC sink policy is missing its sink frame")
+                            recent_end = current_end // frame_seqlen
+                            recent_start = recent_end - recent_frame_count
+                            local_frame_ids = (0, *range(recent_start, recent_end))
+                        else:
+                            absolute_read_start = current_end - local_end_index + attn_start
+                            if absolute_read_start % frame_seqlen:
+                                raise RuntimeError(
+                                    "LPHC local cache does not contain complete frames"
+                                )
+                            local_frame_ids = tuple(
                                 range(
                                     absolute_read_start // frame_seqlen,
                                     current_end // frame_seqlen,
                                 )
-                            ),
+                            )
+                        if (
+                            len(local_frame_ids) != local_frame_count
+                            or len(set(local_frame_ids)) != len(local_frame_ids)
+                        ):
+                            raise RuntimeError(
+                                "LPHC local frame IDs do not match the local K/V topology"
+                            )
+                        actual_context = replace(
+                            lphc_context,
+                            local_frame_ids=local_frame_ids,
                         )
 
                         def _history_rope(raw_history_key, history_frame_ids):
