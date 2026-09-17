@@ -206,7 +206,10 @@ def wan_inventory(root: Path, old: list[dict] | None = None) -> list[dict]:
     rows = []
     for path in sorted(set(paths)):
         relative = str(path.relative_to(root))
-        row = file_stamp(path, old_by_relative.get(relative))
+        cached = old_by_relative.get(relative)
+        if cached:
+            cached = {**cached, "path": str(path.resolve())}
+        row = file_stamp(path, cached)
         row["relative_path"] = relative
         row.pop("path")
         rows.append(row)
@@ -247,6 +250,7 @@ def prepare(
     wan_model: Path | None = None,
     *,
     require_clean: bool = True,
+    reuse_large_hashes_from: Path | None = None,
 ) -> dict:
     root = root.resolve()
     if require_clean:
@@ -312,8 +316,21 @@ def prepare(
 
     manifest_path = output / "manifest.json"
     old = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else None
+    hash_provenance = None
+    cached = old
+    if cached is None and reuse_large_hashes_from is not None:
+        provenance_path = reuse_large_hashes_from.expanduser().resolve()
+        cached = json.loads(provenance_path.read_text(encoding="utf-8"))
+        if cached.get("experiment") != EXPERIMENT:
+            raise ValueError("large-file hash provenance is not a v210 manifest")
+        hash_provenance = {
+            "policy": "reuse_sha256_when_size_and_mtime_match",
+            "manifest_path": str(provenance_path),
+            "manifest_sha256": sha256(provenance_path),
+            "source_commit": cached.get("source_commit"),
+        }
     model_inventory = wan_inventory(
-        wan_weights, old.get("wan_model", {}).get("inventory") if old else None
+        wan_weights, cached.get("wan_model", {}).get("inventory") if cached else None
     )
     commit = git_commit(root)
     payload = {
@@ -323,7 +340,10 @@ def prepare(
         "git_commit": commit,
         "runtime_paths": source_hashes(root),
         "prompt_source": {"path": str(source.resolve()), "sha256": sha256(source), "count": 128},
-        "checkpoint": _checkpoint_row(checkpoint, old.get("checkpoint") if old else None),
+        "checkpoint": _checkpoint_row(
+            checkpoint, cached.get("checkpoint") if cached else None
+        ),
+        "large_file_hash_provenance": hash_provenance,
         "wan_model": {
             "name": "Wan2.1-T2V-1.3B",
             "runtime_path": str(wan_root.resolve()),
@@ -392,18 +412,26 @@ def verify(
     for row in data["configs"].values():
         if sha256(Path(row["path"])) != row["sha256"]:
             raise ValueError("v210 config drift")
+    provenance = data.get("large_file_hash_provenance") or {}
+    reuse_large_hashes = (
+        provenance.get("policy") == "reuse_sha256_when_size_and_mtime_match"
+    )
     checkpoint = Path(data["checkpoint"]["path"])
     stat = checkpoint.stat()
     if stat.st_size != data["checkpoint"]["bytes"] or stat.st_mtime_ns != data["checkpoint"]["mtime_ns"]:
         raise ValueError("v210 checkpoint stamp drift")
-    if check_checkpoint_hash and sha256(checkpoint) != data["checkpoint"]["sha256"]:
+    if check_checkpoint_hash and not reuse_large_hashes and sha256(checkpoint) != data["checkpoint"]["sha256"]:
         raise ValueError("v210 checkpoint hash drift")
     if not all(Path(item).is_file() for item in data["wan_model"]["required_files"]):
         raise ValueError("v210 Wan runtime drift")
     wan_root = Path(data["wan_model"]["weights_path"])
     if wan_root.is_dir() != data["wan_model"]["weights_present"]:
         raise ValueError("v210 Wan model presence drift")
-    verify_wan_inventory(wan_root, data["wan_model"].get("inventory", []), check_hashes=check_runtime)
+    verify_wan_inventory(
+        wan_root,
+        data["wan_model"].get("inventory", []),
+        check_hashes=check_runtime and not reuse_large_hashes,
+    )
     execution = data.get("execution", {})
     if execution.get("gpu_slots") != list(FROZEN_GPU_SLOTS) or execution.get("ssh_port") != 36000:
         raise ValueError("v210 execution topology drift")
@@ -426,6 +454,7 @@ def main() -> None:
     parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
     parser.add_argument("--wan-model", type=Path, default=DEFAULT_WAN_MODEL)
     parser.add_argument("--output-root", type=Path)
+    parser.add_argument("--reuse-large-hashes-from", type=Path)
     parser.add_argument(
         "--authorized-nodes",
         default=os.environ.get("V210_AUTHORIZED_NODES", ",".join(AUTHORIZED_NODES)),
@@ -437,6 +466,7 @@ def main() -> None:
     data = prepare(
         root, args.source_prompts, args.checkpoint, output,
         args.authorized_nodes.split(","), args.wan_model,
+        reuse_large_hashes_from=args.reuse_large_hashes_from,
     )
     print(f"[v210-prepare] root={validate_output_root(output)} prompts={data['prompt_count']} methods={len(METHODS)}")
 

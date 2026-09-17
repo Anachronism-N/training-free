@@ -92,6 +92,48 @@ def test_prepare_freezes_prompt_config_checkpoint_runtime_and_nodes(tmp_path):
         assert config["lphc"]["history_frames"] == 4
 
 
+def test_prepare_reuses_matching_large_file_hashes_from_provenance(monkeypatch, tmp_path):
+    (tmp_path / "first").mkdir()
+    first_root, first = prepared(tmp_path / "first")
+    provenance = first_root / "inputs" / "manifest.json"
+    source = Path(first["prompt_source"]["path"])
+    checkpoint = Path(first["checkpoint"]["path"])
+    wan_model = Path(first["wan_model"]["weights_path"])
+    calls = []
+    original_sha256 = prepare.sha256
+
+    def tracked(path):
+        resolved = Path(path).resolve()
+        calls.append(resolved)
+        return original_sha256(path)
+
+    monkeypatch.setattr(prepare, "sha256", tracked)
+    second_root = tmp_path / "second" / "v210"
+    payload = prepare.prepare(
+        ROOT,
+        source,
+        checkpoint,
+        second_root / "inputs",
+        prepare.AUTHORIZED_NODES,
+        wan_model,
+        require_clean=False,
+        reuse_large_hashes_from=provenance,
+    )
+    large_files = {checkpoint.resolve()} | {
+        (wan_model / row["relative_path"]).resolve()
+        for row in first["wan_model"]["inventory"]
+    }
+    assert not large_files.intersection(calls)
+    assert payload["large_file_hash_provenance"]["source_commit"] == first["source_commit"]
+    prepare.verify(
+        second_root / "inputs" / "manifest.json",
+        ROOT,
+        check_runtime=True,
+        check_checkpoint_hash=True,
+    )
+    assert not large_files.intersection(calls)
+
+
 def test_method_matrix_and_gate0_contract_are_exact():
     assert prepare.METHODS == (
         "sf_fifo21", "sf_sink1_21", "sf_fifo25", "lphc_e1_a002_correct",

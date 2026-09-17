@@ -525,6 +525,7 @@ def main() -> None:
     parser.add_argument("--source-prompts", type=Path, default=DEFAULT_PROMPT_SOURCE)
     parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
     parser.add_argument("--wan-model", type=Path, default=DEFAULT_WAN_MODEL)
+    parser.add_argument("--reuse-large-hashes-from", type=Path)
     parser.add_argument(
         "--authorized-nodes",
         default=os.environ.get("V210_AUTHORIZED_NODES", ",".join(AUTHORIZED_NODES)),
@@ -543,6 +544,7 @@ def main() -> None:
         prepare(
             repo_root, args.source_prompts, args.checkpoint, manifest_path.parent,
             args.authorized_nodes.split(","), args.wan_model,
+            reuse_large_hashes_from=args.reuse_large_hashes_from,
         )
         print(f"[v210] prepared {output_root}")
         return
