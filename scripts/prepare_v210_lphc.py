@@ -32,7 +32,7 @@ AUTHORIZED_NODES = (
     "28.216.18.144",
     "28.216.18.136",
 )
-FORBIDDEN_NODES = frozenset({"28.216.19.69", "28.216.17.70"})
+FORBIDDEN_NODES = frozenset({"28.216.19.69", "28.216.19.70"})
 DEFAULT_WAN_MODEL = (
     Path(__file__).resolve().parents[1]
     / "third_party" / "Self-Forcing" / "wan_models" / "Wan2.1-T2V-1.3B"

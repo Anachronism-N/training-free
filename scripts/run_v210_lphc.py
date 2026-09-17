@@ -374,7 +374,7 @@ def remote_repo_root(manifest: dict) -> Path:
 
 def screen_ssh_commands(manifest: dict, output_root: Path, gpu_list: str) -> list[list[str]]:
     nodes = manifest["authorized_nodes"]
-    if any(node in {"28.216.19.69", "28.216.17.70"} for node in nodes):
+    if any(node in {"28.216.19.69", "28.216.19.70"} for node in nodes):
         raise ValueError("forbidden nodes are present in the v210 contract")
     frozen_gpus = ",".join(manifest["execution"]["gpu_slots"])
     if gpu_list != frozen_gpus:
