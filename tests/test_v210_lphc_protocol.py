@@ -151,10 +151,11 @@ def test_verify_detects_config_prompt_and_source_commit_drift(monkeypatch, tmp_p
     output_root, payload = prepared(tmp_path)
     manifest_path = output_root / "inputs" / "manifest.json"
     config = Path(payload["configs"]["sf_fifo21"]["path"])
+    original_config_bytes = config.read_bytes()
     config.write_text(config.read_text(encoding="utf-8") + "# drift\n", encoding="utf-8")
     with pytest.raises(ValueError, match="config drift"):
         prepare.verify(manifest_path, ROOT)
-    config.write_text(config.read_text(encoding="utf-8").removesuffix("# drift\n"), encoding="utf-8")
+    config.write_bytes(original_config_bytes)
     model_file = Path(payload["wan_model"]["weights_path"]) / payload["wan_model"]["inventory"][0]["relative_path"]
     original = model_file.read_bytes()
     model_file.write_bytes(original + b"drift")

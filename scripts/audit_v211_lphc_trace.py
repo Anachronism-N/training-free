@@ -117,6 +117,7 @@ def audit_trace(
     tolerance: float = 1e-6,
     expected_blocks: int | None = None,
     expected_layers: int | None = None,
+    allow_random: bool = False,
 ) -> dict:
     if not math.isfinite(alpha) or alpha < 0:
         raise ValueError("alpha must be finite and non-negative")
@@ -289,7 +290,7 @@ def audit_trace(
         lookup = max(lookup, _event_count(row, ("lookup",)))
         random = max(random, _event_count(row, ("random",)))
         second = max(second, _event_count(row, ("second", "attention")))
-        if random:
+        if random and not allow_random:
             errors.append(f"line {line}: random retrieval is forbidden")
         if row.get("event") == "attention_call":
             totals["lookup"] += lookup

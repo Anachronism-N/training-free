@@ -1,0 +1,687 @@
+{
+  "original_decision_changed": false,
+  "original_recommendation": "stop_v210_no_eligible_lphc_candidate",
+  "posthoc_explanation_only": true,
+  "rows": [
+    {
+      "control": "sf_fifo21",
+      "flagged_prompts": [],
+      "method": "lphc_e1_a002_correct",
+      "motion_safe": true,
+      "unresolved_noninferiority": [
+        {
+          "ci95": [
+            -0.005302138455832996,
+            0.0019183990856011593
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.0014239305009444599,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.006404163909610361,
+            0.004866605391725898
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.0008285131771117449,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "late_half"
+        }
+      ]
+    },
+    {
+      "control": "sf_sink1_21",
+      "flagged_prompts": [
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 1
+        },
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 2
+        },
+        {
+          "flags": [
+            "temporal_discontinuity",
+            "edge_density_failure"
+          ],
+          "prompt_index": 7
+        }
+      ],
+      "method": "lphc_e1_a002_correct",
+      "motion_safe": false,
+      "unresolved_noninferiority": [
+        {
+          "ci95": [
+            -0.019961178898811355,
+            -0.0006241141259670338
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.01001478830973308,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.009905239285652885,
+            0.020828971264511397
+          ],
+          "margin": -0.004,
+          "mean_delta": 0.003812893663843478,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.03200937624787912,
+            0.0011436580796725924
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.01511143776588142,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.01961407546047124,
+            0.04127580499532627
+          ],
+          "margin": -0.004,
+          "mean_delta": 0.008773470483720285,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "late_half"
+        }
+      ]
+    },
+    {
+      "control": "sf_fifo21",
+      "flagged_prompts": [
+        {
+          "flags": [
+            "edge_density_failure"
+          ],
+          "prompt_index": 3
+        }
+      ],
+      "method": "lphc_e1_a005_correct",
+      "motion_safe": true,
+      "unresolved_noninferiority": [
+        {
+          "ci95": [
+            -0.0016458916130478148,
+            0.0008411569562522333
+          ],
+          "margin": -0.0015,
+          "mean_delta": -0.00030407314526359475,
+          "metric": "identity_background",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.008325647143647077,
+            0.0002339066316684145
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.0037826380692422383,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.22068918444021257,
+            0.85706383037172
+          ],
+          "margin": -0.15,
+          "mean_delta": 0.26009106816827554,
+          "metric": "quality_without_dynamic_degree",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.0022521559601801286,
+            0.0017868134568836264
+          ],
+          "margin": -0.0015,
+          "mean_delta": -7.113092941569976e-05,
+          "metric": "identity_background",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.012462862153188325,
+            0.0009811503347009326
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.00546314736129716,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "late_half"
+        }
+      ]
+    },
+    {
+      "control": "sf_sink1_21",
+      "flagged_prompts": [
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 1
+        },
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 2
+        },
+        {
+          "flags": [
+            "edge_density_failure"
+          ],
+          "prompt_index": 3
+        },
+        {
+          "flags": [
+            "edge_density_failure"
+          ],
+          "prompt_index": 7
+        }
+      ],
+      "method": "lphc_e1_a005_correct",
+      "motion_safe": false,
+      "unresolved_noninferiority": [
+        {
+          "ci95": [
+            -0.024573076009595143,
+            -0.0019186624139547381
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.012373495878030858,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.008663736407955522,
+            0.017784750135242874
+          ],
+          "margin": -0.004,
+          "mean_delta": 0.0033554994811614003,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.04048000103939557,
+            -0.001359956106171012
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.019746071950066835,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.014638683013617988,
+            0.032504398847231664
+          ],
+          "margin": -0.004,
+          "mean_delta": 0.006770296553149792,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "late_half"
+        }
+      ]
+    },
+    {
+      "control": "sf_fifo21",
+      "flagged_prompts": [],
+      "method": "lphc_e1_a010_correct",
+      "motion_safe": true,
+      "unresolved_noninferiority": [
+        {
+          "ci95": [
+            -0.005312845588972175,
+            0.004522793286790424
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.0007958494126796764,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.008740886225132272,
+            0.010195288847899062
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.00043680029921233654,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "late_half"
+        }
+      ]
+    },
+    {
+      "control": "sf_sink1_21",
+      "flagged_prompts": [
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 1
+        },
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 2
+        },
+        {
+          "flags": [
+            "edge_density_failure"
+          ],
+          "prompt_index": 3
+        },
+        {
+          "flags": [
+            "temporal_discontinuity",
+            "edge_density_failure"
+          ],
+          "prompt_index": 7
+        }
+      ],
+      "method": "lphc_e1_a010_correct",
+      "motion_safe": false,
+      "unresolved_noninferiority": [
+        {
+          "ci95": [
+            -0.020779492085178698,
+            0.0006606546944627832
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.009386707221468296,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.00722588834663232,
+            0.017506550956765822
+          ],
+          "margin": -0.004,
+          "mean_delta": 0.0030808362861474564,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.03377400729805231,
+            0.002863801020430391
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.01471972488798201,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.013699843594804445,
+            0.031727690901607264
+          ],
+          "margin": -0.004,
+          "mean_delta": 0.005576114887371628,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "late_half"
+        }
+      ]
+    },
+    {
+      "control": "sf_fifo21",
+      "flagged_prompts": [
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 1
+        }
+      ],
+      "method": "lphc_e2_a010_correct",
+      "motion_safe": true,
+      "unresolved_noninferiority": [
+        {
+          "ci95": [
+            -0.20312358951967943,
+            0.5460482806173456
+          ],
+          "margin": -0.15,
+          "mean_delta": 0.1629558584758346,
+          "metric": "quality_without_dynamic_degree",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.01032080940591793,
+            0.0007461966170618751
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.004269471392035491,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.005643961754937879,
+            0.003596555045867981
+          ],
+          "margin": -0.004,
+          "mean_delta": -0.0005081854934493313,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.2916091514433763,
+            0.8044891784411872
+          ],
+          "margin": -0.15,
+          "mean_delta": 0.2799154437551188,
+          "metric": "quality_without_dynamic_degree",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.015387825202196836,
+            0.0008308594988193351
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.006373811513185501,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.008585194284096397,
+            0.006255720904795358
+          ],
+          "margin": -0.004,
+          "mean_delta": -0.0005939802108332962,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "late_half"
+        }
+      ]
+    },
+    {
+      "control": "sf_sink1_21",
+      "flagged_prompts": [
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 1
+        },
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 2
+        },
+        {
+          "flags": [
+            "edge_density_failure"
+          ],
+          "prompt_index": 3
+        },
+        {
+          "flags": [
+            "edge_density_failure"
+          ],
+          "prompt_index": 7
+        }
+      ],
+      "method": "lphc_e2_a010_correct",
+      "motion_safe": false,
+      "unresolved_noninferiority": [
+        {
+          "ci95": [
+            -0.02335077826865019,
+            -0.0030225240935881914
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.012860329200824111,
+          "metric": "semantic_alignment",
+          "state": "inferiority_supported",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.017325016229848045,
+            0.01619482817451162
+          ],
+          "margin": -0.004,
+          "mean_delta": -0.00042201175540682034,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.17066859875865426,
+            4.0360793062829945
+          ],
+          "margin": -0.15,
+          "mean_delta": 1.4443407861739619,
+          "metric": "quality_without_dynamic_degree",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.03795350668951869,
+            -0.00487882477464156
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.020656736101955175,
+          "metric": "semantic_alignment",
+          "state": "inferiority_supported",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.03032812277320775,
+            0.031776432171463934
+          ],
+          "margin": -0.004,
+          "mean_delta": 0.0006861665425821756,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "late_half"
+        }
+      ]
+    },
+    {
+      "control": "sf_fifo21",
+      "flagged_prompts": [
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 1
+        }
+      ],
+      "method": "lphc_full_a010_correct",
+      "motion_safe": true,
+      "unresolved_noninferiority": [
+        {
+          "ci95": [
+            -0.22730561636435453,
+            0.505372314105859
+          ],
+          "margin": -0.15,
+          "mean_delta": 0.13788981580161241,
+          "metric": "quality_without_dynamic_degree",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.008057784852882235,
+            0.006068807165821384
+          ],
+          "margin": -0.004,
+          "mean_delta": -0.0006432698393861458,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.3724641469142171,
+            0.9198419783953401
+          ],
+          "margin": -0.15,
+          "mean_delta": 0.2629312714589833,
+          "metric": "quality_without_dynamic_degree",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.004440345350303687,
+            0.003474594585713923
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.0005735541926696897,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.01292246129608251,
+            0.013029821046860885
+          ],
+          "margin": -0.004,
+          "mean_delta": 0.00022480799350886593,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "late_half"
+        }
+      ]
+    },
+    {
+      "control": "sf_sink1_21",
+      "flagged_prompts": [
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 1
+        },
+        {
+          "flags": [
+            "late_motion_collapse"
+          ],
+          "prompt_index": 2
+        },
+        {
+          "flags": [
+            "temporal_discontinuity",
+            "edge_density_failure"
+          ],
+          "prompt_index": 7
+        }
+      ],
+      "method": "lphc_full_a010_correct",
+      "motion_safe": false,
+      "unresolved_noninferiority": [
+        {
+          "ci95": [
+            -0.02129538878798486,
+            0.002661135229282064
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.009336525760591043,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.018907098231216266,
+            0.01709434335343533
+          ],
+          "margin": -0.004,
+          "mean_delta": -0.0005570961013436349,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "full"
+        },
+        {
+          "ci95": [
+            -0.2673009373494913,
+            3.9160857886697706
+          ],
+          "margin": -0.15,
+          "mean_delta": 1.4273566138778264,
+          "metric": "quality_without_dynamic_degree",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.034653620212338865,
+            0.005967334771412421
+          ],
+          "margin": -0.003,
+          "mean_delta": -0.014856478781439364,
+          "metric": "semantic_alignment",
+          "state": "inconclusive",
+          "window": "late_half"
+        },
+        {
+          "ci95": [
+            -0.030815580691443745,
+            0.03244604703038928
+          ],
+          "margin": -0.004,
+          "mean_delta": 0.0015049547469243377,
+          "metric": "visual_quality",
+          "state": "inconclusive",
+          "window": "late_half"
+        }
+      ]
+    }
+  ],
+  "source_sha256": "67824c40169b5821515fa2dbf843e917b6b72966bf366d9d4dbc3cf90bb91afa"
+}

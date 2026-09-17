@@ -3,13 +3,18 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current plan is **v210 effect-first development on six A800 nodes**:
-reuse v209 native-budget and v207 phase-retrieval screens, then test a planned
-full-local SF historical-correction branch before paper writing. The new
-residual method is not implemented or validated yet. Hardware assumptions,
-the two worker pools, ready-to-run commands, promotion criteria, and staged
-implementation are in
-[the six-node experiment plan](docs/229_v210_six_node_effect_first_experiment_plan.md).
+The current next experiment is **v212 matched-history Screen32**. LPHC is now
+implemented. Uploaded v210 Screen8 results show a small positive FIFO-local
+quality signal, but its original dual-control gate rejected every candidate.
+The completed v209 native-budget ladder also favors retaining FIFO21 as a
+strong control; its PF/Adaptive canaries were not run, not proven failures.
+v212 preserves that decision and separately tests FIFO/sink local policies,
+correct versus random history, and native SF21/SF25 controls on the same GPU
+per prompt. The existing v211 sink-local Screen8 can continue in its frozen
+checkout. No SF-superiority or paper-ready claim is established yet.
+See [v210 findings and v212 commands](docs/230_v210_results_and_v212_matched_history32.md).
+The preceding [six-node plan](docs/229_v210_six_node_effect_first_experiment_plan.md)
+is historical; its statement that LPHC was not implemented is superseded.
 
 The current runnable priority is **v209 explicit SF protocols and post-eviction budget
 attribution**. It adds FIFO21 and Sink1+Recent20 controls, a native 21/13/9-FFE
