@@ -33,7 +33,7 @@ from v210_vbench_fingerprint import vbench_checkout_fingerprint
 
 EXPERIMENT = "v211_lphc_vbench_screen8"
 SOURCE_INDICES = SCREEN8_SOURCE_INDICES
-FROZEN_GENERATION_COMMIT = "0cde4689ee4c2dc0d29b4aa386720e96dd51a5b6"
+FROZEN_GENERATION_COMMIT = "9a1c352bd6d0594587acb3afdc0648a2c8a18730"
 DEFAULT_VBENCH_ROOT = Path(
     "/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/"
     "bench_baselines/VBench"
