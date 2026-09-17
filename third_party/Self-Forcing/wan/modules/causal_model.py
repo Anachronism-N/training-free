@@ -1060,7 +1060,7 @@ class CausalWanSelfAttention(nn.Module):
                             "layer": layer_index,
                             "backend": "sf_dense_flash_attention",
                         },
-                        keep_full=False,
+                        keep_full=True,
                     )
             except Exception as parity_error:  # pragma: no cover - debug only
                 if not getattr(self, "_sf_parity_trace_warned", False):
