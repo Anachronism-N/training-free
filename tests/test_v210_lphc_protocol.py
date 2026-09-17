@@ -144,10 +144,13 @@ def test_environment_scrubbing_and_lphc_binding():
     assert worker.lphc_environment({"lphc": False}, Path("unused")) == {}
 
 
-def test_exact_node_allowlist_and_six_node_schedule():
+def test_exact_node_allowlist_and_six_node_schedule(monkeypatch):
     with pytest.raises(ValueError, match="frozen six-IP"):
         prepare._normalize_nodes(["only-one"])
     manifest = {"authorized_nodes": list(prepare.AUTHORIZED_NODES)}
+    monkeypatch.delenv("V210_NODE_ADDRESS", raising=False)
+    with pytest.raises(PermissionError, match="required"):
+        worker.assert_authorized_node(manifest, hostname="TENCENT64.site")
     address = prepare.AUTHORIZED_NODES[0]
     assert worker.assert_authorized_node(
         manifest, address, interface_addresses=frozenset({address})
@@ -156,7 +159,7 @@ def test_exact_node_allowlist_and_six_node_schedule():
         worker.assert_authorized_node(
             manifest, address, interface_addresses=frozenset({"127.0.0.1"})
         )
-    for forbidden in ("28.216.19.69", "28.216.19.70"):
+    for forbidden in prepare.FORBIDDEN_NODES:
         with pytest.raises(PermissionError, match="allowlist"):
             worker.assert_authorized_node(
                 manifest, forbidden, interface_addresses=frozenset({forbidden})
@@ -169,15 +172,34 @@ def test_exact_node_allowlist_and_six_node_schedule():
     assert controller.screen_assignments(2, gpus) == assignments[2]
 
 
+def test_ssh_launcher_targets_only_frozen_nodes_and_sets_identity(tmp_path):
+    _, manifest = prepared(tmp_path)
+    commands = controller.screen_ssh_commands(manifest, tmp_path / "out", "0,1,2,3,4,5,6,7")
+    assert len(commands) == 6
+    targets = [command[-2] for command in commands]
+    assert targets == [f"root@{node}" for node in prepare.AUTHORIZED_NODES]
+    assert not any(forbidden in " ".join(command) for forbidden in prepare.FORBIDDEN_NODES for command in commands)
+    for rank, (node, command) in enumerate(zip(prepare.AUTHORIZED_NODES, commands)):
+        rendered = " ".join(command)
+        assert command[2] == "36000"
+        assert f"V210_NODE_ADDRESS={node}" in rendered
+        assert f"NODE_RANK={rank}" in rendered
+        assert controller.CONDA_ACTIVATION in rendered
+
+
 def test_job_stamp_and_completion_marker_bind_identity(tmp_path):
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text("{}\n", encoding="utf-8")
-    manifest = {"source_commit": "abc"}
+    manifest = {
+        "source_commit": "abc",
+        "method_specs": prepare.METHOD_SPECS,
+    }
     stamp = worker.make_stamp(manifest, manifest_path, "screen8", "sf_fifo21", 17)
     assert stamp == {
         "stage": "screen8", "method": "sf_fifo21", "source_index": 17,
         "effective_seed": 21017, "input_manifest_sha256": prepare.sha256(manifest_path),
         "source_commit": "abc",
+        "requires_lphc_trace": False,
     }
     media = tmp_path / "video.mp4"
     media.write_bytes(b"media")
@@ -211,6 +233,36 @@ def test_trace_auditor_accepts_bounded_protocol(tmp_path):
     report = auditor.audit_trace(trace, 0.1, expect_second_attention=True)
     assert report["pass"] is True
     assert report["maximums"]["selected"] == 4
+    assert report["totals"] == {"lookup": 1, "random": 0, "second_attention": 1}
+
+
+def test_trace_auditor_requires_enabled_lookup_selection_and_second_attention(tmp_path):
+    trace = tmp_path / "inactive.jsonl"
+    write_trace(trace, [{
+        "event": "attention_call", "call_kind": "noisy", "phase_index": 0,
+        "local_frame_indices": [20], "eligible_frame_indices": [], "archive_frames": 4,
+        "selected_history_frames": [], "selected_count": 0, "clean_history_reads": 0,
+        "correction_ratio": 0.0, "lookup_count": 0, "random_count": 0,
+        "second_attention_count": 0,
+    }])
+    report = auditor.audit_trace(trace, 0.1, expect_second_attention=True, phase="e1")
+    assert report["pass"] is False
+    joined = "\n".join(report["errors"])
+    assert "lookup" in joined and "eligible and selected" in joined and "second attention" in joined
+
+
+def test_trace_auditor_rejects_activity_on_clean_or_disabled_phase(tmp_path):
+    trace = tmp_path / "wrong-phase.jsonl"
+    write_trace(trace, [{
+        "event": "attention_call", "call_kind": "clean", "phase_index": 4,
+        "local_frame_indices": [20], "eligible_frame_indices": [1], "archive_frames": 4,
+        "selected_history_frames": [1], "selected_count": 1, "clean_history_reads": 0,
+        "correction_ratio": 0.01, "lookup_count": 1, "random_count": 0,
+        "second_attention_count": 1,
+    }])
+    report = auditor.audit_trace(trace, 0.1, expect_second_attention=True, phase="e1")
+    assert report["pass"] is False
+    assert any("outside expected phase" in error for error in report["errors"])
 
 
 def test_trace_auditor_rejects_each_invariant_and_alpha0_activity(tmp_path):

@@ -106,6 +106,7 @@ def resolve_method(manifest: dict, stage: str, method: str) -> tuple[str, dict]:
 
 
 def make_stamp(manifest: dict, manifest_path: Path, stage: str, method: str, source_index: int) -> dict:
+    _, spec = resolve_method(manifest, stage, method)
     return {
         "stage": stage,
         "method": method,
@@ -113,6 +114,7 @@ def make_stamp(manifest: dict, manifest_path: Path, stage: str, method: str, sou
         "effective_seed": effective_seed(source_index),
         "input_manifest_sha256": sha256(manifest_path),
         "source_commit": manifest["source_commit"],
+        "requires_lphc_trace": bool(spec.get("lphc")),
     }
 
 
@@ -129,7 +131,7 @@ def done_matches(done: dict, stamp: dict, media_path: Path | None = None) -> boo
         and media.get("validation", {}).get("valid") is True
     )
     trace = done.get("trace") or {}
-    trace_valid = True
+    trace_valid = not stamp.get("requires_lphc_trace", False)
     if trace.get("present"):
         trace_path = Path(trace.get("path", ""))
         trace_valid = trace_path.is_file() and trace.get("sha256") == sha256(trace_path)
@@ -406,6 +408,8 @@ def run_job(
         "meta_path": str(tensor_meta) if tensor_meta else None,
         "present": bool(tensor_events and tensor_events.is_file() and tensor_meta and tensor_meta.is_file()),
     }
+    if stamp["requires_lphc_trace"] and not trace["present"]:
+        raise RuntimeError("LPHC trace is missing")
     if stage == "gate0" and not tensor_trace["present"]:
         raise RuntimeError("gate0 tensor trace is missing")
     done = {
