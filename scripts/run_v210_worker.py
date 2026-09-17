@@ -14,6 +14,7 @@ import sys
 import time
 from pathlib import Path
 
+from audit_v210_lphc_trace import audit_trace
 from prepare_v210_lphc import (
     ARCHIVE_SIZE,
     GATE0_METHODS,
@@ -292,14 +293,27 @@ def run_job(
         raise ValueError("gate0 source index drift")
     item = prompt_item(manifest, source_index)
     stamp = make_stamp(manifest, manifest_path, stage, method, source_index)
+    latent_frames = manifest["gate_frames"] if stage == "gate0" else manifest["screen_frames"]
     job = output_root / "jobs" / stage / method / f"source_{source_index:03d}"
     done_path = job / "done.json"
     expected_media = job / "media" / "0-0_ema.mp4"
     if done_path.exists():
         done = json.loads(done_path.read_text(encoding="utf-8"))
         if done_matches(done, stamp, expected_media):
-            return done
-        quarantine_job(job, output_root, "invalid completion marker or media")
+            if not stamp["requires_lphc_trace"]:
+                return done
+            trace_path = Path(done["trace"]["path"])
+            audit = audit_trace(
+                trace_path,
+                float(spec.get("alpha", 0.0)),
+                expect_second_attention=float(spec.get("alpha", 0.0)) > 0.0,
+                phase=str(spec.get("phase", "full")),
+                expected_blocks=latent_frames // 3,
+                expected_layers=30,
+            )
+            if audit["pass"]:
+                return done
+        quarantine_job(job, output_root, "invalid completion marker, media, or LPHC trace")
     elif job.exists():
         quarantine_job(job, output_root, "incomplete job")
     job.mkdir(parents=True)
@@ -315,7 +329,6 @@ def run_job(
         target_is_directory=True,
     )
     trace_path = job / "trace.jsonl"
-    latent_frames = manifest["gate_frames"] if stage == "gate0" else manifest["screen_frames"]
     runtime_dir = repo_root / "third_party" / "Self-Forcing"
     env = scrub_env(dict(os.environ))
     env.update(
@@ -410,6 +423,19 @@ def run_job(
     }
     if stamp["requires_lphc_trace"] and not trace["present"]:
         raise RuntimeError("LPHC trace is missing")
+    if stamp["requires_lphc_trace"]:
+        if latent_frames % 3:
+            raise RuntimeError("v210 latent frame count must be divisible by the 3-frame block size")
+        trace_audit = audit_trace(
+            trace_path,
+            float(spec.get("alpha", 0.0)),
+            expect_second_attention=float(spec.get("alpha", 0.0)) > 0.0,
+            phase=str(spec.get("phase", "full")),
+            expected_blocks=latent_frames // 3,
+            expected_layers=30,
+        )
+        if not trace_audit["pass"]:
+            raise RuntimeError(f"LPHC trace audit failed: {trace_audit['errors']}")
     if stage == "gate0" and not tensor_trace["present"]:
         raise RuntimeError("gate0 tensor trace is missing")
     done = {

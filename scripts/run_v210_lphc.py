@@ -114,6 +114,10 @@ def load_done(output_root: Path, manifest_path: Path, manifest: dict, stage: str
             float(spec.get("alpha", 0.0)),
             expect_second_attention=float(spec.get("alpha", 0.0)) > 0.0,
             phase=str(spec.get("phase", "full")),
+            expected_blocks=(
+                manifest["gate_frames"] if stage == "gate0" else manifest["screen_frames"]
+            ) // 3,
+            expected_layers=30,
         )
         if not audit["pass"]:
             raise RuntimeError(f"invalid LPHC trace for {path}: {audit['errors']}")
@@ -161,6 +165,53 @@ def compare_gate_tensors(native: dict, alpha0: dict) -> dict:
         counts = Counter(row.get("event") for row in rows)
         if any(counts[event] != count for event, count in GATE_EVENT_COUNTS.items()):
             raise RuntimeError(f"gate0 tensor event coverage mismatch: {dict(counts)}")
+
+        def calls(event: str) -> set[tuple]:
+            result = set()
+            for row in rows:
+                if row.get("event") != event:
+                    continue
+                context = row.get("context", {})
+                metadata = row.get("metadata", {})
+                result.add((
+                    context.get("ar_block"),
+                    context.get("call_kind"),
+                    context.get("call_index"),
+                    metadata.get("layer"),
+                ))
+            return result
+
+        blocks = range(10)
+        noisy4 = {(block, "noisy", call, None) for block in blocks for call in range(4)}
+        noisy3 = {(block, "noisy", call, None) for block in blocks for call in range(3)}
+        clean = {(block, "clean", 4, None) for block in blocks}
+        committed = {(block, "block_commit", None, None) for block in blocks}
+        cache = {
+            (block, kind, call, 0)
+            for block in blocks
+            for kind, call in [
+                *(("noisy", index) for index in range(4)),
+                ("clean", 4),
+            ]
+        }
+        expected_calls = {
+            "noisy_input": noisy4,
+            "flow_prediction": noisy4,
+            "denoised_prediction": noisy4,
+            "scheduler_noise": noisy3,
+            "scheduler_output": noisy3,
+            "cache_readout": cache,
+            "attention_output": cache,
+            "committed_latent": committed,
+            "clean_refresh_input": clean,
+            "clean_flow_prediction": clean,
+        }
+        for event, expected in expected_calls.items():
+            observed = calls(event)
+            if observed != expected:
+                raise RuntimeError(
+                    f"gate0 {event} call matrix mismatch: {sorted(observed, key=str)}"
+                )
         return directory, rows
 
     def identity(row: dict) -> tuple:
@@ -372,8 +423,8 @@ def remote_repo_root(manifest: dict) -> Path:
 
 def screen_ssh_commands(manifest: dict, output_root: Path, gpu_list: str) -> list[list[str]]:
     nodes = manifest["authorized_nodes"]
-    if any(node in {"28.216.19.69", "28.216.19.70"} for node in nodes):
-        raise ValueError("forbidden nodes are present in the v210 contract")
+    if tuple(nodes) != AUTHORIZED_NODES:
+        raise ValueError("SSH launcher requires the exact frozen six-node allowlist in order")
     frozen_gpus = ",".join(manifest["execution"]["gpu_slots"])
     if gpu_list != frozen_gpus:
         raise ValueError("SSH screen launch must use the frozen GPU slots")
@@ -423,10 +474,16 @@ def recover(output_root: Path, manifest_path: Path, manifest: dict) -> list[str]
         try:
             stage, method = job.parts[-3], job.parts[-2]
             source_index = int(job.name.removeprefix("source_"))
-            stamp = make_stamp(manifest, manifest_path, stage, method, source_index)
-            marker = job / "done.json"
-            valid = marker.is_file() and done_matches(json.loads(marker.read_text(encoding="utf-8")), stamp)
-        except (KeyError, ValueError, json.JSONDecodeError):
+            load_done(
+                output_root,
+                manifest_path,
+                manifest,
+                stage,
+                method,
+                source_index,
+            )
+            valid = True
+        except (OSError, RuntimeError, KeyError, ValueError, json.JSONDecodeError):
             valid = False
         if not valid:
             target = quarantine_job(job, output_root, "recover quarantined incomplete or stale job")

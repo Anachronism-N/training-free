@@ -95,6 +95,8 @@ def audit_trace(
     expect_second_attention: bool | None = None,
     phase: str = "full",
     tolerance: float = 1e-6,
+    expected_blocks: int | None = None,
+    expected_layers: int | None = None,
 ) -> dict:
     if not math.isfinite(alpha) or alpha < 0:
         raise ValueError("alpha must be finite and non-negative")
@@ -102,6 +104,10 @@ def audit_trace(
         raise ValueError("tolerance must be finite and non-negative")
     if phase not in _PHASES:
         raise ValueError("phase must be e1, e2, or full")
+    if expected_blocks is not None and expected_blocks <= 0:
+        raise ValueError("expected_blocks must be positive")
+    if expected_layers is not None and expected_layers <= 0:
+        raise ValueError("expected_layers must be positive")
     expected_second = alpha > 0 if expect_second_attention is None else expect_second_attention
     rows = load_trace(path)
     errors: list[str] = []
@@ -110,6 +116,7 @@ def audit_trace(
     attention_rows = 0
     active_lookup_rows = 0
     active_selected_rows = 0
+    call_matrix: dict[tuple[int, int], list[tuple[str, int]]] = {}
     for row in rows:
         line = row["_audit_line"]
         # A clean-commit event may carry the just-completed noisy read snapshot
@@ -120,6 +127,9 @@ def audit_trace(
         if row.get("event") == "attention_call":
             attention_rows += 1
             required_groups = {
+                "layer": ("layer_idx", "layer_id"),
+                "block": ("block_id",),
+                "phase": ("phase_index",),
                 "call kind": ("call_kind",),
                 "local frames": ("local_frame_indices", "local_frame_ids", "local_frames"),
                 "archive size": ("archive_frames", "archive_size", "archive_count"),
@@ -136,6 +146,11 @@ def audit_trace(
             ]
             if missing:
                 errors.append(f"line {line}: attention trace fields missing: {missing}")
+            else:
+                layer = int(_first(row, ("layer_idx", "layer_id")))
+                block = int(row["block_id"])
+                call = (str(row["call_kind"]), int(row["phase_index"]))
+                call_matrix.setdefault((layer, block), []).append(call)
         clean_reads = _count(sample, (
             "clean_history_read_count", "clean_history_reads", "clean_retrieval_calls",
             "clean_read_count", "read_clean_history"
@@ -223,6 +238,22 @@ def audit_trace(
         errors.append("trace contains no events")
     elif not attention_rows:
         errors.append("trace contains no attention_call events")
+    expected_calls = [("noisy", index) for index in range(4)] + [("clean", 4)]
+    observed_layers = sorted({layer for layer, _ in call_matrix})
+    observed_blocks = sorted({block for _, block in call_matrix})
+    required_layers = list(range(expected_layers)) if expected_layers is not None else observed_layers
+    required_blocks = list(range(expected_blocks)) if expected_blocks is not None else observed_blocks
+    if observed_layers != required_layers:
+        errors.append(f"attention layer coverage mismatch: {observed_layers} != {required_layers}")
+    if observed_blocks != required_blocks:
+        errors.append(f"attention block coverage mismatch: {observed_blocks} != {required_blocks}")
+    for layer in required_layers:
+        for block in required_blocks:
+            calls = call_matrix.get((layer, block), [])
+            if calls != expected_calls:
+                errors.append(
+                    f"layer {layer} block {block}: call trajectory {calls} != {expected_calls}"
+                )
     if expected_second:
         if totals["lookup"] == 0 or active_lookup_rows == 0:
             errors.append("expected LPHC history lookup was never observed")
@@ -253,6 +284,8 @@ def main() -> None:
     parser.add_argument("trace", type=Path)
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--tolerance", type=float, default=1e-6)
+    parser.add_argument("--expected-blocks", type=int)
+    parser.add_argument("--expected-layers", type=int)
     parser.add_argument("--phase", choices=tuple(_PHASES), default="full")
     parser.add_argument("--expect-second-attention", choices=("auto", "yes", "no"), default="auto")
     parser.add_argument("--output", type=Path)
@@ -261,6 +294,8 @@ def main() -> None:
     report = audit_trace(
         args.trace, args.alpha, expect_second_attention=expected,
         phase=args.phase, tolerance=args.tolerance,
+        expected_blocks=args.expected_blocks,
+        expected_layers=args.expected_layers,
     )
     payload = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:

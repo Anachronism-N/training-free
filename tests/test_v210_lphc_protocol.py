@@ -187,6 +187,17 @@ def test_ssh_launcher_targets_only_frozen_nodes_and_sets_identity(tmp_path):
         assert controller.CONDA_ACTIVATION in rendered
 
 
+def test_ssh_launcher_rejects_non_frozen_manifest_nodes(tmp_path):
+    _, manifest = prepared(tmp_path)
+    manifest["authorized_nodes"] = ["10.0.0.1"]
+    with pytest.raises(ValueError, match="exact frozen six-node"):
+        controller.screen_ssh_commands(
+            manifest,
+            tmp_path / "out",
+            "0,1,2,3,4,5,6,7",
+        )
+
+
 def test_job_stamp_and_completion_marker_bind_identity(tmp_path):
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text("{}\n", encoding="utf-8")
@@ -218,22 +229,88 @@ def write_trace(path: Path, rows: list[dict]) -> None:
     path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
 
 
+def lphc_trace_block(*, active_phase: int | None = 0) -> list[dict]:
+    rows = []
+    for phase_index in range(5):
+        active = phase_index == active_phase
+        rows.append({
+            "event": "attention_call",
+            "block_id": 0,
+            "call_kind": "noisy" if phase_index < 4 else "clean",
+            "phase_index": phase_index,
+            "layer_idx": 0,
+            "history_source": "noisy",
+            "clean_history_reads": 0,
+            "archive_frames": 12,
+            "local_frame_indices": [20, 21, 22],
+            "eligible_frame_indices": [1, 5, 9, 13] if active else [],
+            "selected_history_frames": [1, 5, 9, 13] if active else [],
+            "correction_ratio": 0.099 if active else 0.0,
+            "lookup_count": int(active),
+            "random_count": 0,
+            "second_attention_count": int(active),
+        })
+    return rows
+
+
 def test_trace_auditor_accepts_bounded_protocol(tmp_path):
     trace = tmp_path / "trace.jsonl"
-    write_trace(trace, [{
-        "event": "attention_call", "call_kind": "noisy", "phase_index": 0, "layer_idx": 0,
-        "history_source": "noisy",
-        "clean_history_reads": 0, "archive_frames": 12,
-        "local_frame_indices": [20, 21, 22],
-        "eligible_frame_indices": [1, 5, 9, 13],
-        "selected_history_frames": [1, 5, 9, 13],
-        "correction_ratio": 0.099, "lookup_count": 1, "random_count": 0,
-        "second_attention_count": 1,
-    }])
-    report = auditor.audit_trace(trace, 0.1, expect_second_attention=True)
+    write_trace(trace, lphc_trace_block())
+    report = auditor.audit_trace(
+        trace,
+        0.1,
+        expect_second_attention=True,
+        expected_blocks=1,
+        expected_layers=1,
+    )
     assert report["pass"] is True
     assert report["maximums"]["selected"] == 4
     assert report["totals"] == {"lookup": 1, "random": 0, "second_attention": 1}
+
+
+def test_trace_auditor_rejects_incomplete_e1_call_trajectory(tmp_path):
+    trace = tmp_path / "incomplete.jsonl"
+    write_trace(trace, lphc_trace_block()[:1])
+    report = auditor.audit_trace(
+        trace,
+        0.1,
+        expect_second_attention=True,
+        phase="e1",
+        expected_blocks=1,
+        expected_layers=1,
+    )
+    assert report["pass"] is False
+    assert any("call trajectory" in error for error in report["errors"])
+
+
+def test_load_done_rejects_semantically_incomplete_lphc_trace(tmp_path):
+    output_root, manifest = prepared(tmp_path)
+    manifest_path = output_root / "inputs" / "manifest.json"
+    method = "lphc_e1_a010_correct"
+    job = controller.job_path(output_root, "screen8", method, 1)
+    job.mkdir(parents=True)
+    media = job / "video.mp4"
+    media.write_bytes(b"media")
+    trace = job / "trace.jsonl"
+    write_trace(trace, lphc_trace_block()[:1])
+    stamp = worker.make_stamp(manifest, manifest_path, "screen8", method, 1)
+    done = {
+        "stamp": stamp,
+        "contract_sha256": stamp["input_manifest_sha256"],
+        "trace": {
+            "path": str(trace),
+            "present": True,
+            "sha256": prepare.sha256(trace),
+        },
+        "media": {
+            "path": str(media),
+            "sha256": prepare.sha256(media),
+            "validation": {"valid": True},
+        },
+    }
+    (job / "done.json").write_text(json.dumps(done), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="invalid LPHC trace"):
+        controller.load_done(output_root, manifest_path, manifest, "screen8", method, 1)
 
 
 def test_trace_auditor_requires_enabled_lookup_selection_and_second_attention(tmp_path):
@@ -302,11 +379,29 @@ def test_gate0_compares_full_tensors_not_only_media(tmp_path):
                 value = final_value if event == "final_latents" else 1.0
                 file = f"{counter}.pt"
                 torch.save({"tensors": {"latent": {"full": torch.tensor([value])}}}, directory / file)
+                context = {"video_index": 0}
+                metadata = {}
+                if event in {"noisy_input", "flow_prediction", "denoised_prediction"}:
+                    context.update(ar_block=occurrence // 4, call_kind="noisy", call_index=occurrence % 4)
+                elif event in {"scheduler_noise", "scheduler_output"}:
+                    context.update(ar_block=occurrence // 3, call_kind="noisy", call_index=occurrence % 3)
+                elif event in {"cache_readout", "attention_output"}:
+                    block, call = divmod(occurrence, 5)
+                    context.update(
+                        ar_block=block,
+                        call_kind="noisy" if call < 4 else "clean",
+                        call_index=call,
+                    )
+                    metadata["layer"] = 0
+                elif event == "committed_latent":
+                    context.update(ar_block=occurrence, call_kind="block_commit", call_index=None)
+                elif event in {"clean_refresh_input", "clean_flow_prediction"}:
+                    context.update(ar_block=occurrence, call_kind="clean", call_index=4)
                 rows.append({
                     "event": event,
                     "counter": counter,
-                    "context": {"video_index": 0, "call_index": occurrence},
-                    "metadata": {},
+                    "context": context,
+                    "metadata": metadata,
                     "file": file,
                 })
                 counter += 1
@@ -318,18 +413,20 @@ def test_gate0_compares_full_tensors_not_only_media(tmp_path):
     native = make("native", 2.0)
     assert controller.compare_gate_tensors(native, make("same", 2.0))["pass"] is True
     assert controller.compare_gate_tensors(native, make("different", 3.0))["pass"] is False
+    malformed = make("malformed", 2.0)
+    events_path = Path(malformed["tensor_trace"]["path"]) / "events.jsonl"
+    rows = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines()]
+    next(row for row in rows if row["event"] == "noisy_input")["context"].pop("ar_block")
+    events_path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="call matrix mismatch"):
+        controller.compare_gate_tensors(native, malformed)
 
 
 def test_smoke_is_one_full_length_lphc_job(tmp_path, monkeypatch):
     output_root, manifest = prepared(tmp_path)
     manifest_path = output_root / "inputs" / "manifest.json"
     trace = tmp_path / "smoke.jsonl"
-    write_trace(trace, [{
-        "event": "attention_call", "call_kind": "noisy", "phase_index": 0, "layer_idx": 0,
-        "clean_history_reads": 0, "local_frame_indices": [20, 21], "archive_frames": 4,
-        "eligible_frame_indices": [1], "selected_history_frames": [1], "correction_ratio": 0.05,
-        "lookup_count": 1, "random_count": 0, "second_attention_count": 1,
-    }])
+    write_trace(trace, lphc_trace_block())
     launched = []
     monkeypatch.setattr(
         controller,
