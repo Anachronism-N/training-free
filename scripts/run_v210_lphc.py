@@ -53,7 +53,9 @@ GATE_EVENT_COUNTS = {
 }
 GATE_FULL_EVENTS = set(GATE_EVENT_COUNTS) - {"decoded_video"}
 CONDA_ACTIVATION = "/apdcephfs_gy2/share_303214315/cedricnie/activate_conda_gy2.sh"
-REMOTE_REPO_ROOT = "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free"
+REMOTE_SOURCE_BASE = Path(
+    "/apdcephfs_gy2/share_302533218/cedricnie/v210_sources"
+)
 
 
 def decision_path(output_root: Path, stage: str) -> Path:
@@ -103,6 +105,20 @@ def load_done(output_root: Path, manifest_path: Path, manifest: dict, stage: str
     stamp = make_stamp(manifest, manifest_path, stage, method, source_index)
     if not done_matches(done, stamp):
         raise RuntimeError(f"invalid completion marker: {path}")
+    if stamp.get("requires_lphc_trace"):
+        if stage == "gate0":
+            spec = manifest["gate0"]["modes"][method]
+        else:
+            spec = manifest["method_specs"][method]
+        trace_path = Path(done["trace"]["path"])
+        audit = audit_trace(
+            trace_path,
+            float(spec.get("alpha", 0.0)),
+            expect_second_attention=float(spec.get("alpha", 0.0)) > 0.0,
+            phase=str(spec.get("phase", "full")),
+        )
+        if not audit["pass"]:
+            raise RuntimeError(f"invalid LPHC trace for {path}: {audit['errors']}")
     return done
 
 
@@ -349,6 +365,13 @@ def run_screen8(
             future.result()
 
 
+def remote_repo_root(manifest: dict) -> Path:
+    commit = str(manifest["source_commit"])
+    if len(commit) != 40 or any(char not in "0123456789abcdef" for char in commit):
+        raise ValueError("invalid source commit in v210 manifest")
+    return REMOTE_SOURCE_BASE / commit
+
+
 def screen_ssh_commands(manifest: dict, output_root: Path, gpu_list: str) -> list[list[str]]:
     nodes = manifest["authorized_nodes"]
     if any(node in {"28.216.19.69", "28.216.19.70"} for node in nodes):
@@ -356,17 +379,20 @@ def screen_ssh_commands(manifest: dict, output_root: Path, gpu_list: str) -> lis
     frozen_gpus = ",".join(manifest["execution"]["gpu_slots"])
     if gpu_list != frozen_gpus:
         raise ValueError("SSH screen launch must use the frozen GPU slots")
+    repo_root = remote_repo_root(manifest)
     commands = []
     for rank, node in enumerate(nodes):
         remote = shlex.join([
             "bash", "-lc",
             " && ".join([
                 f"source {shlex.quote(CONDA_ACTIVATION)} longlive",
-                f"cd {shlex.quote(REMOTE_REPO_ROOT)}",
+                f"cd {shlex.quote(str(repo_root))}",
+                f"test \"$(git rev-parse HEAD)\" = {shlex.quote(manifest['source_commit'])}",
+                f"test -z \"$(git status --porcelain --untracked-files=all)\"",
                 f"export V210_NODE_ADDRESS={shlex.quote(node)} NODE_RANK={rank} NUM_NODES=6 GPU_LIST={shlex.quote(gpu_list)}",
                 shlex.join([
                     "python", "scripts/run_v210_lphc.py", "screen8",
-                    "--repo-root", REMOTE_REPO_ROOT,
+                    "--repo-root", str(repo_root),
                     "--output-root", str(output_root),
                     "--node-rank", str(rank), "--num-nodes", "6",
                     "--gpu-list", gpu_list,
