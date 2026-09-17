@@ -348,7 +348,7 @@ def run_job(
             SF_PARITY_RUN_KIND=f"v210_{method}",
             SF_PARITY_CONTRACT_SHA256=stamp["input_manifest_sha256"],
             SF_PARITY_TRACE_LAYERS="0",
-            SF_PARITY_FULL_CACHE_LAYERS="none",
+            SF_PARITY_FULL_CACHE_LAYERS="0",
             SF_PARITY_SAMPLE_VALUES="4096",
         )
     command = [
