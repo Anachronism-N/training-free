@@ -15,6 +15,7 @@ PYTHON_BIN="${V211_PYTHON_BIN:-python}"
 GENERATION_ROOT="${V211_GENERATION_ROOT:?V211_GENERATION_ROOT is required}"
 GENERATION_COMMIT="${V211_GENERATION_COMMIT:?V211_GENERATION_COMMIT is required}"
 EVALUATION_COMMIT="${V211_EVALUATION_COMMIT:?V211_EVALUATION_COMMIT is required}"
+NODE_ADDRESS="${V211_NODE_ADDRESS:?V211_NODE_ADDRESS is required}"
 SCREEN_ROOT="${V211_SCREEN_ROOT:-/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_eval_${EVALUATION_COMMIT:0:8}_screen8}"
 COMPARISON_ROOT="${V211_COMPARISON_ROOT:-$SCREEN_ROOT/vbench_comparison}"
 METRICS_ROOT="${V211_METRICS_ROOT:-$SCREEN_ROOT/metrics}"
@@ -39,12 +40,16 @@ case "${GENERATION_ROOT,,}:${SCREEN_ROOT,,}:${COMPARISON_ROOT,,}:${METRICS_ROOT,
     ;;
 esac
 
-if [[ ! "$GENERATION_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "[error] V211_GENERATION_COMMIT must be a full git commit" >&2
+if [[ "$GENERATION_COMMIT" != "0cde4689ee4c2dc0d29b4aa386720e96dd51a5b6" ]]; then
+  echo "[error] V211_GENERATION_COMMIT must equal the frozen generation SHA" >&2
   exit 2
 fi
 if [[ ! "$EVALUATION_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
   echo "[error] V211_EVALUATION_COMMIT must be a full git commit" >&2
+  exit 2
+fi
+if [[ "$EVALUATION_COMMIT" == "$GENERATION_COMMIT" ]]; then
+  echo "[error] V211_EVALUATION_COMMIT must be distinct from generation" >&2
   exit 2
 fi
 if [[ "$(git -C "$ROOT" rev-parse HEAD)" != "$EVALUATION_COMMIT" ]]; then
@@ -53,10 +58,6 @@ if [[ "$(git -C "$ROOT" rev-parse HEAD)" != "$EVALUATION_COMMIT" ]]; then
 fi
 if [[ -n "$(git -C "$ROOT" status --porcelain=v1 --untracked-files=all)" ]]; then
   echo "[error] v211 postprocessing requires an exact clean evaluation checkout" >&2
-  exit 2
-fi
-if (( NUM_NODES <= 0 || NODE_RANK < 0 || NODE_RANK >= NUM_NODES )); then
-  echo "[error] require 0 <= NODE_RANK < NUM_NODES" >&2
   exit 2
 fi
 if [[ "$ACTION" == "resume-missing" && ( "$NODE_RANK" != "0" || "$NUM_NODES" != "1" ) ]]; then
@@ -136,7 +137,10 @@ case "$ACTION" in
       --generation-commit "$GENERATION_COMMIT" \
       --comparison-root "$COMPARISON_ROOT" \
       --repo-root "$ROOT" \
-      --vbench-root "$VBENCH_ROOT"
+      --vbench-root "$VBENCH_ROOT" \
+      --node-rank "$NODE_RANK" \
+      --num-nodes "$NUM_NODES" \
+      --node-address "$NODE_ADDRESS"
     ;;
   split)
     activate_longlive

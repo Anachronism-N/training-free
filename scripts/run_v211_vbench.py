@@ -17,9 +17,13 @@ from typing import Any
 
 import run_v154_vbench_long as base
 from prepare_v211_vbench_comparison import (
+    AUTHORIZED_NODES,
     DIMENSIONS,
     EVALUATION_RUNTIME_FILES,
     EXPERIMENT as EXPECTED_EXPERIMENT,
+    FORBIDDEN_NODES,
+    FROZEN_GENERATION_COMMIT,
+    PREFLIGHT_RECEIPT_NAME,
 )
 from v210_vbench_fingerprint import vbench_checkout_fingerprint
 from vbench_quality_contract import (
@@ -47,6 +51,55 @@ _BASE_COLLECT = base.collect
 _BASE_RUN_JOB = base.run_job
 SPLIT_PROVENANCE_NAME = ".v211_split_provenance.json"
 CAMPAIGN_SPLIT_PROVENANCE_NAME = "v211_split_provenance.json"
+EXPECTED_NUM_NODES = len(AUTHORIZED_NODES)
+
+
+def local_interface_addresses() -> frozenset[str]:
+    try:
+        output = subprocess.check_output(
+            ["hostname", "-I"], text=True, stderr=subprocess.DEVNULL
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return frozenset()
+    return frozenset(output.split())
+
+
+def validate_execution_node(
+    node_rank: int,
+    num_nodes: int,
+    node_address: str | None = None,
+    *,
+    interface_addresses: frozenset[str] | None = None,
+) -> dict[str, Any]:
+    if num_nodes != EXPECTED_NUM_NODES:
+        raise PermissionError(f"v211 evaluation requires exactly {EXPECTED_NUM_NODES} nodes")
+    if not 0 <= node_rank < num_nodes:
+        raise PermissionError("require 0 <= node-rank < num-nodes")
+    address = node_address or os.environ.get("V211_NODE_ADDRESS")
+    if not address:
+        raise PermissionError("V211_NODE_ADDRESS is required for v211 evaluation")
+    if address in FORBIDDEN_NODES or address not in AUTHORIZED_NODES:
+        raise PermissionError(f"node address {address!r} is not in the exact v211 allowlist")
+    expected = AUTHORIZED_NODES[node_rank]
+    if address != expected:
+        raise PermissionError(
+            f"v211 node/rank mismatch: rank {node_rank} requires {expected}, got {address}"
+        )
+    observed = (
+        local_interface_addresses()
+        if interface_addresses is None
+        else interface_addresses
+    )
+    if address not in observed:
+        raise PermissionError(
+            f"node address {address!r} is not present on a local network interface"
+        )
+    return {
+        "authorized_nodes": list(AUTHORIZED_NODES),
+        "node_address": address,
+        "node_rank": node_rank,
+        "num_nodes": num_nodes,
+    }
 
 
 def comparison_name(prompt_index: int) -> str:
@@ -203,6 +256,62 @@ def validate_source_media(
     }
 
 
+def recorded_source_media_audit(manifest: dict[str, Any]) -> dict[str, Any]:
+    method_rows = manifest.get("methods") or ()
+    methods = tuple(str(row.get("key", "")) for row in method_rows)
+    prompt_items = manifest.get("prompt_items") or ()
+    prompt_count = int(manifest.get("prompt_count", -1))
+    jobs = {
+        (str(row.get("method", "")), int(row.get("prompt_index", -1))): row
+        for row in manifest.get("jobs") or ()
+    }
+    expected_pairs = {
+        (method, prompt_index)
+        for method in methods
+        for prompt_index in range(prompt_count)
+    }
+    if (
+        len(jobs) != len(manifest.get("jobs") or ())
+        or set(jobs) != expected_pairs
+        or len(prompt_items) != prompt_count
+    ):
+        raise ValueError("v211 source media grid is incomplete or mixed")
+    audit_rows = []
+    per_method = {}
+    for method in methods:
+        method_rows_out = []
+        for prompt_index in range(prompt_count):
+            job = jobs[(method, prompt_index)]
+            digest = job.get("media_sha256")
+            if (
+                job.get("source_index") != prompt_items[prompt_index].get("source_index")
+                or not isinstance(digest, str)
+                or len(digest) != 64
+                or any(character not in "0123456789abcdef" for character in digest)
+            ):
+                raise ValueError(
+                    f"v211 recorded source media provenance drift: {method}:{prompt_index}"
+                )
+            row = {
+                "method": method,
+                "prompt_index": prompt_index,
+                "source_index": job["source_index"],
+                "media_sha256": digest,
+            }
+            audit_rows.append(row)
+            method_rows_out.append(row)
+        per_method[method] = {
+            "video_count": len(method_rows_out),
+            "mapping_sha256": _canonical_digest(method_rows_out),
+        }
+    return {
+        "version": 1,
+        "video_count": len(audit_rows),
+        "mapping_sha256": _canonical_digest(audit_rows),
+        "methods": per_method,
+    }
+
+
 def _write_frozen_fingerprint(path: Path, payload: dict[str, Any]) -> None:
     encoded = (
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
@@ -259,75 +368,87 @@ def bind_vbench_checkout_fingerprint(
 
 
 def runtime_contract(args: Any) -> dict[str, Any]:
-    context = _BASE_RUNTIME_CONTRACT(args)
     evaluation_root = getattr(args, "evaluation_root", None) or EVALUATION_ROOT
     if evaluation_root is None:
         raise ValueError("v211 --evaluation-root was not configured")
+    execution_num_nodes = (
+        EXPECTED_NUM_NODES
+        if args.mode == "eval-missing" and args.node_rank == 0 and args.num_nodes == 1
+        else args.num_nodes
+    )
+    execution_node = validate_execution_node(args.node_rank, execution_num_nodes)
+    context = _BASE_RUNTIME_CONTRACT(args)
+    receipt = validate_preflight_receipt(context["manifest"], args.manifest)
+    if Path(evaluation_root).resolve() != Path(
+        receipt["evaluation_source"]["evaluation_root"]
+    ).resolve():
+        raise ValueError("v211 evaluation root disagrees with preflight receipt")
     evaluation_source = evaluation_source_provenance(
         Path(evaluation_root),
         str(context["manifest"].get("evaluation_commit", "")),
         context["manifest"].get("evaluation_runtime_sha256"),
     )
-    validate_vbench_root(context["manifest"], args.vbench_root)
-    source_media_audit = validate_source_media(context["manifest"])
-    fingerprint, source = bind_vbench_checkout_fingerprint(
-        context["manifest"],
-        args.vbench_root,
-        args.parts_root,
-        manifest_path=getattr(args, "manifest", None),
-    )
-    if fingerprint["head"] != context["vbench_commit"]:
-        raise ValueError("v211 VBench HEAD disagrees with the base runtime contract")
+    actual_vbench_root = validate_vbench_root(context["manifest"], args.vbench_root)
+    fingerprint = vbench_checkout_fingerprint(actual_vbench_root)
+    if (
+        evaluation_source != receipt["evaluation_source"]
+        or fingerprint != receipt["vbench_checkout_fingerprint"]
+        or fingerprint["head"] != context["vbench_commit"]
+    ):
+        raise ValueError("v211 runtime disagrees with frozen preflight receipt")
     split_provenance = validate_split_provenance(
-        context["manifest"], args.manifest
+        context["manifest"], args.manifest, strong=False
     )
+    context["authorized_nodes"] = list(AUTHORIZED_NODES)
+    context["execution_node"] = execution_node
+    context["preflight_receipt"] = receipt
     context["vbench_checkout_fingerprint"] = fingerprint
-    context["vbench_checkout_fingerprint_source"] = source
+    context["vbench_checkout_fingerprint_source"] = {
+        "kind": "preflight_receipt",
+        "path": receipt["receipt"],
+        "sha256": receipt["receipt_sha256"],
+    }
     context["vbench_root"] = str(args.vbench_root.resolve())
     context["evaluation_source"] = evaluation_source
-    context["source_media_audit"] = source_media_audit
+    context["source_media_audit"] = receipt["source_media_audit"]
     context["split_provenance"] = split_provenance
     context["comparison_manifest_path"] = str(args.manifest.resolve())
     return context
 
 
 def job_contract(context: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
-    current = vbench_checkout_fingerprint(Path(context["vbench_root"]))
-    if current != context["vbench_checkout_fingerprint"]:
-        raise ValueError("v211 VBench checkout fingerprint drift")
-    evaluation_source = evaluation_source_provenance(
-        Path(context["evaluation_source"]["evaluation_root"]),
-        context["evaluation_source"]["evaluation_commit"],
-        context["evaluation_source"]["runtime_file_sha256"],
-    )
-    if evaluation_source != context["evaluation_source"]:
-        raise ValueError("v211 evaluation runtime file drift")
     method = str(kwargs.get("method", ""))
-    current_media = validate_source_media(
-        context["manifest"], only_method=method
-    )
-    expected_media = context["source_media_audit"]["methods"].get(method)
-    if current_media["methods"].get(method) != expected_media:
-        raise ValueError(f"v211 source media changed during evaluation: {method}")
     manifest_path = Path(context["comparison_manifest_path"])
-    current_campaign = validate_campaign_split_provenance(
-        context["manifest"], manifest_path, context["split_provenance"]
-    )
+    receipt = validate_preflight_receipt(context["manifest"], manifest_path)
+    if receipt != context["preflight_receipt"]:
+        raise ValueError("v211 preflight receipt changed during evaluation")
     current_split = validate_split_provenance(
         context["manifest"],
         manifest_path,
         only_method=method,
         require_campaign=False,
+        strong=False,
     )
     expected_split = context["split_provenance"]["methods"].get(method)
     if current_split["methods"].get(method) != expected_split:
-        raise ValueError(f"v211 split content changed during evaluation: {method}")
+        raise ValueError(f"v211 split receipt changed during evaluation: {method}")
+    current_campaign = validate_campaign_split_provenance(
+        context["manifest"], manifest_path, context["split_provenance"]
+    )
     contract = _BASE_JOB_CONTRACT(context, **kwargs)
-    contract["vbench_checkout_fingerprint"] = current
+    contract["authorized_nodes"] = context["authorized_nodes"]
+    contract["execution_node"] = context["execution_node"]
+    contract["preflight_receipt"] = {
+        "path": receipt["receipt"],
+        "sha256": receipt["receipt_sha256"],
+    }
+    contract["vbench_checkout_fingerprint"] = context[
+        "vbench_checkout_fingerprint"
+    ]
     contract["vbench_checkout_fingerprint_source"] = context[
         "vbench_checkout_fingerprint_source"
     ]
-    contract["evaluation_source"] = evaluation_source
+    contract["evaluation_source"] = context["evaluation_source"]
     contract["source_media_audit"] = context["source_media_audit"]
     contract["split_provenance"] = {
         "aggregate_digest": current_campaign["aggregate_digest"],
@@ -346,6 +467,12 @@ def completion_report(
     jobs: list[tuple[str, str]],
 ) -> dict[str, Any]:
     report = _BASE_COMPLETION_REPORT(args, context, jobs)
+    report["authorized_nodes"] = context["authorized_nodes"]
+    report["execution_node"] = context["execution_node"]
+    report["preflight_receipt"] = {
+        "path": context["preflight_receipt"]["receipt"],
+        "sha256": context["preflight_receipt"]["receipt_sha256"],
+    }
     report["evaluation_source"] = context["evaluation_source"]
     report["source_media_audit"] = context["source_media_audit"]
     report["vbench_checkout_fingerprint"] = context[
@@ -358,6 +485,12 @@ def completion_report(
 def collect(args: Any, context: dict[str, Any]) -> dict[str, Any]:
     report = _BASE_COLLECT(args, context)
     provenance = {
+        "authorized_nodes": context["authorized_nodes"],
+        "execution_node": context["execution_node"],
+        "preflight_receipt": {
+            "path": context["preflight_receipt"]["receipt"],
+            "sha256": context["preflight_receipt"]["receipt_sha256"],
+        },
         "evaluation_source": context["evaluation_source"],
         "source_media_audit": context["source_media_audit"],
         "vbench_checkout_fingerprint": context[
@@ -458,10 +591,13 @@ def _path_option_from_argv(name: str) -> Path:
 
 
 def _require_v211_output_root(root: Path, label: str) -> Path:
-    lowered = "/".join(root.parts[-2:]).lower()
-    if "v209" in lowered or "v210" in lowered:
+    resolved = root.expanduser().resolve()
+    if any(
+        "v209" in component.lower() or "v210" in component.lower()
+        for component in resolved.parts
+    ):
         raise ValueError(f"v211 {label} must not reference v209/v210 artifacts")
-    return root
+    return resolved
 
 
 def comparison_root_from_argv() -> Path:
@@ -480,10 +616,67 @@ def validate_output_roots_from_argv() -> None:
             _require_v211_output_root(_path_option_from_argv(option), label)
 
 
-def source_preflight(
-    manifest: dict[str, Any], evaluation_root: Path, vbench_root: Path
+def preflight_receipt_path(manifest_path: Path) -> Path:
+    return manifest_path.parent / PREFLIGHT_RECEIPT_NAME
+
+
+def expected_preflight_receipt(
+    manifest: dict[str, Any], manifest_path: Path
 ) -> dict[str, Any]:
+    return {
+        "version": 1,
+        "comparison_manifest_sha256": base.sha256(manifest_path),
+        "authorized_nodes": list(AUTHORIZED_NODES),
+        "forbidden_nodes": sorted(FORBIDDEN_NODES),
+        "preparation_execution_node": manifest.get("preparation_execution_node"),
+        "source_generation_commit": FROZEN_GENERATION_COMMIT,
+        "evaluation_source": {
+            "evaluation_root": str(Path(str(manifest.get("evaluation_root", ""))).resolve()),
+            "evaluation_commit": manifest.get("evaluation_commit"),
+            "runtime_file_sha256": manifest.get("evaluation_runtime_sha256"),
+        },
+        "source_media_audit": recorded_source_media_audit(manifest),
+        "vbench_root": str(Path(str(manifest.get("vbench_root", ""))).resolve()),
+        "vbench_checkout_fingerprint": manifest.get("vbench_checkout_fingerprint"),
+    }
+
+
+def validate_preflight_receipt(
+    manifest: dict[str, Any], manifest_path: Path
+) -> dict[str, Any]:
+    path = preflight_receipt_path(manifest_path).resolve()
+    try:
+        encoded = path.read_bytes()
+        receipt = json.loads(encoded)
+    except FileNotFoundError as error:
+        raise ValueError("missing frozen v211 evaluation preflight receipt") from error
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("invalid frozen v211 evaluation preflight receipt") from error
+    if receipt != expected_preflight_receipt(manifest, manifest_path):
+        raise ValueError("frozen v211 evaluation preflight receipt drift")
+    return {
+        **receipt,
+        "receipt": str(path),
+        "receipt_sha256": hashlib.sha256(encoded).hexdigest(),
+    }
+
+
+def source_preflight(
+    manifest: dict[str, Any],
+    manifest_path: Path,
+    evaluation_root: Path,
+    vbench_root: Path,
+    *,
+    strong: bool = True,
+) -> dict[str, Any]:
+    receipt = validate_preflight_receipt(manifest, manifest_path)
     actual_vbench_root = validate_vbench_root(manifest, vbench_root)
+    if Path(evaluation_root).resolve() != Path(
+        receipt["evaluation_source"]["evaluation_root"]
+    ).resolve() or actual_vbench_root != Path(receipt["vbench_root"]).resolve():
+        raise ValueError("v211 source preflight path drift")
+    if not strong:
+        return receipt
     evaluation_source = evaluation_source_provenance(
         evaluation_root,
         str(manifest.get("evaluation_commit", "")),
@@ -491,15 +684,13 @@ def source_preflight(
     )
     source_media_audit = validate_source_media(manifest)
     fingerprint = vbench_checkout_fingerprint(actual_vbench_root)
-    if fingerprint != manifest.get("vbench_checkout_fingerprint"):
-        raise ValueError("v211 VBench checkout fingerprint drift")
-    return {
-        "version": 1,
-        "evaluation_source": evaluation_source,
-        "source_media_audit": source_media_audit,
-        "vbench_root": str(actual_vbench_root),
-        "vbench_checkout_fingerprint": fingerprint,
-    }
+    if (
+        fingerprint != manifest.get("vbench_checkout_fingerprint")
+        or evaluation_source != receipt["evaluation_source"]
+        or source_media_audit != receipt["source_media_audit"]
+    ):
+        raise ValueError("v211 source preflight receipt disagrees with strong validation")
+    return receipt
 
 
 def _canonical_digest(rows: list[dict[str, Any]]) -> str:
@@ -531,12 +722,20 @@ def build_split_provenance(
     clips_per_video = int(manifest["num_output_frames"]) // 8
     source_rows = []
     clip_rows = []
+    jobs = {
+        (str(row.get("method", "")), int(row.get("prompt_index", -1))): row
+        for row in manifest.get("jobs") or ()
+    }
     for prompt_index in range(prompt_count):
         source = video_dir / comparison_name(prompt_index)
+        source_digest = base.sha256(source)
+        expected_digest = str(jobs.get((method, prompt_index), {}).get("media_sha256", ""))
+        if source_digest != expected_digest:
+            raise ValueError(f"v211 split content drift: {method} source video")
         source_rows.append(
             {
                 "name": source.name,
-                "sha256": base.sha256(source),
+                "sha256": source_digest,
                 "bytes": source.stat().st_size,
             }
         )
@@ -598,6 +797,92 @@ def _write_frozen_split_provenance(path: Path, payload: dict[str, Any]) -> None:
             raise ValueError(f"frozen v211 split provenance race: {path}")
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _validate_split_payload(
+    manifest: dict[str, Any],
+    manifest_path: Path,
+    method: str,
+    path: Path,
+    *,
+    strong: bool,
+) -> tuple[dict[str, Any], str]:
+    try:
+        encoded = path.read_bytes()
+        payload = json.loads(encoded)
+    except FileNotFoundError as error:
+        raise ValueError(f"missing v211 split provenance: {method}") from error
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"invalid v211 split provenance: {method}") from error
+    method_row = next(
+        (row for row in manifest.get("methods") or () if str(row.get("key")) == method),
+        None,
+    )
+    if method_row is None:
+        raise ValueError(f"unknown v211 split provenance method: {method}")
+    video_dir = Path(str(method_row["video_dir"])).resolve()
+    prompt_count = int(manifest["prompt_count"])
+    clips_per_video = int(manifest["num_output_frames"]) // 8
+    source_rows = payload.get("source_videos")
+    clip_rows = payload.get("clips")
+    jobs = {
+        (str(row.get("method", "")), int(row.get("prompt_index", -1))): row
+        for row in manifest.get("jobs") or ()
+    }
+    expected_source_names = [comparison_name(index) for index in range(prompt_count)]
+    expected_clip_names = [
+        f"split_clip/{Path(name).stem}/{Path(name).stem}_{clip_index:03d}.mp4"
+        for name in expected_source_names
+        for clip_index in range(clips_per_video)
+    ]
+    valid_rows = (
+        isinstance(source_rows, list)
+        and isinstance(clip_rows, list)
+        and len(source_rows) == prompt_count
+        and len(clip_rows) == prompt_count * clips_per_video
+        and [row.get("name") for row in source_rows if isinstance(row, dict)]
+        == expected_source_names
+        and [row.get("name") for row in clip_rows if isinstance(row, dict)]
+        == expected_clip_names
+        and all(
+            isinstance(row, dict)
+            and isinstance(row.get("bytes"), int)
+            and row["bytes"] > 0
+            and isinstance(row.get("sha256"), str)
+            and len(row["sha256"]) == 64
+            and all(character in "0123456789abcdef" for character in row["sha256"])
+            for row in [*source_rows, *clip_rows]
+        )
+    )
+    recorded_source_hashes = [
+        str(jobs.get((method, index), {}).get("media_sha256", ""))
+        for index in range(prompt_count)
+    ]
+    if (
+        payload.get("version") != 1
+        or payload.get("comparison_manifest_sha256") != base.sha256(manifest_path)
+        or payload.get("method") != method
+        or payload.get("video_dir") != str(video_dir)
+        or payload.get("vbench_root")
+        != str(Path(str(manifest["vbench_root"])).resolve())
+        or payload.get("vbench_checkout_fingerprint")
+        != manifest.get("vbench_checkout_fingerprint")
+        or not valid_rows
+        or [row["sha256"] for row in source_rows] != recorded_source_hashes
+        or payload.get("source_digest") != _canonical_digest(source_rows)
+        or payload.get("clip_digest") != _canonical_digest(clip_rows)
+    ):
+        raise ValueError(f"v211 split provenance drift: {method}")
+    if strong:
+        current = build_split_provenance(
+            manifest,
+            manifest_path,
+            method,
+            manifest["vbench_checkout_fingerprint"],
+        )
+        if payload != current:
+            raise ValueError(f"v211 split content drift: {method}")
+    return payload, hashlib.sha256(encoded).hexdigest()
 
 
 def validate_campaign_split_provenance(
@@ -673,6 +958,7 @@ def validate_split_provenance(
     *,
     only_method: str | None = None,
     require_campaign: bool = True,
+    strong: bool = True,
 ) -> dict[str, Any]:
     method_reports = {}
     aggregate_rows = []
@@ -680,35 +966,22 @@ def validate_split_provenance(
         method = str(method_row["key"])
         if only_method is not None and method != only_method:
             continue
-        video_dir = Path(str(method_row["video_dir"])).resolve()
-        path = split_provenance_path(video_dir)
-        if not path.is_file():
-            raise ValueError(f"missing v211 split provenance: {method}")
-        try:
-            frozen = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
-            raise ValueError(f"invalid v211 split provenance: {method}") from error
-        current = build_split_provenance(
-            manifest,
-            manifest_path,
-            method,
-            manifest["vbench_checkout_fingerprint"],
+        path = split_provenance_path(Path(str(method_row["video_dir"])).resolve())
+        payload, provenance_sha = _validate_split_payload(
+            manifest, manifest_path, method, path, strong=strong
         )
-        if frozen != current:
-            raise ValueError(f"v211 split content drift: {method}")
-        provenance_sha = base.sha256(path)
         method_reports[method] = {
             "provenance": str(path),
             "provenance_sha256": provenance_sha,
-            "source_digest": current["source_digest"],
-            "clip_digest": current["clip_digest"],
+            "source_digest": payload["source_digest"],
+            "clip_digest": payload["clip_digest"],
         }
         aggregate_rows.append(
             {
                 "method": method,
                 "provenance_sha256": provenance_sha,
-                "source_digest": current["source_digest"],
-                "clip_digest": current["clip_digest"],
+                "source_digest": payload["source_digest"],
+                "clip_digest": payload["clip_digest"],
             }
         )
     expected_methods = 1 if only_method is not None else len(manifest.get("methods") or ())
@@ -751,19 +1024,13 @@ def finalize_campaign_split_provenance(
         path = split_provenance_path(Path(str(method_row["video_dir"])).resolve())
         if not path.is_file():
             return None
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        current = build_split_provenance(
-            manifest,
-            manifest_path,
-            method,
-            manifest["vbench_checkout_fingerprint"],
+        payload, provenance_sha = _validate_split_payload(
+            manifest, manifest_path, method, path, strong=False
         )
-        if payload != current:
-            raise ValueError(f"v211 split content drift before finalization: {method}")
         aggregate_rows.append(
             {
                 "method": method,
-                "provenance_sha256": base.sha256(path),
+                "provenance_sha256": provenance_sha,
                 "source_digest": payload["source_digest"],
                 "clip_digest": payload["clip_digest"],
             }
@@ -792,11 +1059,18 @@ def guarded_split(
     evaluation_root: Path,
     vbench_root: Path,
 ) -> dict[str, Any]:
-    before = source_preflight(manifest, evaluation_root, vbench_root)
     node_rank = _int_option_from_argv("--node-rank", 0)
     num_nodes = _int_option_from_argv("--num-nodes", 1)
-    if num_nodes <= 0 or not 0 <= node_rank < num_nodes:
-        raise ValueError("require 0 <= node-rank < num-nodes")
+    execution_node = validate_execution_node(node_rank, num_nodes)
+    receipt = validate_preflight_receipt(manifest, manifest_path)
+    if Path(evaluation_root).resolve() != Path(
+        receipt["evaluation_source"]["evaluation_root"]
+    ).resolve():
+        raise ValueError("v211 evaluation root disagrees with preflight receipt")
+    if validate_vbench_root(manifest, vbench_root) != Path(
+        receipt["vbench_root"]
+    ).resolve():
+        raise ValueError("v211 VBench root disagrees with preflight receipt")
     original_argv = list(sys.argv)
     try:
         sys.argv = [sys.argv[0], *sys.argv[2:]]
@@ -805,13 +1079,13 @@ def guarded_split(
         splitter.main()
     finally:
         sys.argv = original_argv
-    after = source_preflight(manifest, evaluation_root, vbench_root)
-    if after != before:
+    after = validate_preflight_receipt(manifest, manifest_path)
+    if after != receipt:
         for method_row in manifest["methods"]:
             split_provenance_path(
                 Path(str(method_row["video_dir"])).resolve()
             ).unlink(missing_ok=True)
-        raise ValueError("v211 split inputs changed during splitting")
+        raise ValueError("v211 preflight receipt changed during splitting")
     methods = [str(row["key"]) for row in manifest["methods"]]
     selected = methods[node_rank::num_nodes]
     for method in selected:
@@ -819,7 +1093,7 @@ def guarded_split(
             manifest,
             manifest_path,
             method,
-            after["vbench_checkout_fingerprint"],
+            receipt["vbench_checkout_fingerprint"],
         )
         _write_frozen_split_provenance(
             split_provenance_path(Path(payload["video_dir"])), payload
@@ -830,7 +1104,8 @@ def guarded_split(
         "node_rank": node_rank,
         "num_nodes": num_nodes,
         "methods": selected,
-        "source_preflight": after,
+        "execution_node": execution_node,
+        "source_preflight": receipt,
         "campaign_finalized": campaign is not None,
     }
 
@@ -862,6 +1137,11 @@ def run_job(
                 "dimension": dimension,
                 "gpu": gpu,
                 "status": "locked",
+                "authorized_nodes": context.get("authorized_nodes"),
+                "execution_node": context.get("execution_node"),
+                "preflight_receipt_sha256": (
+                    context.get("preflight_receipt") or {}
+                ).get("receipt_sha256"),
                 "error": (
                     f"v211 VBench job lease locked: {method}:{dimension}; {owner}"
                 ),
@@ -882,13 +1162,19 @@ def run_job(
         handle.flush()
         os.fsync(handle.fileno())
         try:
-            return _BASE_RUN_JOB(
+            result = _BASE_RUN_JOB(
                 args,
                 context,
                 method=method,
                 dimension=dimension,
                 gpu=gpu,
             )
+            result["authorized_nodes"] = context.get("authorized_nodes")
+            result["execution_node"] = context.get("execution_node")
+            result["preflight_receipt_sha256"] = (
+                context.get("preflight_receipt") or {}
+            ).get("receipt_sha256")
+            return result
         finally:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
@@ -909,9 +1195,21 @@ def configure() -> dict:
     prompt_items = manifest.get("prompt_items") or ()
     evaluation_commit = str(manifest.get("evaluation_commit", ""))
     evaluation_hashes = manifest.get("evaluation_runtime_sha256")
+    preparation_node = manifest.get("preparation_execution_node")
     if (
         experiment != EXPECTED_EXPERIMENT
+        or manifest.get("source_generation_commit") != FROZEN_GENERATION_COMMIT
+        or tuple(manifest.get("authorized_nodes") or ()) != AUTHORIZED_NODES
+        or frozenset(manifest.get("forbidden_nodes") or ()) != FORBIDDEN_NODES
+        or preparation_node
+        != {
+            "authorized_nodes": list(AUTHORIZED_NODES),
+            "node_address": AUTHORIZED_NODES[0],
+            "node_rank": 0,
+            "num_nodes": EXPECTED_NUM_NODES,
+        }
         or len(evaluation_commit) != 40
+        or evaluation_commit == FROZEN_GENERATION_COMMIT
         or any(character not in "0123456789abcdef" for character in evaluation_commit)
         or not isinstance(evaluation_hashes, dict)
         or set(evaluation_hashes) != set(EVALUATION_RUNTIME_FILES)
@@ -965,11 +1263,17 @@ def main() -> None:
             raise RuntimeError("v211 evaluation root was not configured")
         manifest_path = comparison_root_from_argv() / "comparison_manifest.json"
         if sys.argv[1] == "source-preflight":
+            node_rank = _int_option_from_argv("--node-rank", 0)
+            num_nodes = _int_option_from_argv("--num-nodes", 1)
+            execution_node = validate_execution_node(node_rank, num_nodes)
             report = source_preflight(
                 manifest,
+                manifest_path,
                 EVALUATION_ROOT,
                 _path_option_from_argv("--vbench-root"),
+                strong=node_rank == 0,
             )
+            report["execution_node"] = execution_node
         else:
             report = guarded_split(
                 manifest,

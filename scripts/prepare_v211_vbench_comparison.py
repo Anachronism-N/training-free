@@ -14,6 +14,7 @@ from pathlib import Path
 from audit_v211_lphc_trace import audit_trace
 from prepare_v211_lphc import (
     AUTHORIZED_NODES,
+    FORBIDDEN_NODES,
     BASE_SEED,
     EXPERIMENT as SOURCE_EXPERIMENT,
     GATE0_METHODS,
@@ -32,7 +33,7 @@ from v210_vbench_fingerprint import vbench_checkout_fingerprint
 
 EXPERIMENT = "v211_lphc_vbench_screen8"
 SOURCE_INDICES = SCREEN8_SOURCE_INDICES
-FROZEN_GENERATION_COMMIT = os.environ.get("V211_GENERATION_COMMIT", "")
+FROZEN_GENERATION_COMMIT = "0cde4689ee4c2dc0d29b4aa386720e96dd51a5b6"
 DEFAULT_VBENCH_ROOT = Path(
     "/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/"
     "bench_baselines/VBench"
@@ -49,6 +50,7 @@ DIMENSIONS = (
     "imaging_quality",
     "temporal_style",
 )
+PREFLIGHT_RECEIPT_NAME = "v211_evaluation_preflight.json"
 EVALUATION_RUNTIME_FILES = (
     "scripts/prepare_v211_vbench_comparison.py",
     "scripts/run_v211_vbench.py",
@@ -85,6 +87,56 @@ def require_clean_checkout(root: Path) -> None:
         raise ValueError("v211 evaluation checkout must be exactly clean")
 
 
+def local_interface_addresses() -> frozenset[str]:
+    try:
+        output = subprocess.check_output(
+            ["hostname", "-I"], text=True, stderr=subprocess.DEVNULL
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return frozenset()
+    return frozenset(output.split())
+
+
+def validate_execution_node(
+    node_rank: int,
+    num_nodes: int,
+    node_address: str | None = None,
+    *,
+    interface_addresses: frozenset[str] | None = None,
+) -> dict:
+    if num_nodes != len(AUTHORIZED_NODES):
+        raise PermissionError(
+            f"v211 evaluation requires exactly {len(AUTHORIZED_NODES)} nodes"
+        )
+    if not 0 <= node_rank < num_nodes:
+        raise PermissionError("require 0 <= node-rank < num-nodes")
+    address = node_address or os.environ.get("V211_NODE_ADDRESS")
+    if not address:
+        raise PermissionError("V211_NODE_ADDRESS is required for v211 evaluation")
+    if address in FORBIDDEN_NODES or address not in AUTHORIZED_NODES:
+        raise PermissionError(f"node address {address!r} is not in the exact v211 allowlist")
+    expected = AUTHORIZED_NODES[node_rank]
+    if address != expected:
+        raise PermissionError(
+            f"v211 node/rank mismatch: rank {node_rank} requires {expected}, got {address}"
+        )
+    observed = (
+        local_interface_addresses()
+        if interface_addresses is None
+        else interface_addresses
+    )
+    if address not in observed:
+        raise PermissionError(
+            f"node address {address!r} is not present on a local network interface"
+        )
+    return {
+        "authorized_nodes": list(AUTHORIZED_NODES),
+        "node_address": address,
+        "node_rank": node_rank,
+        "num_nodes": num_nodes,
+    }
+
+
 def evaluation_runtime_sha256(root: Path) -> dict[str, str]:
     result = {}
     for name in EVALUATION_RUNTIME_FILES:
@@ -115,21 +167,22 @@ def _inside(path: Path, root: Path) -> bool:
         return False
 
 
+def _has_legacy_component(path: Path) -> bool:
+    return any(
+        "v209" in component.lower() or "v210" in component.lower()
+        for component in path.expanduser().resolve().parts
+    )
+
+
 def _reject_legacy_root(path: Path, label: str) -> None:
-    resolved = path.expanduser().resolve()
-    lowered = "/".join(resolved.parts[-2:]).lower()
-    if "v209" in lowered or "v210" in lowered:
+    if _has_legacy_component(path):
         raise ValueError(f"v211 {label} must not reference a v209/v210 root: {path}")
 
 
 def _reject_legacy_artifacts(root: Path, label: str) -> None:
     if not root.exists():
         return
-    legacy = [
-        path
-        for path in root.rglob("*")
-        if "v209" in path.name.lower() or "v210" in path.name.lower()
-    ]
+    legacy = [path for path in root.rglob("*") if _has_legacy_component(path)]
     if legacy:
         raise ValueError(f"v211 {label} contains legacy artifact: {legacy[0]}")
 
@@ -358,6 +411,36 @@ def _dense_prompt_items(manifest: dict) -> list[dict]:
     ]
 
 
+def _canonical_digest(rows: list[dict]) -> str:
+    encoded = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _source_media_audit_from_jobs(jobs: list[dict]) -> dict:
+    audit_rows = [
+        {
+            "method": row["method"],
+            "prompt_index": row["prompt_index"],
+            "source_index": row["source_index"],
+            "media_sha256": row["media_sha256"],
+        }
+        for row in jobs
+    ]
+    per_method = {}
+    for method in METHODS:
+        rows = [row for row in audit_rows if row["method"] == method]
+        per_method[method] = {
+            "video_count": len(rows),
+            "mapping_sha256": _canonical_digest(rows),
+        }
+    return {
+        "version": 1,
+        "video_count": len(audit_rows),
+        "mapping_sha256": _canonical_digest(audit_rows),
+        "methods": per_method,
+    }
+
+
 def _validate_job(
     run_root: Path,
     manifest_path: Path,
@@ -485,12 +568,22 @@ def prepare(
     repo_root: Path,
     vbench_root: Path = DEFAULT_VBENCH_ROOT,
     generation_commit: str | None = None,
+    *,
+    node_rank: int = 0,
+    num_nodes: int = len(AUTHORIZED_NODES),
+    node_address: str | None = None,
 ) -> dict:
     generation_commit = generation_commit or FROZEN_GENERATION_COMMIT
-    if not _valid_sha256(generation_commit, 40):
+    if generation_commit != FROZEN_GENERATION_COMMIT:
         raise ValueError(
-            "V211 generation commit must be supplied as an explicit full SHA"
+            "V211 generation commit must equal the frozen full SHA "
+            f"{FROZEN_GENERATION_COMMIT}"
         )
+    if node_rank != 0:
+        raise PermissionError("v211 comparison preparation requires node rank 0")
+    execution_node = validate_execution_node(
+        node_rank, num_nodes, node_address
+    )
     run_root = run_root.expanduser().resolve()
     comparison_root = comparison_root.expanduser().resolve()
     repo_root = repo_root.expanduser().resolve()
@@ -527,6 +620,8 @@ def prepare(
         character not in "0123456789abcdef" for character in evaluation_commit
     ):
         raise ValueError("invalid evaluation source commit")
+    if evaluation_commit == FROZEN_GENERATION_COMMIT:
+        raise ValueError("v211 evaluation commit must be distinct from frozen generation")
     vbench_fingerprint = vbench_checkout_fingerprint(vbench_root)
     if len(str(vbench_fingerprint.get("head", ""))) != 40:
         raise ValueError("invalid VBench checkout fingerprint")
@@ -585,6 +680,10 @@ def prepare(
         "experiment": EXPERIMENT,
         "development_only": True,
         "provenance_complete": True,
+        "authorized_nodes": list(AUTHORIZED_NODES),
+        "forbidden_nodes": sorted(FORBIDDEN_NODES),
+        "preparation_execution_node": execution_node,
+        "evaluation_root": str(repo_root),
         "evaluation_commit": evaluation_commit,
         "evaluation_runtime_sha256": evaluation_hashes,
         "source_experiment": SOURCE_EXPERIMENT,
@@ -624,9 +723,29 @@ def prepare(
     }
     manifest_output = comparison_root / "comparison_manifest.json"
     digest = write_frozen(manifest_output, payload)
+    receipt = {
+        "version": 1,
+        "comparison_manifest_sha256": digest,
+        "authorized_nodes": list(AUTHORIZED_NODES),
+        "forbidden_nodes": sorted(FORBIDDEN_NODES),
+        "preparation_execution_node": execution_node,
+        "source_generation_commit": manifest["source_commit"],
+        "evaluation_source": {
+            "evaluation_root": str(repo_root),
+            "evaluation_commit": evaluation_commit,
+            "runtime_file_sha256": evaluation_hashes,
+        },
+        "source_media_audit": _source_media_audit_from_jobs(jobs),
+        "vbench_root": str(vbench_root),
+        "vbench_checkout_fingerprint": vbench_fingerprint,
+    }
+    receipt_output = comparison_root / PREFLIGHT_RECEIPT_NAME
+    receipt_digest = write_frozen(receipt_output, receipt)
     return {
         "manifest": str(manifest_output.resolve()),
         "manifest_sha256": digest,
+        "preflight_receipt": str(receipt_output.resolve()),
+        "preflight_receipt_sha256": receipt_digest,
         "evaluation_commit": evaluation_commit,
         "methods": len(METHODS),
         "videos": len(jobs),
@@ -648,6 +767,9 @@ def main() -> None:
         "--repo-root", type=Path, default=Path(__file__).resolve().parents[1]
     )
     parser.add_argument("--vbench-root", type=Path, default=DEFAULT_VBENCH_ROOT)
+    parser.add_argument("--node-rank", type=int, default=0)
+    parser.add_argument("--num-nodes", type=int, default=len(AUTHORIZED_NODES))
+    parser.add_argument("--node-address", default=os.environ.get("V211_NODE_ADDRESS"))
     args = parser.parse_args()
     report = prepare(
         args.run_root,
@@ -655,6 +777,9 @@ def main() -> None:
         args.repo_root,
         args.vbench_root,
         args.generation_commit,
+        node_rank=args.node_rank,
+        num_nodes=args.num_nodes,
+        node_address=args.node_address,
     )
     print(
         "[v211-vbench-prepare] "
