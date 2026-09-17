@@ -7,7 +7,7 @@ import argparse
 import concurrent.futures
 import json
 import os
-import platform
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +17,7 @@ from prepare_v210_lphc import (
     DEFAULT_CHECKPOINT,
     DEFAULT_PROMPT_SOURCE,
     DEFAULT_WAN_MODEL,
+    AUTHORIZED_NODES,
     GATE0_METHODS,
     GATE0_SOURCE_INDICES,
     METHODS,
@@ -34,8 +35,25 @@ from run_v210_worker import (
     quarantine_job,
 )
 
-ACTIONS = ("prepare", "status", "gate0", "smoke", "screen8", "recover")
+ACTIONS = ("prepare", "status", "gate0", "smoke", "screen8", "launch-screen8", "recover")
 SMOKE_METHOD = "lphc_e1_a010_correct"
+GATE_EVENT_COUNTS = {
+    "input_noise": 1,
+    "noisy_input": 40,
+    "cache_readout": 50,
+    "attention_output": 50,
+    "flow_prediction": 40,
+    "denoised_prediction": 40,
+    "scheduler_noise": 30,
+    "scheduler_output": 30,
+    "committed_latent": 10,
+    "clean_refresh_input": 10,
+    "clean_flow_prediction": 10,
+    "final_latents": 1,
+}
+GATE_FULL_EVENTS = set(GATE_EVENT_COUNTS) - {"decoded_video"}
+CONDA_ACTIVATION = "/apdcephfs_gy2/share_303214315/cedricnie/activate_conda_gy2.sh"
+REMOTE_REPO_ROOT = "/apdcephfs_gy2/share_303214315/cedricnie/develop/training-free"
 
 
 def decision_path(output_root: Path, stage: str) -> Path:
@@ -103,12 +121,12 @@ def launch_worker(repo_root: Path, output_root: Path, stage: str, method: str, s
 
 
 def compare_gate_tensors(native: dict, alpha0: dict) -> dict:
-    """Require exact equality of the gate's full input-noise and final-latent tensors."""
+    """Require exact equality of the complete frozen 30-frame SF trajectory."""
+    from collections import Counter
+
     import torch
 
-    required = {"input_noise", "final_latents"}
-
-    def load(done: dict) -> dict[tuple, dict]:
+    def load(done: dict) -> tuple[Path, list[dict]]:
         trace = done.get("tensor_trace") or {}
         directory = Path(trace.get("path", ""))
         events_path = directory / "events.jsonl"
@@ -116,41 +134,76 @@ def compare_gate_tensors(native: dict, alpha0: dict) -> dict:
         if not trace.get("present") or not events_path.is_file() or not meta_path.is_file():
             raise RuntimeError("gate0 tensor trace is incomplete")
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        if meta.get("contract_sha256") != done["contract_sha256"] or meta.get("reference_attention") is not False:
-            raise RuntimeError("gate0 tensor trace provenance mismatch")
-        result = {}
-        for line in events_path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            row = json.loads(line)
-            if row.get("event") not in required:
-                continue
-            context = row.get("context", {})
-            key = (row["event"], context.get("video_index"), row.get("counter"))
-            payload = torch.load(directory / row["file"], map_location="cpu", weights_only=False)
-            result[key] = payload.get("tensors", {})
-        if {key[0] for key in result} != required:
-            raise RuntimeError("gate0 tensor trace lacks input_noise or final_latents")
-        return result
+        if (
+            meta.get("contract_sha256") != done["contract_sha256"]
+            or meta.get("reference_attention") is not False
+            or meta.get("trace_layers") != [0]
+        ):
+            raise RuntimeError("gate0 tensor trace provenance/layer coverage mismatch")
+        rows = [
+            json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        counts = Counter(row.get("event") for row in rows)
+        if any(counts[event] != count for event, count in GATE_EVENT_COUNTS.items()):
+            raise RuntimeError(f"gate0 tensor event coverage mismatch: {dict(counts)}")
+        return directory, rows
 
-    left, right = load(native), load(alpha0)
+    def identity(row: dict) -> tuple:
+        context = row.get("context", {})
+        metadata = row.get("metadata", {})
+        return (
+            row["event"], context.get("video_index"), context.get("ar_block"),
+            context.get("call_kind"), context.get("call_index"), metadata.get("layer"),
+            metadata.get("subcall"), row.get("counter"),
+        )
+
+    def exact(left, right) -> bool:
+        if isinstance(left, torch.Tensor) and isinstance(right, torch.Tensor):
+            return left.shape == right.shape and left.dtype == right.dtype and torch.equal(left, right)
+        if isinstance(left, dict) and isinstance(right, dict):
+            return set(left) == set(right) and all(exact(left[key], right[key]) for key in left)
+        if isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)):
+            return len(left) == len(right) and all(exact(a, b) for a, b in zip(left, right))
+        return left == right
+
+    left_dir, left_rows = load(native)
+    right_dir, right_rows = load(alpha0)
+    left_selected = [row for row in left_rows if row["event"] in GATE_EVENT_COUNTS]
+    right_selected = [row for row in right_rows if row["event"] in GATE_EVENT_COUNTS]
+    left = {identity(row): row for row in left_selected}
+    right = {identity(row): row for row in right_selected}
     errors = []
+    if len(left) != len(left_selected) or len(right) != len(right_selected):
+        errors.append("duplicate tensor event identity")
     if set(left) != set(right):
         errors.append("tensor event identities differ")
     compared = 0
     for key in sorted(set(left) & set(right), key=str):
-        if set(left[key]) != set(right[key]):
-            errors.append(f"{key}: tensor names differ")
+        left_row, right_row = left[key], right[key]
+        left_context = {name: value for name, value in left_row.get("context", {}).items() if name != "runtime"}
+        right_context = {name: value for name, value in right_row.get("context", {}).items() if name != "runtime"}
+        if left_context != right_context or left_row.get("metadata") != right_row.get("metadata"):
+            errors.append(f"{key}: context/cache metadata differs")
             continue
-        for name in sorted(left[key]):
-            left_tensor = left[key][name].get("full")
-            right_tensor = right[key][name].get("full")
-            if left_tensor is None or right_tensor is None:
-                errors.append(f"{key}/{name}: full tensor missing")
-            elif not torch.equal(left_tensor, right_tensor):
-                errors.append(f"{key}/{name}: tensors differ")
-            compared += 1
-    return {"pass": not errors and compared > 0, "compared_tensors": compared, "errors": errors}
+        left_payload = torch.load(left_dir / left_row["file"], map_location="cpu", weights_only=False)
+        right_payload = torch.load(right_dir / right_row["file"], map_location="cpu", weights_only=False)
+        if not exact(left_payload.get("tensors", {}), right_payload.get("tensors", {})):
+            errors.append(f"{key}: tensor payload differs")
+        compared += sum(len(value) for value in left_payload.get("tensors", {}).values())
+    for done in (native, alpha0):
+        logs = "\n".join(
+            Path(done[name]).read_text(encoding="utf-8", errors="replace")
+            for name in ("stdout_log", "stderr_log") if done.get(name) and Path(done[name]).is_file()
+        )
+        if "Traceback (most recent call last)" in logs or "SFParityTraceWarning" in logs:
+            errors.append("runtime or parity trace warning")
+    return {
+        "pass": not errors and compared > 0,
+        "compared_tensor_fields": compared,
+        "event_counts": GATE_EVENT_COUNTS,
+        "errors": errors[:20],
+    }
 
 
 def run_gate0(repo_root: Path, output_root: Path, manifest_path: Path, manifest: dict, gpu: str) -> dict:
@@ -250,19 +303,19 @@ def run_smoke(repo_root: Path, output_root: Path, manifest_path: Path, manifest:
     return report
 
 
-def validate_node_rank(manifest: dict, node_rank: int, hostname: str | None = None) -> str:
-    host = assert_authorized_node(manifest) if hostname is None else assert_authorized_node(manifest, hostname)
-    expected = manifest["execution"]["node_rank_by_hostname"].get(host)
+def validate_node_rank(manifest: dict, node_rank: int, node_address: str | None = None) -> str:
+    address = assert_authorized_node(manifest, node_address)
+    expected = manifest["execution"]["node_rank_by_address"].get(address)
     if manifest["execution"].get("node_count") != 6 or expected != node_rank:
-        raise ValueError(f"node rank {node_rank} does not match frozen six-node assignment for {host}")
-    return host
+        raise ValueError(f"node rank {node_rank} does not match frozen six-node assignment for {address}")
+    return address
 
 
 def screen_assignments(node_rank: int, gpus: tuple[str, ...], num_nodes: int = 6) -> dict[str, list[tuple[str, int]]]:
     if num_nodes != 6 or not 0 <= node_rank < num_nodes:
         raise ValueError("v210 screen requires node ranks 0..5 of exactly six nodes")
-    if not gpus or len(set(gpus)) != len(gpus) or any(not gpu for gpu in gpus):
-        raise ValueError("GPU list must contain distinct non-empty device identifiers")
+    if tuple(gpus) != tuple(str(index) for index in range(8)):
+        raise ValueError("v210 screen requires the frozen GPU slots 0..7 on every node")
     jobs = [(method, source_index) for method in METHODS for source_index in SOURCE_INDICES]
     world = num_nodes * len(gpus)
     result = {gpu: [] for gpu in gpus}
@@ -292,6 +345,45 @@ def run_screen8(
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(gpus)) as pool:
         futures = [pool.submit(run_lane, gpu, jobs) for gpu, jobs in assignments.items()]
+        for future in futures:
+            future.result()
+
+
+def screen_ssh_commands(manifest: dict, output_root: Path, gpu_list: str) -> list[list[str]]:
+    nodes = manifest["authorized_nodes"]
+    if any(node in {"28.216.19.69", "28.216.19.70"} for node in nodes):
+        raise ValueError("forbidden nodes are present in the v210 contract")
+    frozen_gpus = ",".join(manifest["execution"]["gpu_slots"])
+    if gpu_list != frozen_gpus:
+        raise ValueError("SSH screen launch must use the frozen GPU slots")
+    commands = []
+    for rank, node in enumerate(nodes):
+        remote = shlex.join([
+            "bash", "-lc",
+            " && ".join([
+                f"source {shlex.quote(CONDA_ACTIVATION)} longlive",
+                f"cd {shlex.quote(REMOTE_REPO_ROOT)}",
+                f"export V210_NODE_ADDRESS={shlex.quote(node)} NODE_RANK={rank} NUM_NODES=6 GPU_LIST={shlex.quote(gpu_list)}",
+                shlex.join([
+                    "python", "scripts/run_v210_lphc.py", "screen8",
+                    "--repo-root", REMOTE_REPO_ROOT,
+                    "--output-root", str(output_root),
+                    "--node-rank", str(rank), "--num-nodes", "6",
+                    "--gpu-list", gpu_list,
+                ]),
+            ]),
+        ])
+        commands.append([
+            "ssh", "-p", "36000", "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=30", f"root@{node}", remote,
+        ])
+    return commands
+
+
+def launch_screen8_cluster(manifest: dict, output_root: Path, gpu_list: str) -> None:
+    commands = screen_ssh_commands(manifest, output_root, gpu_list)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(commands)) as pool:
+        futures = [pool.submit(subprocess.run, command, check=True) for command in commands]
         for future in futures:
             future.result()
 
@@ -352,7 +444,10 @@ def main() -> None:
     parser.add_argument("--source-prompts", type=Path, default=DEFAULT_PROMPT_SOURCE)
     parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
     parser.add_argument("--wan-model", type=Path, default=DEFAULT_WAN_MODEL)
-    parser.add_argument("--authorized-nodes", default=os.environ.get("V210_AUTHORIZED_NODES", ""))
+    parser.add_argument(
+        "--authorized-nodes",
+        default=os.environ.get("V210_AUTHORIZED_NODES", ",".join(AUTHORIZED_NODES)),
+    )
     parser.add_argument("--node-rank", type=int, default=int(os.environ.get("NODE_RANK", "0")))
     parser.add_argument("--num-nodes", type=int, default=int(os.environ.get("NUM_NODES", "6")))
     parser.add_argument("--gpu-list", default=os.environ.get("GPU_LIST", "0,1,2,3,4,5,6,7"))
@@ -370,7 +465,7 @@ def main() -> None:
         )
         print(f"[v210] prepared {output_root}")
         return
-    launching = args.action in {"gate0", "smoke", "screen8"}
+    launching = args.action in {"gate0", "smoke", "screen8", "launch-screen8"}
     manifest = verify(
         manifest_path,
         repo_root,
@@ -384,6 +479,10 @@ def main() -> None:
         if args.node_rank != 0:
             raise ValueError("recovery runs once on frozen node rank 0")
         print(json.dumps({"quarantined": recover(output_root, manifest_path, manifest)}, indent=2))
+    elif args.action == "launch-screen8":
+        require_decision(output_root, "gate0", manifest_path, manifest)
+        require_decision(output_root, "smoke", manifest_path, manifest)
+        launch_screen8_cluster(manifest, output_root, ",".join(gpus))
     elif args.action == "gate0":
         validate_node_rank(manifest, args.node_rank)
         if args.node_rank != 0:

@@ -108,7 +108,8 @@ def audit_trace(
     totals = {"lookup": 0, "random": 0, "second_attention": 0}
     maximums = {"archive_size": 0, "selected": 0, "correction_ratio": 0.0}
     attention_rows = 0
-    previous_second_by_layer: dict[int, int] = {}
+    active_lookup_rows = 0
+    active_selected_rows = 0
     for row in rows:
         line = row["_audit_line"]
         # A clean-commit event may carry the just-completed noisy read snapshot
@@ -150,6 +151,9 @@ def audit_trace(
             "selected_frame_ids", "last_selected_frame_ids", "selected_archive_indices",
             "selected_archive_frames", "selected_history_indices", "selected_history_frames",
             "selected_indices", "selected_frames"
+        ))
+        eligible = _indices(sample, (
+            "eligible_frame_indices", "eligible_frame_ids", "last_eligible_frame_ids"
         ))
         overlap = local & selected
         if overlap:
@@ -194,38 +198,44 @@ def audit_trace(
         lookup = max(lookup, _event_count(row, ("lookup",)))
         random = max(random, _event_count(row, ("random",)))
         second = max(second, _event_count(row, ("second", "attention")))
-        totals["lookup"] += lookup
-        totals["random"] += random
-        totals["second_attention"] += second
-        if second and not expected_second:
-            errors.append(f"line {line}: unexpected second attention")
         if row.get("event") == "attention_call":
-            layer = int(row.get("layer_idx", row.get("layer_id", -1)))
-            previous = previous_second_by_layer.get(layer, 0)
-            if second < previous:
-                errors.append(f"line {line}: second-attention counter decreased")
-            delta = max(0, second - previous)
-            previous_second_by_layer[layer] = second
+            totals["lookup"] += lookup
+            totals["random"] += random
+            totals["second_attention"] += second
             phase_index = int(row.get("phase_index", -1))
-            allowed = (
+            active = (
                 expected_second
                 and str(row.get("call_kind")) == "noisy"
                 and phase_index in _PHASES[phase]
             )
-            if delta and not allowed:
-                errors.append(f"line {line}: second attention occurred outside expected phase")
+            if active and lookup:
+                active_lookup_rows += 1
+            if active and eligible and selected_count and selected:
+                active_selected_rows += 1
+            if not active and (lookup or random or second or selected_count or selected):
+                errors.append(f"line {line}: unexpected second/intervention activity outside expected phase")
+            if second and not expected_second:
+                errors.append(f"line {line}: unexpected second attention")
+            if second > 1:
+                errors.append(f"line {line}: more than one second attention in a call")
 
     if not rows:
         errors.append("trace contains no events")
     elif not attention_rows:
         errors.append("trace contains no attention_call events")
-    if expected_second and totals["second_attention"] == 0:
-        errors.append("expected LPHC second attention was never observed")
+    if expected_second:
+        if totals["lookup"] == 0 or active_lookup_rows == 0:
+            errors.append("expected LPHC history lookup was never observed")
+        if active_selected_rows == 0:
+            errors.append("expected nonempty eligible and selected LPHC history was never observed")
+        if totals["second_attention"] == 0:
+            errors.append("expected LPHC second attention was never observed")
     if alpha == 0.0 and any(totals.values()):
         errors.append(f"alpha0 must have zero lookup/random/second counts, got {totals}")
     return {
         "version": 1,
         "trace_path": str(path.resolve()),
+        "trace_sha256": _sha256(path),
         "alpha": alpha,
         "tolerance": tolerance,
         "expect_second_attention": expected_second,

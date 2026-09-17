@@ -16,6 +16,11 @@ import run_v210_lphc as controller
 import run_v210_worker as worker
 
 
+@pytest.fixture(autouse=True)
+def allow_test_checkout(monkeypatch):
+    monkeypatch.setattr(prepare, "require_clean_checkout", lambda root: None)
+
+
 def prepared(tmp_path: Path) -> tuple[Path, dict]:
     source = tmp_path / "MovieGen_128_qwen.txt"
     source.write_text("\n".join(f"MovieGen prompt {index}" for index in range(128)) + "\n", encoding="utf-8")
@@ -24,9 +29,22 @@ def prepared(tmp_path: Path) -> tuple[Path, dict]:
     output_root = tmp_path / "v210"
     wan_model = tmp_path / "Wan2.1-T2V-1.3B"
     wan_model.mkdir()
-    nodes = [platform.node(), "node-b", "node-c", "node-d", "node-e", "node-f"]
+    for relative in prepare.WAN_REQUIRED_FILES:
+        path = wan_model / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(f"fixture:{relative}".encode())
+    tokenizer = wan_model / prepare.WAN_REQUIRED_DIRECTORIES[0] / "tokenizer.json"
+    tokenizer.parent.mkdir(parents=True, exist_ok=True)
+    tokenizer.write_text("{}", encoding="utf-8")
+    (wan_model / "diffusion_pytorch_model.safetensors").write_bytes(b"weights")
     payload = prepare.prepare(
-        ROOT, source, checkpoint, output_root / "inputs", nodes, wan_model
+        ROOT,
+        source,
+        checkpoint,
+        output_root / "inputs",
+        prepare.AUTHORIZED_NODES,
+        wan_model,
+        require_clean=False,
     )
     return output_root, payload
 
@@ -54,13 +72,15 @@ def test_prepare_freezes_prompt_config_checkpoint_runtime_and_nodes(tmp_path):
     assert prepare.verify(manifest_path, ROOT) == payload
     assert payload["source_commit"] == prepare.git_commit(ROOT)
     assert len(payload["authorized_nodes"]) == 6
-    assert platform.node() in payload["authorized_nodes"]
+    assert tuple(payload["authorized_nodes"]) == prepare.AUTHORIZED_NODES
     assert payload["checkpoint"]["sha256"] == prepare.sha256(Path(payload["checkpoint"]["path"]))
     assert payload["prompt_source"]["count"] == 128
     assert len(payload["prompt_items"]) == 8
     assert all(Path(item["path"]).read_text().count("\n") == 1 for item in payload["prompt_items"])
     assert payload["wan_model"]["runtime_present"] is True
-    assert isinstance(payload["wan_model"]["weights_present"], bool)
+    assert payload["wan_model"]["weights_present"] is True
+    assert payload["wan_model"]["inventory"]
+    assert all({"relative_path", "bytes", "mtime_ns", "sha256"} <= set(row) for row in payload["wan_model"]["inventory"])
     assert "scripts/run_v210_worker.py" in payload["runtime_paths"]
     assert "src/lifecycle_kv/lphc.py" in payload["runtime_paths"]
     for method in prepare.METHODS:
@@ -93,6 +113,12 @@ def test_verify_detects_config_prompt_and_source_commit_drift(monkeypatch, tmp_p
     with pytest.raises(ValueError, match="config drift"):
         prepare.verify(manifest_path, ROOT)
     config.write_text(config.read_text(encoding="utf-8").removesuffix("# drift\n"), encoding="utf-8")
+    model_file = Path(payload["wan_model"]["weights_path"]) / payload["wan_model"]["inventory"][0]["relative_path"]
+    original = model_file.read_bytes()
+    model_file.write_bytes(original + b"drift")
+    with pytest.raises(ValueError, match="Wan model stamp drift"):
+        prepare.verify(manifest_path, ROOT)
+    model_file.write_bytes(original)
     monkeypatch.setattr(prepare, "git_commit", lambda root: "0" * 40)
     with pytest.raises(ValueError, match="source commit drift"):
         prepare.verify(manifest_path, ROOT)
@@ -119,17 +145,28 @@ def test_environment_scrubbing_and_lphc_binding():
 
 
 def test_exact_node_allowlist_and_six_node_schedule():
-    with pytest.raises(ValueError, match="exactly six"):
+    with pytest.raises(ValueError, match="frozen six-IP"):
         prepare._normalize_nodes(["only-one"])
-    manifest = {"authorized_nodes": ["allowed-a", "allowed-b"]}
-    assert worker.assert_authorized_node(manifest, "allowed-a") == "allowed-a"
-    with pytest.raises(PermissionError, match="allowlist"):
-        worker.assert_authorized_node(manifest, "allowed-a.example")
-    assignments = [controller.screen_assignments(rank, ("0", "1")) for rank in range(6)]
+    manifest = {"authorized_nodes": list(prepare.AUTHORIZED_NODES)}
+    address = prepare.AUTHORIZED_NODES[0]
+    assert worker.assert_authorized_node(
+        manifest, address, interface_addresses=frozenset({address})
+    ) == address
+    with pytest.raises(PermissionError, match="local network interface"):
+        worker.assert_authorized_node(
+            manifest, address, interface_addresses=frozenset({"127.0.0.1"})
+        )
+    for forbidden in ("28.216.19.69", "28.216.19.70"):
+        with pytest.raises(PermissionError, match="allowlist"):
+            worker.assert_authorized_node(
+                manifest, forbidden, interface_addresses=frozenset({forbidden})
+            )
+    gpus = tuple(str(index) for index in range(8))
+    assignments = [controller.screen_assignments(rank, gpus) for rank in range(6)]
     jobs = [job for assignment in assignments for lane in assignment.values() for job in lane]
     assert len(jobs) == len(prepare.METHODS) * len(prepare.SOURCE_INDICES)
     assert len(set(jobs)) == len(jobs)
-    assert controller.screen_assignments(2, ("0", "1")) == assignments[2]
+    assert controller.screen_assignments(2, gpus) == assignments[2]
 
 
 def test_job_stamp_and_completion_marker_bind_identity(tmp_path):
@@ -165,7 +202,9 @@ def test_trace_auditor_accepts_bounded_protocol(tmp_path):
         "event": "attention_call", "call_kind": "noisy", "phase_index": 0, "layer_idx": 0,
         "history_source": "noisy",
         "clean_history_reads": 0, "archive_frames": 12,
-        "local_frame_indices": [20, 21, 22], "selected_history_frames": [1, 5, 9, 13],
+        "local_frame_indices": [20, 21, 22],
+        "eligible_frame_indices": [1, 5, 9, 13],
+        "selected_history_frames": [1, 5, 9, 13],
         "correction_ratio": 0.099, "lookup_count": 1, "random_count": 0,
         "second_attention_count": 1,
     }])
@@ -202,12 +241,23 @@ def test_gate0_compares_full_tensors_not_only_media(tmp_path):
         directory.mkdir()
         (directory / "trace_meta.json").write_text(json.dumps({
             "contract_sha256": "contract", "reference_attention": False,
+            "trace_layers": [0],
         }), encoding="utf-8")
         rows = []
-        for counter, (event, value) in enumerate((("input_noise", 1.0), ("final_latents", final_value))):
-            file = f"{counter}.pt"
-            torch.save({"tensors": {"latent": {"full": torch.tensor([value])}}}, directory / file)
-            rows.append({"event": event, "counter": counter, "context": {"video_index": 0}, "file": file})
+        counter = 0
+        for event, count in controller.GATE_EVENT_COUNTS.items():
+            for occurrence in range(count):
+                value = final_value if event == "final_latents" else 1.0
+                file = f"{counter}.pt"
+                torch.save({"tensors": {"latent": {"full": torch.tensor([value])}}}, directory / file)
+                rows.append({
+                    "event": event,
+                    "counter": counter,
+                    "context": {"video_index": 0, "call_index": occurrence},
+                    "metadata": {},
+                    "file": file,
+                })
+                counter += 1
         (directory / "events.jsonl").write_text(
             "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
         )
@@ -225,11 +275,15 @@ def test_smoke_is_one_full_length_lphc_job(tmp_path, monkeypatch):
     write_trace(trace, [{
         "event": "attention_call", "call_kind": "noisy", "phase_index": 0, "layer_idx": 0,
         "clean_history_reads": 0, "local_frame_indices": [20, 21], "archive_frames": 4,
-        "selected_history_frames": [1], "correction_ratio": 0.05,
+        "eligible_frame_indices": [1], "selected_history_frames": [1], "correction_ratio": 0.05,
         "lookup_count": 1, "random_count": 0, "second_attention_count": 1,
     }])
     launched = []
-    monkeypatch.setattr(controller, "assert_authorized_node", lambda manifest: platform.node())
+    monkeypatch.setattr(
+        controller,
+        "assert_authorized_node",
+        lambda manifest, address=None: prepare.AUTHORIZED_NODES[0],
+    )
     monkeypatch.setattr(controller, "require_decision", lambda *args: {"pass": True})
     monkeypatch.setattr(controller, "launch_worker", lambda *args: launched.append(args[3:]))
     monkeypatch.setattr(controller, "load_done", lambda *args: {"trace": {"path": str(trace), "present": True}})
@@ -254,9 +308,20 @@ def test_stage_decisions_bind_manifest_and_block_screen(tmp_path, monkeypatch):
     smoke = controller.decision_path(output_root, "smoke")
     smoke.parent.mkdir(parents=True, exist_ok=True)
     smoke.write_text(json.dumps(stale), encoding="utf-8")
-    monkeypatch.setattr(controller, "assert_authorized_node", lambda manifest: platform.node())
+    monkeypatch.setattr(
+        controller,
+        "assert_authorized_node",
+        lambda manifest, address=None: prepare.AUTHORIZED_NODES[0],
+    )
     with pytest.raises(RuntimeError, match="smoke decision"):
-        controller.run_screen8(ROOT, output_root, manifest_path, manifest, ("0",), 0)
+        controller.run_screen8(
+            ROOT,
+            output_root,
+            manifest_path,
+            manifest,
+            tuple(str(index) for index in range(8)),
+            0,
+        )
 
 
 def test_recover_only_quarantines_incomplete_jobs_inside_v210_root(tmp_path):

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
+import ipaddress
 import json
 import os
 import subprocess
@@ -23,8 +24,18 @@ DEFAULT_PROMPT_SOURCE = Path(
 DEFAULT_CHECKPOINT = Path(
     "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/self_forcing_dmd.pt"
 )
-DEFAULT_WAN_MODEL = Path(
-    "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/Wan2.1-T2V-1.3B"
+AUTHORIZED_NODES = (
+    "28.216.19.213",
+    "28.216.19.143",
+    "28.216.19.137",
+    "28.216.19.225",
+    "28.216.18.144",
+    "28.216.18.136",
+)
+FORBIDDEN_NODES = frozenset({"28.216.19.69", "28.216.17.70"})
+DEFAULT_WAN_MODEL = (
+    Path(__file__).resolve().parents[1]
+    / "third_party" / "Self-Forcing" / "wan_models" / "Wan2.1-T2V-1.3B"
 )
 SOURCE_INDICES = (1, 17, 33, 49, 65, 81, 97, 113)
 BASE_SEED = 21000
@@ -65,6 +76,14 @@ V210_RUNTIME_FILES = (
     "scripts/run_v210_lphc.py",
     "scripts/audit_v210_lphc_trace.py",
 )
+WAN_REQUIRED_FILES = (
+    "config.json",
+    "models_t5_umt5-xxl-enc-bf16.pth",
+    "Wan2.1_VAE.pth",
+)
+WAN_REQUIRED_GLOBS = ("diffusion_pytorch_model*",)
+WAN_REQUIRED_DIRECTORIES = ("google/umt5-xxl",)
+FROZEN_GPU_SLOTS = tuple(str(index) for index in range(8))
 
 
 def sha256(path: Path) -> str:
@@ -98,12 +117,35 @@ def git_commit(root: Path) -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
 
 
+def require_clean_checkout(root: Path) -> None:
+    changed = subprocess.check_output(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=root,
+        text=True,
+    ).splitlines()
+    relevant = [
+        line for line in changed
+        if any(path in line for path in (
+            "third_party/Self-Forcing/", "src/lifecycle_kv/", "scripts/", "tests/"
+        ))
+    ]
+    if relevant:
+        raise RuntimeError(
+            "v210 prepare requires a clean source checkout; dirty paths: "
+            + ", ".join(relevant[:8])
+        )
+
+
 def short_git_commit(root: Path) -> str:
     return git_commit(root)[:8]
 
 
 def default_output_root(root: Path) -> Path:
     return root / "runs" / f"v210_lphc_{short_git_commit(root)}_sixnode"
+
+
+def default_wan_model(root: Path) -> Path:
+    return root / "third_party" / "Self-Forcing" / "wan_models" / "Wan2.1-T2V-1.3B"
 
 
 def validate_output_root(path: Path) -> Path:
@@ -135,21 +177,65 @@ def source_hashes(root: Path, names: Iterable[str] | None = None) -> dict[str, s
     return {name: sha256(root / name) for name in sorted(selected)}
 
 
-def _checkpoint_row(checkpoint: Path, old: dict | None) -> dict:
-    stat = checkpoint.stat()
-    row = {"path": str(checkpoint.resolve()), "bytes": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+def file_stamp(path: Path, old: dict | None = None) -> dict:
+    stat = path.stat()
+    row = {"path": str(path.resolve()), "bytes": stat.st_size, "mtime_ns": stat.st_mtime_ns}
     if old and all(old.get(key) == value for key, value in row.items()):
         row["sha256"] = old["sha256"]
     else:
-        row["sha256"] = sha256(checkpoint)
+        row["sha256"] = sha256(path)
     return row
 
 
+def wan_inventory(root: Path, old: list[dict] | None = None) -> list[dict]:
+    old_by_relative = {row["relative_path"]: row for row in old or ()}
+    paths = [root / relative for relative in WAN_REQUIRED_FILES]
+    for pattern in WAN_REQUIRED_GLOBS:
+        matches = sorted(root.glob(pattern))
+        if not matches:
+            raise FileNotFoundError(f"Wan model lacks required files matching {pattern}: {root}")
+        paths.extend(matches)
+    for relative in WAN_REQUIRED_DIRECTORIES:
+        directory = root / relative
+        if not directory.is_dir() or not any(path.is_file() for path in directory.rglob("*")):
+            raise FileNotFoundError(f"Wan tokenizer directory is absent or empty: {directory}")
+        paths.extend(path for path in sorted(directory.rglob("*")) if path.is_file())
+    missing = [path for path in paths if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(f"Wan model required file is absent: {missing[0]}")
+    rows = []
+    for path in sorted(set(paths)):
+        relative = str(path.relative_to(root))
+        row = file_stamp(path, old_by_relative.get(relative))
+        row["relative_path"] = relative
+        row.pop("path")
+        rows.append(row)
+    return rows
+
+
+def verify_wan_inventory(root: Path, inventory: list[dict], *, check_hashes: bool) -> None:
+    if not root.is_dir() or not inventory:
+        raise ValueError("v210 Wan model is absent or has empty inventory")
+    for row in inventory:
+        path = root / row["relative_path"]
+        if not path.is_file():
+            raise ValueError(f"v210 Wan model file absent: {row['relative_path']}")
+        stat = path.stat()
+        if stat.st_size != row["bytes"] or stat.st_mtime_ns != row["mtime_ns"]:
+            raise ValueError(f"v210 Wan model stamp drift: {row['relative_path']}")
+        if check_hashes and sha256(path) != row["sha256"]:
+            raise ValueError(f"v210 Wan model hash drift: {row['relative_path']}")
+
+
+def _checkpoint_row(checkpoint: Path, old: dict | None) -> dict:
+    return file_stamp(checkpoint, old)
+
+
 def _normalize_nodes(nodes: Iterable[str]) -> list[str]:
-    result = list(dict.fromkeys(node.strip() for node in nodes if node.strip()))
-    if len(result) != 6 or any(any(char.isspace() for char in node) for node in result):
-        raise ValueError("require exactly six distinct authorized node hostnames")
-    return result
+    result = tuple(dict.fromkeys(node.strip() for node in nodes if node.strip()))
+    if result != AUTHORIZED_NODES or FORBIDDEN_NODES & set(result):
+        raise ValueError("authorized nodes must exactly match the frozen six-IP allowlist in order")
+    return list(result)
 
 
 def prepare(
@@ -157,10 +243,14 @@ def prepare(
     source: Path,
     checkpoint: Path,
     output: Path,
-    authorized_nodes: Iterable[str],
-    wan_model: Path = DEFAULT_WAN_MODEL,
+    authorized_nodes: Iterable[str] = AUTHORIZED_NODES,
+    wan_model: Path | None = None,
+    *,
+    require_clean: bool = True,
 ) -> dict:
     root = root.resolve()
+    if require_clean:
+        require_clean_checkout(root)
     output = validate_output_root(output)
     nodes = _normalize_nodes(authorized_nodes)
     prompts = source.read_text(encoding="utf-8").splitlines()
@@ -181,7 +271,9 @@ def prepare(
 
     sf_root = root / "third_party" / "Self-Forcing"
     wan_root = sf_root / "wan"
-    wan_weights = wan_model.expanduser().resolve()
+    wan_weights = (wan_model or default_wan_model(root)).expanduser()
+    wan_weights = wan_weights if wan_weights.is_absolute() else (root / wan_weights)
+    wan_weights = wan_weights.absolute()
     required_wan_files = (wan_root / "__init__.py", wan_root / "configs" / "wan_t2v_14B.py")
     if not wan_root.is_dir() or not all(path.is_file() for path in required_wan_files):
         raise FileNotFoundError(f"Wan runtime is absent or incomplete: {wan_root}")
@@ -220,6 +312,9 @@ def prepare(
 
     manifest_path = output / "manifest.json"
     old = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else None
+    model_inventory = wan_inventory(
+        wan_weights, old.get("wan_model", {}).get("inventory") if old else None
+    )
     commit = git_commit(root)
     payload = {
         "version": 1,
@@ -234,14 +329,17 @@ def prepare(
             "runtime_path": str(wan_root.resolve()),
             "required_files": [str(path.resolve()) for path in required_wan_files],
             "runtime_present": True,
-            "weights_path": str(wan_weights.resolve()),
+            "weights_path": str(wan_weights),
             "weights_present": True,
+            "inventory": model_inventory,
         },
         "authorized_nodes": nodes,
         "execution": {
             "node_count": 6,
-            "node_rank_by_hostname": {node: rank for rank, node in enumerate(nodes)},
-            "screen_assignment": "method-major jobs round-robin over node-rank/GPU slots",
+            "node_rank_by_address": {node: rank for rank, node in enumerate(nodes)},
+            "gpu_slots": list(FROZEN_GPU_SLOTS),
+            "ssh_port": 36000,
+            "screen_assignment": "method-major jobs round-robin over frozen node-rank/GPU slots",
         },
         "source_indices": list(SOURCE_INDICES),
         "prompt_count": len(SOURCE_INDICES),
@@ -302,8 +400,17 @@ def verify(
         raise ValueError("v210 checkpoint hash drift")
     if not all(Path(item).is_file() for item in data["wan_model"]["required_files"]):
         raise ValueError("v210 Wan runtime drift")
-    if Path(data["wan_model"]["weights_path"]).is_dir() != data["wan_model"]["weights_present"]:
+    wan_root = Path(data["wan_model"]["weights_path"])
+    if wan_root.is_dir() != data["wan_model"]["weights_present"]:
         raise ValueError("v210 Wan model presence drift")
+    verify_wan_inventory(wan_root, data["wan_model"].get("inventory", []), check_hashes=check_runtime)
+    execution = data.get("execution", {})
+    if execution.get("gpu_slots") != list(FROZEN_GPU_SLOTS) or execution.get("ssh_port") != 36000:
+        raise ValueError("v210 execution topology drift")
+    if execution.get("node_rank_by_address") != {
+        node: rank for rank, node in enumerate(data.get("authorized_nodes", ()))
+    }:
+        raise ValueError("v210 node rank drift")
     if check_runtime:
         current = source_hashes(root, data["runtime_paths"])
         if current != data["runtime_paths"]:
@@ -321,8 +428,8 @@ def main() -> None:
     parser.add_argument("--output-root", type=Path)
     parser.add_argument(
         "--authorized-nodes",
-        default=os.environ.get("V210_AUTHORIZED_NODES", ""),
-        help="Comma-separated exact hostnames; required (or set V210_AUTHORIZED_NODES).",
+        default=os.environ.get("V210_AUTHORIZED_NODES", ",".join(AUTHORIZED_NODES)),
+        help="Frozen comma-separated node IPs; overrides must exactly match the allowlist.",
     )
     args = parser.parse_args()
     root = args.repo_root.resolve()

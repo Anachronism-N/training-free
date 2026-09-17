@@ -54,18 +54,35 @@ def scrub_env(env: dict[str, str]) -> dict[str, str]:
     }
 
 
+def local_interface_addresses() -> frozenset[str]:
+    try:
+        output = subprocess.check_output(
+            ["hostname", "-I"], text=True, stderr=subprocess.DEVNULL
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return frozenset()
+    return frozenset(output.split())
+
+
 def assert_authorized_node(
     manifest: dict,
     node_address: str | None = None,
     *,
     hostname: str | None = None,
+    interface_addresses: frozenset[str] | None = None,
 ) -> str:
+    del hostname  # Hostnames are identical across the fleet and are not identity evidence.
     actual = node_address or os.environ.get("V210_NODE_ADDRESS")
     allowed = manifest.get("authorized_nodes", [])
     if not actual:
         raise PermissionError("V210_NODE_ADDRESS is required for v210 launches")
     if actual not in allowed:
         raise PermissionError(f"node address {actual!r} is not in the exact v210 allowlist")
+    observed = local_interface_addresses() if interface_addresses is None else interface_addresses
+    if actual not in observed:
+        raise PermissionError(
+            f"node address {actual!r} is not present on a local network interface"
+        )
     return actual
 
 
@@ -201,8 +218,7 @@ def validate_media(path: Path, latent_frames: int) -> dict:
         raise RuntimeError(f"missing or empty expected media: {path}")
     result = {"valid": True, "expected": expected, "bytes": path.stat().st_size, "ffprobe": None}
     if shutil.which("ffprobe") is None:
-        result["validation_level"] = "nonempty_file; ffprobe unavailable"
-        return result
+        raise RuntimeError("ffprobe is required for the frozen v210 media audit")
     command = [
         "ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0",
         "-show_entries", "stream=width,height,r_frame_rate,nb_read_frames", "-of", "json", str(path),
@@ -292,6 +308,10 @@ def run_job(
     model_parent.mkdir(parents=True)
     model_link = model_parent / "Wan2.1-T2V-1.3B"
     model_link.symlink_to(Path(manifest["wan_model"]["weights_path"]), target_is_directory=True)
+    (runtime_workdir / "configs").symlink_to(
+        repo_root / "third_party" / "Self-Forcing" / "configs",
+        target_is_directory=True,
+    )
     trace_path = job / "trace.jsonl"
     latent_frames = manifest["gate_frames"] if stage == "gate0" else manifest["screen_frames"]
     runtime_dir = repo_root / "third_party" / "Self-Forcing"
@@ -312,9 +332,9 @@ def run_job(
             SF_PARITY_TRACE_DIR=str(tensor_trace_dir),
             SF_PARITY_RUN_KIND=f"v210_{method}",
             SF_PARITY_CONTRACT_SHA256=stamp["input_manifest_sha256"],
-            SF_PARITY_TRACE_LAYERS="999",
+            SF_PARITY_TRACE_LAYERS="0",
             SF_PARITY_FULL_CACHE_LAYERS="none",
-            SF_PARITY_SAMPLE_VALUES="32",
+            SF_PARITY_SAMPLE_VALUES="4096",
         )
     command = [
         sys.executable,
