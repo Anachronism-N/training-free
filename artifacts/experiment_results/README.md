@@ -6,4 +6,4 @@ Large generated media, model weights, VBench clips, tensor dumps, and raw traces
 
 - `v209_generation_86f10607/`: completed v209 Self-Forcing protocol/budget campaign. The frozen recommendation is `freeze_both_sf_protocol_controls_before_addon_screen`.
 - `v210_generation_789d8604_eval_08fe9d72/`: completed v210 LPHC Screen8 campaign and evaluation. The frozen recommendation is `stop_v210_no_eligible_lphc_candidate`.
-- The v211 compact package will be added after its source-bound campaign completes; files are never copied across campaign roots.
+- `v211_generation_9a1c352b_eval_3093c028/`: completed sink-preserving LPHC Screen8 campaign and evaluation. Both candidates were directionally positive, but the frozen recommendation is `stop_v211_no_eligible_lphc_candidate`.

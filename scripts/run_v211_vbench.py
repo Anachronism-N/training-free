@@ -49,6 +49,7 @@ _BASE_JOB_CONTRACT = base.job_contract
 _BASE_COMPLETION_REPORT = base.completion_report
 _BASE_COLLECT = base.collect
 _BASE_RUN_JOB = base.run_job
+_BASE_CONTRACTS_ARE_COMPATIBLE = base.contracts_are_compatible
 SPLIT_PROVENANCE_NAME = ".v211_split_provenance.json"
 CAMPAIGN_SPLIT_PROVENANCE_NAME = "v211_split_provenance.json"
 EXPECTED_NUM_NODES = len(AUTHORIZED_NODES)
@@ -459,6 +460,28 @@ def job_contract(context: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         "method": current_split["methods"][method],
     }
     return contract
+
+
+def contracts_are_compatible(actual: Any, expected: Any) -> bool:
+    if _BASE_CONTRACTS_ARE_COMPATIBLE(actual, expected):
+        return True
+    if not isinstance(actual, dict) or not isinstance(expected, dict):
+        return False
+    execution_node = actual.get("execution_node")
+    if not isinstance(execution_node, dict):
+        return False
+    rank = execution_node.get("node_rank")
+    if (
+        not isinstance(rank, int)
+        or not 0 <= rank < EXPECTED_NUM_NODES
+        or execution_node.get("node_address") != AUTHORIZED_NODES[rank]
+        or execution_node.get("num_nodes") != EXPECTED_NUM_NODES
+        or execution_node.get("authorized_nodes") != list(AUTHORIZED_NODES)
+    ):
+        return False
+    adjusted = json.loads(json.dumps(expected))
+    adjusted["execution_node"] = execution_node
+    return _BASE_CONTRACTS_ARE_COMPATIBLE(actual, adjusted)
 
 
 def completion_report(
@@ -1248,6 +1271,7 @@ def configure() -> dict:
     base.render_markdown = render
     base.runtime_contract = runtime_contract
     base.job_contract = job_contract
+    base.contracts_are_compatible = contracts_are_compatible
     base.run_job = run_job
     base.completion_report = completion_report
     base.collect = collect

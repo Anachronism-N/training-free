@@ -1,0 +1,95 @@
+{
+  "authorized_nodes": [
+    "28.216.19.213",
+    "28.216.19.143",
+    "28.216.19.137",
+    "28.216.19.225",
+    "28.216.18.144",
+    "28.216.18.136"
+  ],
+  "comparison_manifest_sha256": "fe25556db1775de3aa8c50092d06bf1da8fb9b0cf06deee5c1d4d775b0360e24",
+  "evaluation_source": {
+    "evaluation_commit": "3093c028eeb10a2a46c68feeca14c8d19657a54d",
+    "evaluation_root": "/tmp/training-free-v211-evaluation/3093c028-sparse",
+    "runtime_file_sha256": {
+      "scripts/analyze_v165_final_decision.py": "42faf1045d817f4ccd51ffdbeb23e73e8e6022cfc5f5e37e8ab9e5549dda241d",
+      "scripts/analyze_v174_paired_metrics.py": "799e21f7608702bdaecf2e6c08c486a1c876900c1fecc19d61d4263e1879ef26",
+      "scripts/analyze_v190_head_phase_causal_screen.py": "5234a94a18bdd0306a0325358347e7a8e3476eb4122d43a22148acc7b96b307a",
+      "scripts/analyze_v211_lphc_screen.py": "9c19e8dfe639b06558ebe02cd56d716528b5a13c256a39807723a21d6d62c835",
+      "scripts/bind_temporal_diagnostics.py": "0c924c97ccd2ba57dce480f046b3b21eaed8fa6e52962b39ef3826c2e4722a80",
+      "scripts/compute_temporal_jump_diagnostic.py": "9682f9cfacc32f7a8404b31bf759449e08897656bb101a2d3cb63b120da4cf8f",
+      "scripts/eval_vbench_long_prompt_aware.py": "72e3f1b6aecc08eac26912cc468dc9d92c6cdd5acdcb611a9fb54eb459218e43",
+      "scripts/prepare_v154_vbench_splits.py": "5bbe6cffadee9515241e54fa9a1011f067d65a210fdc8fc2e88d9631ee22b693",
+      "scripts/prepare_v174_vbench_splits.py": "b290540d20f7dc7b8743a983425402041320388fe051b7918631ed26b6c850e0",
+      "scripts/prepare_v211_vbench_comparison.py": "84c954af9c1f00ae48b3367c0098a82cb95274d852529a91bfa82f2e851dbbd9",
+      "scripts/run_v154_vbench_long.py": "767b1a20bf343f81688900bc10c6b1e2bcce0588f936c7450ff773dad5f4036f",
+      "scripts/run_v211_postprocess.sh": "d4db4301aa60294d693f331687bc5d21969079e02195a54f934b44187637282d",
+      "scripts/run_v211_vbench.py": "3be714950a37c38485543055e2a08f7483d56396520ad846d70a588f05cc6f3b",
+      "scripts/v210_vbench_fingerprint.py": "cb6cb69ce172313b58b7abb538ec79d1c2d422e061fcd26af4db98c32c21375c",
+      "scripts/vbench_long_split_cache.py": "b9cfe748b5f640877f014cb9fdef615cb2540d296757d140ba9487024dab3f27",
+      "scripts/vbench_quality_contract.py": "aa2f195ecc9b1316e9b55daabaa4fb554c1811f13f169f3bec5c85e08156e681"
+    }
+  },
+  "forbidden_nodes": [
+    "28.216.19.69",
+    "28.216.19.70"
+  ],
+  "preparation_execution_node": {
+    "authorized_nodes": [
+      "28.216.19.213",
+      "28.216.19.143",
+      "28.216.19.137",
+      "28.216.19.225",
+      "28.216.18.144",
+      "28.216.18.136"
+    ],
+    "node_address": "28.216.19.213",
+    "node_rank": 0,
+    "num_nodes": 6
+  },
+  "source_generation_commit": "9a1c352bd6d0594587acb3afdc0648a2c8a18730",
+  "source_media_audit": {
+    "mapping_sha256": "b79514a4798e83cebb296951f19dce8b331b1839a3c7a878bf922a1c2ea94c25",
+    "methods": {
+      "lphc_sink1_e1_a002_r4": {
+        "mapping_sha256": "bf22cf98b2b4b803da220606f11e72fd58c0f2f554de939464e63c76e38b5cd7",
+        "video_count": 8
+      },
+      "lphc_sink1_e1_a010_r4": {
+        "mapping_sha256": "af7dd441bc102cef784a074a8a65c8a19eebdb9f4a8fb7b067b48cd24ae44c60",
+        "video_count": 8
+      },
+      "sf_fifo21": {
+        "mapping_sha256": "bbda348aca2d78766563c4e08d2fe4dc678a70d03c035e090f48df3ee98fa34a",
+        "video_count": 8
+      },
+      "sf_sink1_21": {
+        "mapping_sha256": "45f95e97f13f3f3b1062ec6c27aa20f905e2d700a05f4557ffff2073a8cf4487",
+        "video_count": 8
+      }
+    },
+    "version": 1,
+    "video_count": 32
+  },
+  "vbench_checkout_fingerprint": {
+    "diff_binary_head_sha256": "cc749ef5553bd935b01ff3d8318f022d0a14e8f02bd5b803039e02a82e05cf76",
+    "dirty": true,
+    "head": "45e79ec14e69a2187202c675d2dbce1a71843d53",
+    "runtime_path_sha256": {
+      "vbench/appearance_style.py": "51ba49ee01313176f1bbeaaaec46a5f97cd7373e192889c5b0116851773c34d8",
+      "vbench/color.py": "b1bca546d3f12c4023009b7b541231f8cc8f549623712c5f08f69ba97635c72d",
+      "vbench/dynamic_degree.py": "f7bfaa283935047ffa24d09f5d8224ae17469833e77d451ab46b6dd77905a6cb",
+      "vbench/multiple_objects.py": "f11dcd908f5a960ca73e5467dd8838bb43c35866bd985350bedfd23e9e0a0fda",
+      "vbench/object_class.py": "bbaf68c048a314bf95b6cac2109d1e590aaccc7f5578449043296e7e3c08e938",
+      "vbench/scene.py": "32b4ff9ad6cf9d23b799c98b6e842586d2ef31e46947be9b7dbb66ff7dd9b3dd",
+      "vbench/spatial_relationship.py": "4a802f6249dc7046ac3b8c270861d43fc62c9d37026402baabf97e29efdb5146",
+      "vbench/third_party/tag2Text/med.py": "35b74ba3f1b11a3605f765da6577a0f8a79d4d710aca6acc0e6c95c180e56fd8",
+      "vbench/third_party/umt/models/modeling_finetune.py": "4f1a7fea6da2cb2896aa248ff9b31ce59c3d45b60799452cf888a20af3214421"
+    },
+    "status_porcelain_v1": " M vbench/appearance_style.py\n M vbench/color.py\n M vbench/dynamic_degree.py\n M vbench/multiple_objects.py\n M vbench/object_class.py\n M vbench/scene.py\n M vbench/spatial_relationship.py\n M vbench/third_party/tag2Text/med.py\n M vbench/third_party/umt/models/modeling_finetune.py\n",
+    "status_porcelain_v1_sha256": "939c33f0cd155f4d7c8843ad914f3d21b9b33968c74615649f98f9014fe2e04f",
+    "version": 1
+  },
+  "vbench_root": "/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/bench_baselines/VBench",
+  "version": 1
+}
