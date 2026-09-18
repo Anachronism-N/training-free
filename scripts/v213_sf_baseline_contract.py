@@ -74,20 +74,21 @@ def expected_records() -> set[tuple[str, int]]:
     return {(event, i) for event, count in COUNTS.items() for i in range(count)}
 
 
-def require_baseline(out: Path) -> dict:
+def require_baseline(out: Path, *, label="v213", sources=SOURCES) -> dict:
     path = out / "decisions/sf_upstream_gate.json"
     if not path.is_file():
-        raise ValueError("run v213 baseline before gate0/smoke/generation")
+        raise ValueError(f"run {label} baseline before gate0/smoke/generation")
     report = json.loads(path.read_text(encoding="utf-8"))
     if (report.get("pass") is not True or report.get("upstream_commit") != UPSTREAM_COMMIT
             or report.get("input_manifest_sha256") != sha256(out / "inputs/manifest.json")
             or report.get("contract_sha256") != sha256(out / "baseline/contract.json")):
         raise ValueError("official SF baseline gate failed or belongs to different inputs")
     jobs = report.get("jobs", [])
-    if (len(jobs) != 6 or {(r["source"], r["mode"]) for r in jobs} != {(s, m) for s in SOURCES for m in MODES}
-            or len(report.get("comparisons", [])) != 4
+    if (len(jobs) != len(sources) * len(MODES)
+            or {(r["source"], r["mode"]) for r in jobs} != {(s, m) for s in sources for m in MODES}
+            or len(report.get("comparisons", [])) != 2 * len(sources)
             or {(r["source"], r["kind"]) for r in report["comparisons"]}
-            != {(s, k) for s in SOURCES for k in ("official_repeat", "local_vs_official")}
+            != {(s, k) for s in sources for k in ("official_repeat", "local_vs_official")}
             or not all(row.get("pass") is True for row in report["comparisons"])):
         raise ValueError("official SF gate coverage incomplete")
     for row in jobs:

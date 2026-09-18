@@ -3,7 +3,7 @@ set -euo pipefail
 ACTION="${1:?action required}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CAMPAIGN="${LPHC_CAMPAIGN:-v212}"
-[[ "$CAMPAIGN" == v212 || "$CAMPAIGN" == v213 ]] || { echo "invalid campaign"; exit 2; }
+[[ "$CAMPAIGN" == v212 || "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 ]] || { echo "invalid campaign"; exit 2; }
 OUT_VAR="${CAMPAIGN^^}_OUT_ROOT"
 PROMPT_VAR="${CAMPAIGN^^}_SOURCE_PROMPTS"
 OUT="${!OUT_VAR:?set the campaign shared output root on all nodes}"
@@ -32,12 +32,12 @@ PY
 esac
 case "$ACTION" in
   baseline)
-    [[ "$CAMPAIGN" == v213 ]] || { echo "baseline is a v213-only action"; exit 2; }
-    python "$ROOT/scripts/run_v213_sf_baseline.py" --run-root "$OUT" \
+    [[ "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 ]] || { echo "baseline requires v213/v214"; exit 2; }
+    python "$ROOT/scripts/run_v213_sf_baseline.py" --run-root "$OUT" --campaign "$CAMPAIGN" \
       --upstream-root "${UPSTREAM_SF_ROOT:?set a clean pinned official Self-Forcing checkout}" \
       --gpu "${GPU_LIST%%,*}"
     ;;
-  prepare|gate0|smoke|generate32|status)
+  prepare|gate0|smoke|generate32|generate96|status|schedule)
     python "$ROOT/scripts/run_v212_lphc.py" "$ACTION" --repo-root "$ROOT" \
       --campaign "$CAMPAIGN" --output-root "$OUT" --node-rank "$NODE_RANK" --gpu-list "$GPU_LIST" \
       --source-prompts "${!PROMPT_VAR:-/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/Causal-Forcing/prompts/MovieGen_128_qwen.txt}" \
@@ -72,8 +72,9 @@ case "$ACTION" in
     for method in "${METHODS[@]}"; do
       DIRS+=("$COMPARISON/published/$method")
     done
+    PROMPT_COUNT="$(python -c "from v212_lphc_protocol import load_protocol; print(len(load_protocol('$CAMPAIGN').SOURCE_INDICES))")"
     python "$ROOT/scripts/compute_temporal_jump_diagnostic.py" "${DIRS[@]}" \
-      --output "$EVAL/metrics/temporal_diagnostics.csv" --expected-videos 32 --max-width 256 --frame-step 8 --workers 16
+      --output "$EVAL/metrics/temporal_diagnostics.csv" --expected-videos "$PROMPT_COUNT" --max-width 256 --frame-step 8 --workers 16
     python "$ROOT/scripts/bind_temporal_diagnostics.py" bind --comparison-manifest "$COMPARISON/comparison_manifest.json" \
       --temporal-csv "$EVAL/metrics/temporal_diagnostics.csv" --output "$EVAL/metrics/temporal_diagnostics.contract.json"
     python "$ROOT/scripts/analyze_${CAMPAIGN}_lphc.py" --run-root "$OUT"
@@ -95,5 +96,5 @@ with tarfile.open(root / f"{sys.argv[2]}_small_artifacts.tar.gz", "w:gz") as arc
 print(root / f"{sys.argv[2]}_small_artifacts.tar.gz")
 PY
     ;;
-  *) echo "prepare baseline(v213) gate0 smoke generate32 status publish split preflight eval eval-missing collect analyze package"; exit 2 ;;
+  *) echo "prepare baseline(v213/v214) gate0 smoke generate32 generate96 schedule status publish split preflight eval eval-missing collect analyze package"; exit 2 ;;
 esac

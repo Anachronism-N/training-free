@@ -26,6 +26,10 @@ def job_path(out: Path, stage: str, method: str, source: int) -> Path:
     return out / "jobs" / stage / method / f"source_{source:03d}"
 
 
+def screen_stage(protocol=p):
+    return getattr(protocol, "STAGE", "screen32")
+
+
 def stamp(out: Path, data: dict, stage: str, method: str, source: int, *, protocol=p) -> dict:
     p = protocol
     return {"stage": stage, "method": method, "source_index": source,
@@ -222,14 +226,14 @@ def run_bundle(repo: Path, out: Path, data: dict, sources: list[int], gpu: str, 
     with lock(out / "locks" / f"device_{uuid}.lock"):
         for source in sources:
             for method in p.method_order(source):
-                run_job(repo, out, data, "screen32", method, source, gpu, protocol=p)
+                run_job(repo, out, data, screen_stage(p), method, source, gpu, protocol=p)
 
 
 def main() -> None:
     p = load_protocol("v212")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "gate0", "smoke", "generate32", "status"))
-    parser.add_argument("--campaign", choices=("v212", "v213"), default="v212")
+    parser.add_argument("action", choices=("prepare", "gate0", "smoke", "generate32", "generate96", "status", "schedule"))
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214"), default="v212")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--source-prompts", type=Path, default=p.DEFAULT_PROMPT_SOURCE)
@@ -241,22 +245,31 @@ def main() -> None:
     p = load_protocol(args.campaign)
     repo, out = args.repo_root.resolve(), p.output_root(args.output_root)
     slots = tuple(args.gpu_list.split(","))
-    p.assignment(3, slots)
+    p.assignment(p.SOURCE_INDICES[0], slots)
+    count = len(p.SOURCE_INDICES)
+    if args.action.startswith("generate") and args.action != f"generate{count}":
+        raise ValueError(f"{p.LABEL} requires generate{count}")
     if args.action == "prepare":
         p.prepare(repo, out, args.source_prompts, args.checkpoint, args.wan_model, slots)
         print(f"[{p.LABEL}-prepared] {out} jobs={len(p.METHODS)*len(p.SOURCE_INDICES)}")
         return
     data = p.verify(repo, out)
+    if args.action == "schedule":
+        for rank in range(6):
+            for gpu in slots:
+                sources = [s for s in p.SOURCE_INDICES if p.assignment(s, slots) == (rank, gpu)]
+                print(f"[{p.LABEL}-schedule] rank={rank} gpu={gpu} sources={sources} videos={len(sources)*len(p.METHODS)}")
+        return
     if args.action == "status":
         for method in p.METHODS:
             good = 0
             for source in p.SOURCE_INDICES:
                 try:
-                    load_done(out, data, "screen32", method, source, protocol=p)
+                    load_done(out, data, screen_stage(p), method, source, protocol=p)
                     good += 1
                 except (OSError, ValueError):
                     pass
-            print(f"{method}: {good}/32 validated")
+            print(f"{method}: {good}/{count} validated")
         return
     p.validate_node(args.node_rank)
     if list(slots) != data["gpu_slots"]:
@@ -276,7 +289,7 @@ def main() -> None:
         return
     # Smoke is the first complete prompt bundle, reused without regeneration.
     for method in p.METHODS:
-        load_done(out, data, "screen32", method, p.SOURCE_INDICES[0], protocol=p)
+        load_done(out, data, screen_stage(p), method, p.SOURCE_INDICES[0], protocol=p)
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(slots)) as pool:
         futures = []
         for gpu in slots:

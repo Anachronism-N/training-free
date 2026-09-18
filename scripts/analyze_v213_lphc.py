@@ -17,8 +17,10 @@ from analyze_v212_lphc import interval_state, load_validated_inputs
 QUALITY = "quality_without_dynamic_degree"
 
 
-def analyze(rows_by_window: dict, temporal_rows: dict) -> dict:
-    expected = {(m, i) for m in p.METHODS for i in range(32)}
+def analyze(rows_by_window: dict, temporal_rows: dict, *, protocol=p) -> dict:
+    p = protocol
+    count = len(p.SOURCE_INDICES)
+    expected = {(m, i) for m in p.METHODS for i in range(count)}
     if set(rows_by_window) != set(old.WINDOWS) or set(temporal_rows) != expected:
         raise ValueError("incomplete paired grid")
     comparisons = []
@@ -32,9 +34,9 @@ def analyze(rows_by_window: dict, temporal_rows: dict) -> dict:
         for candidate, control in pairs:
             for metric in old.ANALYSIS_METRICS:
                 row = old.contrast(rows, candidate=candidate, control=control, metric=metric,
-                                   window=window, prompt_count=32, seed=2130000 + len(comparisons))
+                                   window=window, prompt_count=count, seed=p.SEED * 100 + len(comparisons))
                 values = np.asarray(row["per_prompt_delta"])
-                row["leave_one_prompt_out_min_mean"] = float(((values.sum() - values) / 31).min())
+                row["leave_one_prompt_out_min_mean"] = float(((values.sum() - values) / (count - 1)).min())
                 row["negative_prompt_count"] = int((values < 0).sum())
                 if metric in old.NONINFERIORITY_MARGINS:
                     row["ni_state"] = interval_state(row, old.NONINFERIORITY_MARGINS[metric])
@@ -46,13 +48,14 @@ def analyze(rows_by_window: dict, temporal_rows: dict) -> dict:
     status, review = {}, []
     for candidate in p.CANDIDATES:
         quality = old.comparison(comparisons, candidate, "sf_fifo21", QUALITY, "full")
-        guard = temporal.temporal_guard(temporal_rows, candidate=candidate, control="sf_fifo21", prompt_count=32)
+        guard = temporal.temporal_guard(temporal_rows, candidate=candidate, control="sf_fifo21", prompt_count=count)
         ni = [old.comparison(comparisons, candidate, "sf_fifo21", metric, window)
               for window in ("full", "late_half") for metric in old.NONINFERIORITY_MARGINS]
         safe = all(r["mean_delta"] >= old.NONINFERIORITY_MARGINS[r["metric"]] for r in ni)
         ready = quality["mean_delta"] >= .10 and safe and guard["automatic_safety_pass"]
         status[candidate] = {
-            "role": "prespecified_seed_replication" if candidate == "fifo_correct" else "exploratory_variant",
+            "role": ("prespecified_seed_replication" if p.LABEL == "v213" else "prespecified_prompt_extension")
+                    if candidate == "fifo_correct" else "exploratory_variant",
             "quality": quality, "mean_tolerances_pass": safe, "ni": ni, "temporal_guard": guard,
             "next_step": "freeze_for_larger_confirmation" if ready else "hold_for_targeted_analysis",
         }
@@ -69,10 +72,11 @@ def analyze(rows_by_window: dict, temporal_rows: dict) -> dict:
             queue.append(row)
             seen.add(row["source_index"])
     return {
-        "experiment": p.EXPERIMENT, "development_only": True, "paper_claim_ready": False,
+        "experiment": p.EXPERIMENT, "prompt_count": count,
+        "source_indices": list(p.SOURCE_INDICES), "development_only": True, "paper_claim_ready": False,
         "primary_hypothesis": "fifo_correct minus sf_fifo21, full quality with DD fixed",
         "candidate_status": status, "comparisons": comparisons,
-        "method_means": old.method_means(rows_by_window, p.METHODS, 32),
+        "method_means": old.method_means(rows_by_window, p.METHODS, count),
         "review_queue": queue, "all_failure_flags": review, "review_pair_limit": 4,
         "rule": {"quality_mean_target": .10, "mean_tolerances": old.NONINFERIORITY_MARGINS,
                  "multiple_testing_family": "four full quality contrasts vs FIFO21; one-sided sign-test BH",
@@ -128,7 +132,8 @@ def verify_replication_inputs(current: dict, previous: dict, current_generation:
             raise ValueError("replication inference config mismatch")
 
 
-def costs(jobs: list[dict]) -> dict:
+def costs(jobs: list[dict], *, protocol=p) -> dict:
+    p = protocol
     lookup = {(row["method"], row["source_index"]): row for row in jobs}
     expected = {(m, s) for m in p.METHODS for s in p.SOURCE_INDICES}
     if len(jobs) != len(expected) or set(lookup) != expected:
@@ -154,7 +159,7 @@ def costs(jobs: list[dict]) -> dict:
 
 
 def render(report: dict) -> str:
-    lines = ["# v213 FIFO Seed/Phase Screen32", "", "Development evidence, not a submission-readiness certificate.", "",
+    lines = [f"# {report['experiment']}", "", "Development evidence, not a submission-readiness certificate.", "",
              "| Candidate | Quality delta vs SF21 | 95% CI | Win fraction | Worst leave-one-out mean | Motion safe | Next |",
              "|---|---:|---|---:|---:|---|---|"]
     for method, row in report["candidate_status"].items():

@@ -3,6 +3,13 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
+**Six-node / 48-GPU extension:** [v214 remaining-96 runbook](docs/233_v214_six_node_48gpu_remaining96.md)
+runs the same seven FIFO configurations on the 96 MovieGen prompts excluded
+from v213. Each of 48 GPUs receives two complete paired prompt bundles;
+672 new 30-second videos, no regeneration of the v213 32-prompt cohort.
+Generation, VBench evaluation and bounded failure analysis are wired for 96
+prompts. The official-SF and alpha-zero checks still run on rank0 first.
+
 The latest uploaded results are **v211 sink-local Screen8**. Small historical
 correction improves the sink-local control, but remains below native FIFO21
 in quality. This is partial recovery, not confirmed SF superiority. v210's

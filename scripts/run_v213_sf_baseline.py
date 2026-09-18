@@ -13,8 +13,8 @@ import numpy as np
 
 import v213_lphc_protocol as p
 from v213_sf_baseline_contract import (
-    ABS_TOL, REL_TOL, COUNTS, SOURCES, MODES, UPSTREAM_COMMIT,
-    config_alignment, expected_records, reference_inventory, require_baseline,
+    ABS_TOL, REL_TOL, COUNTS, MODES, UPSTREAM_COMMIT,
+    config_alignment, expected_records, reference_inventory,
 )
 from run_v212_lphc import lock
 from run_v211_worker import gpu_identity, quarantine_job, scrub_env
@@ -131,11 +131,15 @@ def run_worker(repo: Path, out: Path, contract_path: Path, source: int, mode: st
 
 
 def main():
+    global p
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--upstream-root", type=Path, required=True)
     parser.add_argument("--gpu", default="0")
+    parser.add_argument("--campaign", choices=("v213", "v214"), default="v213")
     args = parser.parse_args()
+    from v212_lphc_protocol import load_protocol
+    p = load_protocol(args.campaign)
     repo = Path(__file__).resolve().parents[1]
     out, upstream = p.output_root(args.run_root), args.upstream_root.resolve()
     p.validate_node(int(os.environ.get("NODE_RANK", "0")))
@@ -150,7 +154,7 @@ def main():
                 "reference": reference, "config_alignment": alignment,
                 "config": manifest["configs"]["sf_fifo21"], "checkpoint": manifest["checkpoint"],
                 "wan_path": manifest["wan_model"]["weights_path"],
-                "prompts": [r for r in manifest["prompt_items"] if r["source_index"] in SOURCES],
+                "prompts": [r for r in manifest["prompt_items"] if r["source_index"] in p.GATE_SOURCES],
                 "latent_frames": 30, "relative_tolerance": REL_TOL, "absolute_tolerance": ABS_TOL}
     contract_path = out / "baseline/contract.json"
     uuid = gpu_identity(args.gpu)["uuid"]
@@ -159,7 +163,7 @@ def main():
     with lock(out / "locks" / f"device_{uuid}.lock"):
         p.frozen_json(contract_path, contract)
         jobs, comparisons = [], []
-        for source in SOURCES:
+        for source in p.GATE_SOURCES:
             for mode in MODES:
                 runtime = (repo / "third_party/Self-Forcing") if mode == "local" else upstream
                 run_worker(repo, out, contract_path, source, mode, runtime.resolve(), args.gpu)
@@ -177,7 +181,7 @@ def main():
                   "jobs": jobs, "comparisons": comparisons, "pf_runtime_parity_claimed": False}
         p.frozen_json(out / "decisions/sf_upstream_gate.json", report)
         print(f"[sf-baseline-gate] pass={report['pass']} report={out / 'decisions/sf_upstream_gate.json'}", flush=True)
-        require_baseline(out)
+        p.require_baseline(out)
 
 
 if __name__ == "__main__":

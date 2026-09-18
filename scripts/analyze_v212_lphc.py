@@ -139,8 +139,8 @@ def load_validated_inputs(run_root: Path, *, protocol=p):
                     or marker.get("job_contract_sha256") != p.sha256(directory / "job_contract.json")
                     or contract.get("comparison_manifest_sha256") != p.sha256(manifest_path)):
                 raise ValueError(f"VBench result changed: {method}/{dimension}")
-    rows = old.load_window_rows(parts, summary, methods=p.METHODS, prompt_count=32)
-    diagnostic = temporal.load_temporal_rows(temporal_path, methods=p.METHODS, prompt_count=32)
+    rows = old.load_window_rows(parts, summary, methods=p.METHODS, prompt_count=len(p.SOURCE_INDICES))
+    diagnostic = temporal.load_temporal_rows(temporal_path, methods=p.METHODS, prompt_count=len(p.SOURCE_INDICES))
     source = {"manifest_sha256": p.sha256(manifest_path), "summary_sha256": p.sha256(summary_path),
               "temporal_sha256": p.sha256(temporal_path)}
     return rows, diagnostic, source, manifest

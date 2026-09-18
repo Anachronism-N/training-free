@@ -44,14 +44,14 @@ def analyze(summary):
 def main():
     global p
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--campaign", choices=("v212", "v213"), default="v212")
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214"), default="v212")
     args, remaining = parser.parse_known_args()
     p = p.load_protocol(args.campaign)
     sys.argv[1:] = remaining
     base.RUN_LABEL = p.LABEL
     base.COMPARISON_EXPERIMENT = base.SUMMARY_EXPERIMENT = p.EXPERIMENT
     base.METHODS = p.METHODS
-    base.PROMPT_COUNT = 32
+    base.PROMPT_COUNT = len(p.SOURCE_INDICES)
     base.NUM_OUTPUT_FRAMES = 120
     base.CLIPS_PER_VIDEO = 15
     base.DIMENSIONS = DIMENSIONS

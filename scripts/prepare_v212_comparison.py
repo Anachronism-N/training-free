@@ -8,7 +8,7 @@ from pathlib import Path
 
 import v212_lphc_protocol as p
 from prepare_v210_vbench_comparison import DIMENSIONS
-from run_v212_lphc import job_path, load_done, require_gate
+from run_v212_lphc import job_path, load_done, require_gate, screen_stage
 from run_v211_worker import validate_media
 from v210_vbench_fingerprint import vbench_checkout_fingerprint
 
@@ -34,11 +34,11 @@ def verify_published(repo: Path, comparison: Path, *, media: bool = True, protoc
     data = json.loads((comparison / "comparison_manifest.json").read_text(encoding="utf-8"))
     out = Path(data["generation_root"])
     generation = p.verify(repo, out)
-    if (data.get("experiment") != p.EXPERIMENT or data.get("prompt_count") != 32
+    if (data.get("experiment") != p.EXPERIMENT or data.get("prompt_count") != len(p.SOURCE_INDICES)
             or [x["key"] for x in data["methods"]] != list(p.METHODS)
             or data.get("input_manifest_sha256") != p.sha256(out / "inputs/manifest.json")
             or data.get("prompt_items") != generation["prompt_items"]):
-        raise ValueError("v212 published contract mismatch")
+        raise ValueError(f"{p.LABEL} published contract mismatch")
     require_gate(out, generation, protocol=p)
     validate_pairs(data["jobs"], protocol=p)
     for job in data["jobs"]:
@@ -57,10 +57,10 @@ def prepare(repo: Path, out: Path, vbench: Path, *, protocol=p) -> dict:
     jobs = []
     for source in p.SOURCE_INDICES:
         for method in p.METHODS:
-            row = load_done(out, data, "screen32", method, source, protocol=p)
+            row = load_done(out, data, screen_stage(p), method, source, protocol=p)
             media = Path(row["media"]["path"])
             validate_media(media, 120)
-            done = job_path(out, "screen32", method, source) / "done.json"
+            done = job_path(out, screen_stage(p), method, source) / "done.json"
             jobs.append({"source_index": source, "method": method, "done_path": str(done),
                          "done_sha256": p.sha256(done), "media_path": str(media),
                          "media_sha256": p.sha256(media), **{k: row[k] for k in (
@@ -72,7 +72,7 @@ def prepare(repo: Path, out: Path, vbench: Path, *, protocol=p) -> dict:
         target = comparison / "published" / method
         target.mkdir(parents=True, exist_ok=True)
         for index, source in enumerate(p.SOURCE_INDICES):
-            src = job_path(out, "screen32", method, source) / "media/0-0_ema.mp4"
+            src = job_path(out, screen_stage(p), method, source) / "media/0-0_ema.mp4"
             dst = target / f"{index:06d}-0.mp4"
             if dst.is_symlink() or dst.exists():
                 if not dst.is_symlink() or dst.resolve() != src.resolve():
@@ -80,7 +80,7 @@ def prepare(repo: Path, out: Path, vbench: Path, *, protocol=p) -> dict:
             else:
                 dst.symlink_to(src)
         method_rows.append({"key": method, "video_dir": str(target), "spec": p.SPECS[method]})
-    result = {"version": 1, "experiment": p.EXPERIMENT, "prompt_count": 32,
+    result = {"version": 1, "experiment": p.EXPERIMENT, "prompt_count": len(p.SOURCE_INDICES),
               "num_output_frames": 120, "prompt_items": data["prompt_items"], "methods": method_rows,
               "vbench_long_dimensions": list(DIMENSIONS), "jobs": jobs,
               "generation_root": str(out), "input_manifest_sha256": p.sha256(out / "inputs/manifest.json"),
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--vbench-root", type=Path, required=True)
-    parser.add_argument("--campaign", choices=("v212", "v213"), default="v212")
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214"), default="v212")
     args = parser.parse_args()
     p = p.load_protocol(args.campaign)
     result = prepare(Path(__file__).resolve().parents[1], p.output_root(args.run_root), args.vbench_root.resolve(), protocol=p)

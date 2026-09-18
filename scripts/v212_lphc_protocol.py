@@ -91,10 +91,10 @@ def spec_for(method: str, stage: str, *, campaign: Campaign = CAMPAIGN) -> dict:
     return dict(campaign.specs[method])
 
 
-def assignment(source: int, slots: tuple[str, ...]) -> tuple[int, str]:
+def assignment(source: int, slots: tuple[str, ...], *, sources=SOURCE_INDICES) -> tuple[int, str]:
     if not slots or len(set(slots)) != len(slots) or not set(slots) <= set(map(str, range(8))):
         raise ValueError("GPU slots must be distinct members of 0..7")
-    position = SOURCE_INDICES.index(source)
+    position = sources.index(source)
     return position % 6, slots[(position // 6) % len(slots)]
 
 
@@ -114,7 +114,7 @@ def validate_node(rank: int, num_nodes: int = 6) -> str:
 def prepare(repo: Path, out: Path, prompts: Path, checkpoint: Path, wan: Path,
             slots: tuple[str, ...], *, clean: bool = True, campaign: Campaign = CAMPAIGN) -> dict:
     out = output_root(out, campaign=campaign)
-    assignment(SOURCE_INDICES[0], slots)
+    assignment(campaign.sources[0], slots, sources=campaign.sources)
     if clean:
         require_clean_checkout(repo)
     lines = prompts.read_text(encoding="utf-8").splitlines()
@@ -174,7 +174,7 @@ def verify(repo: Path, out: Path, *, runtime: bool = True, campaign: Campaign = 
             or data.get("primary_contrasts") != [list(pair) for pair in campaign.primary]
             or data.get("mechanism_contrasts") != [list(pair) for pair in campaign.mechanism]):
         raise ValueError(f"{campaign.label} frozen protocol mismatch")
-    assignment(SOURCE_INDICES[0], tuple(data["gpu_slots"]))
+    assignment(campaign.sources[0], tuple(data["gpu_slots"]), sources=campaign.sources)
     if runtime and (data["source_commit"] != git_commit(repo) or data["runtime_paths"] != runtime_hashes(repo)):
         raise ValueError("source drift; use the frozen checkout, not an updated running checkout")
     for row in [data["prompt_source"], *data["configs"].values(), *data["prompt_items"]]:
@@ -249,6 +249,6 @@ def audit(path: Path, spec: dict, blocks: int, source: int) -> dict:
 
 def load_protocol(name: str):
     import importlib
-    if name not in {"v212", "v213"}:
-        raise ValueError("campaign must be v212 or v213")
+    if name not in {"v212", "v213", "v214"}:
+        raise ValueError("campaign must be v212, v213 or v214")
     return importlib.import_module(f"{name}_lphc_protocol")
