@@ -817,9 +817,13 @@ def main() -> None:
         if args.node_rank != 0:
             raise SystemExit("collect must run on node rank 0")
         report = collect(args, context)
+        status = (
+            f"gate={report['metric_promotion_gate']}"
+            if "metric_promotion_gate" in report
+            else "completed"
+        )
         print(
-            f"[{RUN_LABEL}-vbench-collect] gate={report['metric_promotion_gate']} "
-            f"output={args.summary_root}",
+            f"[{RUN_LABEL}-vbench-collect] {status} output={args.summary_root}",
             flush=True,
         )
         return

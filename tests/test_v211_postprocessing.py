@@ -199,7 +199,7 @@ def test_v211_evaluation_source_binds_commit_runtime_and_cleanliness(tmp_path: P
 
 
 def test_v211_materializer_rejects_nonfrozen_generation_commit(tmp_path: Path) -> None:
-    assert materializer.FROZEN_GENERATION_COMMIT == "0cde4689ee4c2dc0d29b4aa386720e96dd51a5b6"
+    assert materializer.FROZEN_GENERATION_COMMIT == "9a1c352bd6d0594587acb3afdc0648a2c8a18730"
     with pytest.raises(ValueError, match="frozen full SHA"):
         materializer.prepare(
             tmp_path / "v211_generation",
@@ -655,6 +655,46 @@ def test_v211_job_contract_only_revalidates_small_receipts(
     contract = vbench.job_contract(context, method=method, dimension=materializer.DIMENSIONS[0])
     assert contract["authorized_nodes"] == list(materializer.AUTHORIZED_NODES)
     assert contract["execution_node"]["node_address"] == materializer.AUTHORIZED_NODES[0]
+
+
+def test_v211_contract_compatibility_accepts_only_authorized_cross_node_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        vbench,
+        "_BASE_CONTRACTS_ARE_COMPATIBLE",
+        lambda actual, expected: actual == expected,
+    )
+    expected = {
+        "method": analyzer.METHODS[0],
+        "dimension": materializer.DIMENSIONS[0],
+        "execution_node": {
+            "authorized_nodes": list(materializer.AUTHORIZED_NODES),
+            "node_address": materializer.AUTHORIZED_NODES[0],
+            "node_rank": 0,
+            "num_nodes": 6,
+        },
+        "frozen": "value",
+    }
+    actual = copy.deepcopy(expected)
+    actual["execution_node"].update(
+        node_address=materializer.AUTHORIZED_NODES[4], node_rank=4
+    )
+    assert vbench.contracts_are_compatible(actual, expected)
+
+    wrong_address = copy.deepcopy(actual)
+    wrong_address["execution_node"]["node_address"] = materializer.AUTHORIZED_NODES[5]
+    assert not vbench.contracts_are_compatible(wrong_address, expected)
+
+    wrong_allowlist = copy.deepcopy(actual)
+    wrong_allowlist["execution_node"]["authorized_nodes"] = list(
+        materializer.AUTHORIZED_NODES[:-1]
+    )
+    assert not vbench.contracts_are_compatible(wrong_allowlist, expected)
+
+    changed_result_contract = copy.deepcopy(actual)
+    changed_result_contract["frozen"] = "changed"
+    assert not vbench.contracts_are_compatible(changed_result_contract, expected)
 
 
 def _analysis_inputs(delta: float = 0.1) -> tuple[dict, dict, dict]:

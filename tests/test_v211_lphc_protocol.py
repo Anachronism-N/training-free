@@ -395,7 +395,7 @@ def test_trace_auditor_requires_five_calls_and_e1_only(tmp_path):
         auditor.audit_trace(trace, 0.1, expected_history_budget=2)
 
 
-def test_gate0_fails_when_media_differs_even_if_tensor_parity_passes(tmp_path, monkeypatch):
+def test_gate0_uses_exact_pre_vae_trajectory_when_valid_containers_differ(tmp_path, monkeypatch):
     output_root, manifest = prepared(tmp_path)
     manifest_path = output_root / "inputs" / "manifest.json"
     trace = tmp_path / "alpha0.jsonl"
@@ -408,7 +408,7 @@ def test_gate0_fails_when_media_differs_even_if_tensor_parity_passes(tmp_path, m
             "hostname": "host",
             "gpu_uuid": "uuid",
             "cuda_visible_devices": "0",
-            "media": {"sha256": method},
+            "media": {"sha256": method, "validation": {"valid": True}},
             "trace": {"path": str(trace), "present": True},
         }
 
@@ -416,8 +416,10 @@ def test_gate0_fails_when_media_differs_even_if_tensor_parity_passes(tmp_path, m
     monkeypatch.setattr(controller, "compare_gate_tensors", lambda *args: {"pass": True, "errors": []})
     monkeypatch.setattr(controller, "audit_trace", lambda *args, **kwargs: {"pass": True, "errors": []})
     report = controller.run_gate0(ROOT, output_root, manifest_path, manifest, "0")
-    assert report["pass"] is False
-    assert len([error for error in report["errors"] if "decoded media differs" in error]) == 2
+    assert report["pass"] is True
+    assert all(pair["media_validation_pass"] is True for pair in report["pairs"])
+    assert all(pair["container_equal"] is False for pair in report["pairs"])
+    assert all(pair["equivalence_basis"] == "exact_model_trajectory_pre_vae" for pair in report["pairs"])
 
 
 def test_smoke_runs_both_r4_candidates_on_source_three(tmp_path, monkeypatch):
@@ -506,7 +508,9 @@ def test_gate_and_smoke_decisions_are_both_required_for_screen(tmp_path, monkeyp
         "pairs": [
             {
                 "source_index": source_index,
-                "media_equal": True,
+                "media_validation_pass": True,
+                "container_equal": False,
+                "equivalence_basis": "exact_model_trajectory_pre_vae",
                 "tensor_comparison": {"pass": True},
                 "alpha0_audit": {"pass": True},
             }

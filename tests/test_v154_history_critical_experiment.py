@@ -172,6 +172,44 @@ def test_vbench_gate_requires_history_gain_without_motion_collapse() -> None:
     assert report["metric_promotion_gate"] is False
 
 
+@pytest.mark.parametrize(
+    ("report", "status"),
+    [
+        ({"version": 1}, "completed"),
+        ({"version": 1, "metric_promotion_gate": False}, "gate=False"),
+    ],
+)
+def test_vbench_collect_main_reports_optional_gate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    report: dict,
+    status: str,
+) -> None:
+    manifest = tmp_path / "comparison_manifest.json"
+    manifest.write_text("{}\n", encoding="utf-8")
+    summary_root = tmp_path / "summary"
+    args = SimpleNamespace(
+        manifest=manifest,
+        mode="collect",
+        node_rank=0,
+        num_nodes=1,
+        dimensions=None,
+        summary_root=summary_root,
+    )
+    monkeypatch.setattr(vbench_runner, "RUN_LABEL", "test")
+    monkeypatch.setattr(vbench_runner, "parse_args", lambda: args)
+    monkeypatch.setattr(vbench_runner, "runtime_contract", lambda _args: {})
+    monkeypatch.setattr(vbench_runner, "all_jobs", lambda _dimensions: [])
+    monkeypatch.setattr(vbench_runner, "collect", lambda _args, _context: report)
+
+    vbench_runner.main()
+
+    assert capsys.readouterr().out == (
+        f"[test-vbench-collect] {status} output={summary_root}\n"
+    )
+
+
 def test_vbench_jobs_and_results_are_prompt_complete(tmp_path: Path) -> None:
     jobs = vbench_runner.all_jobs()
     assert len(jobs) == 64

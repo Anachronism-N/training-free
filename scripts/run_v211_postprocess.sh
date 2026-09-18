@@ -40,7 +40,7 @@ case "${GENERATION_ROOT,,}:${SCREEN_ROOT,,}:${COMPARISON_ROOT,,}:${METRICS_ROOT,
     ;;
 esac
 
-if [[ "$GENERATION_COMMIT" != "0cde4689ee4c2dc0d29b4aa386720e96dd51a5b6" ]]; then
+if [[ "$GENERATION_COMMIT" != "9a1c352bd6d0594587acb3afdc0648a2c8a18730" ]]; then
   echo "[error] V211_GENERATION_COMMIT must equal the frozen generation SHA" >&2
   exit 2
 fi

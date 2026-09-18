@@ -1,0 +1,451 @@
+{
+  "authorized_nodes": [
+    "28.216.19.213",
+    "28.216.19.143",
+    "28.216.19.137",
+    "28.216.19.225",
+    "28.216.18.144",
+    "28.216.18.136"
+  ],
+  "base_seed": 21100,
+  "checkpoint": {
+    "bytes": 5676252553,
+    "mtime_ns": 1785048789870345336,
+    "path": "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/self_forcing_dmd.pt",
+    "sha256": "a0413986d9734e02c09504e1520f5697ba6df731bb2f0f35577485e9cc8f56a3"
+  },
+  "claim_boundary": "Immutable source-bound v211 Screen8. LPHC claims require sink1 gate0 tensor/cache equivalence and passing both history-4 candidate smoke trace audits; production attention only.",
+  "configs": {
+    "lphc_sink1_e1_a002_r4": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/configs/lphc_sink1_e1_a002_r4.yaml",
+      "sha256": "0ac861499a058a485fc3bd5dd50d86b0ac72b6e908baed202691a091f8a88c1e"
+    },
+    "lphc_sink1_e1_a010_r4": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/configs/lphc_sink1_e1_a010_r4.yaml",
+      "sha256": "7fe65a48595ce9d68226404cafbc54b3e5f435006fb7887dda4c8ed31b05f2ac"
+    },
+    "sf_fifo21": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/configs/sf_fifo21.yaml",
+      "sha256": "7db5853a330b44ec3135d0bdfb02b35c056f7d7979b471405f9d298ab9a1226f"
+    },
+    "sf_sink1_21": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/configs/sf_sink1_21.yaml",
+      "sha256": "b95f2d950eb5871703cbeb23a8634cae387742e51bd3de296ad0cc2f0710b7c7"
+    }
+  },
+  "dev32_source_indices": [
+    3,
+    7,
+    11,
+    15,
+    19,
+    23,
+    27,
+    31,
+    35,
+    39,
+    43,
+    47,
+    51,
+    55,
+    59,
+    63,
+    67,
+    71,
+    75,
+    79,
+    83,
+    87,
+    91,
+    95,
+    99,
+    103,
+    107,
+    111,
+    115,
+    119,
+    123,
+    127
+  ],
+  "execution": {
+    "gpu_slots": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+    ],
+    "node_count": 6,
+    "node_rank_by_address": {
+      "28.216.18.136": 5,
+      "28.216.18.144": 4,
+      "28.216.19.137": 2,
+      "28.216.19.143": 1,
+      "28.216.19.213": 0,
+      "28.216.19.225": 3
+    },
+    "screen_assignment": "method-major jobs round-robin across frozen node ranks, then GPU slots",
+    "ssh_port": 36000
+  },
+  "experiment": "v211_lphc_sink_followup",
+  "gate0": {
+    "attention": "production",
+    "modes": {
+      "sf_sink1_21_native": {
+        "alpha": 0.0,
+        "archive_frames": 12,
+        "config": "sf_sink1_21",
+        "history_frames": 4,
+        "local_policy": "sink1_recent20",
+        "lphc": false,
+        "phase": "e1",
+        "protocol": "v211",
+        "retrieval_mode": "correct"
+      },
+      "sink1_lphc_alpha0": {
+        "alpha": 0.0,
+        "archive_frames": 12,
+        "config": "sf_sink1_21",
+        "history_frames": 4,
+        "local_policy": "sink1_recent20",
+        "lphc": true,
+        "phase": "e1",
+        "protocol": "v211",
+        "retrieval_mode": "correct"
+      }
+    },
+    "same_gpu_sequential": true,
+    "source_indices": [
+      3,
+      67
+    ]
+  },
+  "gate_frames": 30,
+  "git_commit": "9a1c352bd6d0594587acb3afdc0648a2c8a18730",
+  "large_file_hash_provenance": {
+    "manifest_path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_0cde4689ee4c2dc0d29b4aa386720e96dd51a5b6_fastreuse_sixnode/inputs/manifest.json",
+    "manifest_sha256": "b4e98b8504d3972ee4f5e281638c875b2da6343e44c6207bcdee520e9cafe4f6",
+    "policy": "reuse_sha256_when_size_and_mtime_match",
+    "source_commit": "0cde4689ee4c2dc0d29b4aa386720e96dd51a5b6"
+  },
+  "lphc_defaults": {
+    "archive_size": 12,
+    "local_policy": "sink1_recent20",
+    "protocol": "v211"
+  },
+  "method_specs": {
+    "lphc_sink1_e1_a002_r4": {
+      "alpha": 0.02,
+      "archive_frames": 12,
+      "history_frames": 4,
+      "local_attn_size": 21,
+      "local_policy": "sink1_recent20",
+      "lphc": true,
+      "phase": "e1",
+      "protocol": "v211",
+      "retrieval_mode": "correct",
+      "sink_size": 1
+    },
+    "lphc_sink1_e1_a010_r4": {
+      "alpha": 0.1,
+      "archive_frames": 12,
+      "history_frames": 4,
+      "local_attn_size": 21,
+      "local_policy": "sink1_recent20",
+      "lphc": true,
+      "phase": "e1",
+      "protocol": "v211",
+      "retrieval_mode": "correct",
+      "sink_size": 1
+    },
+    "sf_fifo21": {
+      "local_attn_size": 21,
+      "lphc": false,
+      "sink_size": 0
+    },
+    "sf_sink1_21": {
+      "local_attn_size": 21,
+      "lphc": false,
+      "sink_size": 1
+    }
+  },
+  "methods": [
+    "sf_fifo21",
+    "sf_sink1_21",
+    "lphc_sink1_e1_a002_r4",
+    "lphc_sink1_e1_a010_r4"
+  ],
+  "prompt_count": 8,
+  "prompt_items": [
+    {
+      "effective_seed": 21103,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/prompts/source_003.txt",
+      "sha256": "0c4241458c953892033a94802aa8a769346afc679a0a07188402f00b7132d8d1",
+      "source_index": 3,
+      "text": "A drone view captures waves crashing against rugged cliffs at Big Sur\u2019s Garay Point beach. Blue waters with white-tipped waves meet the golden light of the setting sun, illuminating the rocky shore and casting long shadows. A distant lighthouse on a small island pierces the twilight. Green shrubbery covers the cliff\u2019s edge, and the steep drop from the road to the beach is dramatic. The camera angle provides a bird's-eye view, showcasing the raw beauty and rugged landscape. The scene is bathed in a warm, golden hue, highlighting textures and details."
+    },
+    {
+      "effective_seed": 21119,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/prompts/source_019.txt",
+      "sha256": "7f3f6cb0235b1ee2672e9e99dab0ee3059eeadea5e50e42da16e99f8cc80fcb0",
+      "source_index": 19,
+      "text": "A stunning aerial photograph captured from a drone, circling around a majestic historic church perched atop a rocky outcropping along the Amalfi Coast. The camera captures intricate architectural details and tiered pathways and patios adorned with lush greenery, with waves crashing against the rocks below. The view extends to the horizon, showcasing coastal waters and rolling hills. Distant figures leisurely walk and enjoy the dramatic ocean views from the patios. The warm afternoon sun bathes the scene in a magical and romantic light, creating a breathtaking and serene atmosphere. High-resolution, detailed quality highlights every texture and color. Wide-angle shot from a dynamic aerial perspective."
+    },
+    {
+      "effective_seed": 21135,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/prompts/source_035.txt",
+      "sha256": "988bbc6040230e2e3a246d02af7011dfe0740573e5905a4a76d159dde4008e26",
+      "source_index": 35,
+      "text": "A dynamic and explosive basketball moment captured in a high-energy action style, showcasing a vividly depicted basketball flying through the hoop with realistic textures and reflections. The shiny black metal hoop and taut net create a stunning contrast against the backdrop of a spectacular fireworks explosion. The camera angle is from the side, capturing the intense moment with movement and excitement. Blurred spectators and a sports arena with standing figures add to the lively atmosphere. A medium shot with a slight upward angle."
+    },
+    {
+      "effective_seed": 21151,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/prompts/source_051.txt",
+      "sha256": "cb99e74a349e09919a8d1984d06bfed96ca15de2cafc6a3646d5c6406edc2ab7",
+      "source_index": 51,
+      "text": "A dramatic macro shot from a low angle, capturing the explosive moment of a volcanic eruption in a coffee cup. Rich, dark brown coffee is suddenly disrupted by a burst of foam and steam, mimicking intense heat and pressure. The foam rises and spreads chaotically across the surface, creating a mesmerizing pattern. The ceramic cup has intricate etched patterns, adding texture and depth. The background is a blurred gradient of warm browns and grays, with dramatic lighting casting shadows and highlighting the dynamic movement."
+    },
+    {
+      "effective_seed": 21167,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/prompts/source_067.txt",
+      "sha256": "2f7c3e90616ca8f19c1c50a145bfc28247ef992c19b657a90afe02954b69fbe2",
+      "source_index": 67,
+      "text": "A sleek, vibrant red rally car with black accents speeds through a tight turn on a winding track, tires screeching. The driver, a determined man with focused eyes, grips the steering wheel tightly as he navigates with precision. The car's headlights glow brightly in the night, and the background shows blurred glimpses of the track with wet pavement reflections. The camera angle is from slightly above, capturing the intense energy and movement."
+    },
+    {
+      "effective_seed": 21183,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/prompts/source_083.txt",
+      "sha256": "fc3f7ff59e741b28dfda2ea41f85d1e21bf0263a6dd622f8d7acb5305e989aa8",
+      "source_index": 83,
+      "text": "A dynamic super fast zoom-out shot starts at the peak of a majestic frozen mountain where a lone hiker, bundled in thick winter gear, trudges through the snow with determination. Their breath forms visible clouds in the cold air. As the camera pulls back, the vast, icy landscape unfolds, revealing rugged peaks and valleys, with distant snow-capped mountains stretching into the horizon. The sky is a stark, deep blue, filled with wisps of cloud. The scene captures the raw beauty and harshness of nature, transitioning to a sweeping aerial view."
+    },
+    {
+      "effective_seed": 21199,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/prompts/source_099.txt",
+      "sha256": "c895fd8b6278decbeaa5412307887f4382b5a8527f9fca9324fecff1e95cf9fb",
+      "source_index": 99,
+      "text": "A high-angle aerial shot of a cloaked figure soaring through the sky amidst towering skyscrapers. The figure's outstretched arms and determined expression are clearly visible as they glide dynamically through the air. Below, the cityscape blurs into a mix of glass and steel, with twinkling lights in the distance. The background shows bright city lights and a hint of a cloudy night sky. The figure appears mid-flight, exuding a sense of freedom and motion."
+    },
+    {
+      "effective_seed": 21215,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v211_runs/v211_lphc_9a1c352bd6d0594587acb3afdc0648a2c8a18730_sixnode/inputs/prompts/source_115.txt",
+      "sha256": "8be8d677bb455d8ab7fc624460bc06c3d73fcec7f7ce30555a8f57442413efcb",
+      "source_index": 115,
+      "text": "A vibrant concert stage scene in the style of a music video, featuring a woman in the spotlight, singing passionately. She stands confidently on the stage, microphone in hand, with a captivating expression. Bright light behind her creates a dramatic silhouette, casting a warm glow. She wears a stylish, form-fitting black dress with intricate silver embroidery, emphasizing her graceful movements. The background shows a blurred stage with colorful lights and banners. A dynamic medium shot captures her performance from a slightly elevated angle, highlighting her dramatic lighting and expressive face."
+    }
+  ],
+  "prompt_source": {
+    "count": 128,
+    "path": "/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/Causal-Forcing/prompts/MovieGen_128_qwen.txt",
+    "sha256": "99468409fe54322bc383376e6037196e922cfbae47814a7a4e51740ee0571281"
+  },
+  "runtime_paths": {
+    "scripts/audit_v211_lphc_trace.py": "060e4ac6552c128a694b134a5ed61d7b70d39acf946fe793d72f60934746dec2",
+    "scripts/prepare_v211_lphc.py": "cda4fb8197c64a6b686ba417a27c4ca793cdd6386668d175dacf6a4915d18bd9",
+    "scripts/run_v211_lphc.py": "69640b9259a98fefea7aa9d7e0dc398d78300e98486e24fcd72aabb91d4d80b6",
+    "scripts/run_v211_worker.py": "17f1770c66ce161a7c7dcf9e78f19b7890dfb2434f6a26668479301bc35cdc2b",
+    "src/lifecycle_kv/__init__.py": "73b9dfad9cd4ba019cad45985e94a5dfe3ef5a63310c231048165406b9f972a4",
+    "src/lifecycle_kv/active_cache.py": "079ce244ce3b1c223b707dfa9d2bd3aa9ed91131ced8a2bad172e9411b4a1e1b",
+    "src/lifecycle_kv/anchor.py": "e68e9336c9c8fc5cffc775becdb4d1e278c3bf5cf5ce77ba7d8639ec63bd6746",
+    "src/lifecycle_kv/attention_fusion.py": "f191b34177b6a10fc15c292a16fd473a42ff36d933ba5b8b6f34ab167b686d1a",
+    "src/lifecycle_kv/bank.py": "cc15439cb13aa2e10ec5c4621a28a9c9e5386a2c573d1d3f24dd4a10c1c258d0",
+    "src/lifecycle_kv/cache_types.py": "2a0218e06966c587ca514b190ecd7f684d3cf15d54fe3a23c9e530aa9ce95a2a",
+    "src/lifecycle_kv/commit_forcing.py": "ace349bc9b5d38e326a6c5b805309868bf4c85d03f1a3be53810b29dad614564",
+    "src/lifecycle_kv/compression.py": "68ee03edac29e9669bc33fcb6ba146a604892cb1c9218cf668b7004dccb2b28e",
+    "src/lifecycle_kv/dense_cache_trace.py": "0af91818306652087de17bea862acef176e9588b8cd0e638f73c2f94a6bd13f3",
+    "src/lifecycle_kv/downstream_probe.py": "163c27d7dd68a46341d9538688fa173bf84d7e010683a52991b9b059f3a05dba",
+    "src/lifecycle_kv/episodic_archive.py": "d9d9c97f37a3adb4ebb7f6ea7ecd8d8d980e6fd649bfa93a1efbe25f496b8443",
+    "src/lifecycle_kv/episodic_pool.py": "c3934058d7beef46a3ed10408256e2a7cd1460d2bb097aa615c018f8ed4f3324",
+    "src/lifecycle_kv/head_classifier.py": "1b577453b07209fe611976058e9ee3811984f8ab88a4bc961f4203e21759979e",
+    "src/lifecycle_kv/head_diagnostic.py": "9dafe08839ae6a8f90d3700459ff8aa7e2f0827b47315a905e4ae7bf66ec73e7",
+    "src/lifecycle_kv/head_profile.py": "9aa53d2001a3c8d247f69be58527e34193f509da81c7e751729075972dee8d73",
+    "src/lifecycle_kv/head_profiler.py": "062c5fc44a57b3aea49285ecfba13164f230dfeff141fad30c741d61f148bbbf",
+    "src/lifecycle_kv/head_roles.py": "732e278e899a0478e6036444f1445462e8d3249e0dc5be5425af4d3b49f00819",
+    "src/lifecycle_kv/head_taxonomy.py": "4bb8c8be31d8c9289bf26d49959ba0ba1a26420e6412b6f2e40a6ea2115ecf40",
+    "src/lifecycle_kv/history_interventions.py": "3f4f874415e2140ceb589819cec1813f36032b8fd4e9df2294148a48c5234f22",
+    "src/lifecycle_kv/index.py": "16611b83073559f12bec6e488447e4aa50bc6a9a8077f2a361e61e922aa9ad9b",
+    "src/lifecycle_kv/instrumentation.py": "a86490c0293c5d2a5011e5b42bf6d185d398e73c0da1d6e0084c924387550655",
+    "src/lifecycle_kv/intervention_router.py": "2177298e72087b479d934f09e0a30f6c1c36a21b3ab3285b147b4a3062005635",
+    "src/lifecycle_kv/k_stability.py": "0cf6c1a0567374085d079780dac65275a9cde8c40cb5e126d5576f9fed042f3f",
+    "src/lifecycle_kv/latent_trace.py": "3abc03d662b5bc551ac0462168d914ecf432da8286cd9adca0444844ca1ec010",
+    "src/lifecycle_kv/lifecycle_cache.py": "60676c6562b8ab2b8c0988771e7a3c8b0a49cc6291769755bdef6165fc0af7e0",
+    "src/lifecycle_kv/lphc.py": "96a22de06d0d4b22323addeb7c6fa8fc5db2daf1d08a711f0bde14049678d983",
+    "src/lifecycle_kv/motion.py": "4c6c73ad20f863a7890e74029698dde0be2d3769db9bd5e47a6efe2712d5f5bf",
+    "src/lifecycle_kv/oracle.py": "4b139a80b84f6feee50d3b63fea82949deae3cdddc7ae910e7e621d89c596a64",
+    "src/lifecycle_kv/parity_trace.py": "c5c04505b788d1401057d9c0533bb81dbf0999aebf521ddfb076acd4f5bcd8dd",
+    "src/lifecycle_kv/recall.py": "5cd72516b9ba098b85baafc35329e4d900fc32b6968d93f74ace0629be2dae0b",
+    "src/lifecycle_kv/role_episodic.py": "5a1f035d358faa89245e4183071808fa6d84eecc03577482663bd82ce22f2485",
+    "src/lifecycle_kv/runtime.py": "c6f2de6b6051dc75fc2093b2b16c9c41e95a91dcc63064e32d49eb8bf0dae084",
+    "src/lifecycle_kv/structured_visual_memory.py": "419b9566112c3d814888e4ada34508369eaa28129a1f3e034e1d528a92fe06f4",
+    "src/lifecycle_kv/tokenset.py": "1b049ef93dbaa16acf64f634de8fe2a420fdb096f301773741596503a502a338",
+    "src/lifecycle_kv/typed_memory.py": "89fd1e44d32566e2cdb530f3043cda6ff888c966eb229a63ff2d8a3af4113e0d",
+    "tests/test_v211_lphc_protocol.py": "2cb690e7702e47eb0ba1f595953c58daf7f0451713e2fde290c34fc703a20098",
+    "third_party/Self-Forcing/configs/default_config.yaml": "18303f1bacbfbebaa02893cc8e106941753f21a7d1a7109519a90762375ee772",
+    "third_party/Self-Forcing/configs/self_forcing_dmd.yaml": "65f616cd57fd524bb43b51846c3a846cba12225fe45299f1b2764f327b85d9d8",
+    "third_party/Self-Forcing/configs/self_forcing_sid.yaml": "a107a8090bac42e19f031c248be824a020bf1c952064f094305f0a64b4e26433",
+    "third_party/Self-Forcing/demo.py": "236e67db81331e69697537a4e73c4484a6178c2d20ce77321c817d4344c17451",
+    "third_party/Self-Forcing/demo_utils/constant.py": "d1c53d7d5209bd5065bf566948333849a3bf9c71d151a0d7325acf67f46cb3d9",
+    "third_party/Self-Forcing/demo_utils/memory.py": "ca0b31c93019f802e1312d512591ae6bea35b450064cdde19b6202779f50bb7f",
+    "third_party/Self-Forcing/demo_utils/taehv.py": "865b1dd0516682c02352bd76bce2ad0472588330ea9fab30ca0895630f263244",
+    "third_party/Self-Forcing/demo_utils/utils.py": "f539911c5317323e24cdbcb331dc66645f6e7a1e6c68aa8ed4bb24effefa9843",
+    "third_party/Self-Forcing/demo_utils/vae.py": "0b938e1e356a221b8c9ac1c64e554bfd01016b609752ab760805829303deb034",
+    "third_party/Self-Forcing/demo_utils/vae_block3.py": "2a9a50fd1731992a32232a79bf0457d50c12d12db1ea9c14d9adb4201816e0f4",
+    "third_party/Self-Forcing/demo_utils/vae_torch2trt.py": "8a267d73ac8a506a402c340726c6dbcdeca3328a909ce61922114bbe3fcb7068",
+    "third_party/Self-Forcing/inference.py": "8d73bbf87b8e59eec463fdf32eb0c782bda3e2d4b995dbb39e961d0e91b8615d",
+    "third_party/Self-Forcing/model/__init__.py": "2c22d7df9de307a7b3d8e6ef69c0cf2cf5c47590d0cd2386d33f87b494c5a378",
+    "third_party/Self-Forcing/model/base.py": "3e39cd61b25a753cf064101e8ffca653d6cce07a7c60a50fd8e3475425362d4f",
+    "third_party/Self-Forcing/model/causvid.py": "870beb90c2af5233a19c733c4cbd72f79b9ef03fae5a2915e37b94f4355c0000",
+    "third_party/Self-Forcing/model/diffusion.py": "e4bbae3554722cac0e2ce6709f287c088d95cd96da2c3a89683188b6df232528",
+    "third_party/Self-Forcing/model/dmd.py": "7b8dd78a48220e6868956a7cd639215756747b7b8e58c07f27e50090c4291e19",
+    "third_party/Self-Forcing/model/gan.py": "da30e3ff2d770646643b4994fa1607581851a39ee28b9ab70460a71ca4125b1a",
+    "third_party/Self-Forcing/model/ode_regression.py": "3a581d436a1ebc8c7bc9191fef203784008cec313827ea0afe6ed961810dac20",
+    "third_party/Self-Forcing/model/sid.py": "4b6536ec27b1f3a555169b8c887190f06aaa9f929c2d7f9fcd8c289d819973ba",
+    "third_party/Self-Forcing/pipeline/__init__.py": "deb77d9f0f8175067cb9feb939c60b29bd68bc9130fd2b1b0019148c29b9fa6a",
+    "third_party/Self-Forcing/pipeline/bidirectional_diffusion_inference.py": "8a5f9daee9e0274aeb4ac3a69ddf7a0f84ca1aa19d4e3df30eab6b8cec712248",
+    "third_party/Self-Forcing/pipeline/bidirectional_inference.py": "675a723275359d579749250b5651180e46249c5269c783e7e49c4fab14c5d90d",
+    "third_party/Self-Forcing/pipeline/causal_diffusion_inference.py": "3d0f2c509bfb39409b3b2d2322cf7b879502226c7e8af375f064082486f5d4f3",
+    "third_party/Self-Forcing/pipeline/causal_inference.py": "6303793e5aba3d579721c669fe7e922814667bfe3fe2fed791f787b2625e9f99",
+    "third_party/Self-Forcing/pipeline/self_forcing_training.py": "0fbef7cae39a13338ae555acc2f114dc28a0e15f4dfcf4303640192e42ab7e96",
+    "third_party/Self-Forcing/scripts/create_lmdb_14b_shards.py": "2364186c378ac8d5bad4f18f9e8206094843cd36b094fa9aff74838ca0f07ee1",
+    "third_party/Self-Forcing/scripts/create_lmdb_iterative.py": "78cd5748dd7dbaaf9884d1410033c014eb5e36960ff38fd63472ad328cc7b423",
+    "third_party/Self-Forcing/scripts/generate_ode_pairs.py": "e7fc4e7e402d808aa80038fbb4515b0bfe075b7d38a4c1f28ee8ce537657eebe",
+    "third_party/Self-Forcing/scripts/lifecache_manager.py": "c9c4781fc52161bcdb8a550565f169d7b9ae133a4b2d4907eddc9c8387170e76",
+    "third_party/Self-Forcing/setup.py": "3930afa782e69358f4f1856adba265ad6b0d454e67c63540fc9964e86fa18dbd",
+    "third_party/Self-Forcing/train.py": "e7a0a036ad091393f102e5c1f0827390304f077dabd09d11cd7c40b54a97915c",
+    "third_party/Self-Forcing/trainer/__init__.py": "c7ca5d93f80e88897c6cc0f5002551a5337d047de49bd52048cb886e22b95d3c",
+    "third_party/Self-Forcing/trainer/diffusion.py": "525cb9e839a6f801c78ae8527d3eca8631427a0e7992d246101e4e4cfc1214e6",
+    "third_party/Self-Forcing/trainer/distillation.py": "ec7b49b31c06411e913c46c7ac5d86c63fee0033e4b8cb6e12ed073e0a5f1fde",
+    "third_party/Self-Forcing/trainer/gan.py": "c420592ef0c648e9bef770ddca2a0b1b35ce687ef5d3d0ba516304d90d1e9a32",
+    "third_party/Self-Forcing/trainer/ode.py": "a311ccae5b974912fe9406df2626fec5df1efa02f1ed7c24c0a038c711de407a",
+    "third_party/Self-Forcing/utils/dataset.py": "2ced021a06123db94204bd2c7a915cf39b19d7220c62a4fad6c5e14725ff640d",
+    "third_party/Self-Forcing/utils/distributed.py": "8560b35c3e5fa77ff7f98c54344775393b1cd3c1ed37740f6284b27aad4f0ba7",
+    "third_party/Self-Forcing/utils/lmdb.py": "d8bfb912cd75a947a8214955b1022662c99d4b23ff882d6e68bb717faafe8b1e",
+    "third_party/Self-Forcing/utils/loss.py": "5a08ba589ef54d5deb50d1ff1984f2969b1fdc2f03c53751167eb23a7082ecfe",
+    "third_party/Self-Forcing/utils/misc.py": "610bead16d50d99fabdccb2e9ce3c20fa1fa1cd3bdf735d7ff7ffda978bfe195",
+    "third_party/Self-Forcing/utils/scheduler.py": "4194ef1324bb06527621749c7f9a82f431ccf011823aa65099cb7bdf116b642e",
+    "third_party/Self-Forcing/utils/wan_wrapper.py": "52d3598ea2c87f415625a7c4b81f1627b1ee4fb80f3f52eea92e1b8edc2337dd",
+    "third_party/Self-Forcing/wan/__init__.py": "d9390f993a448bd679ac8d5254620ca6b5d2bc450f65bbf5f4a64c82cb4f4a99",
+    "third_party/Self-Forcing/wan/configs/__init__.py": "7b782183abca0e09c3efbc8ff02ab12c50c023d59642f6077cc16d1a23fa8bac",
+    "third_party/Self-Forcing/wan/configs/shared_config.py": "e3785cd01cff5763f83159ccc242f2d17435ba8dcef99f4a70db958c88e7f5ab",
+    "third_party/Self-Forcing/wan/configs/wan_i2v_14B.py": "2d5a3ff4326a5b1c1c8d564f8a8829fe30879cb99fe0ad1b18c236ecb43aac54",
+    "third_party/Self-Forcing/wan/configs/wan_t2v_14B.py": "a1d8f5f876fa20c4f58c5ee5433ca0d5e2cdf37accef7c97bc0c5aee7ba8db8c",
+    "third_party/Self-Forcing/wan/configs/wan_t2v_1_3B.py": "28dea1d8ef2095d7ddd1e2506e7b498ba698b32e962bdbc79d6d7da3ca5a6d0c",
+    "third_party/Self-Forcing/wan/distributed/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "third_party/Self-Forcing/wan/distributed/fsdp.py": "a20cbd8ea747db64226eb21e5e848c44cc2ccf95a76efbf13956efe8e9f900a3",
+    "third_party/Self-Forcing/wan/distributed/xdit_context_parallel.py": "b3b16b38dd08b0e857d90e4c97c7a41a06368be477abafa460ce3a44ea596474",
+    "third_party/Self-Forcing/wan/image2video.py": "46348294457e81210c70d40c6a1be6e24e5b749a48bf4aaac3febb6bd8e155ee",
+    "third_party/Self-Forcing/wan/modules/__init__.py": "6cba8c084de01455a914a3b5620e0a286d4dee2c39143b6508bb8fac87e71b4b",
+    "third_party/Self-Forcing/wan/modules/attention.py": "5f5b4ca52559c19f3089893f99355fe1cc151a7ddb54d0b91ba615bfeb420f8d",
+    "third_party/Self-Forcing/wan/modules/causal_model.py": "fc0831ce3740157b12842d3fe1cd344186aa3d24f722fd5a5b7d042c3c440740",
+    "third_party/Self-Forcing/wan/modules/clip.py": "2ab8672603a998422defb897e16531608750737ab8d631520b055bda93aba35c",
+    "third_party/Self-Forcing/wan/modules/model.py": "f15214485a5297e6f9e79684bbad80acbcdc88c3272596b256a739a734529449",
+    "third_party/Self-Forcing/wan/modules/t5.py": "8b0cebf3192c542f92a344255a06c203df3ba24160715899a055cc8de0cd930f",
+    "third_party/Self-Forcing/wan/modules/tokenizers.py": "cf5b189c1ae017326efadab2fc6380ba223fa7a59d0be6464bd264db53c76934",
+    "third_party/Self-Forcing/wan/modules/vae.py": "a4c1d9362f25a1bef463ac51caed4097317c007d4d87887b02a3a733fdbc48d5",
+    "third_party/Self-Forcing/wan/modules/xlm_roberta.py": "7e27d93573b5fb0fef1c9db9205264453bd30dcb1404c38031f24ed9c84b8d4a",
+    "third_party/Self-Forcing/wan/text2video.py": "ca344c0f24d3d305dd93a0433dc88a212e5d815bb8a784f8f54fc9fa98ff06c1",
+    "third_party/Self-Forcing/wan/utils/__init__.py": "4a8d71cd9feefa65d51770ee8351a07cd6ebe82f9b75fef1ddaf0f30b4db502c",
+    "third_party/Self-Forcing/wan/utils/fm_solvers.py": "f7254e3ac5c6c6715317cdf991d927cde61c1400ad73851be41fc51ce5ecba5d",
+    "third_party/Self-Forcing/wan/utils/fm_solvers_unipc.py": "de622aced9aa5022622509295e5a0e40589b53f59ce13cf64061af9e99af5f66",
+    "third_party/Self-Forcing/wan/utils/prompt_extend.py": "f00f7f03ed5dc6d7648290c3d9b0f80b33d71692958542c447d722acc42dcbd6",
+    "third_party/Self-Forcing/wan/utils/qwen_vl_utils.py": "9ae8190bdb0c6ad5b283fd9fecae65f3adfe45bc90326d3851fb5c8d777995c9",
+    "third_party/Self-Forcing/wan/utils/utils.py": "ebf33b0c4dc69a62faca6243d58bfa890ea4fb9c056e7c1ef0fa501cbbe22566"
+  },
+  "screen8_source_indices": [
+    3,
+    19,
+    35,
+    51,
+    67,
+    83,
+    99,
+    115
+  ],
+  "screen_frames": 120,
+  "seed_policy": "effective_seed = 21100 + source_index",
+  "smoke": {
+    "frames": 120,
+    "methods": [
+      "lphc_sink1_e1_a002_r4",
+      "lphc_sink1_e1_a010_r4"
+    ],
+    "required_before_screen8": true,
+    "source_index": 3
+  },
+  "source_commit": "9a1c352bd6d0594587acb3afdc0648a2c8a18730",
+  "source_indices": [
+    3,
+    19,
+    35,
+    51,
+    67,
+    83,
+    99,
+    115
+  ],
+  "version": 1,
+  "wan_model": {
+    "inventory": [
+      {
+        "bytes": 507609880,
+        "mtime_ns": 1785048846128333793,
+        "relative_path": "Wan2.1_VAE.pth",
+        "sha256": "38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981"
+      },
+      {
+        "bytes": 249,
+        "mtime_ns": 1785048808720011300,
+        "relative_path": "config.json",
+        "sha256": "ab37994c43740513f94b3ba6233a784035a67b43c8cde83c8f31aa90468c67ce"
+      },
+      {
+        "bytes": 5676070424,
+        "mtime_ns": 1785048808694775715,
+        "relative_path": "diffusion_pytorch_model.safetensors",
+        "sha256": "96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f"
+      },
+      {
+        "bytes": 6623,
+        "mtime_ns": 1785048846248909465,
+        "relative_path": "google/umt5-xxl/special_tokens_map.json",
+        "sha256": "7b8a9f5040adb67b5805abdfd42c1f8d0f3d0e711f10726580eb3789cd0ad61d"
+      },
+      {
+        "bytes": 4548313,
+        "mtime_ns": 1785048846336137102,
+        "relative_path": "google/umt5-xxl/spiece.model",
+        "sha256": "e3909a67b780650b35cf529ac782ad2b6b26e6d1f849d3fbb6a872905f452458"
+      },
+      {
+        "bytes": 16853013,
+        "mtime_ns": 1785048846427347250,
+        "relative_path": "google/umt5-xxl/tokenizer.json",
+        "sha256": "af904105ce1071b1202bba0059a841f4a7b85b48b6ec179c4948e3483476e0dd"
+      },
+      {
+        "bytes": 61728,
+        "mtime_ns": 1785048846273738957,
+        "relative_path": "google/umt5-xxl/tokenizer_config.json",
+        "sha256": "ed9a3a8b0faa71a70a32847e0435fe036e6e112d4df4edb7bb48a921e344dc05"
+      },
+      {
+        "bytes": 11361920418,
+        "mtime_ns": 1785048844597214212,
+        "relative_path": "models_t5_umt5-xxl-enc-bf16.pth",
+        "sha256": "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d"
+      }
+    ],
+    "name": "Wan2.1-T2V-1.3B",
+    "required_files": [
+      "/tmp/training-free-v211-sources/9a1c352b/third_party/Self-Forcing/wan/__init__.py",
+      "/tmp/training-free-v211-sources/9a1c352b/third_party/Self-Forcing/wan/configs/wan_t2v_14B.py"
+    ],
+    "runtime_path": "/tmp/training-free-v211-sources/9a1c352b/third_party/Self-Forcing/wan",
+    "runtime_present": true,
+    "weights_path": "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/Wan2.1-T2V-1.3B",
+    "weights_present": true
+  }
+}
