@@ -5,6 +5,7 @@
 - Manifest SHA256: `05ab05da64014f62527d078ad294af03e934827d33d3e93c3551093858f8936d`
 - Completion: production canaries 14/14, formal shard markers 150/150, videos 160/160, VBench core-9 jobs 45/45, temporal diagnostics 160/160.
 - Postprocessing mode: explicit user-authorized Gate/preflight bypass while the full native tensor Gate continued independently.
+- Subsequent native Gate: PASS (`advance_native_budget_ladder`), source-bound to the same manifest; preserved separately at `canary_production/analysis/decision.json` without rewriting the frozen bypass receipt.
 - Frozen budget recommendation: `freeze_both_sf_protocol_controls_before_addon_screen`.
 
 The full-budget `sf_fifo21` control had the highest full-window quality excluding Dynamic Degree (`86.09629`). Sink-preserving configurations expose the intended quality, temporal, and semantic trade-offs; the budget report retains both 21-FFE controls for subsequent addon screening.
