@@ -1,0 +1,35 @@
+{
+  "authorization": "explicit_user_instruction",
+  "created_at": "2026-09-18T12:43:35.707562+00:00",
+  "formal_generation": {
+    "marker_by_method": {
+      "sf_fifo21": 30,
+      "sf_sink1_13": 30,
+      "sf_sink1_21": 30,
+      "sf_sink1_9": 30,
+      "sf_sink3_9": 30
+    },
+    "marker_count": 150,
+    "video_by_method": {
+      "sf_fifo21": 32,
+      "sf_sink1_13": 32,
+      "sf_sink1_21": 32,
+      "sf_sink1_9": 32,
+      "sf_sink3_9": 32
+    },
+    "video_count": 160
+  },
+  "gate_status_at_postprocess_launch": "pending",
+  "input_manifest_sha256": "05ab05da64014f62527d078ad294af03e934827d33d3e93c3551093858f8936d",
+  "instruction": "skip other review steps and run the experiment directly; use staged /tmp models when model loading is needed",
+  "model_path_policy": "generation retries use validated node-local /tmp assets; VBench uses its frozen evaluator cache",
+  "six_node_launch": "/apdcephfs_gy2/share_302533218/cedricnie/v209_runs/v209_d8a6a88f_sixnode/screen32/six_node_launch.json",
+  "six_node_launch_sha256": "b348991fd78ec0d176bd7a5635ebca8f3516a391bb15f36632508a6a6ccc2ccf",
+  "skipped_waits": [
+    "native_gate_wait",
+    "remote_source_review",
+    "vbench_preflight"
+  ],
+  "source_commit": "d8a6a88fa866df60dd1b8c2c5d4aca8cc9c01adf",
+  "version": 1
+}
