@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import argparse
 import sys
 from pathlib import Path
 
@@ -19,18 +20,18 @@ _job_contract = base.job_contract
 
 def runtime_contract(args):
     p.validate_node(args.node_rank, args.num_nodes)
-    manifest = verify_published(Path(__file__).resolve().parents[1], args.comparison_root)
+    manifest = verify_published(Path(__file__).resolve().parents[1], args.comparison_root, protocol=p)
     fingerprint = vbench_checkout_fingerprint(args.vbench_root)
     if fingerprint != manifest["vbench_fingerprint"]:
         raise ValueError("VBench checkout drift after publish")
     result = _runtime_contract(args)
-    result["v212_fingerprint"] = fingerprint
+    result[p.LABEL + "_fingerprint"] = fingerprint
     return result
 
 
 def job_contract(context, **kwargs):
     result = _job_contract(context, **kwargs)
-    result["v212_fingerprint"] = context["v212_fingerprint"]
+    result[p.LABEL + "_fingerprint"] = context[p.LABEL + "_fingerprint"]
     return result
 
 
@@ -41,7 +42,13 @@ def analyze(summary):
 
 
 def main():
-    base.RUN_LABEL = "v212"
+    global p
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--campaign", choices=("v212", "v213"), default="v212")
+    args, remaining = parser.parse_known_args()
+    p = p.load_protocol(args.campaign)
+    sys.argv[1:] = remaining
+    base.RUN_LABEL = p.LABEL
     base.COMPARISON_EXPERIMENT = base.SUMMARY_EXPERIMENT = p.EXPERIMENT
     base.METHODS = p.METHODS
     base.PROMPT_COUNT = 32
@@ -52,7 +59,7 @@ def main():
     base.runtime_contract = runtime_contract
     base.job_contract = job_contract
     base.analyze = analyze
-    base.render_markdown = lambda report: "# v212 Aggregate\n\n```json\n" + json.dumps(report, indent=2) + "\n```\n"
+    base.render_markdown = lambda report: f"# {p.LABEL} Aggregate\n\n```json\n" + json.dumps(report, indent=2) + "\n```\n"
     base.main()
 
 

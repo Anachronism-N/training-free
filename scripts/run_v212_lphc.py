@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 import v212_lphc_protocol as p
+from v212_lphc_protocol import load_protocol
 from run_v211_worker import (
     assert_authorized_node, done_matches, gpu_identity, lphc_environment,
     process_gpu_memory_mib, quarantine_job, scrub_env, validate_media,
@@ -25,17 +26,19 @@ def job_path(out: Path, stage: str, method: str, source: int) -> Path:
     return out / "jobs" / stage / method / f"source_{source:03d}"
 
 
-def stamp(out: Path, data: dict, stage: str, method: str, source: int) -> dict:
+def stamp(out: Path, data: dict, stage: str, method: str, source: int, *, protocol=p) -> dict:
+    p = protocol
     return {"stage": stage, "method": method, "source_index": source,
             "effective_seed": p.SEED + source, "source_commit": data["source_commit"],
             "input_manifest_sha256": p.sha256(out / "inputs/manifest.json"),
             "requires_lphc_trace": bool(p.spec_for(method, stage).get("lphc"))}
 
 
-def load_done(out: Path, data: dict, stage: str, method: str, source: int) -> dict:
+def load_done(out: Path, data: dict, stage: str, method: str, source: int, *, protocol=p) -> dict:
+    p = protocol
     job = job_path(out, stage, method, source)
     row = json.loads((job / "done.json").read_text(encoding="utf-8"))
-    if not done_matches(row, stamp(out, data, stage, method, source), job / "media/0-0_ema.mp4"):
+    if not done_matches(row, stamp(out, data, stage, method, source, protocol=p), job / "media/0-0_ema.mp4"):
         raise ValueError(f"stale/incomplete completion: {job}")
     spec = p.spec_for(method, stage)
     if spec.get("lphc"):
@@ -57,7 +60,8 @@ def lock(path: Path):
         yield
 
 
-def build_command(repo: Path, out: Path, data: dict, stage: str, method: str, source: int) -> tuple[list[str], dict]:
+def build_command(repo: Path, out: Path, data: dict, stage: str, method: str, source: int, *, protocol=p) -> tuple[list[str], dict]:
+    p = protocol
     spec = p.spec_for(method, stage)
     item = next(x for x in data["prompt_items"] if x["source_index"] == source)
     job = job_path(out, stage, method, source)
@@ -71,7 +75,7 @@ def build_command(repo: Path, out: Path, data: dict, stage: str, method: str, so
     if spec.get("lphc"):
         env.update(LPHC_CONTROL_SEED=str(item["effective_seed"]), LPHC_SOURCE_INDEX=str(source))
     if stage == "gate0":
-        env.update(SF_PARITY_TRACE_DIR=str(job / "tensor_trace"), SF_PARITY_RUN_KIND=f"v212_{method}",
+        env.update(SF_PARITY_TRACE_DIR=str(job / "tensor_trace"), SF_PARITY_RUN_KIND=f"{p.LABEL}_{method}",
                    SF_PARITY_CONTRACT_SHA256=p.sha256(out / "inputs/manifest.json"),
                    SF_PARITY_TRACE_LAYERS="0", SF_PARITY_FULL_CACHE_LAYERS="0", SF_PARITY_SAMPLE_VALUES="4096")
     command = [sys.executable, str(runtime / "inference.py"),
@@ -83,15 +87,16 @@ def build_command(repo: Path, out: Path, data: dict, stage: str, method: str, so
     return command, env
 
 
-def run_job(repo: Path, out: Path, data: dict, stage: str, method: str, source: int, gpu: str) -> dict:
+def run_job(repo: Path, out: Path, data: dict, stage: str, method: str, source: int, gpu: str, *, protocol=p) -> dict:
+    p = protocol
     job = job_path(out, stage, method, source)
     with lock(out / "locks" / f"{stage}_{method}_{source}.lock"):
         if (job / "done.json").exists():
             try:
-                result = load_done(out, data, stage, method, source)
+                result = load_done(out, data, stage, method, source, protocol=p)
                 if result.get("hostname") != platform.node() or result.get("gpu_uuid") != gpu_identity(gpu)["uuid"]:
                     raise RuntimeError("resume moved the paired prompt to a different physical GPU")
-                print(f"[v212-skip] {stage}/{method}/{source}", flush=True)
+                print(f"[{p.LABEL}-skip] {stage}/{method}/{source}", flush=True)
                 return result
             except (ValueError, OSError, json.JSONDecodeError):
                 quarantine_job(job, out, "completion/content/trace validation failed")
@@ -102,11 +107,11 @@ def run_job(repo: Path, out: Path, data: dict, stage: str, method: str, source: 
         (cwd / "wan_models").mkdir(parents=True)
         (cwd / "wan_models/Wan2.1-T2V-1.3B").symlink_to(Path(data["wan_model"]["weights_path"]), target_is_directory=True)
         (cwd / "configs").symlink_to(repo / "third_party/Self-Forcing/configs", target_is_directory=True)
-        command, env = build_command(repo, out, data, stage, method, source)
+        command, env = build_command(repo, out, data, stage, method, source, protocol=p)
         env["CUDA_VISIBLE_DEVICES"] = gpu
         p.frozen_json(job / "invocation.json", {"command": command, "cwd": str(cwd),
             "environment": {k: v for k, v in env.items() if k.startswith(("LPHC_", "SF_PARITY_", "CUDA_", "PYTORCH_"))}})
-        print(f"[v212-start] {stage}/{method}/source={source} seed={p.SEED+source} gpu={gpu}", flush=True)
+        print(f"[{p.LABEL}-start] {stage}/{method}/source={source} seed={p.SEED+source} gpu={gpu}", flush=True)
         start = time.monotonic()
         wall = time.time_ns()
         peak = None
@@ -144,7 +149,7 @@ def run_job(repo: Path, out: Path, data: dict, stage: str, method: str, source: 
         trace = job / "trace.jsonl"
         tensor = job / "tensor_trace"
         events = tensor / "events.jsonl"
-        done = {"stamp": stamp(out, data, stage, method, source),
+        done = {"stamp": stamp(out, data, stage, method, source, protocol=p),
                 "contract_sha256": p.sha256(out / "inputs/manifest.json"),
                 "hostname": platform.node(), "gpu_uuid": ident["uuid"], "gpu": ident["name"],
                 "cuda_visible_devices": gpu, "started_wall_ns": wall, "finished_wall_ns": time.time_ns(),
@@ -158,37 +163,39 @@ def run_job(repo: Path, out: Path, data: dict, stage: str, method: str, source: 
         if stage == "gate0" and not (events.is_file() and (tensor / "trace_meta.json").is_file()):
             raise RuntimeError("incomplete gate0 tensor trace")
         p.frozen_json(job / "done.json", done)
-        print(f"[v212-done] {method}/{source} seconds={elapsed:.1f} peak_process_MiB={peak}", flush=True)
+        print(f"[{p.LABEL}-done] {method}/{source} seconds={elapsed:.1f} peak_process_MiB={peak}", flush=True)
         return done
 
 
-def require_gate(out: Path, data: dict) -> dict:
+def require_gate(out: Path, data: dict, *, protocol=p) -> dict:
+    p = protocol
     report = json.loads((out / "decisions/gate0.json").read_text())
     if report.get("input_manifest_sha256") != p.sha256(out / "inputs/manifest.json") or report.get("pass") is not True:
-        raise ValueError("v212 production gate0 is not ready")
+        raise ValueError(f"{p.LABEL} production gate0 is not ready")
     expected = {(source, method) for source in p.GATE_SOURCES
-                for method in ("sf_fifo21", "fifo_zero", "sf_sink1_21", "sink_zero")}
+                for pair in p.GATE_PAIRS for method in pair}
     if (len(report.get("jobs", [])) != len(expected)
             or {(row["source"], row["method"]) for row in report["jobs"]} != expected
-            or len(report.get("pairs", [])) != 4
+            or len(report.get("pairs", [])) != len(p.GATE_SOURCES) * len(p.GATE_PAIRS)
             or {(row["source"], row["local"]) for row in report["pairs"]}
-            != {(s, m) for s in p.GATE_SOURCES for m in ("sf_fifo21", "sf_sink1_21")}
+            != {(s, pair[0]) for s in p.GATE_SOURCES for pair in p.GATE_PAIRS}
             or not all(row.get("pass") is True for row in report["pairs"])):
         raise ValueError("gate0 pair/job coverage incomplete")
     for row in report["jobs"]:
         path = Path(row["path"])
         if p.sha256(path) != row["sha256"]:
             raise ValueError("gate0 completion changed")
-        load_done(out, data, "gate0", row["method"], row["source"])
+        load_done(out, data, "gate0", row["method"], row["source"], protocol=p)
     return report
 
 
-def gate0(repo: Path, out: Path, data: dict, gpu: str) -> None:
+def gate0(repo: Path, out: Path, data: dict, gpu: str, *, protocol=p) -> None:
+    p = protocol
     pairs, jobs = [], []
     for source in p.GATE_SOURCES:
-        for native, zero in (("sf_fifo21", "fifo_zero"), ("sf_sink1_21", "sink_zero")):
-            left = run_job(repo, out, data, "gate0", native, source, gpu)
-            right = run_job(repo, out, data, "gate0", zero, source, gpu)
+        for native, zero in p.GATE_PAIRS:
+            left = run_job(repo, out, data, "gate0", native, source, gpu, protocol=p)
+            right = run_job(repo, out, data, "gate0", zero, source, gpu, protocol=p)
             report = compare_gate_tensors(left, right)
             if (left["hostname"], left["gpu_uuid"]) != (right["hostname"], right["gpu_uuid"]):
                 raise ValueError("gate0 pair used different hardware")
@@ -203,19 +210,22 @@ def gate0(repo: Path, out: Path, data: dict, gpu: str) -> None:
         raise RuntimeError("gate0 failed; inspect decisions/gate0.json")
 
 
-def run_bundle(repo: Path, out: Path, data: dict, sources: list[int], gpu: str) -> None:
+def run_bundle(repo: Path, out: Path, data: dict, sources: list[int], gpu: str, *, protocol=p) -> None:
+    p = protocol
     uuid = gpu_identity(gpu)["uuid"]
     if not uuid:
         raise RuntimeError("GPU UUID required")
     with lock(out / "locks" / f"device_{uuid}.lock"):
         for source in sources:
             for method in p.method_order(source):
-                run_job(repo, out, data, "screen32", method, source, gpu)
+                run_job(repo, out, data, "screen32", method, source, gpu, protocol=p)
 
 
 def main() -> None:
+    p = load_protocol("v212")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("prepare", "gate0", "smoke", "generate32", "status"))
+    parser.add_argument("--campaign", choices=("v212", "v213"), default="v212")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--source-prompts", type=Path, default=p.DEFAULT_PROMPT_SOURCE)
@@ -224,12 +234,13 @@ def main() -> None:
     parser.add_argument("--gpu-list", default="0,1,2,3,4,5,6,7")
     parser.add_argument("--node-rank", type=int, default=int(os.environ.get("NODE_RANK", "0")))
     args = parser.parse_args()
+    p = load_protocol(args.campaign)
     repo, out = args.repo_root.resolve(), p.output_root(args.output_root)
     slots = tuple(args.gpu_list.split(","))
     p.assignment(3, slots)
     if args.action == "prepare":
         p.prepare(repo, out, args.source_prompts, args.checkpoint, args.wan_model, slots)
-        print(f"[v212-prepared] {out} jobs={len(p.METHODS)*len(p.SOURCE_INDICES)}")
+        print(f"[{p.LABEL}-prepared] {out} jobs={len(p.METHODS)*len(p.SOURCE_INDICES)}")
         return
     data = p.verify(repo, out)
     if args.action == "status":
@@ -237,7 +248,7 @@ def main() -> None:
             good = 0
             for source in p.SOURCE_INDICES:
                 try:
-                    load_done(out, data, "screen32", method, source)
+                    load_done(out, data, "screen32", method, source, protocol=p)
                     good += 1
                 except (OSError, ValueError):
                     pass
@@ -253,21 +264,21 @@ def main() -> None:
         if not uuid:
             raise RuntimeError("GPU UUID required")
         with lock(out / "locks" / f"device_{uuid}.lock"):
-            gate0(repo, out, data, slots[0])
+            gate0(repo, out, data, slots[0], protocol=p)
         return
-    require_gate(out, data)
+    require_gate(out, data, protocol=p)
     if args.action == "smoke":
-        run_bundle(repo, out, data, [p.SOURCE_INDICES[0]], slots[0])
+        run_bundle(repo, out, data, [p.SOURCE_INDICES[0]], slots[0], protocol=p)
         return
     # Smoke is the first complete prompt bundle, reused without regeneration.
     for method in p.METHODS:
-        load_done(out, data, "screen32", method, p.SOURCE_INDICES[0])
+        load_done(out, data, "screen32", method, p.SOURCE_INDICES[0], protocol=p)
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(slots)) as pool:
         futures = []
         for gpu in slots:
             sources = [s for s in p.SOURCE_INDICES if p.assignment(s, slots) == (args.node_rank, gpu)]
             if sources:
-                futures.append(pool.submit(run_bundle, repo, out, data, sources, gpu))
+                futures.append(pool.submit(run_bundle, repo, out, data, sources, gpu, protocol=p))
         for future in futures:
             future.result()
 

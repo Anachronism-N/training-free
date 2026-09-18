@@ -3,21 +3,23 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-The current next experiment is **v212 matched-history Screen32**. LPHC is now
-implemented. Uploaded v210 Screen8 results show a small positive FIFO-local
-quality signal, but its original dual-control gate rejected every candidate.
-The completed v209 native-budget ladder also favors retaining FIFO21 as a
-strong control; its PF/Adaptive canaries were not run, not proven failures.
-v212 preserves that decision and separately tests FIFO/sink local policies,
-correct versus random history, and native SF21/SF25 controls on the same GPU
-per prompt. The existing v211 sink-local Screen8 can continue in its frozen
-checkout. No SF-superiority or paper-ready claim is established yet.
+The latest uploaded results are **v211 sink-local Screen8**. Small historical
+correction improves the sink-local control, but remains below native FIFO21
+in quality. This is partial recovery, not confirmed SF superiority. v210's
+FIFO-local signal remains worth replication; no paper-ready claim is established.
+
+**v212 matched-history Screen32** remains unchanged for already running
+checkouts. The next complementary experiment is **v213 FIFO seed/phase Screen32**:
+seven methods, 32 prompts, a second seed, alpha/phase contrasts, random history
+and native SF21/SF25 controls. It adds per-prompt robustness, bounded failure
+review, and prompt-clustered two-seed analysis without changing the model operator.
+See [v211 findings, writing decision and v213 commands](docs/231_v211_results_paper_readiness_and_v213_fifo.md).
 See [v210 findings and v212 commands](docs/230_v210_results_and_v212_matched_history32.md).
 The preceding [six-node plan](docs/229_v210_six_node_effect_first_experiment_plan.md)
 is historical; its statement that LPHC was not implemented is superseded.
 
-The current runnable priority is **v209 explicit SF protocols and post-eviction budget
-attribution**. It adds FIFO21 and Sink1+Recent20 controls, a native 21/13/9-FFE
+The completed preceding stage is **v209 explicit SF protocols and post-eviction budget
+attribution**. It added FIFO21 and Sink1+Recent20 controls, a native 21/13/9-FFE
 ladder, and separate production/reference backend diagnostics. This follows
 v207 runtime repairs; v208 remains conditional rather than an immediate run.
 See [v209 commands and paper convergence](docs/228_v209_sf_protocol_budget_and_paper_convergence.md).

@@ -7,6 +7,7 @@ import json
 import os
 import statistics
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -40,14 +41,37 @@ for _policy, _sink, _protocol in (("fifo", 0, "v210"), ("sink", 1, "v211")):
         }
 
 
+@dataclass(frozen=True)
+class Campaign:
+    label: str
+    experiment: str
+    sources: tuple[int, ...]
+    seed: int
+    specs: dict
+    gate_pairs: tuple[tuple[str, str], ...]
+    primary: tuple[tuple[str, str], ...]
+    mechanism: tuple[tuple[str, str], ...]
+
+    @property
+    def methods(self) -> tuple[str, ...]:
+        return tuple(self.specs)
+
+
+LABEL = "v212"
+GATE_PAIRS = (("sf_fifo21", "fifo_zero"), ("sf_sink1_21", "sink_zero"))
+CAMPAIGN = Campaign(LABEL, EXPERIMENT, SOURCE_INDICES, SEED, SPECS, GATE_PAIRS,
+                    (("fifo_correct", "sf_fifo21"), ("sink_correct", "sf_sink1_21")),
+                    (("fifo_correct", "fifo_random"), ("sink_correct", "sink_random")))
+
+
 def frozen_json(path: Path, value: dict) -> None:
     write_frozen(path, (json.dumps(value, indent=2, sort_keys=True) + "\n").encode())
 
 
-def output_root(path: Path) -> Path:
+def output_root(path: Path, *, campaign: Campaign = CAMPAIGN) -> Path:
     path = path.expanduser().resolve()
-    if not path.name.startswith("v212_"):
-        raise ValueError("use a new output directory whose basename starts with v212_")
+    if not path.name.startswith(campaign.label + "_"):
+        raise ValueError(f"use a new output directory whose basename starts with {campaign.label}_")
     return path
 
 
@@ -59,12 +83,12 @@ def runtime_hashes(repo: Path) -> dict:
             if name and Path(name).suffix in {".py", ".sh", ".yaml", ".json", ".cu", ".cpp", ".h"}}
 
 
-def spec_for(method: str, stage: str) -> dict:
-    if stage == "gate0" and method in {"fifo_zero", "sink_zero"}:
-        return {**SPECS[method.replace("zero", "correct")], "alpha": 0.0}
-    if method not in METHODS:
+def spec_for(method: str, stage: str, *, campaign: Campaign = CAMPAIGN) -> dict:
+    if stage == "gate0" and method in {pair[1] for pair in campaign.gate_pairs}:
+        return {**campaign.specs[method.replace("zero", "correct")], "alpha": 0.0}
+    if method not in campaign.methods:
         raise ValueError(f"unknown method: {method}")
-    return dict(SPECS[method])
+    return dict(campaign.specs[method])
 
 
 def assignment(source: int, slots: tuple[str, ...]) -> tuple[int, str]:
@@ -88,8 +112,8 @@ def validate_node(rank: int, num_nodes: int = 6) -> str:
 
 
 def prepare(repo: Path, out: Path, prompts: Path, checkpoint: Path, wan: Path,
-            slots: tuple[str, ...], *, clean: bool = True) -> dict:
-    out = output_root(out)
+            slots: tuple[str, ...], *, clean: bool = True, campaign: Campaign = CAMPAIGN) -> dict:
+    out = output_root(out, campaign=campaign)
     assignment(SOURCE_INDICES[0], slots)
     if clean:
         require_clean_checkout(repo)
@@ -98,7 +122,7 @@ def prepare(repo: Path, out: Path, prompts: Path, checkpoint: Path, wan: Path,
         raise ValueError("expected exactly 128 non-empty rewritten MovieGen prompts")
     old_path = out / "inputs/manifest.json"
     if old_path.exists():
-        current = verify(repo, out)
+        current = verify(repo, out, campaign=campaign)
         if (current["prompt_source"]["sha256"] != sha256(prompts)
                 or current["checkpoint"]["path"] != str(checkpoint.resolve())
                 or current["wan_model"]["weights_path"] != str(wan.resolve())
@@ -111,50 +135,52 @@ def prepare(repo: Path, out: Path, prompts: Path, checkpoint: Path, wan: Path,
     base.update(use_pyramidkv=False, use_teacache=False, compile_ffn=False,
                 vae_decode_mode="batch", independent_first_frame=False, few_step_cfg_enabled=False)
     configs = {}
-    for method in (*METHODS, "fifo_zero", "sink_zero"):
-        spec = spec_for(method, "gate0")
+    for method in (*campaign.methods, *(pair[1] for pair in campaign.gate_pairs)):
+        spec = spec_for(method, "gate0", campaign=campaign)
         config = copy.deepcopy(base)
         config["model_kwargs"].update(local_attn_size=spec["window"], sink_size=spec["sink"])
         path = out / "inputs/configs" / f"{method}.yaml"
         digest = write_frozen(path, yaml.safe_dump(config, sort_keys=True).encode())
         configs[method] = {"path": str(path), "sha256": digest}
     items = []
-    for index, source in enumerate(SOURCE_INDICES):
+    for index, source in enumerate(campaign.sources):
         text = lines[source].strip()
         path = out / "inputs/prompts" / f"source_{source:03d}.txt"
         digest = write_frozen(path, (text + "\n").encode())
-        items.append({"index": index, "source_index": source, "effective_seed": SEED + source,
+        items.append({"index": index, "source_index": source, "effective_seed": campaign.seed + source,
                       "text": text, "path": str(path), "sha256": digest})
-    payload = {"version": 1, "experiment": EXPERIMENT, "source_commit": git_commit(repo),
-               "runtime_paths": runtime_hashes(repo), "source_indices": list(SOURCE_INDICES),
-               "methods": list(METHODS), "specs": SPECS, "prompt_items": items,
+    payload = {"version": 1, "experiment": campaign.experiment, "source_commit": git_commit(repo),
+               "runtime_paths": runtime_hashes(repo), "source_indices": list(campaign.sources),
+               "methods": list(campaign.methods), "specs": campaign.specs, "prompt_items": items,
                "prompt_source": file_stamp(prompts), "checkpoint": file_stamp(checkpoint),
                "wan_model": {"weights_path": str(wan.resolve()), "inventory": wan_inventory(wan)},
                "configs": configs, "gpu_slots": list(slots), "authorized_nodes": list(AUTHORIZED_NODES),
-               "frames": FRAMES, "base_seed": SEED,
+               "frames": FRAMES, "base_seed": campaign.seed,
                "placement": "prompt bundle on one GPU; rotating method order; six nodes",
-               "primary_contrasts": [["fifo_correct", "sf_fifo21"], ["sink_correct", "sf_sink1_21"]],
-               "mechanism_contrasts": [["fifo_correct", "fifo_random"], ["sink_correct", "sink_random"]],
+               "primary_contrasts": [list(pair) for pair in campaign.primary],
+               "mechanism_contrasts": [list(pair) for pair in campaign.mechanism],
                "development_only": True, "paper_claim_ready": False}
     frozen_json(old_path, payload)
     return payload
 
 
-def verify(repo: Path, out: Path, *, runtime: bool = True) -> dict:
-    out = output_root(out)
+def verify(repo: Path, out: Path, *, runtime: bool = True, campaign: Campaign = CAMPAIGN) -> dict:
+    out = output_root(out, campaign=campaign)
     data = json.loads((out / "inputs/manifest.json").read_text(encoding="utf-8"))
-    if (data.get("experiment") != EXPERIMENT or data.get("source_indices") != list(SOURCE_INDICES)
-            or data.get("methods") != list(METHODS) or data.get("specs") != SPECS
+    if (data.get("experiment") != campaign.experiment or data.get("source_indices") != list(campaign.sources)
+            or data.get("methods") != list(campaign.methods) or data.get("specs") != campaign.specs
             or data.get("authorized_nodes") != list(AUTHORIZED_NODES)
-            or data.get("base_seed") != SEED or data.get("frames") != FRAMES):
-        raise ValueError("v212 frozen protocol mismatch")
+            or data.get("base_seed") != campaign.seed or data.get("frames") != FRAMES
+            or data.get("primary_contrasts") != [list(pair) for pair in campaign.primary]
+            or data.get("mechanism_contrasts") != [list(pair) for pair in campaign.mechanism]):
+        raise ValueError(f"{campaign.label} frozen protocol mismatch")
     assignment(SOURCE_INDICES[0], tuple(data["gpu_slots"]))
     if runtime and (data["source_commit"] != git_commit(repo) or data["runtime_paths"] != runtime_hashes(repo)):
         raise ValueError("source drift; use the frozen checkout, not an updated running checkout")
     for row in [data["prompt_source"], *data["configs"].values(), *data["prompt_items"]]:
         if sha256(Path(row["path"])) != row["sha256"]:
             raise ValueError(f"input content drift: {row['path']}")
-    if [(x["source_index"], x["effective_seed"]) for x in data["prompt_items"]] != [(s, SEED+s) for s in SOURCE_INDICES]:
+    if [(x["source_index"], x["effective_seed"]) for x in data["prompt_items"]] != [(s, campaign.seed+s) for s in campaign.sources]:
         raise ValueError("prompt seed/membership drift")
     checkpoint = Path(data["checkpoint"]["path"])
     stat = checkpoint.stat()
@@ -165,7 +191,7 @@ def verify(repo: Path, out: Path, *, runtime: bool = True) -> dict:
 
 
 def audit(path: Path, spec: dict, blocks: int, source: int) -> dict:
-    kwargs = {"phase": "e1", "expected_blocks": blocks, "expected_layers": 30}
+    kwargs = {"phase": spec["phase"], "expected_blocks": blocks, "expected_layers": 30}
     if spec["sink"]:
         report = audit_sink(path, spec["alpha"], allow_random=spec["retrieval_mode"] == "random", **kwargs)
     else:
@@ -175,7 +201,7 @@ def audit(path: Path, spec: dict, blocks: int, source: int) -> dict:
     if len(headers) != 1 or headers[0].get("source_index") != source:
         report["errors"].append("source identity missing/mismatched in trace")
     elif any(headers[0].get(key) != value for key, value in {
-        "alpha": spec["alpha"], "schedule": "e1", "retrieval_mode": spec["retrieval_mode"]
+        "alpha": spec["alpha"], "schedule": spec["phase"], "retrieval_mode": spec["retrieval_mode"]
     }.items()):
         report["errors"].append("trace header differs from requested intervention")
     random = report["totals"]["random"]
@@ -202,5 +228,27 @@ def audit(path: Path, spec: dict, blocks: int, source: int) -> dict:
         "mean_age_latent_frames": statistics.mean(value["ages"]) if value["ages"] else None,
         "max_age_latent_frames": max(value["ages"]) if value["ages"] else None,
     } for layer, value in layers.items()}
+    phase_exposure = {}
+    for row in rows:
+        if row.get("event") != "attention_call" or row.get("call_kind") != "noisy":
+            continue
+        key = f"{row.get('layer_idx', row.get('layer_id'))}:{row.get('phase_index')}"
+        sample = phase_exposure.setdefault(key, {"calls": 0, "nonempty_calls": 0,
+                                                "ratio_sum": 0., "max_correction_ratio": 0.})
+        ratio = float(row.get("correction_ratio", 0.))
+        sample["calls"] += 1
+        sample["nonempty_calls"] += int(bool(row.get("selected_history_frames", row.get("selected_frame_ids", []))))
+        sample["ratio_sum"] += ratio
+        sample["max_correction_ratio"] = max(sample["max_correction_ratio"], ratio)
+    for sample in phase_exposure.values():
+        sample["mean_correction_ratio"] = sample.pop("ratio_sum") / sample["calls"]
+    report["exposure_by_layer_phase"] = phase_exposure
     report["pass"] = not report["errors"]
     return report
+
+
+def load_protocol(name: str):
+    import importlib
+    if name not in {"v212", "v213"}:
+        raise ValueError("campaign must be v212 or v213")
+    return importlib.import_module(f"{name}_lphc_protocol")

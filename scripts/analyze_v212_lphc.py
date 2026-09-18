@@ -114,25 +114,13 @@ def render(report: dict) -> str:
     return "\n".join(lines)
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-root", type=Path)
-    parser.add_argument("--explain-v210", type=Path)
-    parser.add_argument("--output", type=Path)
-    args = parser.parse_args()
-    if args.explain_v210:
-        if args.output is None or args.output.resolve() == args.explain_v210.resolve():
-            raise ValueError("use a separate --output for the retrospective explanation")
-        report = explain_old(json.loads(args.explain_v210.read_text(encoding="utf-8")))
-        p.frozen_json(args.output, {**report, "source_sha256": p.sha256(args.explain_v210)})
-        return
-    if args.run_root is None:
-        parser.error("--run-root or --explain-v210 required")
+def load_validated_inputs(run_root: Path, *, protocol=p):
+    p = protocol
     repo = Path(__file__).resolve().parents[1]
-    root = p.output_root(args.run_root) / "evaluation"
+    root = p.output_root(run_root) / "evaluation"
     comparison = root / "vbench_comparison"
     manifest_path = comparison / "comparison_manifest.json"
-    verify_published(repo, comparison)
+    manifest = verify_published(repo, comparison, protocol=p)
     summary_path = root / "metrics/vbench_core9_summary.json"
     summary = json.loads(summary_path.read_text())
     if (summary.get("experiment") != p.EXPERIMENT or summary.get("comparison_manifest_sha256") != p.sha256(manifest_path)
@@ -153,9 +141,29 @@ def main():
                 raise ValueError(f"VBench result changed: {method}/{dimension}")
     rows = old.load_window_rows(parts, summary, methods=p.METHODS, prompt_count=32)
     diagnostic = temporal.load_temporal_rows(temporal_path, methods=p.METHODS, prompt_count=32)
+    source = {"manifest_sha256": p.sha256(manifest_path), "summary_sha256": p.sha256(summary_path),
+              "temporal_sha256": p.sha256(temporal_path)}
+    return rows, diagnostic, source, manifest
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--run-root", type=Path)
+    parser.add_argument("--explain-v210", type=Path)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args()
+    if args.explain_v210:
+        if args.output is None or args.output.resolve() == args.explain_v210.resolve():
+            raise ValueError("use a separate --output for the retrospective explanation")
+        report = explain_old(json.loads(args.explain_v210.read_text(encoding="utf-8")))
+        p.frozen_json(args.output, {**report, "source_sha256": p.sha256(args.explain_v210)})
+        return
+    if args.run_root is None:
+        parser.error("--run-root or --explain-v210 required")
+    rows, diagnostic, source, _ = load_validated_inputs(args.run_root)
+    root = p.output_root(args.run_root) / "evaluation"
     report = analyze(rows, diagnostic)
-    report["source"] = {"manifest_sha256": p.sha256(manifest_path), "summary_sha256": p.sha256(summary_path),
-                        "temporal_sha256": p.sha256(temporal_path)}
+    report["source"] = source
     p.frozen_json(root / "analysis/v212_matched_history.json", report)
     p.write_frozen(root / "analysis/v212_matched_history.md", render(report).encode())
     old.write_comparisons(root / "analysis/v212_comparisons.csv", report["comparisons"])
