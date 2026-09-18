@@ -186,11 +186,15 @@ def require_gate(out: Path, data: dict, *, protocol=p) -> dict:
         if p.sha256(path) != row["sha256"]:
             raise ValueError("gate0 completion changed")
         load_done(out, data, "gate0", row["method"], row["source"], protocol=p)
+    if hasattr(p, "require_baseline"):
+        p.require_baseline(out)
     return report
 
 
 def gate0(repo: Path, out: Path, data: dict, gpu: str, *, protocol=p) -> None:
     p = protocol
+    if hasattr(p, "require_baseline"):
+        p.require_baseline(out)
     pairs, jobs = [], []
     for source in p.GATE_SOURCES:
         for native, zero in p.GATE_PAIRS:

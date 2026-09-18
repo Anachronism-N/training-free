@@ -125,6 +125,10 @@ SF25是容量参考而非严格总显存/FLOPs匹配。若`.10`成为新赢家�
 
 ## 5. 六节点命令
 
+启动补充：新checkout先按[docs/232](232_v213_sf_baseline_alignment_and_launch.md)
+准备固定commit的干净官方SF，设置`UPSTREAM_SF_ROOT`，并在prepare后运行baseline。
+这是数值实现检查，不增加主实验方法，不修改旧v212结果。
+
 仍用原六节点白名单，无SSH自动启动：
 
 | Rank | V213_NODE_ADDRESS |
@@ -159,6 +163,7 @@ export VBENCH_ROOT=/apdcephfs_gy2/share_303214315/cedricnie/develop/research_spr
 
 # Rank0 only:
 bash scripts/run_v213_experiment.sh prepare
+bash scripts/run_v213_experiment.sh baseline
 bash scripts/run_v213_experiment.sh gate0
 bash scripts/run_v213_experiment.sh smoke
 
@@ -191,6 +196,7 @@ v213 wrapper显式选择campaign；v212默认仍为原方案，不能共享输�
 
 ```text
 inputs/manifest.json
+decisions/sf_upstream_gate.json
 decisions/gate0.json
 jobs/screen32/<method>/source_<id>/done.json
 jobs/screen32/<method>/source_<id>/trace.jsonl
@@ -261,4 +267,5 @@ python -m pytest -q tests/test_v213_lphc.py tests/test_v212_lphc.py \
   tests/test_v211_postprocessing.py tests/test_lphc.py tests/test_lphc_native_integration.py
 ```
 
-gate0与完整30秒smoke通过后再批量运行；无法在本机验证的部分不宣称“绝不会出错”。
+新checkout要求baseline、gate0与完整30秒smoke通过后再批量运行；
+无法在本机验证的部分不宣称“绝不会出错”。补充检查与命令见docs/232。

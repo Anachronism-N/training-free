@@ -4,6 +4,7 @@ from functools import partial
 import os
 
 import v212_lphc_protocol as base
+from v213_sf_baseline_contract import require_baseline
 from v212_lphc_protocol import (
     AUTHORIZED_NODES, DEFAULT_CHECKPOINT, DEFAULT_PROMPT_SOURCE, DEFAULT_WAN_MODEL,
     FRAMES, GATE_SOURCES, SOURCE_INDICES, assignment, audit, frozen_json, sha256, write_frozen,

@@ -18,7 +18,7 @@ EVAL="$OUT/evaluation"
 COMPARISON="$EVAL/vbench_comparison"
 
 case "$ACTION" in
-  prepare|gate0|smoke|publish|collect|analyze|package)
+  prepare|baseline|gate0|smoke|publish|collect|analyze|package)
     [[ "$NODE_RANK" == 0 ]] || { echo "action requires rank0"; exit 2; } ;;
 esac
 case "$ACTION" in
@@ -31,6 +31,12 @@ PY
     ;;
 esac
 case "$ACTION" in
+  baseline)
+    [[ "$CAMPAIGN" == v213 ]] || { echo "baseline is a v213-only action"; exit 2; }
+    python "$ROOT/scripts/run_v213_sf_baseline.py" --run-root "$OUT" \
+      --upstream-root "${UPSTREAM_SF_ROOT:?set a clean pinned official Self-Forcing checkout}" \
+      --gpu "${GPU_LIST%%,*}"
+    ;;
   prepare|gate0|smoke|generate32|status)
     python "$ROOT/scripts/run_v212_lphc.py" "$ACTION" --repo-root "$ROOT" \
       --campaign "$CAMPAIGN" --output-root "$OUT" --node-rank "$NODE_RANK" --gpu-list "$GPU_LIST" \
@@ -89,5 +95,5 @@ with tarfile.open(root / f"{sys.argv[2]}_small_artifacts.tar.gz", "w:gz") as arc
 print(root / f"{sys.argv[2]}_small_artifacts.tar.gz")
 PY
     ;;
-  *) echo "prepare gate0 smoke generate32 status publish split preflight eval eval-missing collect analyze package"; exit 2 ;;
+  *) echo "prepare baseline(v213) gate0 smoke generate32 status publish split preflight eval eval-missing collect analyze package"; exit 2 ;;
 esac

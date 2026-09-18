@@ -14,6 +14,11 @@ seven methods, 32 prompts, a second seed, alpha/phase contrasts, random history
 and native SF21/SF25 controls. It adds per-prompt robustness, bounded failure
 review, and prompt-clustered two-seed analysis without changing the model operator.
 See [v211 findings, writing decision and v213 commands](docs/231_v211_results_paper_readiness_and_v213_fifo.md).
+Before starting a new v213 run, use the [SF baseline alignment and launch checklist](docs/232_v213_sf_baseline_alignment_and_launch.md).
+The new `baseline` step compares pristine pinned official SF with local FIFO21
+after eviction, then permits the existing alpha-zero and generation gates.
+It does not claim full PF runtime or benchmark reproduction; GPU parity must
+still pass on the server. Already frozen v212 runs are unchanged.
 See [v210 findings and v212 commands](docs/230_v210_results_and_v212_matched_history32.md).
 The preceding [six-node plan](docs/229_v210_six_node_effect_first_experiment_plan.md)
 is historical; its statement that LPHC was not implemented is superseded.
