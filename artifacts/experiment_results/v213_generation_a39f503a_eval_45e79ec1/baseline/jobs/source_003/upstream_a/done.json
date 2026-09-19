@@ -1,0 +1,49 @@
+{
+  "contract_sha256": "68e238b0e15915b66c7f5eddd932612776b9b351e0e7d19880b3bbb0a5cf4385",
+  "counts": {
+    "conditioning": 1,
+    "decoded_sample": 1,
+    "final_latents": 1,
+    "generator_input": 50,
+    "generator_output": 50,
+    "input_noise": 1
+  },
+  "cuda": "12.8",
+  "effective_seed": 21303,
+  "events_sha256": "87b039c51499e17a5fe5a1b03378270d875a98bad347d92a375428f032c8b4bd",
+  "gpu": {
+    "name": "NVIDIA A800-SXM4-80GB",
+    "uuid": "GPU-ea3fe93b-ee85-4357-3e35-b482e3c3d8c5"
+  },
+  "grad_enabled": false,
+  "imported": {
+    "pipeline.causal_inference": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/reference_code/Self-Forcing-33593df3/pipeline/causal_inference.py",
+      "sha256": "a06f5653f266dce154116f85d33cee3f2923e8531fbb15b4702b3751abdaab69"
+    },
+    "utils.scheduler": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/reference_code/Self-Forcing-33593df3/utils/scheduler.py",
+      "sha256": "4194ef1324bb06527621749c7f9a82f431ccf011823aa65099cb7bdf116b642e"
+    },
+    "utils.wan_wrapper": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/reference_code/Self-Forcing-33593df3/utils/wan_wrapper.py",
+      "sha256": "da919629bac4472cd9072223f1ab03200de276e202ab0d9b91e6789d500ff8fa"
+    },
+    "wan.modules.attention": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/reference_code/Self-Forcing-33593df3/wan/modules/attention.py",
+      "sha256": "02ad719a76e6bdec79d18fc62b094ef2ad7c28b2d593c9f395ae1226041b7c9d"
+    },
+    "wan.modules.causal_model": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/reference_code/Self-Forcing-33593df3/wan/modules/causal_model.py",
+      "sha256": "ae2644311ad212977260549e4b6034618647b82e2ee47a244bdaac50d8ff0778"
+    },
+    "wan.modules.vae": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/reference_code/Self-Forcing-33593df3/wan/modules/vae.py",
+      "sha256": "a4c1d9362f25a1bef463ac51caed4097317c007d4d87887b02a3a733fdbc48d5"
+    }
+  },
+  "mode": "upstream_a",
+  "runtime": "/apdcephfs_gy2/share_302533218/cedricnie/reference_code/Self-Forcing-33593df3",
+  "source": 3,
+  "torch": "2.10.0+cu128"
+}

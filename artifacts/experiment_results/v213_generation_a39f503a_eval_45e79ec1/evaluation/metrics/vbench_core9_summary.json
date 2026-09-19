@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "experiment": "v213_fifo_seed_phase32",
+  "comparison_manifest": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/vbench_comparison/comparison_manifest.json",
+  "comparison_manifest_sha256": "1e3db9698fbf7fcbae70bdf926d251b735cb69afe4bd2b608687fce914650184",
+  "methods": {
+    "sf_fifo21": {
+      "subject_consistency": 0.9736317058184569,
+      "background_consistency": 0.9635398605775088,
+      "temporal_flickering": 0.9797001071366808,
+      "motion_smoothness": 0.9884336876570603,
+      "overall_consistency": 0.23804547875188292,
+      "dynamic_degree": 0.3854166666666667,
+      "aesthetic_quality": 0.5952132820462187,
+      "imaging_quality": 0.6866951954973242,
+      "temporal_style": 0.23804547875188292
+    },
+    "sf_fifo25": {
+      "subject_consistency": 0.9716475477047223,
+      "background_consistency": 0.9617528249281063,
+      "temporal_flickering": 0.9782497798149882,
+      "motion_smoothness": 0.9878911474412972,
+      "overall_consistency": 0.23800030739124242,
+      "dynamic_degree": 0.4354166666666667,
+      "aesthetic_quality": 0.5935730723043283,
+      "imaging_quality": 0.6803640778996051,
+      "temporal_style": 0.23800030739124242
+    },
+    "fifo_correct": {
+      "subject_consistency": 0.9733986796664024,
+      "background_consistency": 0.963103003612328,
+      "temporal_flickering": 0.979060672870258,
+      "motion_smoothness": 0.9881110164866721,
+      "overall_consistency": 0.2391602150009324,
+      "dynamic_degree": 0.4041666666666667,
+      "aesthetic_quality": 0.5966840558995803,
+      "imaging_quality": 0.6866638529847066,
+      "temporal_style": 0.2391602150009324
+    },
+    "fifo_random": {
+      "subject_consistency": 0.9736113101559257,
+      "background_consistency": 0.9631633466380215,
+      "temporal_flickering": 0.9791704248554176,
+      "motion_smoothness": 0.9880982318182399,
+      "overall_consistency": 0.2378980524876776,
+      "dynamic_degree": 0.39791666666666664,
+      "aesthetic_quality": 0.5966930463910103,
+      "imaging_quality": 0.6873605887778104,
+      "temporal_style": 0.2378980524876776
+    },
+    "fifo_e1_a010": {
+      "subject_consistency": 0.9728548655689812,
+      "background_consistency": 0.9627818872482891,
+      "temporal_flickering": 0.9788058135926334,
+      "motion_smoothness": 0.9881083147487681,
+      "overall_consistency": 0.2385699430325379,
+      "dynamic_degree": 0.39375,
+      "aesthetic_quality": 0.597721042484045,
+      "imaging_quality": 0.6871317067245643,
+      "temporal_style": 0.2385699430325379
+    },
+    "fifo_e2_a002": {
+      "subject_consistency": 0.9743670228864203,
+      "background_consistency": 0.9634584637601159,
+      "temporal_flickering": 0.9795265769607888,
+      "motion_smoothness": 0.9883809087950313,
+      "overall_consistency": 0.23597239542286844,
+      "dynamic_degree": 0.3958333333333333,
+      "aesthetic_quality": 0.5962667103856802,
+      "imaging_quality": 0.686146659847349,
+      "temporal_style": 0.23597239542286844
+    },
+    "fifo_full_a002": {
+      "subject_consistency": 0.9737845807046777,
+      "background_consistency": 0.963459039073231,
+      "temporal_flickering": 0.9790119496236238,
+      "motion_smoothness": 0.9879974921189271,
+      "overall_consistency": 0.23789924259763212,
+      "dynamic_degree": 0.4,
+      "aesthetic_quality": 0.5979280530164639,
+      "imaging_quality": 0.6886258957435687,
+      "temporal_style": 0.23789924259763212
+    }
+  },
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "sources": {
+    "sf_fifo21": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo21/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo21/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo21/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo21/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo21/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo21/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo21/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo21/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo21/temporal_style/results.json"
+    },
+    "sf_fifo25": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo25/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo25/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo25/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo25/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo25/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo25/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo25/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo25/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/sf_fifo25/temporal_style/results.json"
+    },
+    "fifo_correct": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_correct/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_correct/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_correct/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_correct/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_correct/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_correct/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_correct/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_correct/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_correct/temporal_style/results.json"
+    },
+    "fifo_random": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_random/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_random/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_random/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_random/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_random/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_random/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_random/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_random/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_random/temporal_style/results.json"
+    },
+    "fifo_e1_a010": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e1_a010/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e1_a010/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e1_a010/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e1_a010/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e1_a010/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e1_a010/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e1_a010/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e1_a010/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e1_a010/temporal_style/results.json"
+    },
+    "fifo_e2_a002": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e2_a002/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e2_a002/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e2_a002/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e2_a002/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e2_a002/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e2_a002/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e2_a002/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e2_a002/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_e2_a002/temporal_style/results.json"
+    },
+    "fifo_full_a002": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_full_a002/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_full_a002/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_full_a002/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_full_a002/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_full_a002/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_full_a002/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_full_a002/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_full_a002/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/metrics/vbench_long_parts/fifo_full_a002/temporal_style/results.json"
+    }
+  },
+  "missing": []
+}
