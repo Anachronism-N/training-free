@@ -3,6 +3,15 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
+**ICASSP 2027 / four-page scope:** [minimal experiment and submission plan](docs/235_four_page_short_paper_minimal_experiment_plan.md)
+narrows the target to one supported benefit. Finish v215 selection, freeze one
+method, then confirm against SF on the remaining 80 prompts (160 new videos).
+Reuse development ablations; cross-model, 60-second, PF and ABA runs are not
+default prerequisites. Only v215 is currently executable; the confirmation
+runner follows method selection. Existing frozen analyses are not relabelled.
+The user reports v215 is running; keep its checkout unchanged. The plan records
+the official submission links, page allowance and a September 23 internal deadline.
+
 **Latest evidence: v213 is complete (224 videos).** Official-SF and alpha-zero
 checks pass on the uploaded canaries. All four candidates' paired Quality
 confidence intervals include zero; content-selected history has not established
