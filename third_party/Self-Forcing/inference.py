@@ -180,8 +180,11 @@ parser.add_argument("--role_min_evidence_spread", type=float, default=None,
 parser.add_argument("--lphc_enable", action="store_true", default=False,
                     help="Enable the versioned LPHC sidecar (v210 FIFO21 by default).")
 parser.add_argument("--lphc_protocol", type=str, default=None,
-                    choices=("v210", "v211"),
-                    help="LPHC protocol version (default v210; v211 must be explicit).")
+                    choices=("v210", "v211", "v215"),
+                    help="LPHC protocol version (default v210; newer protocols must be explicit).")
+parser.add_argument("--lphc_descriptor_mode", type=str, default=None,
+                    choices=("pooled", "headwise", "headwise_centered"),
+                    help="History selector representation; headwise modes require v215.")
 parser.add_argument("--lphc_local_policy", type=str, default=None,
                     choices=("fifo21", "sink1_recent20"),
                     help="LPHC local-cache topology (default fifo21).")
@@ -267,6 +270,7 @@ if args.lphc_enable:
     os.environ["LPHC_ENABLE"] = "1"
 _LPHC_CLI_ENV = {
     "lphc_protocol": "LPHC_PROTOCOL",
+    "lphc_descriptor_mode": "LPHC_DESCRIPTOR_MODE",
     "lphc_local_policy": "LPHC_LOCAL_POLICY",
     "lphc_alpha": "LPHC_ALPHA",
     "lphc_phase": "LPHC_PHASE",

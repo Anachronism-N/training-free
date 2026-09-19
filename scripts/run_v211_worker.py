@@ -268,6 +268,7 @@ def lphc_environment(spec: dict, trace_path: Path, source_index: int | None = No
         "LPHC_HISTORY_FRAMES": str(int(spec["history_frames"])),
         "LPHC_PROTOCOL": str(spec.get("protocol", LPHC_PROTOCOL)),
         "LPHC_LOCAL_POLICY": str(spec.get("local_policy", LPHC_LOCAL_POLICY)),
+        "LPHC_DESCRIPTOR_MODE": str(spec.get("descriptor_mode", "pooled")),
         "LPHC_TRACE_PATH": str(trace_path),
     }
     if source_index is not None:

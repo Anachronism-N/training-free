@@ -44,7 +44,7 @@ def analyze(summary):
 def main():
     global p
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214"), default="v212")
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215"), default="v212")
     args, remaining = parser.parse_known_args()
     p = p.load_protocol(args.campaign)
     sys.argv[1:] = remaining

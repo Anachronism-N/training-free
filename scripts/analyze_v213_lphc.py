@@ -20,11 +20,13 @@ QUALITY = "quality_without_dynamic_degree"
 def analyze(rows_by_window: dict, temporal_rows: dict, *, protocol=p) -> dict:
     p = protocol
     count = len(p.SOURCE_INDICES)
+    primary_metric = getattr(p, "PRIMARY_METRIC", QUALITY)
     expected = {(m, i) for m in p.METHODS for i in range(count)}
     if set(rows_by_window) != set(old.WINDOWS) or set(temporal_rows) != expected:
         raise ValueError("incomplete paired grid")
     comparisons = []
-    pairs = [(m, control) for m in p.CANDIDATES for control in ("sf_fifo21", "sf_fifo25")]
+    pairs = [(m, control) for m in p.CANDIDATES
+             for control in getattr(p, "EFFECT_CONTROLS", ("sf_fifo21", "sf_fifo25"))]
     pairs += list(p.CAMPAIGN.mechanism)
     pairs = list(dict.fromkeys(pairs))
     for window, rows in rows_by_window.items():
@@ -41,13 +43,13 @@ def analyze(rows_by_window: dict, temporal_rows: dict, *, protocol=p) -> dict:
                 if metric in old.NONINFERIORITY_MARGINS:
                     row["ni_state"] = interval_state(row, old.NONINFERIORITY_MARGINS[metric])
                 comparisons.append(row)
-    # Report the prespecified replication separately from three exploratory variants.
+    # Each campaign freezes its primary metric and candidate family before generation.
     family = [r for r in comparisons if r["candidate"] in p.CANDIDATES and r["control"] == "sf_fifo21"
-              and r["window"] == "full" and r["metric"] == QUALITY]
+              and r["window"] == "full" and r["metric"] == primary_metric]
     paired.bh(family)
     status, review = {}, []
     for candidate in p.CANDIDATES:
-        quality = old.comparison(comparisons, candidate, "sf_fifo21", QUALITY, "full")
+        quality = old.comparison(comparisons, candidate, "sf_fifo21", primary_metric, "full")
         guard = temporal.temporal_guard(temporal_rows, candidate=candidate, control="sf_fifo21", prompt_count=count)
         ni = [old.comparison(comparisons, candidate, "sf_fifo21", metric, window)
               for window in ("full", "late_half") for metric in old.NONINFERIORITY_MARGINS]
@@ -74,12 +76,13 @@ def analyze(rows_by_window: dict, temporal_rows: dict, *, protocol=p) -> dict:
     return {
         "experiment": p.EXPERIMENT, "prompt_count": count,
         "source_indices": list(p.SOURCE_INDICES), "development_only": True, "paper_claim_ready": False,
-        "primary_hypothesis": "fifo_correct minus sf_fifo21, full quality with DD fixed",
+        "primary_hypothesis": getattr(p, "PRIMARY_HYPOTHESIS", "fifo_correct minus sf_fifo21, full quality with DD fixed"),
+        "ranking_metric": primary_metric,
         "candidate_status": status, "comparisons": comparisons,
         "method_means": old.method_means(rows_by_window, p.METHODS, count),
         "review_queue": queue, "all_failure_flags": review, "review_pair_limit": 4,
         "rule": {"quality_mean_target": .10, "mean_tolerances": old.NONINFERIORITY_MARGINS,
-                 "multiple_testing_family": "four full quality contrasts vs FIFO21; one-sided sign-test BH",
+                 "multiple_testing_family": f"{len(p.CANDIDATES)} full {primary_metric} contrasts vs FIFO21; one-sided sign-test BH",
                  "statistical_unit": "prompt, not frame or clip", "timing_used_for_selection": False},
     }
 
@@ -160,13 +163,14 @@ def costs(jobs: list[dict], *, protocol=p) -> dict:
 
 def render(report: dict) -> str:
     lines = [f"# {report['experiment']}", "", "Development evidence, not a submission-readiness certificate.", "",
+             f"Ranking metric: {report.get('ranking_metric', QUALITY)}.", "",
              "| Candidate | Quality delta vs SF21 | 95% CI | Win fraction | Worst leave-one-out mean | Motion safe | Next |",
              "|---|---:|---|---:|---:|---|---|"]
     for method, row in report["candidate_status"].items():
         q = row["quality"]
         lines.append(f"| {method} | {q['mean_delta']:.4f} | {q['bootstrap_ci95']} | {q['win_fraction']:.3f} | "
                      f"{q['leave_one_prompt_out_min_mean']:.4f} | {row['temporal_guard']['automatic_safety_pass']} | {row['next_step']} |")
-    lines += ["", "Random-history and SF25 comparisons, late-half results, phase/dose effects and all flags are in JSON.",
+    lines += ["", "All configured control comparisons, late-half results and failure flags are in JSON.",
               f"At most {len(report['review_queue'])} failure pairs queued; no full-gallery review required.", ""]
     return "\n".join(lines)
 

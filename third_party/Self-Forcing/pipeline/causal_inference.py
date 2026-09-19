@@ -375,6 +375,7 @@ class CausalInferencePipeline(torch.nn.Module):
         config = LPHCConfig(
             alpha=float(os.environ.get("LPHC_ALPHA", "0")),
             mode=str(os.environ.get("LPHC_RETRIEVAL_MODE", "correct")),
+            descriptor_mode=str(os.environ.get("LPHC_DESCRIPTOR_MODE", "pooled")),
             schedule=str(os.environ.get("LPHC_PHASE", "e1")),
             archive_capacity=int(os.environ.get("LPHC_ARCHIVE_FRAMES", "12")),
             history_budget=int(os.environ.get("LPHC_HISTORY_FRAMES", "4")),
@@ -395,7 +396,7 @@ class CausalInferencePipeline(torch.nn.Module):
         print(
             "[LPHC] enabled "
             f"alpha={config.alpha} schedule={config.schedule} mode={config.mode} "
-            f"archive={config.archive_capacity} history={config.history_budget}",
+            f"archive={config.archive_capacity} history={config.history_budget} descriptor={config.descriptor_mode}",
             flush=True,
         )
 
@@ -446,6 +447,8 @@ class CausalInferencePipeline(torch.nn.Module):
                 lookup_count=deltas["lookup_count"],
                 random_count=deltas["random_count"],
                 second_attention_count=deltas["second_attention_count"],
+                descriptor_mode=diagnostics["descriptor_mode"],
+                selection_stats=diagnostics["selection_stats"],
             )
 
     def _init_structured_memory(self) -> None:
@@ -1264,13 +1267,14 @@ class CausalInferencePipeline(torch.nn.Module):
                 alpha=float(self.lphc_config.alpha),
                 schedule=self.lphc_config.schedule,
                 retrieval_mode=self.lphc_config.mode,
+                descriptor_mode=self.lphc_config.descriptor_mode,
                 **(
                     {
                         "protocol": self.lphc_config.protocol,
                         "local_policy": self.lphc_config.local_policy,
                         "history_frames": int(self.lphc_config.history_budget),
                     }
-                    if self.lphc_config.protocol == "v211"
+                    if self.lphc_config.protocol in {"v211", "v215"}
                     else {}
                 ),
             )

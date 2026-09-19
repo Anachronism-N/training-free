@@ -249,6 +249,6 @@ def audit(path: Path, spec: dict, blocks: int, source: int) -> dict:
 
 def load_protocol(name: str):
     import importlib
-    if name not in {"v212", "v213", "v214"}:
-        raise ValueError("campaign must be v212, v213 or v214")
+    if name not in {"v212", "v213", "v214", "v215"}:
+        raise ValueError("campaign must be v212, v213, v214 or v215")
     return importlib.import_module(f"{name}_lphc_protocol")

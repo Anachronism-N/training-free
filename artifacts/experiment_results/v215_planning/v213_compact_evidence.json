@@ -1,0 +1,582 @@
+{
+  "all_official_ci_include_zero": true,
+  "alpha_zero_gate_pass": true,
+  "baseline_gate_pass": true,
+  "candidates": {
+    "fifo_correct": {
+      "dd_fixed_quality": {
+        "bootstrap_ci95": [
+          -0.16357550236519863,
+          0.09657092407496044
+        ],
+        "mean_delta": -0.03472175797632859,
+        "win_fraction": 0.40625
+      },
+      "dynamic_degree": {
+        "bootstrap_ci95": [
+          -0.020833333333333325,
+          0.058333333333333334
+        ],
+        "mean_delta": 0.018750000000000003,
+        "win_fraction": 0.21875
+      },
+      "motion_flags": 3,
+      "official_quality": {
+        "bootstrap_ci95": [
+          -0.18562726375914887,
+          0.3910049273575295
+        ],
+        "mean_delta": 0.10950901125444101,
+        "win_fraction": 0.53125
+      }
+    },
+    "fifo_e1_a010": {
+      "dd_fixed_quality": {
+        "bootstrap_ci95": [
+          -0.1708327327805883,
+          0.09171612652568574
+        ],
+        "mean_delta": -0.038778565547808785,
+        "win_fraction": 0.4375
+      },
+      "dynamic_degree": {
+        "bootstrap_ci95": [
+          -0.035416666666666666,
+          0.05208333333333334
+        ],
+        "mean_delta": 0.008333333333333335,
+        "win_fraction": 0.15625
+      },
+      "motion_flags": 2,
+      "official_quality": {
+        "bootstrap_ci95": [
+          -0.3489093653712504,
+          0.3755640621972891
+        ],
+        "mean_delta": 0.02532399855475642,
+        "win_fraction": 0.53125
+      }
+    },
+    "fifo_e2_a002": {
+      "dd_fixed_quality": {
+        "bootstrap_ci95": [
+          -0.16801952748609608,
+          0.18777430637830803
+        ],
+        "mean_delta": 0.009334274831823475,
+        "win_fraction": 0.46875
+      },
+      "dynamic_degree": {
+        "bootstrap_ci95": [
+          -0.024999999999999998,
+          0.04583333333333334
+        ],
+        "mean_delta": 0.010416666666666671,
+        "win_fraction": 0.25
+      },
+      "motion_flags": 5,
+      "official_quality": {
+        "bootstrap_ci95": [
+          -0.20825902952239703,
+          0.354990388000894
+        ],
+        "mean_delta": 0.0894624799600332,
+        "win_fraction": 0.5
+      }
+    },
+    "fifo_full_a002": {
+      "dd_fixed_quality": {
+        "bootstrap_ci95": [
+          -0.14434280020885415,
+          0.17642431054393537
+        ],
+        "mean_delta": 0.020958887987836405,
+        "win_fraction": 0.53125
+      },
+      "dynamic_degree": {
+        "bootstrap_ci95": [
+          -0.010416666666666668,
+          0.04375000000000001
+        ],
+        "mean_delta": 0.014583333333333335,
+        "win_fraction": 0.1875
+      },
+      "motion_flags": 4,
+      "official_quality": {
+        "bootstrap_ci95": [
+          -0.07336248041849838,
+          0.3398976060812709
+        ],
+        "mean_delta": 0.13313837516732674,
+        "win_fraction": 0.5625
+      }
+    }
+  },
+  "compact_hash_checks": {
+    "baseline/contract.json": "git_crlf_transport_only",
+    "baseline/jobs/source_003/local/done.json": "git_crlf_transport_only",
+    "baseline/jobs/source_003/upstream_a/done.json": "git_crlf_transport_only",
+    "baseline/jobs/source_003/upstream_b/done.json": "git_crlf_transport_only",
+    "baseline/jobs/source_067/local/done.json": "git_crlf_transport_only",
+    "baseline/jobs/source_067/upstream_a/done.json": "git_crlf_transport_only",
+    "baseline/jobs/source_067/upstream_b/done.json": "git_crlf_transport_only",
+    "evaluation/metrics/temporal_diagnostics.csv": "exact",
+    "evaluation/metrics/vbench_core9_summary.json": "git_crlf_transport_only",
+    "evaluation/vbench_comparison/comparison_manifest.json": "git_crlf_transport_only",
+    "inputs/manifest.json": "git_crlf_transport_only",
+    "jobs/gate0/fifo_zero/source_003/done.json": "git_crlf_transport_only",
+    "jobs/gate0/fifo_zero/source_067/done.json": "git_crlf_transport_only",
+    "jobs/gate0/sf_fifo21/source_003/done.json": "git_crlf_transport_only",
+    "jobs/gate0/sf_fifo21/source_067/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_003/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_007/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_011/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_015/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_019/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_023/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_027/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_031/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_035/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_039/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_043/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_047/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_051/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_055/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_059/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_063/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_067/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_071/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_075/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_079/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_083/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_087/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_091/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_095/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_099/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_103/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_107/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_111/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_115/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_119/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_123/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_correct/source_127/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_003/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_007/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_011/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_015/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_019/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_023/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_027/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_031/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_035/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_039/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_043/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_047/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_051/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_055/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_059/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_063/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_067/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_071/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_075/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_079/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_083/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_087/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_091/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_095/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_099/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_103/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_107/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_111/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_115/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_119/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_123/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e1_a010/source_127/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_003/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_007/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_011/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_015/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_019/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_023/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_027/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_031/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_035/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_039/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_043/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_047/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_051/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_055/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_059/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_063/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_067/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_071/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_075/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_079/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_083/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_087/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_091/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_095/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_099/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_103/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_107/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_111/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_115/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_119/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_123/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_e2_a002/source_127/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_003/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_007/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_011/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_015/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_019/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_023/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_027/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_031/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_035/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_039/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_043/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_047/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_051/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_055/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_059/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_063/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_067/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_071/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_075/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_079/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_083/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_087/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_091/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_095/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_099/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_103/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_107/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_111/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_115/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_119/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_123/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_full_a002/source_127/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_003/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_007/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_011/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_015/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_019/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_023/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_027/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_031/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_035/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_039/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_043/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_047/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_051/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_055/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_059/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_063/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_067/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_071/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_075/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_079/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_083/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_087/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_091/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_095/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_099/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_103/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_107/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_111/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_115/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_119/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_123/done.json": "git_crlf_transport_only",
+    "jobs/screen32/fifo_random/source_127/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_003/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_007/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_011/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_015/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_019/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_023/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_027/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_031/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_035/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_039/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_043/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_047/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_051/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_055/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_059/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_063/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_067/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_071/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_075/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_079/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_083/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_087/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_091/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_095/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_099/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_103/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_107/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_111/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_115/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_119/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_123/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo21/source_127/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_003/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_007/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_011/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_015/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_019/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_023/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_027/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_031/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_035/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_039/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_043/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_047/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_051/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_055/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_059/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_063/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_067/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_071/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_075/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_079/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_083/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_087/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_091/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_095/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_099/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_103/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_107/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_111/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_115/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_119/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_123/done.json": "git_crlf_transport_only",
+    "jobs/screen32/sf_fifo25/source_127/done.json": "git_crlf_transport_only"
+  },
+  "completed_grid": [
+    7,
+    32
+  ],
+  "correct_minus_random": {
+    "official_quality_score": {
+      "bootstrap_ci95": [
+        -0.17942218732798026,
+        0.24155511201758378
+      ],
+      "mean_delta": 0.02825099456154856,
+      "win_fraction": 0.53125
+    },
+    "quality_without_dynamic_degree": {
+      "bootstrap_ci95": [
+        -0.13989089429069096,
+        0.09279191567950722
+      ],
+      "mean_delta": -0.01982592851537479,
+      "win_fraction": 0.46875
+    }
+  },
+  "costs": {
+    "boundary": "Wall time includes model load, VAE and encoding; sampled nvidia-smi process memory, not CUDA allocated/reserved. Shared load is uncontrolled.",
+    "methods": {
+      "fifo_correct": {
+        "max_sampled_process_memory_mib": 33240.0,
+        "median_paired_wall_ratio_to_fifo21": 1.0687687548041338,
+        "median_wall_seconds": 1515.4764495235868,
+        "memory_observations": 32
+      },
+      "fifo_e1_a010": {
+        "max_sampled_process_memory_mib": 33240.0,
+        "median_paired_wall_ratio_to_fifo21": 1.0249400879399113,
+        "median_wall_seconds": 1561.2509984064382,
+        "memory_observations": 32
+      },
+      "fifo_e2_a002": {
+        "max_sampled_process_memory_mib": 33240.0,
+        "median_paired_wall_ratio_to_fifo21": 1.0543407628808192,
+        "median_wall_seconds": 1691.7588007929735,
+        "memory_observations": 32
+      },
+      "fifo_full_a002": {
+        "max_sampled_process_memory_mib": 33240.0,
+        "median_paired_wall_ratio_to_fifo21": 1.053584015657902,
+        "median_wall_seconds": 1634.8668154582847,
+        "memory_observations": 32
+      },
+      "fifo_random": {
+        "max_sampled_process_memory_mib": 33240.0,
+        "median_paired_wall_ratio_to_fifo21": 1.0257213572234931,
+        "median_wall_seconds": 1551.4577521344181,
+        "memory_observations": 32
+      },
+      "sf_fifo21": {
+        "max_sampled_process_memory_mib": 26776.0,
+        "median_paired_wall_ratio_to_fifo21": 1.0,
+        "median_wall_seconds": 1527.163457629038,
+        "memory_observations": 32
+      },
+      "sf_fifo25": {
+        "max_sampled_process_memory_mib": 27856.0,
+        "median_paired_wall_ratio_to_fifo21": 1.0038729033128968,
+        "median_wall_seconds": 1609.2650383072905,
+        "memory_observations": 32
+      }
+    },
+    "pure_dit_throughput": false,
+    "used_for_selection": false
+  },
+  "decision": "Targeted selector screen, not unconditional main-table expansion. Prepare methods/protocol text only; stable SF superiority and retrieval benefit are not established.",
+  "method_means": {
+    "fifo_correct": {
+      "dynamic_degree": 0.4041666666666667,
+      "identity_background": 0.9682508416393657,
+      "official_quality_score": 81.77873325407754,
+      "quality_without_dynamic_degree": 86.36206658741085,
+      "semantic_alignment": 0.23916021500093243,
+      "subject_consistency": 0.9733986796664029,
+      "temporal_mechanics": 0.9835858446784658,
+      "visual_quality": 0.6416739544421435
+    },
+    "fifo_e1_a010": {
+      "dynamic_degree": 0.39375,
+      "identity_background": 0.9678183764086343,
+      "official_quality_score": 81.69454824137784,
+      "quality_without_dynamic_degree": 86.35800977983938,
+      "semantic_alignment": 0.2385699430325379,
+      "subject_consistency": 0.9728548655689805,
+      "temporal_mechanics": 0.983457064170701,
+      "visual_quality": 0.6424263746043046
+    },
+    "fifo_e2_a002": {
+      "dynamic_degree": 0.3958333333333333,
+      "identity_background": 0.9689127433232682,
+      "official_quality_score": 81.75868672278312,
+      "quality_without_dynamic_degree": 86.40612262021901,
+      "semantic_alignment": 0.2359723954228684,
+      "subject_consistency": 0.9743670228864203,
+      "temporal_mechanics": 0.9839537428779093,
+      "visual_quality": 0.6412066851165146
+    },
+    "fifo_full_a002": {
+      "dynamic_degree": 0.4,
+      "identity_background": 0.9686218098889554,
+      "official_quality_score": 81.80236261799041,
+      "quality_without_dynamic_degree": 86.41774723337502,
+      "semantic_alignment": 0.2378992425976321,
+      "subject_consistency": 0.973784580704679,
+      "temporal_mechanics": 0.9835047208712754,
+      "visual_quality": 0.6432769743800163
+    },
+    "fifo_random": {
+      "dynamic_degree": 0.39791666666666664,
+      "identity_background": 0.968387328396974,
+      "official_quality_score": 81.75048225951599,
+      "quality_without_dynamic_degree": 86.38189251592624,
+      "semantic_alignment": 0.2378980524876776,
+      "subject_consistency": 0.9736113101559262,
+      "temporal_mechanics": 0.983634328336829,
+      "visual_quality": 0.6420268175844104
+    },
+    "sf_fifo21": {
+      "dynamic_degree": 0.3854166666666667,
+      "identity_background": 0.9685857831979833,
+      "official_quality_score": 81.66922424282308,
+      "quality_without_dynamic_degree": 86.3967883453872,
+      "semantic_alignment": 0.2380454787518829,
+      "subject_consistency": 0.9736317058184574,
+      "temporal_mechanics": 0.98406689739687,
+      "visual_quality": 0.6409542387717715
+    },
+    "sf_fifo25": {
+      "dynamic_degree": 0.4354166666666667,
+      "identity_background": 0.9667001863164142,
+      "official_quality_score": 81.76939865863629,
+      "quality_without_dynamic_degree": 86.112347376585,
+      "semantic_alignment": 0.23800030739124242,
+      "subject_consistency": 0.9716475477047217,
+      "temporal_mechanics": 0.9830704636281432,
+      "visual_quality": 0.6369685751019667
+    }
+  },
+  "paper_ready_positive_superiority_claim": false,
+  "review_queue": [
+    {
+      "candidate": "fifo_e1_a010",
+      "control": "sf_fifo21",
+      "flags": [
+        "late_motion_collapse",
+        "edge_density_failure"
+      ],
+      "prompt_index": 0,
+      "quality_delta": -0.09264346779471566,
+      "source_index": 3,
+      "videos": {
+        "fifo_e1_a010": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/vbench_comparison/published/fifo_e1_a010/000000-0.mp4",
+        "sf_fifo21": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/vbench_comparison/published/sf_fifo21/000000-0.mp4"
+      }
+    },
+    {
+      "candidate": "fifo_e2_a002",
+      "control": "sf_fifo21",
+      "flags": [
+        "late_motion_collapse",
+        "temporal_discontinuity"
+      ],
+      "prompt_index": 21,
+      "quality_delta": 1.5568505079970691,
+      "source_index": 87,
+      "videos": {
+        "fifo_e2_a002": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/vbench_comparison/published/fifo_e2_a002/000021-0.mp4",
+        "sf_fifo21": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/vbench_comparison/published/sf_fifo21/000021-0.mp4"
+      }
+    },
+    {
+      "candidate": "fifo_e2_a002",
+      "control": "sf_fifo21",
+      "flags": [
+        "late_motion_collapse"
+      ],
+      "prompt_index": 17,
+      "quality_delta": -0.20253229495004632,
+      "source_index": 71,
+      "videos": {
+        "fifo_e2_a002": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/vbench_comparison/published/fifo_e2_a002/000017-0.mp4",
+        "sf_fifo21": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/vbench_comparison/published/sf_fifo21/000017-0.mp4"
+      }
+    },
+    {
+      "candidate": "fifo_correct",
+      "control": "sf_fifo21",
+      "flags": [
+        "edge_density_failure"
+      ],
+      "prompt_index": 15,
+      "quality_delta": -0.043270356064510906,
+      "source_index": 63,
+      "videos": {
+        "fifo_correct": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/vbench_comparison/published/fifo_correct/000015-0.mp4",
+        "sf_fifo21": "/apdcephfs_gy2/share_302533218/cedricnie/v213_runs/v213_src_a39f503a8cb17e88a517e06012f48f97d8d8af21_fifo_seed_phase32_sixnode_r01/evaluation/vbench_comparison/published/sf_fifo21/000015-0.mp4"
+      }
+    }
+  ],
+  "scope": "Uploaded compact hashes, receipt consistency and summary arithmetic only. Raw tensor traces, videos and raw VBench parts were not rechecked.",
+  "source_commit": "a39f503a8cb17e88a517e06012f48f97d8d8af21",
+  "vbench_fingerprint": {
+    "diff_binary_head_sha256": "cc749ef5553bd935b01ff3d8318f022d0a14e8f02bd5b803039e02a82e05cf76",
+    "dirty": true,
+    "head": "45e79ec14e69a2187202c675d2dbce1a71843d53",
+    "runtime_path_sha256": {
+      "vbench/appearance_style.py": "51ba49ee01313176f1bbeaaaec46a5f97cd7373e192889c5b0116851773c34d8",
+      "vbench/color.py": "b1bca546d3f12c4023009b7b541231f8cc8f549623712c5f08f69ba97635c72d",
+      "vbench/dynamic_degree.py": "f7bfaa283935047ffa24d09f5d8224ae17469833e77d451ab46b6dd77905a6cb",
+      "vbench/multiple_objects.py": "f11dcd908f5a960ca73e5467dd8838bb43c35866bd985350bedfd23e9e0a0fda",
+      "vbench/object_class.py": "bbaf68c048a314bf95b6cac2109d1e590aaccc7f5578449043296e7e3c08e938",
+      "vbench/scene.py": "32b4ff9ad6cf9d23b799c98b6e842586d2ef31e46947be9b7dbb66ff7dd9b3dd",
+      "vbench/spatial_relationship.py": "4a802f6249dc7046ac3b8c270861d43fc62c9d37026402baabf97e29efdb5146",
+      "vbench/third_party/tag2Text/med.py": "35b74ba3f1b11a3605f765da6577a0f8a79d4d710aca6acc0e6c95c180e56fd8",
+      "vbench/third_party/umt/models/modeling_finetune.py": "4f1a7fea6da2cb2896aa248ff9b31ce59c3d45b60799452cf888a20af3214421"
+    },
+    "status_porcelain_v1": " M vbench/appearance_style.py\n M vbench/color.py\n M vbench/dynamic_degree.py\n M vbench/multiple_objects.py\n M vbench/object_class.py\n M vbench/scene.py\n M vbench/spatial_relationship.py\n M vbench/third_party/tag2Text/med.py\n M vbench/third_party/umt/models/modeling_finetune.py\n",
+    "status_porcelain_v1_sha256": "939c33f0cd155f4d7c8843ad914f3d21b9b33968c74615649f98f9014fe2e04f",
+    "version": 1
+  }
+}

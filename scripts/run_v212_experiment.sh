@@ -3,7 +3,7 @@ set -euo pipefail
 ACTION="${1:?action required}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CAMPAIGN="${LPHC_CAMPAIGN:-v212}"
-[[ "$CAMPAIGN" == v212 || "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 ]] || { echo "invalid campaign"; exit 2; }
+[[ "$CAMPAIGN" == v212 || "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 || "$CAMPAIGN" == v215 ]] || { echo "invalid campaign"; exit 2; }
 OUT_VAR="${CAMPAIGN^^}_OUT_ROOT"
 PROMPT_VAR="${CAMPAIGN^^}_SOURCE_PROMPTS"
 OUT="${!OUT_VAR:?set the campaign shared output root on all nodes}"
@@ -32,12 +32,12 @@ PY
 esac
 case "$ACTION" in
   baseline)
-    [[ "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 ]] || { echo "baseline requires v213/v214"; exit 2; }
+    [[ "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 || "$CAMPAIGN" == v215 ]] || { echo "baseline requires v213/v214/v215"; exit 2; }
     python "$ROOT/scripts/run_v213_sf_baseline.py" --run-root "$OUT" --campaign "$CAMPAIGN" \
       --upstream-root "${UPSTREAM_SF_ROOT:?set a clean pinned official Self-Forcing checkout}" \
       --gpu "${GPU_LIST%%,*}"
     ;;
-  prepare|gate0|smoke|generate32|generate96|status|schedule)
+  prepare|gate0|smoke|generate32|generate48|generate96|status|schedule)
     python "$ROOT/scripts/run_v212_lphc.py" "$ACTION" --repo-root "$ROOT" \
       --campaign "$CAMPAIGN" --output-root "$OUT" --node-rank "$NODE_RANK" --gpu-list "$GPU_LIST" \
       --source-prompts "${!PROMPT_VAR:-/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/Causal-Forcing/prompts/MovieGen_128_qwen.txt}" \
@@ -96,5 +96,5 @@ with tarfile.open(root / f"{sys.argv[2]}_small_artifacts.tar.gz", "w:gz") as arc
 print(root / f"{sys.argv[2]}_small_artifacts.tar.gz")
 PY
     ;;
-  *) echo "prepare baseline(v213/v214) gate0 smoke generate32 generate96 schedule status publish split preflight eval eval-missing collect analyze package"; exit 2 ;;
+  *) echo "prepare baseline gate0 smoke generate32 generate48 generate96 schedule status publish split preflight eval eval-missing collect analyze package"; exit 2 ;;
 esac

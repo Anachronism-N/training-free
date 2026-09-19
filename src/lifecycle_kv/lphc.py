@@ -30,6 +30,7 @@ class LPHCConfig:
     eps: float = 1e-6
     protocol: str = "v210"
     local_policy: str = "fifo21"
+    descriptor_mode: str = "pooled"
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.alpha <= 1.0:
@@ -38,11 +39,15 @@ class LPHCConfig:
             raise ValueError("mode must be correct or random")
         if self.schedule not in _PHASE_SCHEDULES:
             raise ValueError("schedule must be e1, e2, or full")
-        if self.protocol not in {"v210", "v211"}:
-            raise ValueError("protocol must be v210 or v211")
+        if self.protocol not in {"v210", "v211", "v215"}:
+            raise ValueError("protocol must be v210, v211 or v215")
+        if self.descriptor_mode not in {"pooled", "headwise", "headwise_centered"}:
+            raise ValueError("invalid descriptor_mode")
+        if self.protocol != "v215" and self.descriptor_mode != "pooled":
+            raise ValueError("head-preserving descriptors require protocol=v215")
         if self.archive_capacity != 12:
             raise ValueError("the frozen LPHC archive capacity is 12 frames")
-        if self.protocol == "v210":
+        if self.protocol in {"v210", "v215"}:
             if self.history_budget != 4:
                 raise ValueError("the frozen v210 LPHC history budget is 4 frames")
             if self.local_policy != "fifo21":
@@ -83,6 +88,7 @@ class LPHCConfig:
             control_seed=int(values.get("LPHC_CONTROL_SEED", "0")),
             protocol=values.get("LPHC_PROTOCOL", "v210"),
             local_policy=values.get("LPHC_LOCAL_POLICY", "fifo21"),
+            descriptor_mode=values.get("LPHC_DESCRIPTOR_MODE", "pooled"),
         )
 
 
@@ -179,10 +185,11 @@ class LPHCArchive:
         ).clone()
 
     @staticmethod
-    def _descriptors(values: torch.Tensor) -> torch.Tensor:
+    def _descriptors(values: torch.Tensor, mode: str = "pooled") -> torch.Tensor:
         values_f = values.float()
-        mean = values_f.mean(dim=(1, 2))
-        std = values_f.std(dim=(1, 2), unbiased=False)
+        axes = (1, 2) if mode == "pooled" else (1,)
+        mean = values_f.mean(dim=axes)
+        std = values_f.std(dim=axes, unbiased=False)
         return F.normalize(torch.cat((mean, std), dim=-1), dim=-1, eps=1e-6)
 
     @staticmethod
@@ -223,7 +230,7 @@ class LPHCArchive:
 
         frame_k = self._split_frames(raw_k, len(ids), name="raw_k")
         frame_v = self._split_frames(raw_v, len(ids), name="raw_v")
-        descriptors = self._descriptors(frame_v)
+        descriptors = self._descriptors(frame_v, self.config.descriptor_mode)
         id_tensor = torch.tensor(ids, device=frame_k.device, dtype=torch.long)
         if self.k is not None:
             if frame_k.shape[1:] != self.k.shape[1:]:
@@ -318,6 +325,7 @@ class LPHCController:
         self.max_correction_ratio = 0.0
         self.last_scale_min = 1.0
         self.last_scale_max = 1.0
+        self.last_selection_stats: dict[str, object] = {}
 
     @property
     def counters(self) -> dict[str, int]:
@@ -356,6 +364,8 @@ class LPHCController:
             "last_scale_max": self.last_scale_max,
             "frozen_blocks": len(self._frozen_selections),
             "has_previous_clean_descriptor": self.previous_clean_descriptor is not None,
+            "descriptor_mode": self.config.descriptor_mode,
+            "selection_stats": self.last_selection_stats,
         }
 
     def _increment(self, name: str) -> None:
@@ -449,8 +459,10 @@ class LPHCController:
         frames = LPHCArchive._split_frames(clean_v, len(ids), name="clean_v")
         if not torch.isfinite(frames).all():
             raise ValueError("clean block values must be finite")
-        per_frame = LPHCArchive._descriptors(frames)
-        descriptor = F.normalize(per_frame.mean(dim=0), dim=0, eps=self.config.eps)
+        per_frame = LPHCArchive._descriptors(frames, self.config.descriptor_mode)
+        descriptor = F.normalize(per_frame.mean(dim=0),
+                                 dim=0 if self.config.descriptor_mode == "pooled" else -1,
+                                 eps=self.config.eps)
         self.previous_clean_descriptor = descriptor.detach().clone()
         self._pending_clean_values.pop(self.layer_idx, None)
         self._frozen_selections.clear()
@@ -478,11 +490,30 @@ class LPHCController:
         archive_ids = self.archive.frame_ids.detach().cpu().tolist()
         index_by_id = {int(frame_id): index for index, frame_id in enumerate(archive_ids)}
         ranked: list[tuple[float, int]] = []
-        for frame_id in eligible:
-            frame_descriptor = self.archive.descriptors[index_by_id[frame_id]].float()
-            score = float(torch.dot(frame_descriptor, descriptor).item())
-            ranked.append((score, frame_id))
+        valid_heads = None
+        if self.config.descriptor_mode == "pooled":
+            for frame_id in eligible:
+                frame_descriptor = self.archive.descriptors[index_by_id[frame_id]].float()
+                score = float(torch.dot(frame_descriptor, descriptor).item())
+                ranked.append((score, frame_id))
+        elif eligible:
+            from .lphc_descriptor import headwise_similarity
+            indices = [index_by_id[frame] for frame in eligible]
+            features = self.archive.descriptors[indices].detach().float().cpu().numpy()
+            scores, valid_heads = headwise_similarity(
+                features, descriptor.detach().float().cpu().numpy(),
+                centered=self.config.descriptor_mode == "headwise_centered", eps=self.config.eps)
+            ranked = list(zip(scores, eligible))
         ranked.sort(key=lambda item: (-item[0], item[1]))
+        self.last_selection_stats = {
+            "mode": self.config.descriptor_mode, "candidate_count": len(eligible),
+            "ranked_frame_ids": [frame for _, frame in ranked],
+            "ranked_scores": [score for score, _ in ranked],
+            "valid_heads_in_eligible_order": valid_heads,
+            "score_spread": ranked[0][0] - ranked[-1][0] if ranked else 0.,
+            "boundary_margin": ranked[count-1][0] - ranked[count][0] if 0 < count < len(ranked) else None,
+            "actual_choice": 0 < count < len(ranked),
+        }
         return tuple(frame_id for _, frame_id in ranked[:count])
 
     def _select_random(
@@ -599,6 +630,7 @@ def apply_lphc_attention(
     controller.last_correction_ratio_max = 0.0
     controller.last_scale_min = 1.0
     controller.last_scale_max = 1.0
+    controller.last_selection_stats = {}
     # The attention layer supplies the exact post-write FIFO frame range. Keep
     # it observable even when the correction bypasses retrieval entirely.
     controller.last_local_frame_ids = tuple(context.local_frame_ids)

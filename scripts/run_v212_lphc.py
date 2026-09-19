@@ -185,6 +185,12 @@ def require_gate(out: Path, data: dict, *, protocol=p) -> dict:
             != {(s, pair[0]) for s in p.GATE_SOURCES for pair in p.GATE_PAIRS}
             or not all(row.get("pass") is True for row in report["pairs"])):
         raise ValueError("gate0 pair/job coverage incomplete")
+    # Several new descriptor gates share one native reference. Check the zero
+    # variant as well, without invalidating older one-pair-per-native receipts.
+    if len({pair[0] for pair in p.GATE_PAIRS}) < len(p.GATE_PAIRS):
+        if {(r["source"], r["local"], r.get("zero")) for r in report["pairs"]} != {
+                (s, native, zero) for s in p.GATE_SOURCES for native, zero in p.GATE_PAIRS}:
+            raise ValueError("gate0 zero-variant coverage incomplete")
     for row in report["jobs"]:
         path = Path(row["path"])
         if p.sha256(path) != row["sha256"]:
@@ -207,10 +213,11 @@ def gate0(repo: Path, out: Path, data: dict, gpu: str, *, protocol=p) -> None:
             report = compare_gate_tensors(left, right)
             if (left["hostname"], left["gpu_uuid"]) != (right["hostname"], right["gpu_uuid"]):
                 raise ValueError("gate0 pair used different hardware")
-            pairs.append({"source": source, "local": native, **report})
+            pairs.append({"source": source, "local": native, "zero": zero, **report})
             for method in (native, zero):
                 path = job_path(out, "gate0", method, source) / "done.json"
-                jobs.append({"path": str(path), "sha256": p.sha256(path), "method": method, "source": source})
+                if not any(row["method"] == method and row["source"] == source for row in jobs):
+                    jobs.append({"path": str(path), "sha256": p.sha256(path), "method": method, "source": source})
     result = {"input_manifest_sha256": p.sha256(out / "inputs/manifest.json"), "pairs": pairs,
               "jobs": jobs, "pass": all(x["pass"] for x in pairs)}
     p.frozen_json(out / "decisions/gate0.json", result)
@@ -232,8 +239,8 @@ def run_bundle(repo: Path, out: Path, data: dict, sources: list[int], gpu: str, 
 def main() -> None:
     p = load_protocol("v212")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "gate0", "smoke", "generate32", "generate96", "status", "schedule"))
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214"), default="v212")
+    parser.add_argument("action", choices=("prepare", "gate0", "smoke", "generate32", "generate48", "generate96", "status", "schedule"))
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215"), default="v212")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--source-prompts", type=Path, default=p.DEFAULT_PROMPT_SOURCE)

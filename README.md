@@ -3,20 +3,29 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-**Six-node / 48-GPU extension:** [v214 remaining-96 runbook](docs/233_v214_six_node_48gpu_remaining96.md)
-runs the same seven FIFO configurations on the 96 MovieGen prompts excluded
-from v213. Each of 48 GPUs receives two complete paired prompt bundles;
-672 new 30-second videos, no regeneration of the v213 32-prompt cohort.
-Generation, VBench evaluation and bounded failure analysis are wired for 96
-prompts. The official-SF and alpha-zero checks still run on rank0 first.
+**Latest evidence: v213 is complete (224 videos).** Official-SF and alpha-zero
+checks pass on the uploaded canaries. All four candidates' paired Quality
+confidence intervals include zero; content-selected history has not established
+a benefit over random history. The best observed full-phase official Quality
+gain is +0.133 percentage points, with 95% CI [-0.073, +0.340]. This is not yet
+evidence for a stable SF-superiority claim. Dynamic Degree is no longer all one;
+official-formula Quality and fixed-DD diagnosis must be reported separately.
 
-The latest uploaded results are **v211 sink-local Screen8**. Small historical
-correction improves the sink-local control, but remains below native FIFO21
-in quality. This is partial recovery, not confirmed SF superiority. v210's
-FIFO-local signal remains worth replication; no paper-ready claim is established.
+**Next: [v215 targeted retrieval screen and launch commands](docs/234_v213_results_and_v215_selector_repair.md).**
+Six nodes / 48 GPUs run seven methods on 48 Qwen-rewritten MovieGen prompts,
+30 seconds each (336 videos, new paired seed). Two head-preserving descriptor
+variants change only retrieval scoring; matched random history also tests
+full-phase correction. This does not assert a new head taxonomy. The runbook
+includes bounded review, evaluator provenance export, and writing-readiness limits.
 
-**v212 matched-history Screen32** remains unchanged for already running
-checkouts. The next complementary experiment is **v213 FIFO seed/phase Screen32**:
+The [v214 remaining-96 runbook](docs/233_v214_six_node_48gpu_remaining96.md)
+is retained for already running campaigns. Do not update their frozen checkout
+or discard their completed videos. If v214 has not started, prefer the smaller
+v215 targeted screen before generating another 672 videos with weak candidates.
+v212/v214 results have not been uploaded in the current snapshot.
+
+**Historical setup:** v212 matched-history Screen32 remains unchanged for running
+checkouts. The completed **v213 FIFO seed/phase Screen32** used:
 seven methods, 32 prompts, a second seed, alpha/phase contrasts, random history
 and native SF21/SF25 controls. It adds per-prompt robustness, bounded failure
 review, and prompt-clustered two-seed analysis without changing the model operator.
