@@ -51,6 +51,8 @@ class Campaign:
     gate_pairs: tuple[tuple[str, str], ...]
     primary: tuple[tuple[str, str], ...]
     mechanism: tuple[tuple[str, str], ...]
+    nodes: tuple[str, ...] = tuple(AUTHORIZED_NODES)
+    binding: dict | None = None
 
     @property
     def methods(self) -> tuple[str, ...]:
@@ -91,11 +93,13 @@ def spec_for(method: str, stage: str, *, campaign: Campaign = CAMPAIGN) -> dict:
     return dict(campaign.specs[method])
 
 
-def assignment(source: int, slots: tuple[str, ...], *, sources=SOURCE_INDICES) -> tuple[int, str]:
+def assignment(source: int, slots: tuple[str, ...], *, sources=SOURCE_INDICES, num_nodes=6) -> tuple[int, str]:
     if not slots or len(set(slots)) != len(slots) or not set(slots) <= set(map(str, range(8))):
         raise ValueError("GPU slots must be distinct members of 0..7")
+    if num_nodes <= 0:
+        raise ValueError("positive node count required")
     position = sources.index(source)
-    return position % 6, slots[(position // 6) % len(slots)]
+    return position % num_nodes, slots[(position // num_nodes) % len(slots)]
 
 
 def method_order(source: int) -> tuple[str, ...]:
@@ -114,7 +118,7 @@ def validate_node(rank: int, num_nodes: int = 6) -> str:
 def prepare(repo: Path, out: Path, prompts: Path, checkpoint: Path, wan: Path,
             slots: tuple[str, ...], *, clean: bool = True, campaign: Campaign = CAMPAIGN) -> dict:
     out = output_root(out, campaign=campaign)
-    assignment(campaign.sources[0], slots, sources=campaign.sources)
+    assignment(campaign.sources[0], slots, sources=campaign.sources, num_nodes=len(campaign.nodes))
     if clean:
         require_clean_checkout(repo)
     lines = prompts.read_text(encoding="utf-8").splitlines()
@@ -154,12 +158,15 @@ def prepare(repo: Path, out: Path, prompts: Path, checkpoint: Path, wan: Path,
                "methods": list(campaign.methods), "specs": campaign.specs, "prompt_items": items,
                "prompt_source": file_stamp(prompts), "checkpoint": file_stamp(checkpoint),
                "wan_model": {"weights_path": str(wan.resolve()), "inventory": wan_inventory(wan)},
-               "configs": configs, "gpu_slots": list(slots), "authorized_nodes": list(AUTHORIZED_NODES),
+               "configs": configs, "gpu_slots": list(slots), "authorized_nodes": list(campaign.nodes),
                "frames": FRAMES, "base_seed": campaign.seed,
-               "placement": "prompt bundle on one GPU; rotating method order; six nodes",
+               "placement": "prompt bundle on one GPU; rotating method order; " +
+                            ("six nodes" if len(campaign.nodes) == 6 else f"{len(campaign.nodes)} nodes"),
                "primary_contrasts": [list(pair) for pair in campaign.primary],
                "mechanism_contrasts": [list(pair) for pair in campaign.mechanism],
                "development_only": True, "paper_claim_ready": False}
+    if campaign.binding is not None:
+        payload["campaign_binding"] = campaign.binding
     frozen_json(old_path, payload)
     return payload
 
@@ -169,12 +176,13 @@ def verify(repo: Path, out: Path, *, runtime: bool = True, campaign: Campaign = 
     data = json.loads((out / "inputs/manifest.json").read_text(encoding="utf-8"))
     if (data.get("experiment") != campaign.experiment or data.get("source_indices") != list(campaign.sources)
             or data.get("methods") != list(campaign.methods) or data.get("specs") != campaign.specs
-            or data.get("authorized_nodes") != list(AUTHORIZED_NODES)
+            or data.get("authorized_nodes") != list(campaign.nodes)
+            or data.get("campaign_binding") != campaign.binding
             or data.get("base_seed") != campaign.seed or data.get("frames") != FRAMES
             or data.get("primary_contrasts") != [list(pair) for pair in campaign.primary]
             or data.get("mechanism_contrasts") != [list(pair) for pair in campaign.mechanism]):
         raise ValueError(f"{campaign.label} frozen protocol mismatch")
-    assignment(campaign.sources[0], tuple(data["gpu_slots"]), sources=campaign.sources)
+    assignment(campaign.sources[0], tuple(data["gpu_slots"]), sources=campaign.sources, num_nodes=len(campaign.nodes))
     if runtime and (data["source_commit"] != git_commit(repo) or data["runtime_paths"] != runtime_hashes(repo)):
         raise ValueError("source drift; use the frozen checkout, not an updated running checkout")
     for row in [data["prompt_source"], *data["configs"].values(), *data["prompt_items"]]:
@@ -247,8 +255,11 @@ def audit(path: Path, spec: dict, blocks: int, source: int) -> dict:
     return report
 
 
-def load_protocol(name: str):
+def load_protocol(name: str, out: Path | None = None):
     import importlib
+    if name == "v216":
+        from v216_lphc_protocol import load
+        return load(out)
     if name not in {"v212", "v213", "v214", "v215"}:
         raise ValueError("campaign must be v212, v213, v214 or v215")
     return importlib.import_module(f"{name}_lphc_protocol")

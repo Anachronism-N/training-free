@@ -21,6 +21,7 @@ def analyze(rows_by_window: dict, temporal_rows: dict, *, protocol=p) -> dict:
     p = protocol
     count = len(p.SOURCE_INDICES)
     primary_metric = getattr(p, "PRIMARY_METRIC", QUALITY)
+    primary_window = getattr(p, "PRIMARY_WINDOW", "full")
     expected = {(m, i) for m in p.METHODS for i in range(count)}
     if set(rows_by_window) != set(old.WINDOWS) or set(temporal_rows) != expected:
         raise ValueError("incomplete paired grid")
@@ -45,11 +46,11 @@ def analyze(rows_by_window: dict, temporal_rows: dict, *, protocol=p) -> dict:
                 comparisons.append(row)
     # Each campaign freezes its primary metric and candidate family before generation.
     family = [r for r in comparisons if r["candidate"] in p.CANDIDATES and r["control"] == "sf_fifo21"
-              and r["window"] == "full" and r["metric"] == primary_metric]
+              and r["window"] == primary_window and r["metric"] == primary_metric]
     paired.bh(family)
     status, review = {}, []
     for candidate in p.CANDIDATES:
-        quality = old.comparison(comparisons, candidate, "sf_fifo21", primary_metric, "full")
+        quality = old.comparison(comparisons, candidate, "sf_fifo21", primary_metric, primary_window)
         guard = temporal.temporal_guard(temporal_rows, candidate=candidate, control="sf_fifo21", prompt_count=count)
         ni = [old.comparison(comparisons, candidate, "sf_fifo21", metric, window)
               for window in ("full", "late_half") for metric in old.NONINFERIORITY_MARGINS]
@@ -78,11 +79,12 @@ def analyze(rows_by_window: dict, temporal_rows: dict, *, protocol=p) -> dict:
         "source_indices": list(p.SOURCE_INDICES), "development_only": True, "paper_claim_ready": False,
         "primary_hypothesis": getattr(p, "PRIMARY_HYPOTHESIS", "fifo_correct minus sf_fifo21, full quality with DD fixed"),
         "ranking_metric": primary_metric,
+        "ranking_window": primary_window,
         "candidate_status": status, "comparisons": comparisons,
         "method_means": old.method_means(rows_by_window, p.METHODS, count),
         "review_queue": queue, "all_failure_flags": review, "review_pair_limit": 4,
         "rule": {"quality_mean_target": .10, "mean_tolerances": old.NONINFERIORITY_MARGINS,
-                 "multiple_testing_family": f"{len(p.CANDIDATES)} full {primary_metric} contrasts vs FIFO21; one-sided sign-test BH",
+                 "multiple_testing_family": f"{len(p.CANDIDATES)} {primary_window} {primary_metric} contrasts vs FIFO21; one-sided sign-test BH",
                  "statistical_unit": "prompt, not frame or clip", "timing_used_for_selection": False},
     }
 

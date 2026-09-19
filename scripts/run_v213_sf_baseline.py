@@ -136,10 +136,10 @@ def main():
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--upstream-root", type=Path, required=True)
     parser.add_argument("--gpu", default="0")
-    parser.add_argument("--campaign", choices=("v213", "v214", "v215"), default="v213")
+    parser.add_argument("--campaign", choices=("v213", "v214", "v215", "v216"), default="v213")
     args = parser.parse_args()
     from v212_lphc_protocol import load_protocol
-    p = load_protocol(args.campaign)
+    p = load_protocol(args.campaign, args.run_root)
     repo = Path(__file__).resolve().parents[1]
     out, upstream = p.output_root(args.run_root), args.upstream_root.resolve()
     p.validate_node(int(os.environ.get("NODE_RANK", "0")))

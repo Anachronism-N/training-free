@@ -3,12 +3,20 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
+**Eight nodes / 64 A800 GPUs:** [v216 confirmation runbook](docs/236_v216_eight_node_confirmation_and_writing_runbook.md)
+implements one frozen v215 candidate versus SF on the remaining 80 prompts
+(160 new 30-second videos). It requires the completed v215 report and eight
+real node interface IPs before launch. The 80-prompt confirmation is reported
+separately from the selection-included 128-prompt aggregate; at most six pairs
+are queued for diagnostic review. The September 20 fetch found no new v215
+results, so no winner or new positive claim has been inferred.
+
 **ICASSP 2027 / four-page scope:** [minimal experiment and submission plan](docs/235_four_page_short_paper_minimal_experiment_plan.md)
 narrows the target to one supported benefit. Finish v215 selection, freeze one
 method, then confirm against SF on the remaining 80 prompts (160 new videos).
 Reuse development ablations; cross-model, 60-second, PF and ABA runs are not
-default prerequisites. Only v215 is currently executable; the confirmation
-runner follows method selection. Existing frozen analyses are not relabelled.
+default prerequisites. v216 is now implemented, with candidate selection still
+pending v215 results. Existing frozen analyses are not relabelled.
 The user reports v215 is running; keep its checkout unchanged. The plan records
 the official submission links, page allowance and a September 23 internal deadline.
 

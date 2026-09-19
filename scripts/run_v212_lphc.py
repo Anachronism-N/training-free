@@ -239,8 +239,8 @@ def run_bundle(repo: Path, out: Path, data: dict, sources: list[int], gpu: str, 
 def main() -> None:
     p = load_protocol("v212")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "gate0", "smoke", "generate32", "generate48", "generate96", "status", "schedule"))
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215"), default="v212")
+    parser.add_argument("action", choices=("prepare", "gate0", "smoke", "generate32", "generate48", "generate80", "generate96", "status", "schedule"))
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216"), default="v212")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--source-prompts", type=Path, default=p.DEFAULT_PROMPT_SOURCE)
@@ -249,7 +249,7 @@ def main() -> None:
     parser.add_argument("--gpu-list", default="0,1,2,3,4,5,6,7")
     parser.add_argument("--node-rank", type=int, default=int(os.environ.get("NODE_RANK", "0")))
     args = parser.parse_args()
-    p = load_protocol(args.campaign)
+    p = load_protocol(args.campaign, args.output_root)
     repo, out = args.repo_root.resolve(), p.output_root(args.output_root)
     slots = tuple(args.gpu_list.split(","))
     p.assignment(p.SOURCE_INDICES[0], slots)
@@ -262,7 +262,7 @@ def main() -> None:
         return
     data = p.verify(repo, out)
     if args.action == "schedule":
-        for rank in range(6):
+        for rank in range(getattr(p, "NODE_COUNT", 6)):
             for gpu in slots:
                 sources = [s for s in p.SOURCE_INDICES if p.assignment(s, slots) == (rank, gpu)]
                 print(f"[{p.LABEL}-schedule] rank={rank} gpu={gpu} sources={sources} videos={len(sources)*len(p.METHODS)}")

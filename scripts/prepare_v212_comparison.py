@@ -40,6 +40,8 @@ def verify_published(repo: Path, comparison: Path, *, media: bool = True, protoc
             or data.get("prompt_items") != generation["prompt_items"]):
         raise ValueError(f"{p.LABEL} published contract mismatch")
     require_gate(out, generation, protocol=p)
+    if hasattr(p, "validate_vbench_fingerprint"):
+        p.validate_vbench_fingerprint(data["vbench_fingerprint"])
     validate_pairs(data["jobs"], protocol=p)
     for job in data["jobs"]:
         if p.sha256(Path(job["done_path"])) != job["done_sha256"]:
@@ -80,11 +82,14 @@ def prepare(repo: Path, out: Path, vbench: Path, *, protocol=p) -> dict:
             else:
                 dst.symlink_to(src)
         method_rows.append({"key": method, "video_dir": str(target), "spec": p.SPECS[method]})
+    fingerprint = vbench_checkout_fingerprint(vbench)
+    if hasattr(p, "validate_vbench_fingerprint"):
+        p.validate_vbench_fingerprint(fingerprint)
     result = {"version": 1, "experiment": p.EXPERIMENT, "prompt_count": len(p.SOURCE_INDICES),
               "num_output_frames": 120, "prompt_items": data["prompt_items"], "methods": method_rows,
               "vbench_long_dimensions": list(DIMENSIONS), "jobs": jobs,
               "generation_root": str(out), "input_manifest_sha256": p.sha256(out / "inputs/manifest.json"),
-              "vbench_fingerprint": vbench_checkout_fingerprint(vbench), "development_only": True}
+              "vbench_fingerprint": fingerprint, "development_only": True}
     p.frozen_json(comparison / "comparison_manifest.json", result)
     return result
 
@@ -93,8 +98,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--vbench-root", type=Path, required=True)
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215"), default="v212")
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216"), default="v212")
     args = parser.parse_args()
-    p = p.load_protocol(args.campaign)
+    p = p.load_protocol(args.campaign, args.run_root)
     result = prepare(Path(__file__).resolve().parents[1], p.output_root(args.run_root), args.vbench_root.resolve(), protocol=p)
     print(f"[{p.LABEL}-publish] validated={len(result['jobs'])} same_gpu_pairing=true")
