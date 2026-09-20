@@ -43,6 +43,7 @@ class Protocol:
     GATE_SOURCES = (1, 65)
     METHODS, CANDIDATES, EFFECT_CONTROLS = ("sf_fifo21", "ours_correct"), ("ours_correct",), ("sf_fifo21",)
     GATE_PAIRS = (("sf_fifo21", "ours_zero"),)
+    MECHANISM = ()
     DEFAULT_CHECKPOINT, DEFAULT_PROMPT_SOURCE, DEFAULT_WAN_MODEL = (
         base.DEFAULT_CHECKPOINT, base.DEFAULT_PROMPT_SOURCE, base.DEFAULT_WAN_MODEL)
     sha256, frozen_json, write_frozen = staticmethod(base.sha256), staticmethod(base.frozen_json), staticmethod(base.write_frozen)
@@ -51,7 +52,7 @@ class Protocol:
         self.out = Path(out).resolve()
         path = self.out / "inputs/selection.json"
         if not path.is_file():
-            raise ValueError("run v216 freeze with a completed v215 report and eight-node file first")
+            raise ValueError(f"run {self.LABEL} freeze before preparing this campaign")
         self.scope = read(path)
         scope = self.scope
         if scope.get("version") != 1 or scope.get("experiment") != self.EXPERIMENT:
@@ -68,16 +69,19 @@ class Protocol:
         if (self.PRIMARY_METRIC, self.PRIMARY_WINDOW) not in PRIMARY_CHOICES:
             raise ValueError("unsupported primary metric/window; do not select after confirmation")
         self.PRIMARY_HYPOTHESIS = f"Frozen {candidate} versus SF FIFO21: {self.PRIMARY_WINDOW}/{self.PRIMARY_METRIC}"
-        self.SPECS = {"sf_fifo21": dict(development.SPECS["sf_fifo21"]),
-                      "ours_correct": dict(development.SPECS[candidate])}
+        self.SPECS = self.build_specs(candidate)
         self.CAMPAIGN = base.Campaign(self.LABEL, self.EXPERIMENT, self.SOURCE_INDICES, self.SEED,
-                                     self.SPECS, self.GATE_PAIRS, (("ours_correct", "sf_fifo21"),), (),
+                                     self.SPECS, self.GATE_PAIRS, (("ours_correct", "sf_fifo21"),), self.MECHANISM,
                                      nodes=self.AUTHORIZED_NODES, binding={"selection_sha256": self.sha256(path)})
         self.spec_for = partial(base.spec_for, campaign=self.CAMPAIGN)
         self.output_root = partial(base.output_root, campaign=self.CAMPAIGN)
         self.require_baseline = partial(require_baseline, label=self.LABEL, sources=self.GATE_SOURCES)
         self.audit = development.audit
         self.check_scope()
+
+    def build_specs(self, candidate):
+        return {"sf_fifo21": dict(development.SPECS["sf_fifo21"]),
+                "ours_correct": dict(development.SPECS[candidate])}
 
     def check_scope(self):
         path = self.out / "inputs/selection.json"
@@ -91,7 +95,7 @@ class Protocol:
 
     def assignment(self, source, slots):
         if tuple(slots) != tuple(map(str, range(8))):
-            raise ValueError("v216 requires GPU slots 0..7 on each of eight nodes")
+            raise ValueError(f"{self.LABEL} requires GPU slots 0..7 on each of eight nodes")
         return base.assignment(source, slots, sources=self.SOURCE_INDICES, num_nodes=8)
 
     def method_order(self, source):
@@ -100,9 +104,9 @@ class Protocol:
 
     def validate_node(self, rank, num_nodes=8):
         from run_v211_worker import assert_authorized_node
-        address = os.environ.get("V216_NODE_ADDRESS")
+        address = os.environ.get(f"{self.LABEL.upper()}_NODE_ADDRESS")
         if num_nodes != 8 or not 0 <= rank < 8 or address != self.AUTHORIZED_NODES[rank]:
-            raise PermissionError("NODE_RANK/V216_NODE_ADDRESS must match the frozen eight-node list")
+            raise PermissionError(f"NODE_RANK/{self.LABEL.upper()}_NODE_ADDRESS must match the frozen eight-node list")
         return assert_authorized_node({"authorized_nodes": list(self.AUTHORIZED_NODES)}, node_address=address)
 
     def validate_vbench_fingerprint(self, fingerprint):
@@ -131,7 +135,7 @@ class Protocol:
         return data
 
     def placement(self, slots):
-        return {"node_count": 8, "gpu_slots": list(slots), "main_video_count": 160,
+        return {"node_count": 8, "gpu_slots": list(slots), "main_video_count": len(self.METHODS)*len(self.SOURCE_INDICES),
                 "jobs": [{"source_index": s, "node_rank": self.assignment(s, slots)[0],
                           "gpu": self.assignment(s, slots)[1], "methods": list(self.method_order(s)),
                           "effective_seed": self.SEED + s} for s in self.SOURCE_INDICES]}

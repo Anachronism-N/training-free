@@ -98,7 +98,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--vbench-root", type=Path, required=True)
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216"), default="v212")
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217"), default="v212")
     args = parser.parse_args()
     p = p.load_protocol(args.campaign, args.run_root)
     result = prepare(Path(__file__).resolve().parents[1], p.output_root(args.run_root), args.vbench_root.resolve(), protocol=p)

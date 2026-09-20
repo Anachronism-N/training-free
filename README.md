@@ -3,6 +3,13 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
+**Optional matched-random/new-seed follow-up:** [v217 64-GPU runbook](docs/237_v217_64gpu_replication_and_icassp_closure.md)
+inherits the frozen v216 method and endpoint, then runs SF/Ours/matched-random
+on 64 predetermined prompts with a new seed (192 videos, one triple per GPU).
+This is not another method search and does not block four-page writing.
+v216's 160-video confirmation remains the priority. No new v215 results were
+visible in the September 20 fetch; do not invent a winning configuration.
+
 **Eight nodes / 64 A800 GPUs:** [v216 confirmation runbook](docs/236_v216_eight_node_confirmation_and_writing_runbook.md)
 implements one frozen v215 candidate versus SF on the remaining 80 prompts
 (160 new 30-second videos). It requires the completed v215 report and eight

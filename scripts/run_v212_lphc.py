@@ -239,8 +239,8 @@ def run_bundle(repo: Path, out: Path, data: dict, sources: list[int], gpu: str, 
 def main() -> None:
     p = load_protocol("v212")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "gate0", "smoke", "generate32", "generate48", "generate80", "generate96", "status", "schedule"))
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216"), default="v212")
+    parser.add_argument("action", choices=("prepare", "gate0", "smoke", "generate32", "generate48", "generate64", "generate80", "generate96", "status", "schedule"))
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217"), default="v212")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--source-prompts", type=Path, default=p.DEFAULT_PROMPT_SOURCE)
