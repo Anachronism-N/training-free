@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "experiment": "v215_head_preserving_retrieval48",
+  "comparison_manifest": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/vbench_comparison/comparison_manifest.json",
+  "comparison_manifest_sha256": "8687ac70ec86cb6944c8e05e3612a44eb71cf8fb12f5114e18e4fbd6a1db5c79",
+  "methods": {
+    "sf_fifo21": {
+      "subject_consistency": 0.9696809124626751,
+      "background_consistency": 0.9621160185339315,
+      "temporal_flickering": 0.9727908883527862,
+      "motion_smoothness": 0.9837279543938785,
+      "overall_consistency": 0.23770369104006225,
+      "dynamic_degree": 0.4652777777777778,
+      "aesthetic_quality": 0.5903442384468185,
+      "imaging_quality": 0.6801409969449871,
+      "temporal_style": 0.23770369104006225
+    },
+    "fifo_correct": {
+      "subject_consistency": 0.9690093660279021,
+      "background_consistency": 0.9612595123012243,
+      "temporal_flickering": 0.973252111604206,
+      "motion_smoothness": 0.9838838786151287,
+      "overall_consistency": 0.23738504086828066,
+      "dynamic_degree": 0.45694444444444443,
+      "aesthetic_quality": 0.58869502660301,
+      "imaging_quality": 0.6788832132878403,
+      "temporal_style": 0.23738504086828066
+    },
+    "fifo_random": {
+      "subject_consistency": 0.9698001104365774,
+      "background_consistency": 0.961740250301366,
+      "temporal_flickering": 0.9726028791722517,
+      "motion_smoothness": 0.9834241220278268,
+      "overall_consistency": 0.23902939132725198,
+      "dynamic_degree": 0.4722222222222222,
+      "aesthetic_quality": 0.590133369838198,
+      "imaging_quality": 0.6800599796175956,
+      "temporal_style": 0.23902939132725198
+    },
+    "headwise_correct": {
+      "subject_consistency": 0.9698601972922923,
+      "background_consistency": 0.9615567556739247,
+      "temporal_flickering": 0.9732820521308052,
+      "motion_smoothness": 0.984016312519179,
+      "overall_consistency": 0.23882771773884695,
+      "dynamic_degree": 0.4527777777777778,
+      "aesthetic_quality": 0.590826855889625,
+      "imaging_quality": 0.6845178755182358,
+      "temporal_style": 0.23882771773884695
+    },
+    "centered_correct": {
+      "subject_consistency": 0.9695764313693794,
+      "background_consistency": 0.9614805238340215,
+      "temporal_flickering": 0.9728117823931909,
+      "motion_smoothness": 0.9834880518703439,
+      "overall_consistency": 0.23790395182246962,
+      "dynamic_degree": 0.4597222222222222,
+      "aesthetic_quality": 0.5900711620019542,
+      "imaging_quality": 0.6815147910122242,
+      "temporal_style": 0.23790395182246962
+    },
+    "fifo_full_a002": {
+      "subject_consistency": 0.9690977043982159,
+      "background_consistency": 0.9620201371220356,
+      "temporal_flickering": 0.972154258988262,
+      "motion_smoothness": 0.9832958166511698,
+      "overall_consistency": 0.23859981330266844,
+      "dynamic_degree": 0.475,
+      "aesthetic_quality": 0.5891696302013265,
+      "imaging_quality": 0.6816787600976726,
+      "temporal_style": 0.23859981330266844
+    },
+    "fifo_full_random": {
+      "subject_consistency": 0.9710096459302384,
+      "background_consistency": 0.962443793667942,
+      "temporal_flickering": 0.9730401906731463,
+      "motion_smoothness": 0.9837948835557011,
+      "overall_consistency": 0.2355612102469119,
+      "dynamic_degree": 0.46805555555555556,
+      "aesthetic_quality": 0.5914716399378247,
+      "imaging_quality": 0.6837693684452938,
+      "temporal_style": 0.2355612102469119
+    }
+  },
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "sources": {
+    "sf_fifo21": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/sf_fifo21/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/sf_fifo21/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/sf_fifo21/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/sf_fifo21/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/sf_fifo21/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/sf_fifo21/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/sf_fifo21/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/sf_fifo21/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/sf_fifo21/temporal_style/results.json"
+    },
+    "fifo_correct": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_correct/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_correct/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_correct/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_correct/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_correct/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_correct/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_correct/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_correct/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_correct/temporal_style/results.json"
+    },
+    "fifo_random": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_random/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_random/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_random/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_random/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_random/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_random/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_random/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_random/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_random/temporal_style/results.json"
+    },
+    "headwise_correct": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/headwise_correct/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/headwise_correct/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/headwise_correct/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/headwise_correct/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/headwise_correct/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/headwise_correct/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/headwise_correct/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/headwise_correct/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/headwise_correct/temporal_style/results.json"
+    },
+    "centered_correct": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/centered_correct/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/centered_correct/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/centered_correct/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/centered_correct/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/centered_correct/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/centered_correct/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/centered_correct/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/centered_correct/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/centered_correct/temporal_style/results.json"
+    },
+    "fifo_full_a002": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_a002/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_a002/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_a002/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_a002/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_a002/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_a002/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_a002/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_a002/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_a002/temporal_style/results.json"
+    },
+    "fifo_full_random": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_random/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_random/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_random/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_random/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_random/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_random/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_random/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_random/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v215_runs/v215_850086c6_sixnode/evaluation/metrics/vbench_long_parts/fifo_full_random/temporal_style/results.json"
+    }
+  },
+  "missing": []
+}
