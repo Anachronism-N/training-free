@@ -2,6 +2,7 @@
 """Freeze one v215 choice before observing the disjoint 80-prompt confirmation."""
 import argparse
 import json
+import math
 from pathlib import Path
 
 import v212_lphc_protocol as base
@@ -60,6 +61,9 @@ def freeze(root, out, nodes, candidate, metric, window, rationale):
                  (r["candidate"], r["control"], r["metric"], r["window"]) == (candidate, "sf_fifo21", metric, window)]
     if len(contrasts) != 1 or len(contrasts[0]["per_prompt_delta"]) != 48:
         raise ValueError("chosen primary endpoint is missing from v215 paired results")
+    if any(not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v)
+           for v in contrasts[0]["per_prompt_delta"]):
+        raise ValueError("chosen primary endpoint contains nonfinite/non-numeric deltas")
     scope = {"version": 1, "experiment": current.EXPERIMENT, "selected_method": candidate,
              "primary_metric": metric, "primary_window": window, "rationale": rationale.strip(),
              "authorized_nodes": list(nodes), "development_root": str(root.resolve()),

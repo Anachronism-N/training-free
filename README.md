@@ -3,6 +3,13 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
+**ICASSP evidence packet:** [64-GPU execution and table export](docs/238_icassp_64gpu_evidence_packet_and_execution.md)
+adds GPU-free development briefs, raw VBench tables, 80-prompt confirmation,
+explicitly labelled 128-prompt aggregates, and same-64-prompt two-seed analysis.
+The shared review budget is six pairs, including previously reviewed IDs.
+No generation operator changes or new candidate search are required. The latest
+fetch of `worktree-v210-lphc` still resolves to v213 results at `5bd33b67`.
+
 **Optional matched-random/new-seed follow-up:** [v217 64-GPU runbook](docs/237_v217_64gpu_replication_and_icassp_closure.md)
 inherits the frozen v216 method and endpoint, then runs SF/Ours/matched-random
 on 64 predetermined prompts with a new seed (192 videos, one triple per GPU).
