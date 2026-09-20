@@ -6,16 +6,25 @@ from pathlib import Path
 import v215_lphc_protocol as p
 from analyze_v212_lphc import load_validated_inputs
 from analyze_v213_lphc import analyze, costs, render, old
+from vbench_quality_contract import reject_known_invalid_dynamic_runtime
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path, required=True)
+    parser.add_argument("--evaluation-repair", action="store_true")
     args = parser.parse_args()
     out = p.output_root(args.run_root)
-    rows, diagnostics, source, manifest = load_validated_inputs(out, protocol=p)
-    report = analyze(rows, diagnostics, protocol=p)
+    protocol = p
+    if args.evaluation_repair:
+        from v218_evaluation_repair import Protocol
+        protocol = Protocol(out)
+    rows, diagnostics, source, manifest = load_validated_inputs(out, protocol=protocol)
+    reject_known_invalid_dynamic_runtime(manifest["vbench_fingerprint"])
+    report = analyze(rows, diagnostics, protocol=protocol)
     report.update(source=source, costs=costs(manifest["jobs"], protocol=p))
+    if args.evaluation_repair:
+        report["evaluation_repair"] = protocol.repair
     report["note"] = "Exploratory post-v213 redesign, no automatic paper claim. Head-preserving retrieval is not a validated head taxonomy. Shared random e1 control is descriptor-independent."
     for row in report["review_queue"]:
         row["videos"] = {m: str(out / f"evaluation/vbench_comparison/published/{m}/{row['prompt_index']:06d}-0.mp4")

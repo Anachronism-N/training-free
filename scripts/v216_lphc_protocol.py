@@ -14,7 +14,7 @@ LABEL = "v216"
 EXPERIMENT = "v216_frozen_candidate_confirmation80"
 SOURCE_INDICES = tuple(s for s in range(128) if s not in development.SOURCE_INDICES)
 CANDIDATE_CHOICES = ("fifo_correct", "headwise_correct", "centered_correct", "fifo_full_a002")
-PRIMARY_CHOICES = {("official_quality_score", "full"), ("subject_consistency", "late_half")}
+PRIMARY_CHOICES = {("official_quality_score", "full"), ("subject_consistency", "late_half"), ("imaging_quality", "full")}
 
 
 def read(path):
@@ -68,6 +68,7 @@ class Protocol:
         self.PRIMARY_METRIC, self.PRIMARY_WINDOW = scope["primary_metric"], scope["primary_window"]
         if (self.PRIMARY_METRIC, self.PRIMARY_WINDOW) not in PRIMARY_CHOICES:
             raise ValueError("unsupported primary metric/window; do not select after confirmation")
+        self.EXTRA_METRICS = ("imaging_quality",) if self.PRIMARY_METRIC == "imaging_quality" else ()
         self.PRIMARY_HYPOTHESIS = f"Frozen {candidate} versus SF FIFO21: {self.PRIMARY_WINDOW}/{self.PRIMARY_METRIC}"
         self.SPECS = self.build_specs(candidate)
         self.CAMPAIGN = base.Campaign(self.LABEL, self.EXPERIMENT, self.SOURCE_INDICES, self.SEED,
@@ -113,6 +114,11 @@ class Protocol:
         expected = read(self.out / "inputs/development/comparison.json")["vbench_fingerprint"]
         if fingerprint != expected:
             raise ValueError("v216 evaluator differs from v215; do not pool results across evaluators")
+
+    def validate_checkpoint(self, digest):
+        repair = read(self.out / "inputs/development/report.json").get("evaluation_repair")
+        if repair is not None and digest != repair["raft_checkpoint_sha256"]:
+            raise ValueError("RAFT checkpoint differs from the repaired v215 evaluation")
 
     def _check_inputs(self, data):
         previous = read(self.out / "inputs/development/inputs.json")

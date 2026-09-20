@@ -85,7 +85,7 @@ def render(report):
              f"Paired delta (80 prompts): {primary['mean_delta']:+.6f}; 95% CI {primary['bootstrap_ci95']}",
              "", "| Full-video metric | SF | Ours | Ours - SF |", "|---|---:|---:|---:|"]
     means = report["method_means"]["full"]
-    for metric in old.ANALYSIS_METRICS:
+    for metric in report.get("analysis_metrics", old.ANALYSIS_METRICS):
         a, b = means["sf_fifo21"][metric], means["ours_correct"][metric]
         lines.append(f"| {metric} | {a:.6f} | {b:.6f} | {b-a:+.6f} |")
     lines += ["", "The 128-prompt table includes the 48 selection prompts and is NOT an independent confirmation.",
@@ -108,7 +108,7 @@ def main():
     report["selection_included_128_means"] = {
         window: {method: {metric: (48*dev["method_means"][window][original][metric] +
                                    80*report["method_means"][window][method][metric])/128
-                           for metric in old.ANALYSIS_METRICS}
+                           for metric in report.get("analysis_metrics", old.ANALYSIS_METRICS)}
                  for method, original in (("sf_fifo21", "sf_fifo21"), ("ours_correct", protocol.scope["selected_method"]))}
         for window in old.WINDOWS}
     for row in report["review_queue"]:

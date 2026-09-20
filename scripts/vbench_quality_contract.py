@@ -95,3 +95,16 @@ def quality_score_with_fixed_dynamic(
     adjusted = dict(row)
     adjusted["dynamic_degree"] = float(dynamic_value)
     return official_quality_score(adjusted)
+
+
+KNOWN_INVALID_DYNAMIC_SOURCES = frozenset({
+    # Uploaded v215: torchvision DEFAULT on raw 0..255, non-strict fallback.
+    "f7bfaa283935047ffa24d09f5d8224ae17469833e77d451ab46b6dd77905a6cb",
+})
+
+
+def reject_known_invalid_dynamic_runtime(fingerprint):
+    """Reject a diagnosed evaluator, not all modified VBench checkouts."""
+    digest = fingerprint.get("runtime_path_sha256", {}).get("vbench/dynamic_degree.py")
+    if digest in KNOWN_INVALID_DYNAMIC_SOURCES:
+        raise ValueError("known invalid Dynamic Degree runtime; run v218 evaluation repair on existing videos before freezing or publishing Quality-based evidence")

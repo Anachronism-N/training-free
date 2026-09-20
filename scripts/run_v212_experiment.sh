@@ -69,10 +69,13 @@ case "$ACTION" in
     HOME_CACHE="${VBENCH_RUNTIME_HOME:-$ROOT/runs/_model_cache/dreamsim_home}"
     if [[ "$ACTION" == eval || "$ACTION" == eval-missing ]]; then
       python "$ROOT/scripts/prepare_v155_vbench_local_cache.py" --vbench-cache "$CACHE" \
-        --torch-hub-dir "$HUB" --runtime-home "$HOME_CACHE"
+        --torch-hub-dir "$HUB" --runtime-home "$HOME_CACHE" \
+        --dino-repo "${VBENCH_DINO_REPO:-$CACHE/dino_model/facebookresearch_dino_main}" \
+        --dreamsim-cache "${DREAMSIM_CACHE:-$HOME_CACHE/.cache}"
     fi
     MODE="$ACTION"
     [[ "$ACTION" != eval-status ]] || MODE=status
+    [[ "$ACTION" != eval-missing ]] || MODE=eval
     python "$ROOT/scripts/run_v212_vbench.py" "$MODE" --comparison-root "$COMPARISON" \
       --campaign "$CAMPAIGN" \
       --vbench-root "$VBENCH_ROOT" --vbench-cache "$CACHE" --parts-root "$EVAL/metrics/vbench_long_parts" \

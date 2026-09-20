@@ -22,6 +22,10 @@ def analyze(rows_by_window: dict, temporal_rows: dict, *, protocol=p) -> dict:
     count = len(p.SOURCE_INDICES)
     primary_metric = getattr(p, "PRIMARY_METRIC", QUALITY)
     primary_window = getattr(p, "PRIMARY_WINDOW", "full")
+    extra_metrics = tuple(getattr(p, "EXTRA_METRICS", ()))
+    if any(m not in old.DIMENSIONS for m in extra_metrics):
+        raise ValueError("extra metrics must be raw frozen VBench dimensions")
+    metrics = tuple(dict.fromkeys((*old.ANALYSIS_METRICS, *extra_metrics)))
     expected = {(m, i) for m in p.METHODS for i in range(count)}
     if set(rows_by_window) != set(old.WINDOWS) or set(temporal_rows) != expected:
         raise ValueError("incomplete paired grid")
@@ -31,11 +35,11 @@ def analyze(rows_by_window: dict, temporal_rows: dict, *, protocol=p) -> dict:
     pairs += list(p.CAMPAIGN.mechanism)
     pairs = list(dict.fromkeys(pairs))
     for window, rows in rows_by_window.items():
-        if set(rows) != expected or any(not np.isfinite([row[m] for m in old.ANALYSIS_METRICS]).all()
+        if set(rows) != expected or any(not np.isfinite([row[m] for m in metrics]).all()
                                        for row in rows.values()):
             raise ValueError(f"incomplete or nonfinite {window} metrics")
         for candidate, control in pairs:
-            for metric in old.ANALYSIS_METRICS:
+            for metric in metrics:
                 row = old.contrast(rows, candidate=candidate, control=control, metric=metric,
                                    window=window, prompt_count=count, seed=p.SEED * 100 + len(comparisons))
                 values = np.asarray(row["per_prompt_delta"])
@@ -74,6 +78,11 @@ def analyze(rows_by_window: dict, temporal_rows: dict, *, protocol=p) -> dict:
         if row["source_index"] not in seen and len(queue) < 4:
             queue.append(row)
             seen.add(row["source_index"])
+    means = old.method_means(rows_by_window, p.METHODS, count)
+    for window, rows in rows_by_window.items():
+        for method in p.METHODS:
+            for metric in extra_metrics:
+                means[window][method][metric] = float(np.mean([rows[(method, i)][metric] for i in range(count)]))
     return {
         "experiment": p.EXPERIMENT, "prompt_count": count,
         "source_indices": list(p.SOURCE_INDICES), "development_only": True, "paper_claim_ready": False,
@@ -81,7 +90,7 @@ def analyze(rows_by_window: dict, temporal_rows: dict, *, protocol=p) -> dict:
         "ranking_metric": primary_metric,
         "ranking_window": primary_window,
         "candidate_status": status, "comparisons": comparisons,
-        "method_means": old.method_means(rows_by_window, p.METHODS, count),
+        "method_means": means, "analysis_metrics": list(metrics),
         "review_queue": queue, "all_failure_flags": review, "review_pair_limit": 4,
         "rule": {"quality_mean_target": .10, "mean_tolerances": old.NONINFERIORITY_MARGINS,
                  "multiple_testing_family": f"{len(p.CANDIDATES)} {primary_window} {primary_metric} contrasts vs FIFO21; one-sided sign-test BH",

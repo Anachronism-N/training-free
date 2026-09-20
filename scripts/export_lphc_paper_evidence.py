@@ -18,7 +18,7 @@ import v217_lphc_protocol as replicate
 from analyze_v213_lphc import old, paired
 from prepare_v212_comparison import validate_pairs
 from summarize_v213_evidence import checked_hash
-from vbench_quality_contract import official_quality_score
+from vbench_quality_contract import official_quality_score, reject_known_invalid_dynamic_runtime
 
 REPORTS = {"v215": "v215_selector_phase", "v216": "v216_confirmation", "v217": "v217_seed_random"}
 PROTOCOLS = {"v215": dev, "v216": confirm.Protocol, "v217": replicate.Protocol}
@@ -49,7 +49,7 @@ def validate_report(report, protocol):
             raise ValueError("invalid/duplicated paired contrast or inconsistent mean")
         if row["candidate"] not in protocol.METHODS or row["control"] not in protocol.METHODS:
             raise ValueError("unknown method in paired contrast")
-        if row["window"] not in old.WINDOWS or row["metric"] not in old.ANALYSIS_METRICS:
+        if row["window"] not in old.WINDOWS or row["metric"] not in (*old.ANALYSIS_METRICS, *RAW_METRICS):
             raise ValueError("unknown metric/window in paired contrast")
         seen.add(key)
     for window in old.WINDOWS:
@@ -73,6 +73,7 @@ def load_bundle(root, label):
     report_path = root / f"evaluation/analysis/{REPORTS[label]}.json"
     report = read(report_path)
     comparison = checked("evaluation/vbench_comparison/comparison_manifest.json", report["source"]["manifest_sha256"])
+    reject_known_invalid_dynamic_runtime(comparison["vbench_fingerprint"])
     inputs = checked("inputs/manifest.json", comparison["input_manifest_sha256"])
     summary = checked("evaluation/metrics/vbench_core9_summary.json", report["source"]["summary_sha256"])
     checked("evaluation/metrics/temporal_diagnostics.csv", report["source"]["temporal_sha256"])
@@ -171,6 +172,11 @@ def brief(development):
         random = "fifo_full_random" if candidate == "fifo_full_a002" else "fifo_random"
         for metric, window in sorted(confirm.PRIMARY_CHOICES):
             for control in ("sf_fifo21", random):
+                if not any((r["candidate"], r["control"], r["metric"], r["window"]) ==
+                           (candidate, control, metric, window) for r in report["comparisons"]):
+                    if metric not in old.ANALYSIS_METRICS:
+                        continue  # Older frozen reports did not retain raw imaging contrasts.
+                    raise ValueError("missing original development contrast")
                 row = contrast(report, candidate, control, metric, window)
                 rows.append({"candidate": candidate, "control": control, "metric": metric, "window": window,
                              "mean_delta": row["mean_delta"], "ci_low": row["bootstrap_ci95"][0],
@@ -183,7 +189,8 @@ def joint_seeds(first, second):
     scope = first["scope"]
     ids = list(replicate.SOURCE_INDICES)
     rows = []
-    for index, (window, metric) in enumerate((w, m) for w in old.WINDOWS for m in old.ANALYSIS_METRICS):
+    metrics = tuple(dict.fromkeys((*old.ANALYSIS_METRICS, scope["primary_metric"])))
+    for index, (window, metric) in enumerate((w, m) for w in old.WINDOWS for m in metrics):
         aa = contrast(a, "ours_correct", "sf_fifo21", metric, window)
         bb = contrast(b, "ours_correct", "sf_fifo21", metric, window)
         by_source = dict(zip(a["source_indices"], aa["per_prompt_delta"]))

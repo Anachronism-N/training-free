@@ -50,7 +50,7 @@ def render(report):
              f"Ours - random (secondary): {mechanism['mean_delta']:+.6f}; 95% CI {mechanism['bootstrap_ci95']}", "",
              "| Full-video metric | SF | Ours | Matched random |", "|---|---:|---:|---:|"]
     means = report["method_means"]["full"]
-    for metric in old.ANALYSIS_METRICS:
+    for metric in report.get("analysis_metrics", old.ANALYSIS_METRICS):
         values = " | ".join(f"{means[m][metric]:.6f}" for m in ("sf_fifo21", "ours_correct", "ours_random"))
         lines.append(f"| {metric} | {values} |")
     lines += ["", "Quality is in percentage points; other metrics keep their native scale. core-9 is not full Total/Semantic.",

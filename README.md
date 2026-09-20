@@ -3,46 +3,56 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
+**Latest: v215 complete, evaluator repair before confirmation.** The
+`worktree-v210-lphc` update at `a988f0e6` contains all 336 completion receipts
+and scores. Headwise retrieval shows a local imaging-quality signal, not
+established identity or overall superiority. Uploaded DD source mixes an
+unnormalized torchvision RAFT path with a non-strict fallback; old DD-derived
+Quality is not suitable for paper conclusions. Other metrics are not
+automatically invalidated. See the [v218 repair, results and 64-GPU runbook](docs/239_v215_results_v218_evaluation_repair_64gpu.md).
+
+**Run order:** v218 re-evaluates the existing videos in an isolated strict-RAFT
+runtime (63 metric jobs over eight nodes, zero new videos), then v216 confirms
+one frozen method against SF on 80 prompts (160 videos). Imaging/full can now
+be frozen as a limited claim before new confirmation. Never change an already
+running campaign's endpoint or overwrite its evaluator, weights or videos.
+
 **ICASSP evidence packet:** [64-GPU execution and table export](docs/238_icassp_64gpu_evidence_packet_and_execution.md)
-adds GPU-free development briefs, raw VBench tables, 80-prompt confirmation,
-explicitly labelled 128-prompt aggregates, and same-64-prompt two-seed analysis.
-The shared review budget is six pairs, including previously reviewed IDs.
-No generation operator changes or new candidate search are required. The latest
-fetch of `worktree-v210-lphc` still resolves to v213 results at `5bd33b67`.
+supports raw tables, separately labelled 80/128-prompt results and same-prompt
+two-seed analysis. Use repaired evaluation roots. Human review remains at most
+six pairs across campaigns; model generation code is unchanged this round.
 
 **Optional matched-random/new-seed follow-up:** [v217 64-GPU runbook](docs/237_v217_64gpu_replication_and_icassp_closure.md)
 inherits the frozen v216 method and endpoint, then runs SF/Ours/matched-random
 on 64 predetermined prompts with a new seed (192 videos, one triple per GPU).
 This is not another method search and does not block four-page writing.
-v216's 160-video confirmation remains the priority. No new v215 results were
-visible in the September 20 fetch; do not invent a winning configuration.
+v216's 160-video confirmation remains the priority after evaluator repair.
 
 **Eight nodes / 64 A800 GPUs:** [v216 confirmation runbook](docs/236_v216_eight_node_confirmation_and_writing_runbook.md)
 implements one frozen v215 candidate versus SF on the remaining 80 prompts
 (160 new 30-second videos). It requires the completed v215 report and eight
 real node interface IPs before launch. The 80-prompt confirmation is reported
 separately from the selection-included 128-prompt aggregate; at most six pairs
-are queued for diagnostic review. The September 20 fetch found no new v215
-results, so no winner or new positive claim has been inferred.
+are queued for diagnostic review. Document 239 supersedes its earlier
+pending-results snapshot and provides the provisional headwise/imaging choice.
 
 **ICASSP 2027 / four-page scope:** [minimal experiment and submission plan](docs/235_four_page_short_paper_minimal_experiment_plan.md)
 narrows the target to one supported benefit. Finish v215 selection, freeze one
 method, then confirm against SF on the remaining 80 prompts (160 new videos).
 Reuse development ablations; cross-model, 60-second, PF and ABA runs are not
-default prerequisites. v216 is now implemented, with candidate selection still
-pending v215 results. Existing frozen analyses are not relabelled.
-The user reports v215 is running; keep its checkout unchanged. The plan records
+default prerequisites. Existing frozen analyses are not relabelled.
+Keep running checkouts unchanged. The plan records
 the official submission links, page allowance and a September 23 internal deadline.
 
-**Latest evidence: v213 is complete (224 videos).** Official-SF and alpha-zero
+**Historical evidence: v213 (224 videos).** Official-SF and alpha-zero
 checks pass on the uploaded canaries. All four candidates' paired Quality
 confidence intervals include zero; content-selected history has not established
 a benefit over random history. The best observed full-phase official Quality
 gain is +0.133 percentage points, with 95% CI [-0.073, +0.340]. This is not yet
-evidence for a stable SF-superiority claim. Dynamic Degree is no longer all one;
-official-formula Quality and fixed-DD diagnosis must be reported separately.
+evidence for a stable SF-superiority claim. Its DD-derived scores require the
+same source audit; repaired and old evaluator results must not be mixed.
 
-**Next: [v215 targeted retrieval screen and launch commands](docs/234_v213_results_and_v215_selector_repair.md).**
+**Completed design: [v215 retrieval screen](docs/234_v213_results_and_v215_selector_repair.md).**
 Six nodes / 48 GPUs run seven methods on 48 Qwen-rewritten MovieGen prompts,
 30 seconds each (336 videos, new paired seed). Two head-preserving descriptor
 variants change only retrieval scoring; matched random history also tests

@@ -9,6 +9,7 @@ import v212_lphc_protocol as base
 import v215_lphc_protocol as previous
 import v216_lphc_protocol as current
 from prepare_v212_comparison import validate_pairs
+from vbench_quality_contract import reject_known_invalid_dynamic_runtime
 
 
 def load_evidence(root):
@@ -18,6 +19,7 @@ def load_evidence(root):
              "summary.json": root / "evaluation/metrics/vbench_core9_summary.json"}
     data = {name: current.read(path) for name, path in files.items()}
     inputs, comparison, report, summary = (data[n] for n in files)
+    reject_known_invalid_dynamic_runtime(comparison["vbench_fingerprint"])
     if (inputs["experiment"] != previous.EXPERIMENT or report["experiment"] != previous.EXPERIMENT
             or comparison["experiment"] != previous.EXPERIMENT or summary["experiment"] != previous.EXPERIMENT
             or inputs["source_indices"] != list(previous.SOURCE_INDICES) or inputs["base_seed"] != previous.SEED
@@ -88,7 +90,7 @@ def main():
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--nodes", type=Path, required=True, help="JSON array of eight interface IPs in NODE_RANK order")
     parser.add_argument("--candidate", choices=current.CANDIDATE_CHOICES, required=True)
-    parser.add_argument("--primary-metric", choices=("official_quality_score", "subject_consistency"), default="official_quality_score")
+    parser.add_argument("--primary-metric", choices=("official_quality_score", "subject_consistency", "imaging_quality"), default="official_quality_score")
     parser.add_argument("--primary-window", choices=("full", "late_half"), default="full")
     parser.add_argument("--rationale", required=True)
     args = parser.parse_args()

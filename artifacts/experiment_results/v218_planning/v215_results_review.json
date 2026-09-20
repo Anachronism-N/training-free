@@ -1,0 +1,1511 @@
+{
+  "boundary": "Uploaded receipts and summaries only, no raw media/VBench recomputation. Raw imaging mean has no paired CI in the old report; v218 adds the missing per-prompt imaging contrast. Fixed-DD is diagnostic, not official Quality.",
+  "development_table": [
+    {
+      "aesthetic_quality": 0.5903442384468185,
+      "automatic_flags": 0,
+      "background_consistency": 0.9621160185339315,
+      "imaging_quality": 0.6801409969449871,
+      "method": "sf_fifo21",
+      "motion_smoothness": 0.9837279543938785,
+      "overall_consistency": 0.23770369104006225,
+      "quality_dd_fixed": 85.58509547638612,
+      "subject_consistency": 0.9696809124626751,
+      "temporal_flickering": 0.9727908883527862,
+      "temporal_style": 0.23770369104006225
+    },
+    {
+      "aesthetic_quality": 0.58869502660301,
+      "automatic_flags": 8,
+      "background_consistency": 0.9612595123012243,
+      "imaging_quality": 0.6788832132878403,
+      "method": "fifo_correct",
+      "motion_smoothness": 0.9838838786151287,
+      "overall_consistency": 0.23738504086828066,
+      "quality_dd_fixed": 85.53779967343819,
+      "subject_consistency": 0.9690093660279021,
+      "temporal_flickering": 0.973252111604206,
+      "temporal_style": 0.23738504086828066
+    },
+    {
+      "aesthetic_quality": 0.590133369838198,
+      "automatic_flags": 10,
+      "background_consistency": 0.961740250301366,
+      "imaging_quality": 0.6800599796175956,
+      "method": "fifo_random",
+      "motion_smoothness": 0.9834241220278268,
+      "overall_consistency": 0.23902939132725198,
+      "quality_dd_fixed": 85.5510865002531,
+      "subject_consistency": 0.9698001104365774,
+      "temporal_flickering": 0.9726028791722517,
+      "temporal_style": 0.23902939132725198
+    },
+    {
+      "aesthetic_quality": 0.590826855889625,
+      "automatic_flags": 7,
+      "background_consistency": 0.9615567556739247,
+      "imaging_quality": 0.6845178755182358,
+      "method": "headwise_correct",
+      "motion_smoothness": 0.984016312519179,
+      "overall_consistency": 0.23882771773884695,
+      "quality_dd_fixed": 85.68703962396681,
+      "subject_consistency": 0.9698601972922923,
+      "temporal_flickering": 0.9732820521308052,
+      "temporal_style": 0.23882771773884695
+    },
+    {
+      "aesthetic_quality": 0.5900711620019542,
+      "automatic_flags": 11,
+      "background_consistency": 0.9614805238340215,
+      "imaging_quality": 0.6815147910122242,
+      "method": "centered_correct",
+      "motion_smoothness": 0.9834880518703439,
+      "overall_consistency": 0.23790395182246962,
+      "quality_dd_fixed": 85.57511386666765,
+      "subject_consistency": 0.9695764313693794,
+      "temporal_flickering": 0.9728117823931909,
+      "temporal_style": 0.23790395182246962
+    },
+    {
+      "aesthetic_quality": 0.5891696302013265,
+      "automatic_flags": 9,
+      "background_consistency": 0.9620201371220356,
+      "imaging_quality": 0.6816787600976726,
+      "method": "fifo_full_a002",
+      "motion_smoothness": 0.9832958166511698,
+      "overall_consistency": 0.23859981330266844,
+      "quality_dd_fixed": 85.52894802714422,
+      "subject_consistency": 0.9690977043982159,
+      "temporal_flickering": 0.972154258988262,
+      "temporal_style": 0.23859981330266844
+    },
+    {
+      "aesthetic_quality": 0.5914716399378247,
+      "automatic_flags": 11,
+      "background_consistency": 0.962443793667942,
+      "imaging_quality": 0.6837693684452938,
+      "method": "fifo_full_random",
+      "motion_smoothness": 0.9837948835557011,
+      "overall_consistency": 0.2355612102469119,
+      "quality_dd_fixed": 85.70291071986996,
+      "subject_consistency": 0.9710096459302384,
+      "temporal_flickering": 0.9730401906731463,
+      "temporal_style": 0.2355612102469119
+    }
+  ],
+  "dynamic_degree_runtime_not_known_bad": false,
+  "generation": {
+    "baseline_and_alpha0_pass": true,
+    "boundary": "Farneback proxy flags are not VBench scores, ID accuracy or confirmed visual failures. Only compact receipts and summary arithmetic checked; no video/tensor inspection.",
+    "diagnostic_only": true,
+    "evaluation_risk": "Uploaded DynamicDegree prefers torchvision DEFAULT on raw 0..255 frames and falls back with strict=False. Re-evaluate DD before using official-formula Quality for a paper.",
+    "generation_commit": "850086c6543ee4cba90817dd3631eb7eb1438ec8",
+    "generation_count": 336,
+    "hash_check_modes": {
+      "exact": 1,
+      "git_crlf_transport_only": 339
+    },
+    "missing_for_selection": [],
+    "no_vbench_winner_selected": true,
+    "selector": {
+      "centered_correct": {
+        "maximum_reported_correction_ratio": 0.020000003278255463,
+        "median_job_boundary_margin": 0.08711457355768792,
+        "real_choice_calls": 37440,
+        "scored_calls": 56160
+      },
+      "fifo_correct": {
+        "maximum_reported_correction_ratio": 0.020000003278255463,
+        "median_job_boundary_margin": 0.0008154218395551047,
+        "real_choice_calls": 37440,
+        "scored_calls": 56160
+      },
+      "fifo_full_a002": {
+        "maximum_reported_correction_ratio": 0.020000003278255463,
+        "median_job_boundary_margin": 0.0008054005794036084,
+        "real_choice_calls": 37440,
+        "scored_calls": 56160
+      },
+      "fifo_full_random": {
+        "maximum_reported_correction_ratio": 0.020000003278255463,
+        "median_job_boundary_margin": null,
+        "real_choice_calls": 0,
+        "scored_calls": 0
+      },
+      "fifo_random": {
+        "maximum_reported_correction_ratio": 0.020000003278255463,
+        "median_job_boundary_margin": null,
+        "real_choice_calls": 0,
+        "scored_calls": 0
+      },
+      "headwise_correct": {
+        "maximum_reported_correction_ratio": 0.020000003278255463,
+        "median_job_boundary_margin": 0.008556186159451796,
+        "real_choice_calls": 37440,
+        "scored_calls": 56160
+      }
+    },
+    "temporal_guard": {
+      "centered_correct": {
+        "allowed_flagged_prompt_count": 2,
+        "automatic_safety_pass": false,
+        "available": true,
+        "control": "sf_fifo21",
+        "flagged_prompt_count": 11,
+        "flagged_prompts": [
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 9,
+            "source_index": 24
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 14,
+            "source_index": 39
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 26,
+            "source_index": 71
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 27,
+            "source_index": 72
+          },
+          {
+            "flags": [
+              "temporal_discontinuity"
+            ],
+            "prompt_index": 30,
+            "source_index": 80
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 31,
+            "source_index": 83
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 32,
+            "source_index": 87
+          },
+          {
+            "flags": [
+              "temporal_discontinuity",
+              "edge_density_failure"
+            ],
+            "prompt_index": 33,
+            "source_index": 88
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 36,
+            "source_index": 96
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 37,
+            "source_index": 99
+          },
+          {
+            "flags": [
+              "late_motion_collapse",
+              "edge_density_failure"
+            ],
+            "prompt_index": 41,
+            "source_index": 111
+          }
+        ],
+        "mean_deltas_vs_control": {
+          "appearance_outlier_fraction": 0.0,
+          "bright_frame_fraction": 0.0,
+          "dark_frame_fraction": -0.0003472222222222221,
+          "edge_density_outlier_fraction": 0.011111111111111113,
+          "flow_accel_outlier_fraction": -0.0010775862068965537,
+          "flow_speed_median": -0.17257245676591992,
+          "late_motion_ratio": 0.03136150957772064,
+          "longest_low_motion_run_fraction": 0.0007062146892655372,
+          "low_contrast_frame_fraction": 0.0,
+          "motion_coverage_fraction": -0.00035310734463277205,
+          "temporal_jump": -1.0413913360478706
+        },
+        "use_boundary": "Farneback diagnostics are an automatic failure guard and review localizer, not a paper metric or promotion effect size."
+      },
+      "fifo_correct": {
+        "allowed_flagged_prompt_count": 2,
+        "automatic_safety_pass": false,
+        "available": true,
+        "control": "sf_fifo21",
+        "flagged_prompt_count": 8,
+        "flagged_prompts": [
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 9,
+            "source_index": 24
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 16,
+            "source_index": 43
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 26,
+            "source_index": 71
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 27,
+            "source_index": 72
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 30,
+            "source_index": 80
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 37,
+            "source_index": 99
+          },
+          {
+            "flags": [
+              "late_motion_collapse",
+              "temporal_discontinuity",
+              "edge_density_failure"
+            ],
+            "prompt_index": 41,
+            "source_index": 111
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 43,
+            "source_index": 115
+          }
+        ],
+        "mean_deltas_vs_control": {
+          "appearance_outlier_fraction": 0.0035310734463276845,
+          "bright_frame_fraction": 0.0,
+          "dark_frame_fraction": -0.0010416666666666667,
+          "edge_density_outlier_fraction": 0.0006944444444444432,
+          "flow_accel_outlier_fraction": -0.002873563218390805,
+          "flow_speed_median": -0.22211946345244846,
+          "late_motion_ratio": -0.004705942972796806,
+          "longest_low_motion_run_fraction": 4.336808689942018e-19,
+          "low_contrast_frame_fraction": 0.0,
+          "motion_coverage_fraction": -0.0017655367231638418,
+          "temporal_jump": -0.8907626391013744
+        },
+        "use_boundary": "Farneback diagnostics are an automatic failure guard and review localizer, not a paper metric or promotion effect size."
+      },
+      "fifo_full_a002": {
+        "allowed_flagged_prompt_count": 2,
+        "automatic_safety_pass": false,
+        "available": true,
+        "control": "sf_fifo21",
+        "flagged_prompt_count": 9,
+        "flagged_prompts": [
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 11,
+            "source_index": 31
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 17,
+            "source_index": 47
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 26,
+            "source_index": 71
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 27,
+            "source_index": 72
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 30,
+            "source_index": 80
+          },
+          {
+            "flags": [
+              "temporal_discontinuity"
+            ],
+            "prompt_index": 31,
+            "source_index": 83
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 39,
+            "source_index": 104
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 41,
+            "source_index": 111
+          },
+          {
+            "flags": [
+              "late_motion_collapse",
+              "edge_density_failure"
+            ],
+            "prompt_index": 43,
+            "source_index": 115
+          }
+        ],
+        "mean_deltas_vs_control": {
+          "appearance_outlier_fraction": 0.0021186440677966097,
+          "bright_frame_fraction": 0.0,
+          "dark_frame_fraction": -0.0010416666666666667,
+          "edge_density_outlier_fraction": -0.0072916666666666685,
+          "flow_accel_outlier_fraction": -0.007543103448275862,
+          "flow_speed_median": -0.07228546791399519,
+          "late_motion_ratio": 0.004296957355036125,
+          "longest_low_motion_run_fraction": -0.005649717514124293,
+          "low_contrast_frame_fraction": 0.0,
+          "motion_coverage_fraction": 0.006709039548022597,
+          "temporal_jump": -0.9179441978859613
+        },
+        "use_boundary": "Farneback diagnostics are an automatic failure guard and review localizer, not a paper metric or promotion effect size."
+      },
+      "fifo_full_random": {
+        "allowed_flagged_prompt_count": 2,
+        "automatic_safety_pass": false,
+        "available": true,
+        "control": "sf_fifo21",
+        "flagged_prompt_count": 11,
+        "flagged_prompts": [
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 9,
+            "source_index": 24
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 16,
+            "source_index": 43
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 26,
+            "source_index": 71
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 30,
+            "source_index": 80
+          },
+          {
+            "flags": [
+              "temporal_discontinuity"
+            ],
+            "prompt_index": 31,
+            "source_index": 83
+          },
+          {
+            "flags": [
+              "late_motion_collapse",
+              "temporal_discontinuity"
+            ],
+            "prompt_index": 32,
+            "source_index": 87
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 33,
+            "source_index": 88
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 36,
+            "source_index": 96
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 37,
+            "source_index": 99
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 43,
+            "source_index": 115
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 45,
+            "source_index": 120
+          }
+        ],
+        "mean_deltas_vs_control": {
+          "appearance_outlier_fraction": -0.004943502824858756,
+          "bright_frame_fraction": 0.0,
+          "dark_frame_fraction": -0.0010416666666666667,
+          "edge_density_outlier_fraction": 0.004166666666666667,
+          "flow_accel_outlier_fraction": 0.002873563218390804,
+          "flow_speed_median": -0.18581283635770282,
+          "late_motion_ratio": -0.01534754690324991,
+          "longest_low_motion_run_fraction": -0.003884180790960451,
+          "low_contrast_frame_fraction": 0.0,
+          "motion_coverage_fraction": 0.004237288135593219,
+          "temporal_jump": -0.855301976204967
+        },
+        "use_boundary": "Farneback diagnostics are an automatic failure guard and review localizer, not a paper metric or promotion effect size."
+      },
+      "fifo_random": {
+        "allowed_flagged_prompt_count": 2,
+        "automatic_safety_pass": false,
+        "available": true,
+        "control": "sf_fifo21",
+        "flagged_prompt_count": 10,
+        "flagged_prompts": [
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 9,
+            "source_index": 24
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 12,
+            "source_index": 32
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 26,
+            "source_index": 71
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 30,
+            "source_index": 80
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 31,
+            "source_index": 83
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 32,
+            "source_index": 87
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 37,
+            "source_index": 99
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 39,
+            "source_index": 104
+          },
+          {
+            "flags": [
+              "late_motion_collapse",
+              "temporal_discontinuity",
+              "edge_density_failure"
+            ],
+            "prompt_index": 41,
+            "source_index": 111
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 43,
+            "source_index": 115
+          }
+        ],
+        "mean_deltas_vs_control": {
+          "appearance_outlier_fraction": 0.007768361581920903,
+          "bright_frame_fraction": 0.0,
+          "dark_frame_fraction": -0.0010416666666666667,
+          "edge_density_outlier_fraction": -0.0006944444444444437,
+          "flow_accel_outlier_fraction": -0.002873563218390806,
+          "flow_speed_median": -0.10607297710763912,
+          "late_motion_ratio": 0.0029988885486464576,
+          "longest_low_motion_run_fraction": -0.0014124293785310728,
+          "low_contrast_frame_fraction": 0.0,
+          "motion_coverage_fraction": -0.0021186440677966115,
+          "temporal_jump": 0.20012851943100837
+        },
+        "use_boundary": "Farneback diagnostics are an automatic failure guard and review localizer, not a paper metric or promotion effect size."
+      },
+      "headwise_correct": {
+        "allowed_flagged_prompt_count": 2,
+        "automatic_safety_pass": false,
+        "available": true,
+        "control": "sf_fifo21",
+        "flagged_prompt_count": 7,
+        "flagged_prompts": [
+          {
+            "flags": [
+              "temporal_discontinuity"
+            ],
+            "prompt_index": 30,
+            "source_index": 80
+          },
+          {
+            "flags": [
+              "late_motion_collapse",
+              "temporal_discontinuity"
+            ],
+            "prompt_index": 32,
+            "source_index": 87
+          },
+          {
+            "flags": [
+              "temporal_discontinuity"
+            ],
+            "prompt_index": 34,
+            "source_index": 91
+          },
+          {
+            "flags": [
+              "late_motion_collapse"
+            ],
+            "prompt_index": 37,
+            "source_index": 99
+          },
+          {
+            "flags": [
+              "temporal_discontinuity"
+            ],
+            "prompt_index": 39,
+            "source_index": 104
+          },
+          {
+            "flags": [
+              "temporal_discontinuity",
+              "edge_density_failure"
+            ],
+            "prompt_index": 41,
+            "source_index": 111
+          },
+          {
+            "flags": [
+              "edge_density_failure"
+            ],
+            "prompt_index": 43,
+            "source_index": 115
+          }
+        ],
+        "mean_deltas_vs_control": {
+          "appearance_outlier_fraction": 0.009180790960451978,
+          "bright_frame_fraction": 0.0,
+          "dark_frame_fraction": -0.0010416666666666667,
+          "edge_density_outlier_fraction": -0.008333333333333333,
+          "flow_accel_outlier_fraction": -0.013290229885057472,
+          "flow_speed_median": -0.19480860660163066,
+          "late_motion_ratio": 0.012025415536651799,
+          "longest_low_motion_run_fraction": 0.0038841807909604513,
+          "low_contrast_frame_fraction": 0.0,
+          "motion_coverage_fraction": -0.00423728813559322,
+          "temporal_jump": 0.6925919811475886
+        },
+        "use_boundary": "Farneback diagnostics are an automatic failure guard and review localizer, not a paper metric or promotion effect size."
+      }
+    },
+    "temporal_means": {
+      "centered_correct": {
+        "appearance_outlier_fraction": 0.1038135593220339,
+        "bright_frame_fraction": 0.0,
+        "dark_frame_fraction": 0.001388888888888889,
+        "edge_density_outlier_fraction": 0.06875,
+        "flow_accel_outlier_fraction": 0.13757183908045978,
+        "flow_speed_median": 1.5837058840940397,
+        "late_motion_ratio": 0.7704086951108268,
+        "longest_low_motion_run_fraction": 0.009533898305084746,
+        "low_contrast_frame_fraction": 0.0,
+        "motion_coverage_fraction": 0.9890536723163842,
+        "temporal_jump": 1.9356459954662324
+      },
+      "fifo_correct": {
+        "appearance_outlier_fraction": 0.10734463276836158,
+        "bright_frame_fraction": 0.0,
+        "dark_frame_fraction": 0.0006944444444444445,
+        "edge_density_outlier_fraction": 0.05833333333333333,
+        "flow_accel_outlier_fraction": 0.13577586206896552,
+        "flow_speed_median": 1.534158877407511,
+        "late_motion_ratio": 0.7343412425603093,
+        "longest_low_motion_run_fraction": 0.00882768361581921,
+        "low_contrast_frame_fraction": 0.0,
+        "motion_coverage_fraction": 0.987641242937853,
+        "temporal_jump": 2.086274692412729
+      },
+      "fifo_full_a002": {
+        "appearance_outlier_fraction": 0.1059322033898305,
+        "bright_frame_fraction": 0.0,
+        "dark_frame_fraction": 0.0006944444444444445,
+        "edge_density_outlier_fraction": 0.05034722222222222,
+        "flow_accel_outlier_fraction": 0.13110632183908047,
+        "flow_speed_median": 1.6839928729459643,
+        "late_motion_ratio": 0.7433441428881422,
+        "longest_low_motion_run_fraction": 0.0031779661016949155,
+        "low_contrast_frame_fraction": 0.0,
+        "motion_coverage_fraction": 0.9961158192090395,
+        "temporal_jump": 2.0590931336281417
+      },
+      "fifo_full_random": {
+        "appearance_outlier_fraction": 0.09887005649717513,
+        "bright_frame_fraction": 0.0,
+        "dark_frame_fraction": 0.0006944444444444445,
+        "edge_density_outlier_fraction": 0.06180555555555556,
+        "flow_accel_outlier_fraction": 0.14152298850574713,
+        "flow_speed_median": 1.5704655045022566,
+        "late_motion_ratio": 0.7236996386298564,
+        "longest_low_motion_run_fraction": 0.004943502824858757,
+        "low_contrast_frame_fraction": 0.0,
+        "motion_coverage_fraction": 0.9936440677966102,
+        "temporal_jump": 2.121735355309136
+      },
+      "fifo_random": {
+        "appearance_outlier_fraction": 0.1115819209039548,
+        "bright_frame_fraction": 0.0,
+        "dark_frame_fraction": 0.0006944444444444445,
+        "edge_density_outlier_fraction": 0.05694444444444444,
+        "flow_accel_outlier_fraction": 0.1357758620689655,
+        "flow_speed_median": 1.6502053637523204,
+        "late_motion_ratio": 0.7420460740817525,
+        "longest_low_motion_run_fraction": 0.007415254237288136,
+        "low_contrast_frame_fraction": 0.0,
+        "motion_coverage_fraction": 0.9872881355932203,
+        "temporal_jump": 3.1771658509451117
+      },
+      "headwise_correct": {
+        "appearance_outlier_fraction": 0.11299435028248588,
+        "bright_frame_fraction": 0.0,
+        "dark_frame_fraction": 0.0006944444444444445,
+        "edge_density_outlier_fraction": 0.049305555555555554,
+        "flow_accel_outlier_fraction": 0.12535919540229887,
+        "flow_speed_median": 1.5614697342583288,
+        "late_motion_ratio": 0.7510726010697578,
+        "longest_low_motion_run_fraction": 0.01271186440677966,
+        "low_contrast_frame_fraction": 0.0,
+        "motion_coverage_fraction": 0.9851694915254235,
+        "temporal_jump": 3.6696293126616912
+      },
+      "sf_fifo21": {
+        "appearance_outlier_fraction": 0.10381355932203389,
+        "bright_frame_fraction": 0.0,
+        "dark_frame_fraction": 0.001736111111111111,
+        "edge_density_outlier_fraction": 0.057638888888888885,
+        "flow_accel_outlier_fraction": 0.13864942528735633,
+        "flow_speed_median": 1.7562783408599596,
+        "late_motion_ratio": 0.7390471855331061,
+        "longest_low_motion_run_fraction": 0.00882768361581921,
+        "low_contrast_frame_fraction": 0.0,
+        "motion_coverage_fraction": 0.989406779661017,
+        "temporal_jump": 2.977037331514103
+      }
+    }
+  },
+  "next": "v218 evaluation-only repair, then one frozen method versus SF on v216's 80 prompts; v217 optional.",
+  "non_dd_contrasts": [
+    {
+      "bootstrap_ci95": [
+        -0.04882087332837431,
+        0.26955441844512634
+      ],
+      "candidate": "headwise_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.10194414758069748,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.5625,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0010869903079129284,
+        0.0013973786456227323
+      ],
+      "candidate": "headwise_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.00017928482961610676,
+      "metric": "subject_consistency",
+      "win_fraction": 0.5208333333333334,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.001072473383644196,
+        0.0006353460908757357
+      ],
+      "candidate": "headwise_correct",
+      "control": "sf_fifo21",
+      "mean_delta": -0.000189989015195025,
+      "metric": "identity_background",
+      "win_fraction": 0.5208333333333334,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0019375010483432637,
+        0.006818517657555629
+      ],
+      "candidate": "headwise_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.0024297480080276643,
+      "metric": "visual_quality",
+      "win_fraction": 0.6041666666666666,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0017949710951264343,
+        0.004535655259387569
+      ],
+      "candidate": "headwise_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.0011240266987846941,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.5416666666666666,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.039655162560692396,
+        0.5189306760639715
+      ],
+      "candidate": "headwise_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.22877324639942387,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.6041666666666666,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0010653835911515783,
+        0.002974864487571471
+      ],
+      "candidate": "headwise_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.0010215385990435925,
+      "metric": "subject_consistency",
+      "win_fraction": 0.5625,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0013499138736885843,
+        0.0014033843430903618
+      ],
+      "candidate": "headwise_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 8.797768187608634e-05,
+      "metric": "identity_background",
+      "win_fraction": 0.5833333333333334,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0037780503278966792,
+        0.012868261689368693
+      ],
+      "candidate": "headwise_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.004465022981554889,
+      "metric": "visual_quality",
+      "win_fraction": 0.625,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0038177617610926974,
+        0.007669957043253813
+      ],
+      "candidate": "headwise_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.0015954912717764576,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.5833333333333334,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        0.03167796119717296,
+        0.2803162130047101
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_correct",
+      "mean_delta": 0.1492399505286368,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.6458333333333334,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0001672721266939429,
+        0.0020070709260668735
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_correct",
+      "mean_delta": 0.0008508312643891643,
+      "metric": "subject_consistency",
+      "win_fraction": 0.6041666666666666,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.00015592946639564548,
+        0.0014061573992877176
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_correct",
+      "mean_delta": 0.0005740373185453054,
+      "metric": "identity_background",
+      "win_fraction": 0.5833333333333334,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        0.0008278378344710031,
+        0.007410039414946617
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_correct",
+      "mean_delta": 0.0038832457585053284,
+      "metric": "visual_quality",
+      "win_fraction": 0.6041666666666666,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.000333223752030681,
+        0.003162759517888644
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_correct",
+      "mean_delta": 0.001442676870566278,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.5416666666666666,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        0.06726572156366743,
+        0.4989117663447356
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_correct",
+      "mean_delta": 0.2727065020654136,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.625,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.00022317560080869147,
+        0.0033834434238629676
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_correct",
+      "mean_delta": 0.0014898087448689881,
+      "metric": "subject_consistency",
+      "win_fraction": 0.5833333333333334,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0003262626434804654,
+        0.0021980971720819958
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_correct",
+      "mean_delta": 0.0009038264250399211,
+      "metric": "identity_background",
+      "win_fraction": 0.6458333333333334,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        0.0017571385066936787,
+        0.013550727519885775
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_correct",
+      "mean_delta": 0.0071452276412552794,
+      "metric": "visual_quality",
+      "win_fraction": 0.625,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.000389094665297307,
+        0.006252546560184174
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_correct",
+      "mean_delta": 0.002976265842638289,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.5833333333333334,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        0.015648262713804713,
+        0.2605494153666548
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_random",
+      "mean_delta": 0.1359531237137134,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.6666666666666666,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0010057168974991094,
+        0.0010218605701705723
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_random",
+      "mean_delta": 6.008685571475917e-05,
+      "metric": "subject_consistency",
+      "win_fraction": 0.5416666666666666,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.000762797544622943,
+        0.0005938827743029228
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_random",
+      "mean_delta": -6.170388586296723e-05,
+      "metric": "identity_background",
+      "win_fraction": 0.5625,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0003671275587286846,
+        0.005454532413826219
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_random",
+      "mean_delta": 0.00257569097603361,
+      "metric": "visual_quality",
+      "win_fraction": 0.625,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.002198465709419301,
+        0.001641536851465285
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_random",
+      "mean_delta": -0.00020167358840505445,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.5625,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        0.03268380588764559,
+        0.46602042012844724
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_random",
+      "mean_delta": 0.24923269612458596,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.5833333333333334,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0010893489551233248,
+        0.0017672186849876919
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_random",
+      "mean_delta": 0.00034365466369411,
+      "metric": "subject_consistency",
+      "win_fraction": 0.5625,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0010486027297180818,
+        0.0009398349121111112
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_random",
+      "mean_delta": -1.0791129658011914e-05,
+      "metric": "identity_background",
+      "win_fraction": 0.5833333333333334,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.000980730466699876,
+        0.009753101193239355
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_random",
+      "mean_delta": 0.004368403884194162,
+      "metric": "visual_quality",
+      "win_fraction": 0.6041666666666666,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0037832300343628353,
+        0.002601326808508017
+      ],
+      "candidate": "headwise_correct",
+      "control": "fifo_random",
+      "mean_delta": -0.0004165311305162807,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.5625,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.20552224042550302,
+        0.19147488089867487
+      ],
+      "candidate": "centered_correct",
+      "control": "sf_fifo21",
+      "mean_delta": -0.009981609718470766,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.5416666666666666,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0013027922081284002,
+        0.0010472806746587354
+      ],
+      "candidate": "centered_correct",
+      "control": "sf_fifo21",
+      "mean_delta": -0.00010448109329651058,
+      "metric": "subject_consistency",
+      "win_fraction": 0.5416666666666666,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0011773633952902173,
+        0.00039915622176743884
+      ],
+      "candidate": "centered_correct",
+      "control": "sf_fifo21",
+      "mean_delta": -0.00036998789660348347,
+      "metric": "identity_background",
+      "win_fraction": 0.4583333333333333,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.003539076285302231,
+        0.00480178406260285
+      ],
+      "candidate": "centered_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.0005503588111864105,
+      "metric": "visual_quality",
+      "win_fraction": 0.5625,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0025623732254219517,
+        0.003497542601738435
+      ],
+      "candidate": "centered_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.00020026078240739103,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.3541666666666667,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.23603503045739027,
+        0.3491577667342
+      ],
+      "candidate": "centered_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.034512415824500486,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.4791666666666667,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0016415435064707383,
+        0.00218046096609625
+      ],
+      "candidate": "centered_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.0003691966466634611,
+      "metric": "subject_consistency",
+      "win_fraction": 0.5208333333333334,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0015575447502515986,
+        0.0008100260146385624
+      ],
+      "candidate": "centered_correct",
+      "control": "sf_fifo21",
+      "mean_delta": -0.0003184120553323261,
+      "metric": "identity_background",
+      "win_fraction": 0.4791666666666667,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.005570714544213836,
+        0.009420742003615788
+      ],
+      "candidate": "centered_correct",
+      "control": "sf_fifo21",
+      "mean_delta": 0.0013667109961776822,
+      "metric": "visual_quality",
+      "win_fraction": 0.5416666666666666,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0049926743299389875,
+        0.004685793872219313
+      ],
+      "candidate": "centered_correct",
+      "control": "sf_fifo21",
+      "mean_delta": -0.00034452077428189415,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.3541666666666667,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.25070879220300485,
+        0.12592863849755345
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "sf_fifo21",
+      "mean_delta": -0.05614744924190074,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.5208333333333334,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0021516300634316786,
+        0.0008680851987310241
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "sf_fifo21",
+      "mean_delta": -0.0005832080644595205,
+      "metric": "subject_consistency",
+      "win_fraction": 0.5,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.001373195803564614,
+        0.0006458456489175851
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "sf_fifo21",
+      "mean_delta": -0.00033954473817787945,
+      "metric": "identity_background",
+      "win_fraction": 0.4583333333333333,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.004021572857546722,
+        0.003941683244446472
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "sf_fifo21",
+      "mean_delta": 0.00018157745359672026,
+      "metric": "visual_quality",
+      "win_fraction": 0.5416666666666666,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.001712294265938298,
+        0.0036884386955838063
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "sf_fifo21",
+      "mean_delta": 0.0008961222626061938,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.4166666666666667,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.3321415018807192,
+        0.2735265124951685
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "sf_fifo21",
+      "mean_delta": -0.02717516476840635,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.5208333333333334,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0021713221254391073,
+        0.0019052285152806115
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "sf_fifo21",
+      "mean_delta": -7.12034167334082e-05,
+      "metric": "subject_consistency",
+      "win_fraction": 0.5416666666666666,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.001586539161156566,
+        0.0013219399967793145
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "sf_fifo21",
+      "mean_delta": -9.558297983288065e-05,
+      "metric": "identity_background",
+      "win_fraction": 0.5,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.005128147023807587,
+        0.0075513757091248395
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "sf_fifo21",
+      "mean_delta": 0.0011996078634789857,
+      "metric": "visual_quality",
+      "win_fraction": 0.5416666666666666,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.002977122651282116,
+        0.0067600180587760374
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "sf_fifo21",
+      "mean_delta": 0.001756582719584306,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.3958333333333333,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.33865462111130906,
+        -0.030100305320618387
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "fifo_full_random",
+      "mean_delta": -0.17396269272573642,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.4166666666666667,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0034659997660459194,
+        -0.0005937753985044359
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "fifo_full_random",
+      "mean_delta": -0.0019119415320214596,
+      "metric": "subject_consistency",
+      "win_fraction": 0.3541666666666667,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.002324448236769148,
+        -0.00026144251500056094
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "fifo_full_random",
+      "mean_delta": -0.0011677990389646574,
+      "metric": "identity_background",
+      "win_fraction": 0.3958333333333333,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.005714276563045073,
+        0.0007419202247945094
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "fifo_full_random",
+      "mean_delta": -0.002196309042059716,
+      "metric": "visual_quality",
+      "win_fraction": 0.3958333333333333,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        0.0003554750603830717,
+        0.005825015670852739
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "fifo_full_random",
+      "mean_delta": 0.003038603055756543,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.6458333333333334,
+      "window": "full"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.5915153114417577,
+        -0.02648104149625183
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "fifo_full_random",
+      "mean_delta": -0.2988880767327782,
+      "metric": "quality_without_dynamic_degree",
+      "win_fraction": 0.4375,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.005556880645362455,
+        -0.0009368361573656471
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "fifo_full_random",
+      "mean_delta": -0.0030285656819192173,
+      "metric": "subject_consistency",
+      "win_fraction": 0.4375,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.0034941366770909585,
+        -0.0003522499906220582
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "fifo_full_random",
+      "mean_delta": -0.0018172998113182824,
+      "metric": "identity_background",
+      "win_fraction": 0.4583333333333333,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        -0.010502285597050407,
+        0.0015874590312984372
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "fifo_full_random",
+      "mean_delta": -0.0038439349217029885,
+      "metric": "visual_quality",
+      "win_fraction": 0.4791666666666667,
+      "window": "late_half"
+    },
+    {
+      "bootstrap_ci95": [
+        0.0011723611430473587,
+        0.010947056266559228
+      ],
+      "candidate": "fifo_full_a002",
+      "control": "fifo_full_random",
+      "mean_delta": 0.005839332804801718,
+      "metric": "semantic_alignment",
+      "win_fraction": 0.625,
+      "window": "late_half"
+    }
+  ],
+  "official_quality_ranking_usable": false,
+  "preferred_development_candidate": "headwise_correct",
+  "reason": "Local imaging-quality signal and positive fixed-DD point estimate; not established ID or overall superiority. Full-random remains a competitive control and must stay visible.",
+  "writing_scope": "Start a four-page methods/protocol outline. Do not freeze positive overall or motion claims before repaired evaluation; confirm a narrow imaging endpoint if selected."
+}

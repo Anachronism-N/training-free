@@ -25,6 +25,8 @@ def runtime_contract(args):
     if fingerprint != manifest["vbench_fingerprint"]:
         raise ValueError("VBench checkout drift after publish")
     result = _runtime_contract(args)
+    if hasattr(p, "validate_checkpoint"):
+        p.validate_checkpoint(result["dependencies"]["raft"]["sha256"])
     result[p.LABEL + "_fingerprint"] = fingerprint
     return result
 
@@ -41,13 +43,9 @@ def analyze(summary):
                  **exclusive_scores(row)} for method, row in summary["methods"].items()}}
 
 
-def main():
+def configure(protocol):
     global p
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217"), default="v212")
-    args, remaining = parser.parse_known_args()
-    p = p.load_protocol(args.campaign)
-    sys.argv[1:] = remaining
+    p = protocol
     base.RUN_LABEL = p.LABEL
     base.COMPARISON_EXPERIMENT = base.SUMMARY_EXPERIMENT = p.EXPERIMENT
     base.METHODS = p.METHODS
@@ -60,6 +58,15 @@ def main():
     base.job_contract = job_contract
     base.analyze = analyze
     base.render_markdown = lambda report: f"# {p.LABEL} Aggregate\n\n```json\n" + json.dumps(report, indent=2) + "\n```\n"
+
+
+def main():
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217"), default="v212")
+    args, remaining = parser.parse_known_args()
+    protocol = p.load_protocol(args.campaign)
+    sys.argv[1:] = remaining
+    configure(protocol)
     base.main()
 
 

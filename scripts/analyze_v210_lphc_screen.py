@@ -367,6 +367,7 @@ def load_window_rows(
     methods: tuple[str, ...] = METHODS,
     *,
     prompt_count: int = PROMPT_COUNT,
+    include_raw: bool = False,
 ) -> dict[str, dict]:
     raw_by_window = {
         window: {
@@ -399,6 +400,8 @@ def load_window_rows(
     for window, raw_rows in raw_by_window.items():
         derived = paired.derived_rows(raw_rows, methods, prompt_count)
         for key, row in derived.items():
+            if include_raw:
+                row.update(raw_rows[key])
             row["quality_without_dynamic_degree"] = quality_score_with_fixed_dynamic(
                 raw_rows[key], dynamic_value=1.0
             )
