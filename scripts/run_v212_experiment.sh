@@ -3,7 +3,7 @@ set -euo pipefail
 ACTION="${1:?action required}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CAMPAIGN="${LPHC_CAMPAIGN:-v212}"
-[[ "$CAMPAIGN" == v212 || "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 || "$CAMPAIGN" == v215 || "$CAMPAIGN" == v216 || "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 ]] || { echo "invalid campaign"; exit 2; }
+[[ "$CAMPAIGN" == v212 || "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 || "$CAMPAIGN" == v215 || "$CAMPAIGN" == v216 || "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 || "$CAMPAIGN" == v220 ]] || { echo "invalid campaign"; exit 2; }
 OUT_VAR="${CAMPAIGN^^}_OUT_ROOT"
 PROMPT_VAR="${CAMPAIGN^^}_SOURCE_PROMPTS"
 OUT="${!OUT_VAR:?set the campaign shared output root on all nodes}"
@@ -14,7 +14,7 @@ export PYTHONPATH="$ROOT/scripts:$ROOT/src:$ROOT:${PYTHONPATH:-}"
 NODE_RANK="${NODE_RANK:-0}"
 GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7}"
 NUM_NODES=6
-if [[ "$CAMPAIGN" == v216 || "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 ]]; then NUM_NODES=8; fi
+if [[ "$CAMPAIGN" == v216 || "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 || "$CAMPAIGN" == v220 ]]; then NUM_NODES=8; fi
 VBENCH_ROOT="${VBENCH_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/bench_baselines/VBench}"
 EVAL="$OUT/evaluation"
 COMPARISON="$EVAL/vbench_comparison"
@@ -34,10 +34,11 @@ PY
 esac
 case "$ACTION" in
   freeze)
-    if [[ "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 ]]; then
+    if [[ "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 || "$CAMPAIGN" == v220 ]]; then
       PARENT_VAR="${CAMPAIGN^^}_V216_ROOT"
       FREEZE_SCRIPT=prepare_v217_replication.py
       [[ "$CAMPAIGN" != v219 ]] || FREEZE_SCRIPT=prepare_v219_mechanism.py
+      [[ "$CAMPAIGN" != v220 ]] || FREEZE_SCRIPT=prepare_v220_long_horizon.py
       python "$ROOT/scripts/$FREEZE_SCRIPT" --v216-root "${!PARENT_VAR:?set frozen v216 root}" --output-root "$OUT"
       exit 0
     fi
@@ -49,7 +50,7 @@ case "$ACTION" in
       --primary-window "${V216_PRIMARY_WINDOW:-full}" --rationale "${V216_RATIONALE:?record the choice and tradeoffs}"
     ;;
   baseline)
-    [[ "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 || "$CAMPAIGN" == v215 || "$CAMPAIGN" == v216 || "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 ]] || { echo "baseline requires v213 or later"; exit 2; }
+    [[ "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 || "$CAMPAIGN" == v215 || "$CAMPAIGN" == v216 || "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 || "$CAMPAIGN" == v220 ]] || { echo "baseline requires v213 or later"; exit 2; }
     python "$ROOT/scripts/run_v213_sf_baseline.py" --run-root "$OUT" --campaign "$CAMPAIGN" \
       --upstream-root "${UPSTREAM_SF_ROOT:?set a clean pinned official Self-Forcing checkout}" \
       --gpu "${GPU_LIST%%,*}"
@@ -64,7 +65,9 @@ case "$ACTION" in
   publish)
     python "$ROOT/scripts/prepare_v212_comparison.py" --campaign "$CAMPAIGN" --run-root "$OUT" --vbench-root "$VBENCH_ROOT" ;;
   split)
-    python "$ROOT/scripts/prepare_v174_vbench_splits.py" --comparison-root "$COMPARISON" \
+    SPLIT_SCRIPT=prepare_v174_vbench_splits.py
+    [[ "$CAMPAIGN" != v220 ]] || SPLIT_SCRIPT=prepare_v175_vbench_splits.py
+    python "$ROOT/scripts/$SPLIT_SCRIPT" --comparison-root "$COMPARISON" \
       --vbench-root "$VBENCH_ROOT" --node-rank "$NODE_RANK" --num-nodes "$NUM_NODES" --workers 4 ;;
   eval|eval-missing|collect|eval-status|preflight)
     CACHE="${VBENCH_CACHE_DIR:-$ROOT/runs/vbench_cache}"
@@ -116,5 +119,5 @@ with tarfile.open(root / f"{sys.argv[2]}_small_artifacts.tar.gz", "w:gz") as arc
 print(root / f"{sys.argv[2]}_small_artifacts.tar.gz")
 PY
     ;;
-  *) echo "freeze(v216/v217/v219) prepare baseline gate0 smoke generate32 generate48 generate64 generate80 generate96 schedule status publish split preflight eval eval-missing collect analyze package"; exit 2 ;;
+  *) echo "freeze(v216/v217/v219/v220) prepare baseline gate0 smoke generate32 generate48 generate64 generate80 generate96 schedule status publish split preflight eval eval-missing collect analyze package"; exit 2 ;;
 esac

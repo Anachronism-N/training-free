@@ -50,8 +50,8 @@ def configure(protocol):
     base.COMPARISON_EXPERIMENT = base.SUMMARY_EXPERIMENT = p.EXPERIMENT
     base.METHODS = p.METHODS
     base.PROMPT_COUNT = len(p.SOURCE_INDICES)
-    base.NUM_OUTPUT_FRAMES = 120
-    base.CLIPS_PER_VIDEO = 15
+    base.NUM_OUTPUT_FRAMES = p.FRAMES
+    base.CLIPS_PER_VIDEO = p.FRAMES // 8
     base.DIMENSIONS = DIMENSIONS
     base.comparison_name = lambda index: f"{index:06d}-0.mp4"
     base.runtime_contract = runtime_contract
@@ -62,7 +62,7 @@ def configure(protocol):
 
 def main():
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219"), default="v212")
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219", "v220"), default="v212")
     args, remaining = parser.parse_known_args()
     protocol = p.load_protocol(args.campaign)
     sys.argv[1:] = remaining

@@ -15,6 +15,14 @@ Eight nodes, eight GPUs each, four videos per GPU: 256 new 30-second videos.
 Do not also launch v217 or regenerate completed v216/v218 outputs. GPU-free paired
 time-course export and bounded six-pair review support writing in parallel.
 
+**Additional experiments: v220 and original CF preparation.**
+[External-baseline and 60-second runbook](docs/241_external_baselines_cf_v1_and_long_horizon_runbook.md)
+adds a frozen 64-prompt SF/Ours 60s campaign (128 videos, eight nodes x eight GPUs),
+including matching 30-clip evaluation and bounded review. Run in a separate pinned
+checkout, without updating an active v219 checkout. Original chunk-wise CF download
+is pinned to its first weight upload and verified by SHA256. CF transfer and matched
+Deep Forcing launchers remain pending; do not treat checkpoint verification as parity.
+
 **Previous stage: v215 and evaluator repair.** The
 `worktree-v210-lphc` update at `a988f0e6` contains all 336 completion receipts
 and scores. Headwise retrieval shows a local imaging-quality signal, not

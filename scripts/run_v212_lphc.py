@@ -46,7 +46,7 @@ def load_done(out: Path, data: dict, stage: str, method: str, source: int, *, pr
         raise ValueError(f"stale/incomplete completion: {job}")
     spec = p.spec_for(method, stage)
     if spec.get("lphc"):
-        report = p.audit(job / "trace.jsonl", spec, 10 if stage == "gate0" else 40, source)
+        report = p.audit(job / "trace.jsonl", spec, 10 if stage == "gate0" else p.FRAMES // 3, source)
         if not report["pass"]:
             raise ValueError(f"trace failed: {report['errors'][:4]}")
     return row
@@ -85,7 +85,7 @@ def build_command(repo: Path, out: Path, data: dict, stage: str, method: str, so
     command = [sys.executable, str(runtime / "inference.py"),
                "--config_path", data["configs"][method]["path"],
                "--checkpoint_path", data["checkpoint"]["path"], "--data_path", item["path"],
-               "--output_folder", str(job / "media"), "--num_output_frames", "30" if stage == "gate0" else "120",
+               "--output_folder", str(job / "media"), "--num_output_frames", str(30 if stage == "gate0" else p.FRAMES),
                "--seed", str(item["effective_seed"]), "--num_samples", "1", "--use_ema", "--save_with_index",
                "--reseed_per_prompt", "--start_idx", "0", "--end_idx", "1"]
     return command, env
@@ -115,7 +115,8 @@ def run_job(repo: Path, out: Path, data: dict, stage: str, method: str, source: 
         env["CUDA_VISIBLE_DEVICES"] = gpu
         p.frozen_json(job / "invocation.json", {"command": command, "cwd": str(cwd),
             "environment": {k: v for k, v in env.items() if k.startswith(("LPHC_", "SF_PARITY_", "CUDA_", "PYTORCH_"))}})
-        print(f"[{p.LABEL}-start] {stage}/{method}/source={source} seed={p.SEED+source} gpu={gpu}", flush=True)
+        print(f"[{p.LABEL}-start] {stage}/{method}/source={source} seed={p.SEED+source} gpu={gpu} "
+              f"latent_frames={30 if stage == 'gate0' else p.FRAMES}", flush=True)
         start = time.monotonic()
         wall = time.time_ns()
         peak = None
@@ -240,7 +241,7 @@ def main() -> None:
     p = load_protocol("v212")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("prepare", "gate0", "smoke", "generate32", "generate48", "generate64", "generate80", "generate96", "status", "schedule"))
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219"), default="v212")
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219", "v220"), default="v212")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--source-prompts", type=Path, default=p.DEFAULT_PROMPT_SOURCE)

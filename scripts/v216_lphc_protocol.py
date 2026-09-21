@@ -73,7 +73,8 @@ class Protocol:
         self.SPECS = self.build_specs(candidate)
         self.CAMPAIGN = base.Campaign(self.LABEL, self.EXPERIMENT, self.SOURCE_INDICES, self.SEED,
                                      self.SPECS, self.GATE_PAIRS, (("ours_correct", "sf_fifo21"),), self.MECHANISM,
-                                     nodes=self.AUTHORIZED_NODES, binding={"selection_sha256": self.sha256(path)})
+                                     nodes=self.AUTHORIZED_NODES, binding={"selection_sha256": self.sha256(path)},
+                                     frames=self.FRAMES)
         self.spec_for = partial(base.spec_for, campaign=self.CAMPAIGN)
         self.output_root = partial(base.output_root, campaign=self.CAMPAIGN)
         self.require_baseline = partial(require_baseline, label=self.LABEL, sources=self.GATE_SOURCES)

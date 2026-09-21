@@ -140,7 +140,8 @@ def load_validated_inputs(run_root: Path, *, protocol=p):
                     or contract.get("comparison_manifest_sha256") != p.sha256(manifest_path)):
                 raise ValueError(f"VBench result changed: {method}/{dimension}")
     rows = old.load_window_rows(parts, summary, methods=p.METHODS, prompt_count=len(p.SOURCE_INDICES),
-                               include_raw=bool(getattr(p, "EXTRA_METRICS", ())))
+                               include_raw=bool(getattr(p, "EXTRA_METRICS", ())),
+                               clips_per_video=p.FRAMES // 8)
     diagnostic = temporal.load_temporal_rows(temporal_path, methods=p.METHODS, prompt_count=len(p.SOURCE_INDICES))
     source = {"manifest_sha256": p.sha256(manifest_path), "summary_sha256": p.sha256(summary_path),
               "temporal_sha256": p.sha256(temporal_path)}

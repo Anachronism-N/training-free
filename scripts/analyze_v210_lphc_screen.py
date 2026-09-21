@@ -368,12 +368,17 @@ def load_window_rows(
     *,
     prompt_count: int = PROMPT_COUNT,
     include_raw: bool = False,
+    clips_per_video: int = CLIPS_PER_VIDEO,
 ) -> dict[str, dict]:
+    if not isinstance(clips_per_video, int) or clips_per_video < 2:
+        raise ValueError("at least two clips per video required for early/late analysis")
+    windows = {"full": (0, clips_per_video), "early_half": (0, clips_per_video // 2),
+               "late_half": (clips_per_video // 2, clips_per_video)}
     raw_by_window = {
         window: {
             (method, prompt): {} for method in methods for prompt in range(prompt_count)
         }
-        for window in WINDOWS
+        for window in windows
     }
     for method in methods:
         for dimension in DIMENSIONS:
@@ -381,7 +386,7 @@ def load_window_rows(
                 parts_root / method / dimension / "results.json",
                 dimension,
                 prompt_count=prompt_count,
-                clips_per_video=CLIPS_PER_VIDEO,
+                clips_per_video=clips_per_video,
             )
             flattened = [value for prompt in range(prompt_count) for value in clips[prompt]]
             summary_value = detail.finite(
@@ -391,7 +396,7 @@ def load_window_rows(
             factor = detail.scale_factor(
                 float(np.mean(flattened)), summary_value, name=f"{method}:{dimension}"
             )
-            for window, (start, end) in WINDOWS.items():
+            for window, (start, end) in windows.items():
                 for prompt in range(prompt_count):
                     raw_by_window[window][(method, prompt)][dimension] = factor * float(
                         np.mean(clips[prompt][start:end])

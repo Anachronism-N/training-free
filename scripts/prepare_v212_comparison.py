@@ -35,6 +35,7 @@ def verify_published(repo: Path, comparison: Path, *, media: bool = True, protoc
     out = Path(data["generation_root"])
     generation = p.verify(repo, out)
     if (data.get("experiment") != p.EXPERIMENT or data.get("prompt_count") != len(p.SOURCE_INDICES)
+            or data.get("num_output_frames") != p.FRAMES
             or [x["key"] for x in data["methods"]] != list(p.METHODS)
             or data.get("input_manifest_sha256") != p.sha256(out / "inputs/manifest.json")
             or data.get("prompt_items") != generation["prompt_items"]):
@@ -61,7 +62,7 @@ def prepare(repo: Path, out: Path, vbench: Path, *, protocol=p) -> dict:
         for method in p.METHODS:
             row = load_done(out, data, screen_stage(p), method, source, protocol=p)
             media = Path(row["media"]["path"])
-            validate_media(media, 120)
+            validate_media(media, p.FRAMES)
             done = job_path(out, screen_stage(p), method, source) / "done.json"
             jobs.append({"source_index": source, "method": method, "done_path": str(done),
                          "done_sha256": p.sha256(done), "media_path": str(media),
@@ -86,7 +87,7 @@ def prepare(repo: Path, out: Path, vbench: Path, *, protocol=p) -> dict:
     if hasattr(p, "validate_vbench_fingerprint"):
         p.validate_vbench_fingerprint(fingerprint)
     result = {"version": 1, "experiment": p.EXPERIMENT, "prompt_count": len(p.SOURCE_INDICES),
-              "num_output_frames": 120, "prompt_items": data["prompt_items"], "methods": method_rows,
+              "num_output_frames": p.FRAMES, "prompt_items": data["prompt_items"], "methods": method_rows,
               "vbench_long_dimensions": list(DIMENSIONS), "jobs": jobs,
               "generation_root": str(out), "input_manifest_sha256": p.sha256(out / "inputs/manifest.json"),
               "vbench_fingerprint": fingerprint, "development_only": True}
@@ -98,7 +99,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--vbench-root", type=Path, required=True)
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219"), default="v212")
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219", "v220"), default="v212")
     args = parser.parse_args()
     p = p.load_protocol(args.campaign, args.run_root)
     result = prepare(Path(__file__).resolve().parents[1], p.output_root(args.run_root), args.vbench_root.resolve(), protocol=p)

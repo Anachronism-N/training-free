@@ -53,6 +53,7 @@ class Campaign:
     mechanism: tuple[tuple[str, str], ...]
     nodes: tuple[str, ...] = tuple(AUTHORIZED_NODES)
     binding: dict | None = None
+    frames: int = FRAMES
 
     @property
     def methods(self) -> tuple[str, ...]:
@@ -159,7 +160,7 @@ def prepare(repo: Path, out: Path, prompts: Path, checkpoint: Path, wan: Path,
                "prompt_source": file_stamp(prompts), "checkpoint": file_stamp(checkpoint),
                "wan_model": {"weights_path": str(wan.resolve()), "inventory": wan_inventory(wan)},
                "configs": configs, "gpu_slots": list(slots), "authorized_nodes": list(campaign.nodes),
-               "frames": FRAMES, "base_seed": campaign.seed,
+               "frames": campaign.frames, "base_seed": campaign.seed,
                "placement": "prompt bundle on one GPU; rotating method order; " +
                             ("six nodes" if len(campaign.nodes) == 6 else f"{len(campaign.nodes)} nodes"),
                "primary_contrasts": [list(pair) for pair in campaign.primary],
@@ -178,7 +179,7 @@ def verify(repo: Path, out: Path, *, runtime: bool = True, campaign: Campaign = 
             or data.get("methods") != list(campaign.methods) or data.get("specs") != campaign.specs
             or data.get("authorized_nodes") != list(campaign.nodes)
             or data.get("campaign_binding") != campaign.binding
-            or data.get("base_seed") != campaign.seed or data.get("frames") != FRAMES
+            or data.get("base_seed") != campaign.seed or data.get("frames") != campaign.frames
             or data.get("primary_contrasts") != [list(pair) for pair in campaign.primary]
             or data.get("mechanism_contrasts") != [list(pair) for pair in campaign.mechanism]):
         raise ValueError(f"{campaign.label} frozen protocol mismatch")
@@ -257,7 +258,7 @@ def audit(path: Path, spec: dict, blocks: int, source: int) -> dict:
 
 def load_protocol(name: str, out: Path | None = None):
     import importlib
-    if name in {"v216", "v217", "v219"}:
+    if name in {"v216", "v217", "v219", "v220"}:
         return importlib.import_module(f"{name}_lphc_protocol").load(out)
     if name not in {"v212", "v213", "v214", "v215"}:
         raise ValueError("campaign must be v212, v213, v214 or v215")
