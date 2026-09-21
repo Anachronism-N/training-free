@@ -8,16 +8,17 @@ import v216_lphc_protocol as parent
 import v217_lphc_protocol as current
 
 
-def freeze(v216_root, out):
+def freeze(v216_root, out, *, protocol=current):
+    current = protocol
     source = parent.load(v216_root)
     out = out.resolve()
-    if not out.name.startswith("v217_"):
-        raise ValueError("use a new v217_ output directory")
+    if not out.name.startswith(current.LABEL + "_"):
+        raise ValueError(f"use a new {current.LABEL}_ output directory")
     selection = source.out / "inputs/selection.json"
     scope = {**source.scope, "experiment": current.EXPERIMENT,
              "base_seed": current.Protocol.SEED, "confirmation_sources": list(current.SOURCE_INDICES),
              "parent_selection_sha256": base.sha256(selection), "parent_root": str(source.out),
-             "rationale": "Second-seed replication and matched random-history control; no new tuning",
+             "rationale": getattr(current, "RATIONALE", "Second-seed replication and matched random-history control; no new tuning"),
              "same_prompts_across_seeds_not_independent": True}
     path = out / "inputs/selection.json"
     if path.exists() and parent.read(path) != scope:

@@ -15,13 +15,14 @@ import numpy as np
 import v215_lphc_protocol as dev
 import v216_lphc_protocol as confirm
 import v217_lphc_protocol as replicate
+import v219_lphc_protocol as closure
 from analyze_v213_lphc import old, paired
 from prepare_v212_comparison import validate_pairs
 from summarize_v213_evidence import checked_hash
 from vbench_quality_contract import official_quality_score, reject_known_invalid_dynamic_runtime
 
-REPORTS = {"v215": "v215_selector_phase", "v216": "v216_confirmation", "v217": "v217_seed_random"}
-PROTOCOLS = {"v215": dev, "v216": confirm.Protocol, "v217": replicate.Protocol}
+REPORTS = {"v215": "v215_selector_phase", "v216": "v216_confirmation", "v217": "v217_seed_random", "v219": "v219_mechanism"}
+PROTOCOLS = {"v215": dev, "v216": confirm.Protocol, "v217": replicate.Protocol, "v219": closure.Protocol}
 RAW_METRICS = tuple(old.DIMENSIONS)
 
 
@@ -160,6 +161,10 @@ def bind_bundles(development, confirmation, replication=None):
         if (data["specs"]["ours_random"] != {**data["specs"]["ours_correct"], "retrieval_mode": "random"}
                 or data["configs"]["ours_random"]["sha256"] != data["configs"]["ours_correct"]["sha256"]):
             raise ValueError("random control is not phase/descriptor/config matched")
+        if replication["label"] == "v219" and (
+                data["specs"]["pooled_correct"] != {**data["specs"]["ours_correct"], "descriptor_mode": "pooled"}
+                or data["configs"]["pooled_correct"]["sha256"] != data["configs"]["ours_correct"]["sha256"]):
+            raise ValueError("pooled control changed more than the descriptor")
 
 
 def contrast(report, candidate, control, metric, window):
@@ -254,12 +259,13 @@ def make_packet(development, confirmation=None, replication=None, reviewed_ids=(
         statements.append({"cohort": bundle["label"], "metric": r["metric"], "window": r["window"],
                            "mean_delta": r["mean_delta"], "ci95": [lo, hi],
                            "evidence": "positive_interval" if lo > 0 else "negative_interval" if hi < 0 else "uncertain_direction"})
-        if bundle["label"] == "v217":
-            m = contrast(bundle["report"], "ours_correct", "ours_random", scope["primary_metric"], scope["primary_window"])
-            lo, hi = m["bootstrap_ci95"]
-            mechanisms.append({"cohort": "v217", "control": "ours_random", "metric": m["metric"], "window": m["window"],
-                               "mean_delta": m["mean_delta"], "ci95": [lo, hi],
-                               "evidence": "positive_interval" if lo > 0 else "negative_interval" if hi < 0 else "uncertain_direction"})
+        if bundle["label"] in {"v217", "v219"}:
+            for control in (("ours_random", "pooled_correct") if bundle["label"] == "v219" else ("ours_random",)):
+                m = contrast(bundle["report"], "ours_correct", control, scope["primary_metric"], scope["primary_window"])
+                lo, hi = m["bootstrap_ci95"]
+                mechanisms.append({"cohort": bundle["label"], "control": control, "metric": m["metric"], "window": m["window"],
+                                   "mean_delta": m["mean_delta"], "ci95": [lo, hi],
+                                   "evidence": "positive_interval" if lo > 0 else "negative_interval" if hi < 0 else "uncertain_direction"})
     return {"version": 1, "status": "development_only_wait_for_manual_method_freeze" if not confirmation else "confirmation_available_interpret_limited_claim",
             "no_automatic_acceptance_verdict": True, "development_options": brief(development), "tables": tables,
             "frozen_endpoint_evidence": statements, "matched_random_evidence": mechanisms,
@@ -295,7 +301,7 @@ def render(packet):
     for row in packet["frozen_endpoint_evidence"]:
         lines += ["", f"{row['cohort']} frozen {row['window']}/{row['metric']}: {row['mean_delta']:+.6f}, CI {row['ci95']}; {row['evidence']}."]
     for row in packet["matched_random_evidence"]:
-        lines += ["", f"v217 content - matched random: {row['mean_delta']:+.6f}, CI {row['ci95']}; {row['evidence']}. This is separate from the SF effect."]
+        lines += ["", f"{row['cohort']} Ours - {row['control']}: {row['mean_delta']:+.6f}, CI {row['ci95']}; {row['evidence']}. This is separate from the SF effect."]
     for row in packet["joint_seed64"]:
         if row["primary"]:
             lines += ["", f"Shared 64 prompts, two seeds: means {row['seed1_mean_on_same64']:+.6f}, {row['seed2_mean_on_same64']:+.6f}; "
@@ -309,18 +315,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--v215-root", type=Path, required=True)
     parser.add_argument("--v216-root", type=Path)
-    parser.add_argument("--v217-root", type=Path)
+    replication_args = parser.add_mutually_exclusive_group()
+    replication_args.add_argument("--v217-root", type=Path)
+    replication_args.add_argument("--v219-root", type=Path)
     parser.add_argument("--reviewed-ids", type=Path, help="JSON array of previously reviewed review_id strings")
     parser.add_argument("--output-root", type=Path, required=True)
     args = parser.parse_args()
-    if args.v217_root and not args.v216_root:
-        parser.error("--v217-root requires --v216-root")
+    if (args.v217_root or args.v219_root) and not args.v216_root:
+        parser.error("replication requires --v216-root; v217 and v219 must not be pooled as independent seeds")
     reviewed = read(args.reviewed_ids) if args.reviewed_ids else []
     if not isinstance(reviewed, list) or any(not isinstance(s, str) for s in reviewed):
         parser.error("--reviewed-ids must contain a JSON array of strings")
     packet = make_packet(load_bundle(args.v215_root, "v215"),
                          load_bundle(args.v216_root, "v216") if args.v216_root else None,
-                         load_bundle(args.v217_root, "v217") if args.v217_root else None, reviewed)
+                         (load_bundle(args.v217_root, "v217") if args.v217_root else
+                          load_bundle(args.v219_root, "v219") if args.v219_root else None), reviewed)
     dev.frozen_json(args.output_root / "evidence.json", packet)
     dev.write_frozen(args.output_root / "evidence.md", render(packet).encode())
     write_csv(args.output_root / "main_tables.csv", packet["tables"])

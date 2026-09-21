@@ -3,7 +3,19 @@
 Research scaffold for training-free long-horizon video generation on
 Self-Forcing / Causal-Forcing style autoregressive video diffusion.
 
-**Latest: v215 complete, evaluator repair before confirmation.** The
+**Current: v218 repair and v216 confirmation are complete** (`13b62640`).
+On 80 confirmation prompts the frozen headwise method improves mean Imaging by
+0.123 percentage points and Quality by 0.089 points, with intervals including
+zero. Start a limited-evidence four-page paper, not an ID/SOTA claim.
+See [results, v219 four-arm closure and writing runbook](docs/240_v216_results_v219_mechanism_and_writing_closure.md).
+
+**Next: v219.** The user confirmed v217 has not started. v219 adds the
+pooled-descriptor control to SF/Ours/random on 64 fixed prompts with a new seed.
+Eight nodes, eight GPUs each, four videos per GPU: 256 new 30-second videos.
+Do not also launch v217 or regenerate completed v216/v218 outputs. GPU-free paired
+time-course export and bounded six-pair review support writing in parallel.
+
+**Previous stage: v215 and evaluator repair.** The
 `worktree-v210-lphc` update at `a988f0e6` contains all 336 completion receipts
 and scores. Headwise retrieval shows a local imaging-quality signal, not
 established identity or overall superiority. Uploaded DD source mixes an
@@ -11,7 +23,7 @@ unnormalized torchvision RAFT path with a non-strict fallback; old DD-derived
 Quality is not suitable for paper conclusions. Other metrics are not
 automatically invalidated. See the [v218 repair, results and 64-GPU runbook](docs/239_v215_results_v218_evaluation_repair_64gpu.md).
 
-**Run order:** v218 re-evaluates the existing videos in an isolated strict-RAFT
+**Completed run order:** v218 re-evaluates the existing videos in an isolated strict-RAFT
 runtime (63 metric jobs over eight nodes, zero new videos), then v216 confirms
 one frozen method against SF on 80 prompts (160 videos). Imaging/full can now
 be frozen as a limited claim before new confirmation. Never change an already
