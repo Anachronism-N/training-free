@@ -1,0 +1,55 @@
+{
+  "comparison_manifest_sha256": "68b894e8d68e0ed65a99955584561c52c3702d7116a282779a0dfe8e8ebd1177",
+  "dependencies": {
+    "amt": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/vbench/amt_model/amt-s.pth",
+      "sha256": "07e7e03405c213fe4405678db9b42d05671e48c56faf6a441b99bb0047d3cf77"
+    },
+    "full_info": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v218_runtime/VBench_cf9b3b45/vbench2_beta_long/VBench_full_info.json",
+      "sha256": "5dd2de80ee43cda750b2b72ea7023657c0b90d3702041c7e4608c65dbe50dccd"
+    },
+    "raft": {
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/vbench/raft_model/models/raft-things.pth",
+      "sha256": "fcfa4125d6418f4de95d84aec20a3c5f4e205101715a79f193243c186ac9a7e1"
+    },
+    "wrapper": {
+      "path": "/tmp/training-free-v216-64f5c72a/scripts/eval_vbench_long_prompt_aware.py",
+      "sha256": "72e3f1b6aecc08eac26912cc468dc9d92c6cdd5acdcb611a9fb54eb459218e43"
+    }
+  },
+  "dev_flag": true,
+  "dimension": "motion_smoothness",
+  "method": "ours_correct",
+  "mode": "long_custom_input",
+  "model_loading": {
+    "local_models": true,
+    "runtime_home": "/tmp/training-free-v213-a39f503a8cb1/runs/_model_cache/dreamsim_home",
+    "torch_hub_dir": "/tmp/training-free-v213-a39f503a8cb1/runs/_model_cache/torch_hub"
+  },
+  "num_of_samples_per_prompt": 1,
+  "prompt_mapping": "comparison_manifest_exact",
+  "split_manifest_sha256": "fdec4f5e8c287c8bb9a7a079d2d06d9288cd501d879531cfcbe0ba844f3e2761",
+  "v216_fingerprint": {
+    "diff_binary_head_sha256": "0b9f7723012880bf0e09fe04fa27d759c7e12f91af601eccfd47c5626dcf2871",
+    "dirty": true,
+    "head": "45e79ec14e69a2187202c675d2dbce1a71843d53",
+    "runtime_path_sha256": {
+      "vbench/appearance_style.py": "51ba49ee01313176f1bbeaaaec46a5f97cd7373e192889c5b0116851773c34d8",
+      "vbench/color.py": "b1bca546d3f12c4023009b7b541231f8cc8f549623712c5f08f69ba97635c72d",
+      "vbench/dynamic_degree.py": "e4cf12a8a7fc3bcc813b39f42939c89b67aaa04ef8d35a940ec347a3b85c6bfb",
+      "vbench/multiple_objects.py": "f11dcd908f5a960ca73e5467dd8838bb43c35866bd985350bedfd23e9e0a0fda",
+      "vbench/object_class.py": "bbaf68c048a314bf95b6cac2109d1e590aaccc7f5578449043296e7e3c08e938",
+      "vbench/scene.py": "32b4ff9ad6cf9d23b799c98b6e842586d2ef31e46947be9b7dbb66ff7dd9b3dd",
+      "vbench/spatial_relationship.py": "4a802f6249dc7046ac3b8c270861d43fc62c9d37026402baabf97e29efdb5146",
+      "vbench/third_party/tag2Text/med.py": "35b74ba3f1b11a3605f765da6577a0f8a79d4d710aca6acc0e6c95c180e56fd8",
+      "vbench/third_party/umt/models/modeling_finetune.py": "4f1a7fea6da2cb2896aa248ff9b31ce59c3d45b60799452cf888a20af3214421"
+    },
+    "status_porcelain_v1": " M vbench/appearance_style.py\n M vbench/color.py\n M vbench/dynamic_degree.py\n M vbench/multiple_objects.py\n M vbench/object_class.py\n M vbench/scene.py\n M vbench/spatial_relationship.py\n M vbench/third_party/tag2Text/med.py\n M vbench/third_party/umt/models/modeling_finetune.py\n",
+    "status_porcelain_v1_sha256": "939c33f0cd155f4d7c8843ad914f3d21b9b33968c74615649f98f9014fe2e04f",
+    "version": 1
+  },
+  "vbench_commit": "45e79ec14e69a2187202c675d2dbce1a71843d53",
+  "version": 1,
+  "video_dir": "/apdcephfs_gy2/share_302533218/cedricnie/v216_runs/v216_64f5c72a_eightnode_imaging80/evaluation/vbench_comparison/published/ours_correct"
+}
