@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "experiment": "v219_frozen_headwise_mechanism64",
+  "comparison_manifest": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/vbench_comparison/comparison_manifest.json",
+  "comparison_manifest_sha256": "42664d36f9c5b73973628084618fe9dbde2cfb085904dd641654003aead6ca2d",
+  "methods": {
+    "sf_fifo21": {
+      "subject_consistency": 0.969633511294797,
+      "background_consistency": 0.9645229397726286,
+      "temporal_flickering": 0.9747496621590713,
+      "motion_smoothness": 0.9830980842348381,
+      "overall_consistency": 0.23817730530475575,
+      "dynamic_degree": 0.42604166666666665,
+      "aesthetic_quality": 0.6027841692790389,
+      "imaging_quality": 0.6904803949889416,
+      "temporal_style": 0.23817730530475575
+    },
+    "ours_correct": {
+      "subject_consistency": 0.9692518818675404,
+      "background_consistency": 0.964168792269172,
+      "temporal_flickering": 0.9744721831325318,
+      "motion_smoothness": 0.983023135583564,
+      "overall_consistency": 0.238324565498624,
+      "dynamic_degree": 0.41354166666666664,
+      "aesthetic_quality": 0.6028878924126426,
+      "imaging_quality": 0.6942702930405115,
+      "temporal_style": 0.238324565498624
+    },
+    "ours_random": {
+      "subject_consistency": 0.9699441103154488,
+      "background_consistency": 0.9645020099839198,
+      "temporal_flickering": 0.9749342060571222,
+      "motion_smoothness": 0.9834639292546261,
+      "overall_consistency": 0.2383981732535176,
+      "dynamic_degree": 0.43020833333333336,
+      "aesthetic_quality": 0.6029985562587777,
+      "imaging_quality": 0.6938247656893606,
+      "temporal_style": 0.2383981732535176
+    },
+    "pooled_correct": {
+      "subject_consistency": 0.9696449388048779,
+      "background_consistency": 0.9646140858248643,
+      "temporal_flickering": 0.9750272577455625,
+      "motion_smoothness": 0.9834716490509272,
+      "overall_consistency": 0.23831059193083395,
+      "dynamic_degree": 0.4125,
+      "aesthetic_quality": 0.6048234621373315,
+      "imaging_quality": 0.6929435995913421,
+      "temporal_style": 0.23831059193083395
+    }
+  },
+  "dimensions": [
+    "subject_consistency",
+    "background_consistency",
+    "temporal_flickering",
+    "motion_smoothness",
+    "overall_consistency",
+    "dynamic_degree",
+    "aesthetic_quality",
+    "imaging_quality",
+    "temporal_style"
+  ],
+  "sources": {
+    "sf_fifo21": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/sf_fifo21/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/sf_fifo21/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/sf_fifo21/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/sf_fifo21/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/sf_fifo21/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/sf_fifo21/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/sf_fifo21/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/sf_fifo21/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/sf_fifo21/temporal_style/results.json"
+    },
+    "ours_correct": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_correct/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_correct/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_correct/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_correct/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_correct/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_correct/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_correct/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_correct/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_correct/temporal_style/results.json"
+    },
+    "ours_random": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_random/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_random/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_random/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_random/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_random/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_random/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_random/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_random/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/ours_random/temporal_style/results.json"
+    },
+    "pooled_correct": {
+      "subject_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/pooled_correct/subject_consistency/results.json",
+      "background_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/pooled_correct/background_consistency/results.json",
+      "temporal_flickering": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/pooled_correct/temporal_flickering/results.json",
+      "motion_smoothness": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/pooled_correct/motion_smoothness/results.json",
+      "overall_consistency": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/pooled_correct/overall_consistency/results.json",
+      "dynamic_degree": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/pooled_correct/dynamic_degree/results.json",
+      "aesthetic_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/pooled_correct/aesthetic_quality/results.json",
+      "imaging_quality": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/pooled_correct/imaging_quality/results.json",
+      "temporal_style": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/evaluation/metrics/vbench_long_parts/pooled_correct/temporal_style/results.json"
+    }
+  },
+  "missing": []
+}

@@ -1,0 +1,132 @@
+{
+  "input_manifest_sha256": "6b3d10c5f361892b7485955e782d2a54da44e5cba9574ea895bf240c1073e34b",
+  "jobs": [
+    {
+      "method": "sf_fifo21",
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/jobs/gate0/sf_fifo21/source_001/done.json",
+      "sha256": "0f10f88c0b869c9615dfec97103e4608553788c81e58e8977f6698f2df638096",
+      "source": 1
+    },
+    {
+      "method": "ours_zero",
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/jobs/gate0/ours_zero/source_001/done.json",
+      "sha256": "94b562be1386cb933c5582dcbce61b7f159675d3e86cabfccb69d5f08c1da426",
+      "source": 1
+    },
+    {
+      "method": "pooled_zero",
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/jobs/gate0/pooled_zero/source_001/done.json",
+      "sha256": "1c88772c7f999f80b848c5104f8717a3483dfce9285abf4d9b67db1b23cbc628",
+      "source": 1
+    },
+    {
+      "method": "sf_fifo21",
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/jobs/gate0/sf_fifo21/source_065/done.json",
+      "sha256": "c223271b2b268c6e28495a2329aaca9b7f055c48d9caf803b88c13cbcff50fb5",
+      "source": 65
+    },
+    {
+      "method": "ours_zero",
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/jobs/gate0/ours_zero/source_065/done.json",
+      "sha256": "b04d0c5b5519d348ac51306d718e8ca3e40a80a35eef5496d6b3c4070b509005",
+      "source": 65
+    },
+    {
+      "method": "pooled_zero",
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v219_runs/v219_38a06347_mechanism64/jobs/gate0/pooled_zero/source_065/done.json",
+      "sha256": "a6cc47ca819edff9be1e32331fd1f4697ac8bcac387208ceb2e5861dbe175dd6",
+      "source": 65
+    }
+  ],
+  "pairs": [
+    {
+      "compared_tensor_fields": 5346,
+      "errors": [],
+      "event_counts": {
+        "attention_output": 50,
+        "cache_readout": 50,
+        "clean_flow_prediction": 10,
+        "clean_refresh_input": 10,
+        "committed_latent": 10,
+        "denoised_prediction": 40,
+        "final_latents": 1,
+        "flow_prediction": 40,
+        "input_noise": 1,
+        "noisy_input": 40,
+        "scheduler_noise": 30,
+        "scheduler_output": 30
+      },
+      "local": "sf_fifo21",
+      "pass": true,
+      "source": 1,
+      "zero": "ours_zero"
+    },
+    {
+      "compared_tensor_fields": 5346,
+      "errors": [],
+      "event_counts": {
+        "attention_output": 50,
+        "cache_readout": 50,
+        "clean_flow_prediction": 10,
+        "clean_refresh_input": 10,
+        "committed_latent": 10,
+        "denoised_prediction": 40,
+        "final_latents": 1,
+        "flow_prediction": 40,
+        "input_noise": 1,
+        "noisy_input": 40,
+        "scheduler_noise": 30,
+        "scheduler_output": 30
+      },
+      "local": "sf_fifo21",
+      "pass": true,
+      "source": 1,
+      "zero": "pooled_zero"
+    },
+    {
+      "compared_tensor_fields": 5346,
+      "errors": [],
+      "event_counts": {
+        "attention_output": 50,
+        "cache_readout": 50,
+        "clean_flow_prediction": 10,
+        "clean_refresh_input": 10,
+        "committed_latent": 10,
+        "denoised_prediction": 40,
+        "final_latents": 1,
+        "flow_prediction": 40,
+        "input_noise": 1,
+        "noisy_input": 40,
+        "scheduler_noise": 30,
+        "scheduler_output": 30
+      },
+      "local": "sf_fifo21",
+      "pass": true,
+      "source": 65,
+      "zero": "ours_zero"
+    },
+    {
+      "compared_tensor_fields": 5346,
+      "errors": [],
+      "event_counts": {
+        "attention_output": 50,
+        "cache_readout": 50,
+        "clean_flow_prediction": 10,
+        "clean_refresh_input": 10,
+        "committed_latent": 10,
+        "denoised_prediction": 40,
+        "final_latents": 1,
+        "flow_prediction": 40,
+        "input_noise": 1,
+        "noisy_input": 40,
+        "scheduler_noise": 30,
+        "scheduler_output": 30
+      },
+      "local": "sf_fifo21",
+      "pass": true,
+      "source": 65,
+      "zero": "pooled_zero"
+    }
+  ],
+  "pass": true
+}
