@@ -16,13 +16,14 @@ import v215_lphc_protocol as dev
 import v216_lphc_protocol as confirm
 import v217_lphc_protocol as replicate
 import v219_lphc_protocol as closure
+import v220_lphc_protocol as long_horizon
 from analyze_v213_lphc import old, paired
 from prepare_v212_comparison import validate_pairs
 from summarize_v213_evidence import checked_hash
 from vbench_quality_contract import official_quality_score, reject_known_invalid_dynamic_runtime
 
-REPORTS = {"v215": "v215_selector_phase", "v216": "v216_confirmation", "v217": "v217_seed_random", "v219": "v219_mechanism"}
-PROTOCOLS = {"v215": dev, "v216": confirm.Protocol, "v217": replicate.Protocol, "v219": closure.Protocol}
+REPORTS = {"v215": "v215_selector_phase", "v216": "v216_confirmation", "v217": "v217_seed_random", "v219": "v219_mechanism", "v220": "v220_long60"}
+PROTOCOLS = {"v215": dev, "v216": confirm.Protocol, "v217": replicate.Protocol, "v219": closure.Protocol, "v220": long_horizon.Protocol}
 RAW_METRICS = tuple(old.DIMENSIONS)
 
 
@@ -84,7 +85,7 @@ def load_bundle(root, label):
             or comparison["experiment"] != protocol.EXPERIMENT
             or comparison["prompt_items"] != inputs["prompt_items"]
             or comparison["prompt_count"] != len(protocol.SOURCE_INDICES)
-            or comparison["num_output_frames"] != 120
+            or comparison["num_output_frames"] != protocol.FRAMES
             or summary["experiment"] != protocol.EXPERIMENT or summary.get("missing")
             or summary["comparison_manifest_sha256"] != report["source"]["manifest_sha256"]
             or set(summary["methods"]) != set(protocol.METHODS)
@@ -122,6 +123,14 @@ def load_bundle(root, label):
                 or report["ranking_window"] != scope["primary_window"]):
             raise ValueError("report differs from frozen method or endpoint")
     validate_report(report, protocol)
+    if label == "v220":
+        clips = protocol.FRAMES // 8
+        if (inputs["frames"] != protocol.FRAMES or report["latent_frames"] != protocol.FRAMES
+                or report["decoded_frames"] != 4*protocol.FRAMES-3
+                or report["duration_seconds"] != (4*protocol.FRAMES-3)/16
+                or report["clips_per_video"] != clips
+                or report["windows"] != {"full": [0, clips], "early_half": [0, clips//2], "late_half": [clips//2, clips]}):
+            raise ValueError("v220 duration or evaluation windows differ from frozen 60s protocol")
     for method in protocol.METHODS:
         raw = summary["methods"][method]
         if not finite([raw[k] for k in RAW_METRICS]):
