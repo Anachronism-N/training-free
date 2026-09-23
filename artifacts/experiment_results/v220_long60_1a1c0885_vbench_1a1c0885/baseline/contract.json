@@ -1,0 +1,126 @@
+{
+  "absolute_tolerance": 0.0005,
+  "checkpoint": {
+    "bytes": 5676252553,
+    "mtime_ns": 1785048789870345336,
+    "path": "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/self_forcing_dmd.pt",
+    "sha256": "a0413986d9734e02c09504e1520f5697ba6df731bb2f0f35577485e9cc8f56a3"
+  },
+  "config": {
+    "path": "/apdcephfs_gy2/share_302533218/cedricnie/v220_runs/v220_1a1c0885_long60_64/inputs/configs/sf_fifo21.yaml",
+    "sha256": "09e3d4a23e34e09cfa5d1cf3ad993945b23e9c4e3f01971f3d74ddb184616bc2"
+  },
+  "config_alignment": {
+    "pass": true,
+    "references": {
+      "official_sf": {
+        "path": "/apdcephfs_gy2/share_302533218/cedricnie/reference_code/Self-Forcing-33593df3/configs/self_forcing_dmd.yaml",
+        "sha256": "f248ae59463c1b557868e88384be69e5d6d6c41a740726424dfa24f0f02db4d4"
+      },
+      "vendored_pf_plain_sf": {
+        "path": "/tmp/training-free-v220-1a1c0885/third_party/Pyramid-Forcing/configs/self-forcing.yaml",
+        "sha256": "f248ae59463c1b557868e88384be69e5d6d6c41a740726424dfa24f0f02db4d4"
+      }
+    },
+    "scope": "sampling fields match; explicit FIFO21/sink0, not PF runtime/metric reproduction"
+  },
+  "input_manifest_sha256": "62034f80ae47bdc396048d8df01523a4a8df67ea8dcc5b87c2b15b31a1bde084",
+  "latent_frames": 30,
+  "prompts": [
+    {
+      "effective_seed": 21601,
+      "index": 0,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v220_runs/v220_1a1c0885_long60_64/inputs/prompts/source_001.txt",
+      "sha256": "279552d591d1dda79928f78b9d8c7a3416e3739172f54917d3ea2de74b0f2cd3",
+      "source_index": 1,
+      "text": "A stunning mid-afternoon landscape with a low camera angle, showcasing several giant wooly mammoths treading through a snowy meadow. Their long, wooly fur gently billows as they move, creating natural movement. Snow-covered trees and dramatic snow-capped mountains loom in the distance. Wispy clouds and a high sun cast a warm glow, enhancing the serene and awe-inspiring atmosphere. The depth of field brings out detailed textures, capturing every nuance of these prehistoric giants in breathtaking clarity."
+    },
+    {
+      "effective_seed": 21665,
+      "index": 32,
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v220_runs/v220_1a1c0885_long60_64/inputs/prompts/source_065.txt",
+      "sha256": "7082e7e83559a83ac57d2a10754022e49053eb46dad776a2d3f024978e88c5b7",
+      "source_index": 65,
+      "text": "A vibrant and lively cartoon illustration of a panda playing the guitar. The panda has black and white fur, round eyes, and a friendly expression. It sits comfortably on a small stool, strumming the guitar with one paw while the other rests on its knee. The small acoustic guitar is plucked with precision. The background features a cozy room with plants and colorful decorations, creating a warm and inviting atmosphere. The camera angle is slightly from above, capturing the panda's joyful and focused performance."
+    }
+  ],
+  "reference": {
+    "commit": "33593df3e81fa3ec10239271dd2c100facac6de1",
+    "files": {
+      "configs/default_config.yaml": "18303f1bacbfbebaa02893cc8e106941753f21a7d1a7109519a90762375ee772",
+      "configs/self_forcing_dmd.yaml": "f248ae59463c1b557868e88384be69e5d6d6c41a740726424dfa24f0f02db4d4",
+      "configs/self_forcing_sid.yaml": "a107a8090bac42e19f031c248be824a020bf1c952064f094305f0a64b4e26433",
+      "demo.py": "236e67db81331e69697537a4e73c4484a6178c2d20ce77321c817d4344c17451",
+      "demo_utils/constant.py": "d1c53d7d5209bd5065bf566948333849a3bf9c71d151a0d7325acf67f46cb3d9",
+      "demo_utils/memory.py": "ca0b31c93019f802e1312d512591ae6bea35b450064cdde19b6202779f50bb7f",
+      "demo_utils/taehv.py": "865b1dd0516682c02352bd76bce2ad0472588330ea9fab30ca0895630f263244",
+      "demo_utils/utils.py": "f539911c5317323e24cdbcb331dc66645f6e7a1e6c68aa8ed4bb24effefa9843",
+      "demo_utils/vae.py": "0b938e1e356a221b8c9ac1c64e554bfd01016b609752ab760805829303deb034",
+      "demo_utils/vae_block3.py": "2a9a50fd1731992a32232a79bf0457d50c12d12db1ea9c14d9adb4201816e0f4",
+      "demo_utils/vae_torch2trt.py": "8a267d73ac8a506a402c340726c6dbcdeca3328a909ce61922114bbe3fcb7068",
+      "inference.py": "4de807996910949172986e1599b3150b5d29b5ee4fdef8f8a7d3a49a620353f1",
+      "model/__init__.py": "2c22d7df9de307a7b3d8e6ef69c0cf2cf5c47590d0cd2386d33f87b494c5a378",
+      "model/base.py": "3e39cd61b25a753cf064101e8ffca653d6cce07a7c60a50fd8e3475425362d4f",
+      "model/causvid.py": "870beb90c2af5233a19c733c4cbd72f79b9ef03fae5a2915e37b94f4355c0000",
+      "model/diffusion.py": "e4bbae3554722cac0e2ce6709f287c088d95cd96da2c3a89683188b6df232528",
+      "model/dmd.py": "7b8dd78a48220e6868956a7cd639215756747b7b8e58c07f27e50090c4291e19",
+      "model/gan.py": "da30e3ff2d770646643b4994fa1607581851a39ee28b9ab70460a71ca4125b1a",
+      "model/ode_regression.py": "3a581d436a1ebc8c7bc9191fef203784008cec313827ea0afe6ed961810dac20",
+      "model/sid.py": "4b6536ec27b1f3a555169b8c887190f06aaa9f929c2d7f9fcd8c289d819973ba",
+      "pipeline/__init__.py": "deb77d9f0f8175067cb9feb939c60b29bd68bc9130fd2b1b0019148c29b9fa6a",
+      "pipeline/bidirectional_diffusion_inference.py": "8a5f9daee9e0274aeb4ac3a69ddf7a0f84ca1aa19d4e3df30eab6b8cec712248",
+      "pipeline/bidirectional_inference.py": "675a723275359d579749250b5651180e46249c5269c783e7e49c4fab14c5d90d",
+      "pipeline/causal_diffusion_inference.py": "3d0f2c509bfb39409b3b2d2322cf7b879502226c7e8af375f064082486f5d4f3",
+      "pipeline/causal_inference.py": "a06f5653f266dce154116f85d33cee3f2923e8531fbb15b4702b3751abdaab69",
+      "pipeline/self_forcing_training.py": "0fbef7cae39a13338ae555acc2f114dc28a0e15f4dfcf4303640192e42ab7e96",
+      "scripts/create_lmdb_14b_shards.py": "2364186c378ac8d5bad4f18f9e8206094843cd36b094fa9aff74838ca0f07ee1",
+      "scripts/create_lmdb_iterative.py": "78cd5748dd7dbaaf9884d1410033c014eb5e36960ff38fd63472ad328cc7b423",
+      "scripts/generate_ode_pairs.py": "e7fc4e7e402d808aa80038fbb4515b0bfe075b7d38a4c1f28ee8ce537657eebe",
+      "setup.py": "3930afa782e69358f4f1856adba265ad6b0d454e67c63540fc9964e86fa18dbd",
+      "train.py": "e7a0a036ad091393f102e5c1f0827390304f077dabd09d11cd7c40b54a97915c",
+      "trainer/__init__.py": "c7ca5d93f80e88897c6cc0f5002551a5337d047de49bd52048cb886e22b95d3c",
+      "trainer/diffusion.py": "525cb9e839a6f801c78ae8527d3eca8631427a0e7992d246101e4e4cfc1214e6",
+      "trainer/distillation.py": "ec7b49b31c06411e913c46c7ac5d86c63fee0033e4b8cb6e12ed073e0a5f1fde",
+      "trainer/gan.py": "c420592ef0c648e9bef770ddca2a0b1b35ce687ef5d3d0ba516304d90d1e9a32",
+      "trainer/ode.py": "a311ccae5b974912fe9406df2626fec5df1efa02f1ed7c24c0a038c711de407a",
+      "utils/dataset.py": "2ced021a06123db94204bd2c7a915cf39b19d7220c62a4fad6c5e14725ff640d",
+      "utils/distributed.py": "8560b35c3e5fa77ff7f98c54344775393b1cd3c1ed37740f6284b27aad4f0ba7",
+      "utils/lmdb.py": "d8bfb912cd75a947a8214955b1022662c99d4b23ff882d6e68bb717faafe8b1e",
+      "utils/loss.py": "5a08ba589ef54d5deb50d1ff1984f2969b1fdc2f03c53751167eb23a7082ecfe",
+      "utils/misc.py": "610bead16d50d99fabdccb2e9ce3c20fa1fa1cd3bdf735d7ff7ffda978bfe195",
+      "utils/scheduler.py": "4194ef1324bb06527621749c7f9a82f431ccf011823aa65099cb7bdf116b642e",
+      "utils/wan_wrapper.py": "da919629bac4472cd9072223f1ab03200de276e202ab0d9b91e6789d500ff8fa",
+      "wan/__init__.py": "d9390f993a448bd679ac8d5254620ca6b5d2bc450f65bbf5f4a64c82cb4f4a99",
+      "wan/configs/__init__.py": "7b782183abca0e09c3efbc8ff02ab12c50c023d59642f6077cc16d1a23fa8bac",
+      "wan/configs/shared_config.py": "e3785cd01cff5763f83159ccc242f2d17435ba8dcef99f4a70db958c88e7f5ab",
+      "wan/configs/wan_i2v_14B.py": "2d5a3ff4326a5b1c1c8d564f8a8829fe30879cb99fe0ad1b18c236ecb43aac54",
+      "wan/configs/wan_t2v_14B.py": "a1d8f5f876fa20c4f58c5ee5433ca0d5e2cdf37accef7c97bc0c5aee7ba8db8c",
+      "wan/configs/wan_t2v_1_3B.py": "28dea1d8ef2095d7ddd1e2506e7b498ba698b32e962bdbc79d6d7da3ca5a6d0c",
+      "wan/distributed/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "wan/distributed/fsdp.py": "a20cbd8ea747db64226eb21e5e848c44cc2ccf95a76efbf13956efe8e9f900a3",
+      "wan/distributed/xdit_context_parallel.py": "b3b16b38dd08b0e857d90e4c97c7a41a06368be477abafa460ce3a44ea596474",
+      "wan/image2video.py": "46348294457e81210c70d40c6a1be6e24e5b749a48bf4aaac3febb6bd8e155ee",
+      "wan/modules/__init__.py": "6cba8c084de01455a914a3b5620e0a286d4dee2c39143b6508bb8fac87e71b4b",
+      "wan/modules/attention.py": "02ad719a76e6bdec79d18fc62b094ef2ad7c28b2d593c9f395ae1226041b7c9d",
+      "wan/modules/causal_model.py": "ae2644311ad212977260549e4b6034618647b82e2ee47a244bdaac50d8ff0778",
+      "wan/modules/clip.py": "2ab8672603a998422defb897e16531608750737ab8d631520b055bda93aba35c",
+      "wan/modules/model.py": "f15214485a5297e6f9e79684bbad80acbcdc88c3272596b256a739a734529449",
+      "wan/modules/t5.py": "8b0cebf3192c542f92a344255a06c203df3ba24160715899a055cc8de0cd930f",
+      "wan/modules/tokenizers.py": "cf5b189c1ae017326efadab2fc6380ba223fa7a59d0be6464bd264db53c76934",
+      "wan/modules/vae.py": "a4c1d9362f25a1bef463ac51caed4097317c007d4d87887b02a3a733fdbc48d5",
+      "wan/modules/xlm_roberta.py": "7e27d93573b5fb0fef1c9db9205264453bd30dcb1404c38031f24ed9c84b8d4a",
+      "wan/text2video.py": "ca344c0f24d3d305dd93a0433dc88a212e5d815bb8a784f8f54fc9fa98ff06c1",
+      "wan/utils/__init__.py": "4a8d71cd9feefa65d51770ee8351a07cd6ebe82f9b75fef1ddaf0f30b4db502c",
+      "wan/utils/fm_solvers.py": "f7254e3ac5c6c6715317cdf991d927cde61c1400ad73851be41fc51ce5ecba5d",
+      "wan/utils/fm_solvers_unipc.py": "de622aced9aa5022622509295e5a0e40589b53f59ce13cf64061af9e99af5f66",
+      "wan/utils/prompt_extend.py": "f00f7f03ed5dc6d7648290c3d9b0f80b33d71692958542c447d722acc42dcbd6",
+      "wan/utils/qwen_vl_utils.py": "9ae8190bdb0c6ad5b283fd9fecae65f3adfe45bc90326d3851fb5c8d777995c9",
+      "wan/utils/utils.py": "ebf33b0c4dc69a62faca6243d58bfa890ea4fb9c056e7c1ef0fa501cbbe22566"
+    },
+    "path": "/apdcephfs_gy2/share_302533218/cedricnie/reference_code/Self-Forcing-33593df3",
+    "url": "https://github.com/guandeh17/Self-Forcing.git"
+  },
+  "relative_tolerance": 1e-05,
+  "version": 1,
+  "wan_path": "/apdcephfs_gy2/share_302533218/cedricnie/model_cache/Wan2.1-T2V-1.3B"
+}
