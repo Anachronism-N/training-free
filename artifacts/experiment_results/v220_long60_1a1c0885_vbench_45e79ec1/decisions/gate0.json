@@ -1,0 +1,76 @@
+{
+  "input_manifest_sha256": "62034f80ae47bdc396048d8df01523a4a8df67ea8dcc5b87c2b15b31a1bde084",
+  "jobs": [
+    {
+      "method": "sf_fifo21",
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v220_runs/v220_1a1c0885_long60_64/jobs/gate0/sf_fifo21/source_001/done.json",
+      "sha256": "ab40e4411910dad0045bbe2f97f1bbd41e38945d6f6f6fe8e13839055ad4357d",
+      "source": 1
+    },
+    {
+      "method": "ours_zero",
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v220_runs/v220_1a1c0885_long60_64/jobs/gate0/ours_zero/source_001/done.json",
+      "sha256": "4cab5d9aee7af38bf62d8b7d07b9e09d2e9aa740bda42c53efa53b175c7eeb66",
+      "source": 1
+    },
+    {
+      "method": "sf_fifo21",
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v220_runs/v220_1a1c0885_long60_64/jobs/gate0/sf_fifo21/source_065/done.json",
+      "sha256": "a6bfe886cc154fbb836e445a77d6e7ed583a4c79a69b9eaf10f07a3e51ba70c9",
+      "source": 65
+    },
+    {
+      "method": "ours_zero",
+      "path": "/apdcephfs_gy2/share_302533218/cedricnie/v220_runs/v220_1a1c0885_long60_64/jobs/gate0/ours_zero/source_065/done.json",
+      "sha256": "90623cdfa67b876815c6f629301d582db8b3cfb89c98ed06c9d334fc59cac8ff",
+      "source": 65
+    }
+  ],
+  "pairs": [
+    {
+      "compared_tensor_fields": 5346,
+      "errors": [],
+      "event_counts": {
+        "attention_output": 50,
+        "cache_readout": 50,
+        "clean_flow_prediction": 10,
+        "clean_refresh_input": 10,
+        "committed_latent": 10,
+        "denoised_prediction": 40,
+        "final_latents": 1,
+        "flow_prediction": 40,
+        "input_noise": 1,
+        "noisy_input": 40,
+        "scheduler_noise": 30,
+        "scheduler_output": 30
+      },
+      "local": "sf_fifo21",
+      "pass": true,
+      "source": 1,
+      "zero": "ours_zero"
+    },
+    {
+      "compared_tensor_fields": 5346,
+      "errors": [],
+      "event_counts": {
+        "attention_output": 50,
+        "cache_readout": 50,
+        "clean_flow_prediction": 10,
+        "clean_refresh_input": 10,
+        "committed_latent": 10,
+        "denoised_prediction": 40,
+        "final_latents": 1,
+        "flow_prediction": 40,
+        "input_noise": 1,
+        "noisy_input": 40,
+        "scheduler_noise": 30,
+        "scheduler_output": 30
+      },
+      "local": "sf_fifo21",
+      "pass": true,
+      "source": 65,
+      "zero": "ours_zero"
+    }
+  ],
+  "pass": true
+}
