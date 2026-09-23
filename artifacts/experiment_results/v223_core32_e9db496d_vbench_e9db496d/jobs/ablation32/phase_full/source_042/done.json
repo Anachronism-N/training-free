@@ -1,0 +1,1047 @@
+{
+  "contract_sha256": "87e000b28efe32dae103099d02f6653ebfeb527446104e7eccdf5dcb610a29f0",
+  "cuda_peak_process_memory_mib": 33244,
+  "cuda_visible_devices": "2",
+  "elapsed_seconds": 8060.780923501588,
+  "finished_wall_ns": 1790158794299367050,
+  "gpu": "NVIDIA A800-SXM4-80GB",
+  "gpu_uuid": "GPU-b0945abb-6427-ff7d-74cf-5bd4921a4298",
+  "hostname": "TENCENT64.site",
+  "media": {
+    "path": "/apdcephfs_gy2/share_302533218/cedricnie/v223_runs/v223_core32/jobs/ablation32/phase_full/source_042/media/0-0_ema.mp4",
+    "sha256": "ed67105bca4c5c9a850baf3d9de034ac863f59b8a7d6818859ed844ca0a3b42b",
+    "validation": {
+      "bytes": 3846772,
+      "expected": {
+        "fps": 16.0,
+        "frames": 477,
+        "height": 480,
+        "width": 832
+      },
+      "ffprobe": {
+        "fps": 16.0,
+        "frames": 477,
+        "height": 480,
+        "width": 832
+      },
+      "valid": true,
+      "validation_level": "decoded_stream_contract"
+    }
+  },
+  "stamp": {
+    "effective_seed": 21642,
+    "input_manifest_sha256": "87e000b28efe32dae103099d02f6653ebfeb527446104e7eccdf5dcb610a29f0",
+    "method": "phase_full",
+    "requires_lphc_trace": true,
+    "source_commit": "e9db496d1bb13ad31cd095f4fd12cedc6fec02fb",
+    "source_index": 42,
+    "stage": "ablation32"
+  },
+  "started_wall_ns": 1790150705742564927,
+  "stderr_log": "/apdcephfs_gy2/share_302533218/cedricnie/v223_runs/v223_core32/jobs/ablation32/phase_full/source_042/stderr.log",
+  "stdout_log": "/apdcephfs_gy2/share_302533218/cedricnie/v223_runs/v223_core32/jobs/ablation32/phase_full/source_042/stdout.log",
+  "tensor_trace": {
+    "events_path": "/apdcephfs_gy2/share_302533218/cedricnie/v223_runs/v223_core32/jobs/ablation32/phase_full/source_042/tensor_trace/events.jsonl",
+    "events_sha256": null,
+    "meta_path": "/apdcephfs_gy2/share_302533218/cedricnie/v223_runs/v223_core32/jobs/ablation32/phase_full/source_042/tensor_trace/trace_meta.json",
+    "path": "/apdcephfs_gy2/share_302533218/cedricnie/v223_runs/v223_core32/jobs/ablation32/phase_full/source_042/tensor_trace",
+    "present": false
+  },
+  "trace": {
+    "path": "/apdcephfs_gy2/share_302533218/cedricnie/v223_runs/v223_core32/jobs/ablation32/phase_full/source_042/trace.jsonl",
+    "present": true,
+    "sha256": "252a0dd0e77f42788d0e11759a97f334219f95c3ad41f1b0ec13a0383804bf4f"
+  },
+  "trace_audit": {
+    "alpha": 0.02,
+    "errors": [],
+    "expect_second_attention": true,
+    "exposure_by_layer": {
+      "0": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.007253146730363369,
+        "mean_age_latent_frames": 39.425196850393704,
+        "mean_correction_ratio": 0.004016948852222413,
+        "nonempty_calls": 33
+      },
+      "1": {
+        "early_calls": 40,
+        "max_age_latent_frames": 69,
+        "max_correction_ratio": 0.013379104435443878,
+        "mean_age_latent_frames": 38.75590551181102,
+        "mean_correction_ratio": 0.003052654629573226,
+        "nonempty_calls": 33
+      },
+      "10": {
+        "early_calls": 40,
+        "max_age_latent_frames": 69,
+        "max_correction_ratio": 0.003334084991365671,
+        "mean_age_latent_frames": 39.8503937007874,
+        "mean_correction_ratio": 0.0018282109755091368,
+        "nonempty_calls": 33
+      },
+      "11": {
+        "early_calls": 40,
+        "max_age_latent_frames": 69,
+        "max_correction_ratio": 0.00408460246399045,
+        "mean_age_latent_frames": 39.70866141732284,
+        "mean_correction_ratio": 0.0022220047190785407,
+        "nonempty_calls": 33
+      },
+      "12": {
+        "early_calls": 40,
+        "max_age_latent_frames": 69,
+        "max_correction_ratio": 0.008850594982504845,
+        "mean_age_latent_frames": 39.645669291338585,
+        "mean_correction_ratio": 0.0020807220396818595,
+        "nonempty_calls": 33
+      },
+      "13": {
+        "early_calls": 40,
+        "max_age_latent_frames": 69,
+        "max_correction_ratio": 0.0033003047574311495,
+        "mean_age_latent_frames": 39.496062992125985,
+        "mean_correction_ratio": 0.0019319419894600286,
+        "nonempty_calls": 33
+      },
+      "14": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.008151755668222904,
+        "mean_age_latent_frames": 39.661417322834644,
+        "mean_correction_ratio": 0.0023638527549337597,
+        "nonempty_calls": 33
+      },
+      "15": {
+        "early_calls": 40,
+        "max_age_latent_frames": 69,
+        "max_correction_ratio": 0.003946839366108179,
+        "mean_age_latent_frames": 39.61417322834646,
+        "mean_correction_ratio": 0.0018464985623722896,
+        "nonempty_calls": 33
+      },
+      "16": {
+        "early_calls": 40,
+        "max_age_latent_frames": 80,
+        "max_correction_ratio": 0.003913115244358778,
+        "mean_age_latent_frames": 40.196850393700785,
+        "mean_correction_ratio": 0.001965516121708788,
+        "nonempty_calls": 33
+      },
+      "17": {
+        "early_calls": 40,
+        "max_age_latent_frames": 80,
+        "max_correction_ratio": 0.006141305901110172,
+        "mean_age_latent_frames": 40.346456692913385,
+        "mean_correction_ratio": 0.0028960446652490646,
+        "nonempty_calls": 33
+      },
+      "18": {
+        "early_calls": 40,
+        "max_age_latent_frames": 69,
+        "max_correction_ratio": 0.007011702749878168,
+        "mean_age_latent_frames": 39.118110236220474,
+        "mean_correction_ratio": 0.002728054951876402,
+        "nonempty_calls": 33
+      },
+      "19": {
+        "early_calls": 40,
+        "max_age_latent_frames": 69,
+        "max_correction_ratio": 0.008223824203014374,
+        "mean_age_latent_frames": 39.173228346456696,
+        "mean_correction_ratio": 0.0024365982477320357,
+        "nonempty_calls": 33
+      },
+      "2": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.015809234231710434,
+        "mean_age_latent_frames": 38.732283464566926,
+        "mean_correction_ratio": 0.003009786704205908,
+        "nonempty_calls": 33
+      },
+      "20": {
+        "early_calls": 40,
+        "max_age_latent_frames": 69,
+        "max_correction_ratio": 0.004321445245295763,
+        "mean_age_latent_frames": 39.188976377952756,
+        "mean_correction_ratio": 0.0016844275625771843,
+        "nonempty_calls": 33
+      },
+      "21": {
+        "early_calls": 40,
+        "max_age_latent_frames": 69,
+        "max_correction_ratio": 0.006542367860674858,
+        "mean_age_latent_frames": 38.8503937007874,
+        "mean_correction_ratio": 0.003203523679985665,
+        "nonempty_calls": 33
+      },
+      "22": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.009056695736944675,
+        "mean_age_latent_frames": 38.968503937007874,
+        "mean_correction_ratio": 0.002662819786928594,
+        "nonempty_calls": 33
+      },
+      "23": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.011062243022024632,
+        "mean_age_latent_frames": 38.99212598425197,
+        "mean_correction_ratio": 0.0031293120642658322,
+        "nonempty_calls": 33
+      },
+      "24": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.008999873884022236,
+        "mean_age_latent_frames": 39.23622047244095,
+        "mean_correction_ratio": 0.002819116465980187,
+        "nonempty_calls": 33
+      },
+      "25": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.010149890556931496,
+        "mean_age_latent_frames": 38.74015748031496,
+        "mean_correction_ratio": 0.002567817660747096,
+        "nonempty_calls": 33
+      },
+      "26": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.019999999552965164,
+        "mean_age_latent_frames": 39.09448818897638,
+        "mean_correction_ratio": 0.009567632552352734,
+        "nonempty_calls": 33
+      },
+      "27": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.0064789545722305775,
+        "mean_age_latent_frames": 38.98425196850393,
+        "mean_correction_ratio": 0.002174355377792381,
+        "nonempty_calls": 33
+      },
+      "28": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.002951153088361025,
+        "mean_age_latent_frames": 38.62992125984252,
+        "mean_correction_ratio": 0.001496552344178781,
+        "nonempty_calls": 33
+      },
+      "29": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.006887470372021198,
+        "mean_age_latent_frames": 39.52755905511811,
+        "mean_correction_ratio": 0.0026913503359537573,
+        "nonempty_calls": 33
+      },
+      "3": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.006134004797786474,
+        "mean_age_latent_frames": 38.874015748031496,
+        "mean_correction_ratio": 0.003033604982192628,
+        "nonempty_calls": 33
+      },
+      "4": {
+        "early_calls": 40,
+        "max_age_latent_frames": 69,
+        "max_correction_ratio": 0.01565457694232464,
+        "mean_age_latent_frames": 38.68503937007874,
+        "mean_correction_ratio": 0.0032249888696242123,
+        "nonempty_calls": 33
+      },
+      "5": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.006825605407357216,
+        "mean_age_latent_frames": 38.70866141732284,
+        "mean_correction_ratio": 0.002991516934707761,
+        "nonempty_calls": 33
+      },
+      "6": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.006964825093746185,
+        "mean_age_latent_frames": 39.125984251968504,
+        "mean_correction_ratio": 0.0022446305199991913,
+        "nonempty_calls": 33
+      },
+      "7": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.013561423867940903,
+        "mean_age_latent_frames": 39.56692913385827,
+        "mean_correction_ratio": 0.006223875551950186,
+        "nonempty_calls": 33
+      },
+      "8": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.004790266044437885,
+        "mean_age_latent_frames": 39.7007874015748,
+        "mean_correction_ratio": 0.002073408573050983,
+        "nonempty_calls": 33
+      },
+      "9": {
+        "early_calls": 40,
+        "max_age_latent_frames": 70,
+        "max_correction_ratio": 0.00476398691534996,
+        "mean_age_latent_frames": 39.95275590551181,
+        "mean_correction_ratio": 0.0028787929273676126,
+        "nonempty_calls": 33
+      }
+    },
+    "exposure_by_layer_phase": {
+      "0:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.007253146730363369,
+        "mean_correction_ratio": 0.004016948852222413,
+        "nonempty_calls": 33
+      },
+      "0:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.0076575009152293205,
+        "mean_correction_ratio": 0.003840460686478764,
+        "nonempty_calls": 33
+      },
+      "0:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.007883892394602299,
+        "mean_correction_ratio": 0.0034971596964169295,
+        "nonempty_calls": 33
+      },
+      "0:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.007971133105456829,
+        "mean_correction_ratio": 0.003157358051976189,
+        "nonempty_calls": 33
+      },
+      "10:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.003334084991365671,
+        "mean_correction_ratio": 0.0018282109755091368,
+        "nonempty_calls": 33
+      },
+      "10:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.0028938641771674156,
+        "mean_correction_ratio": 0.001496476013562642,
+        "nonempty_calls": 33
+      },
+      "10:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.002492342609912157,
+        "mean_correction_ratio": 0.0013350999768590554,
+        "nonempty_calls": 33
+      },
+      "10:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.0021813649218529463,
+        "mean_correction_ratio": 0.0012363734087557532,
+        "nonempty_calls": 33
+      },
+      "11:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.00408460246399045,
+        "mean_correction_ratio": 0.0022220047190785407,
+        "nonempty_calls": 33
+      },
+      "11:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.003158985637128353,
+        "mean_correction_ratio": 0.0018868089944589883,
+        "nonempty_calls": 33
+      },
+      "11:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.002963213948532939,
+        "mean_correction_ratio": 0.0017407284933142364,
+        "nonempty_calls": 33
+      },
+      "11:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.0027992799878120422,
+        "mean_correction_ratio": 0.0015859240695135668,
+        "nonempty_calls": 33
+      },
+      "12:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.008850594982504845,
+        "mean_correction_ratio": 0.0020807220396818595,
+        "nonempty_calls": 33
+      },
+      "12:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.008824250660836697,
+        "mean_correction_ratio": 0.0021147236257093027,
+        "nonempty_calls": 33
+      },
+      "12:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.008432853035628796,
+        "mean_correction_ratio": 0.002190317155327648,
+        "nonempty_calls": 33
+      },
+      "12:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.008443414233624935,
+        "mean_correction_ratio": 0.0022373996558599173,
+        "nonempty_calls": 33
+      },
+      "13:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.0033003047574311495,
+        "mean_correction_ratio": 0.0019319419894600286,
+        "nonempty_calls": 33
+      },
+      "13:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.002971472218632698,
+        "mean_correction_ratio": 0.0017327442619716749,
+        "nonempty_calls": 33
+      },
+      "13:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.002688245614990592,
+        "mean_correction_ratio": 0.0016152250842424109,
+        "nonempty_calls": 33
+      },
+      "13:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.0025510857813060284,
+        "mean_correction_ratio": 0.0014884123927913606,
+        "nonempty_calls": 33
+      },
+      "14:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.008151755668222904,
+        "mean_correction_ratio": 0.0023638527549337597,
+        "nonempty_calls": 33
+      },
+      "14:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.0066845472902059555,
+        "mean_correction_ratio": 0.0021027944516390563,
+        "nonempty_calls": 33
+      },
+      "14:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.0060584573075175285,
+        "mean_correction_ratio": 0.002012302765797358,
+        "nonempty_calls": 33
+      },
+      "14:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.005307687446475029,
+        "mean_correction_ratio": 0.0018676698178751393,
+        "nonempty_calls": 33
+      },
+      "15:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.003946839366108179,
+        "mean_correction_ratio": 0.0018464985623722896,
+        "nonempty_calls": 33
+      },
+      "15:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.003083797637373209,
+        "mean_correction_ratio": 0.0015838735911529512,
+        "nonempty_calls": 33
+      },
+      "15:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.0031113133300095797,
+        "mean_correction_ratio": 0.001447252562502399,
+        "nonempty_calls": 33
+      },
+      "15:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.002825675532221794,
+        "mean_correction_ratio": 0.0013408767932560294,
+        "nonempty_calls": 33
+      },
+      "16:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.003913115244358778,
+        "mean_correction_ratio": 0.001965516121708788,
+        "nonempty_calls": 33
+      },
+      "16:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.003703827504068613,
+        "mean_correction_ratio": 0.001854720016126521,
+        "nonempty_calls": 33
+      },
+      "16:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.004186405800282955,
+        "mean_correction_ratio": 0.001847459829878062,
+        "nonempty_calls": 33
+      },
+      "16:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.004955761134624481,
+        "mean_correction_ratio": 0.0018609833437949418,
+        "nonempty_calls": 33
+      },
+      "17:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.006141305901110172,
+        "mean_correction_ratio": 0.0028960446652490646,
+        "nonempty_calls": 33
+      },
+      "17:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.005514182616025209,
+        "mean_correction_ratio": 0.002789090815349482,
+        "nonempty_calls": 33
+      },
+      "17:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.005198158323764801,
+        "mean_correction_ratio": 0.002691456797765568,
+        "nonempty_calls": 33
+      },
+      "17:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.00490024546161294,
+        "mean_correction_ratio": 0.0025463892554398624,
+        "nonempty_calls": 33
+      },
+      "18:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.007011702749878168,
+        "mean_correction_ratio": 0.002728054951876402,
+        "nonempty_calls": 33
+      },
+      "18:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.006972052156925201,
+        "mean_correction_ratio": 0.002593578948290087,
+        "nonempty_calls": 33
+      },
+      "18:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.008388761430978775,
+        "mean_correction_ratio": 0.0026044814556371422,
+        "nonempty_calls": 33
+      },
+      "18:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.010209162719547749,
+        "mean_correction_ratio": 0.0026533759926678615,
+        "nonempty_calls": 33
+      },
+      "19:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.008223824203014374,
+        "mean_correction_ratio": 0.0024365982477320357,
+        "nonempty_calls": 33
+      },
+      "19:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.0064171371050179005,
+        "mean_correction_ratio": 0.0022447464551078157,
+        "nonempty_calls": 33
+      },
+      "19:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.007031212095171213,
+        "mean_correction_ratio": 0.0021847089199582117,
+        "nonempty_calls": 33
+      },
+      "19:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.009090696461498737,
+        "mean_correction_ratio": 0.0022385700605809687,
+        "nonempty_calls": 33
+      },
+      "1:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.013379104435443878,
+        "mean_correction_ratio": 0.003052654629573226,
+        "nonempty_calls": 33
+      },
+      "1:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.014838824048638344,
+        "mean_correction_ratio": 0.0025830862869042903,
+        "nonempty_calls": 33
+      },
+      "1:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.01604798622429371,
+        "mean_correction_ratio": 0.0023417265620082617,
+        "nonempty_calls": 33
+      },
+      "1:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.016898494213819504,
+        "mean_correction_ratio": 0.002253454763558693,
+        "nonempty_calls": 33
+      },
+      "20:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.004321445245295763,
+        "mean_correction_ratio": 0.0016844275625771843,
+        "nonempty_calls": 33
+      },
+      "20:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.004271538462489843,
+        "mean_correction_ratio": 0.001495086299837567,
+        "nonempty_calls": 33
+      },
+      "20:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.003971356898546219,
+        "mean_correction_ratio": 0.0014167251589242368,
+        "nonempty_calls": 33
+      },
+      "20:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.0034993262961506844,
+        "mean_correction_ratio": 0.0013200943256379105,
+        "nonempty_calls": 33
+      },
+      "21:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.006542367860674858,
+        "mean_correction_ratio": 0.003203523679985665,
+        "nonempty_calls": 33
+      },
+      "21:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.00626177154481411,
+        "mean_correction_ratio": 0.002970471020671539,
+        "nonempty_calls": 33
+      },
+      "21:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.005565769970417023,
+        "mean_correction_ratio": 0.0028394990105880423,
+        "nonempty_calls": 33
+      },
+      "21:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.005972058977931738,
+        "mean_correction_ratio": 0.002681951495469548,
+        "nonempty_calls": 33
+      },
+      "22:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.009056695736944675,
+        "mean_correction_ratio": 0.002662819786928594,
+        "nonempty_calls": 33
+      },
+      "22:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.008394505828619003,
+        "mean_correction_ratio": 0.0026170170778641475,
+        "nonempty_calls": 33
+      },
+      "22:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.008919084444642067,
+        "mean_correction_ratio": 0.0026625206286553294,
+        "nonempty_calls": 33
+      },
+      "22:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.009182441979646683,
+        "mean_correction_ratio": 0.0026172357582254337,
+        "nonempty_calls": 33
+      },
+      "23:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.011062243022024632,
+        "mean_correction_ratio": 0.0031293120642658322,
+        "nonempty_calls": 33
+      },
+      "23:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.008238581009209156,
+        "mean_correction_ratio": 0.0028631041175685825,
+        "nonempty_calls": 33
+      },
+      "23:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.009713270701467991,
+        "mean_correction_ratio": 0.002871820307336748,
+        "nonempty_calls": 33
+      },
+      "23:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.011302588507533073,
+        "mean_correction_ratio": 0.002859095932217315,
+        "nonempty_calls": 33
+      },
+      "24:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.008999873884022236,
+        "mean_correction_ratio": 0.002819116465980187,
+        "nonempty_calls": 33
+      },
+      "24:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.006985472980886698,
+        "mean_correction_ratio": 0.002555967230000533,
+        "nonempty_calls": 33
+      },
+      "24:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.009212637320160866,
+        "mean_correction_ratio": 0.0026430240570334716,
+        "nonempty_calls": 33
+      },
+      "24:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.011720774695277214,
+        "mean_correction_ratio": 0.002705461622099392,
+        "nonempty_calls": 33
+      },
+      "25:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.010149890556931496,
+        "mean_correction_ratio": 0.002567817660747096,
+        "nonempty_calls": 33
+      },
+      "25:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.006731467787176371,
+        "mean_correction_ratio": 0.002215036074630916,
+        "nonempty_calls": 33
+      },
+      "25:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.008276146836578846,
+        "mean_correction_ratio": 0.002117814583471045,
+        "nonempty_calls": 33
+      },
+      "25:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.010457733646035194,
+        "mean_correction_ratio": 0.0020727506780531257,
+        "nonempty_calls": 33
+      },
+      "26:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.019999999552965164,
+        "mean_correction_ratio": 0.009567632552352734,
+        "nonempty_calls": 33
+      },
+      "26:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.019999999552965164,
+        "mean_correction_ratio": 0.008931607101112604,
+        "nonempty_calls": 33
+      },
+      "26:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.019999997690320015,
+        "mean_correction_ratio": 0.008068460214417428,
+        "nonempty_calls": 33
+      },
+      "26:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.020000003278255463,
+        "mean_correction_ratio": 0.006985677238844801,
+        "nonempty_calls": 33
+      },
+      "27:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.0064789545722305775,
+        "mean_correction_ratio": 0.002174355377792381,
+        "nonempty_calls": 33
+      },
+      "27:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.0066935839131474495,
+        "mean_correction_ratio": 0.00211045680771349,
+        "nonempty_calls": 33
+      },
+      "27:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.007341282907873392,
+        "mean_correction_ratio": 0.0020604666555300356,
+        "nonempty_calls": 33
+      },
+      "27:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.007638019043952227,
+        "mean_correction_ratio": 0.0020057015353813767,
+        "nonempty_calls": 33
+      },
+      "28:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.002951153088361025,
+        "mean_correction_ratio": 0.001496552344178781,
+        "nonempty_calls": 33
+      },
+      "28:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.0037604081444442272,
+        "mean_correction_ratio": 0.0014480134414043278,
+        "nonempty_calls": 33
+      },
+      "28:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.002883734880015254,
+        "mean_correction_ratio": 0.0014030845544766636,
+        "nonempty_calls": 33
+      },
+      "28:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.002878280822187662,
+        "mean_correction_ratio": 0.0013616668220493011,
+        "nonempty_calls": 33
+      },
+      "29:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.006887470372021198,
+        "mean_correction_ratio": 0.0026913503359537573,
+        "nonempty_calls": 33
+      },
+      "29:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.006840141024440527,
+        "mean_correction_ratio": 0.0026135813881410287,
+        "nonempty_calls": 33
+      },
+      "29:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.007047636434435844,
+        "mean_correction_ratio": 0.002598337184463162,
+        "nonempty_calls": 33
+      },
+      "29:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.007133114617317915,
+        "mean_correction_ratio": 0.002556091800215654,
+        "nonempty_calls": 33
+      },
+      "2:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.015809234231710434,
+        "mean_correction_ratio": 0.003009786704205908,
+        "nonempty_calls": 33
+      },
+      "2:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.014402031898498535,
+        "mean_correction_ratio": 0.0028869917849078776,
+        "nonempty_calls": 33
+      },
+      "2:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.015907637774944305,
+        "mean_correction_ratio": 0.0027124875283334403,
+        "nonempty_calls": 33
+      },
+      "2:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.01617312803864479,
+        "mean_correction_ratio": 0.0023933534452226014,
+        "nonempty_calls": 33
+      },
+      "3:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.006134004797786474,
+        "mean_correction_ratio": 0.003033604982192628,
+        "nonempty_calls": 33
+      },
+      "3:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.006134823430329561,
+        "mean_correction_ratio": 0.0026321315875975416,
+        "nonempty_calls": 33
+      },
+      "3:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.0056520868092775345,
+        "mean_correction_ratio": 0.002268475599703379,
+        "nonempty_calls": 33
+      },
+      "3:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.004857077728956938,
+        "mean_correction_ratio": 0.00208830923656933,
+        "nonempty_calls": 33
+      },
+      "4:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.01565457694232464,
+        "mean_correction_ratio": 0.0032249888696242123,
+        "nonempty_calls": 33
+      },
+      "4:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.014950579963624477,
+        "mean_correction_ratio": 0.0027867543074535208,
+        "nonempty_calls": 33
+      },
+      "4:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.012716497294604778,
+        "mean_correction_ratio": 0.002568601004895754,
+        "nonempty_calls": 33
+      },
+      "4:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.010903519578278065,
+        "mean_correction_ratio": 0.0023770966537995262,
+        "nonempty_calls": 33
+      },
+      "5:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.006825605407357216,
+        "mean_correction_ratio": 0.002991516934707761,
+        "nonempty_calls": 33
+      },
+      "5:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.00646543875336647,
+        "mean_correction_ratio": 0.002734948106808588,
+        "nonempty_calls": 33
+      },
+      "5:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.0063300481997430325,
+        "mean_correction_ratio": 0.0026931833621347324,
+        "nonempty_calls": 33
+      },
+      "5:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.006320835556834936,
+        "mean_correction_ratio": 0.0025978486228268594,
+        "nonempty_calls": 33
+      },
+      "6:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.006964825093746185,
+        "mean_correction_ratio": 0.0022446305199991913,
+        "nonempty_calls": 33
+      },
+      "6:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.006416323594748974,
+        "mean_correction_ratio": 0.002079572479124181,
+        "nonempty_calls": 33
+      },
+      "6:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.0051858010701835155,
+        "mean_correction_ratio": 0.0018651207239599899,
+        "nonempty_calls": 33
+      },
+      "6:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.004412710666656494,
+        "mean_correction_ratio": 0.0017035900324117391,
+        "nonempty_calls": 33
+      },
+      "7:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.013561423867940903,
+        "mean_correction_ratio": 0.006223875551950186,
+        "nonempty_calls": 33
+      },
+      "7:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.012764433398842812,
+        "mean_correction_ratio": 0.0061721206526272,
+        "nonempty_calls": 33
+      },
+      "7:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.013151186518371105,
+        "mean_correction_ratio": 0.006091675127390772,
+        "nonempty_calls": 33
+      },
+      "7:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.012322497554123402,
+        "mean_correction_ratio": 0.005694936501095071,
+        "nonempty_calls": 33
+      },
+      "8:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.004790266044437885,
+        "mean_correction_ratio": 0.002073408573050983,
+        "nonempty_calls": 33
+      },
+      "8:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.005004605744034052,
+        "mean_correction_ratio": 0.0018169064947869628,
+        "nonempty_calls": 33
+      },
+      "8:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.00517637375742197,
+        "mean_correction_ratio": 0.0016591357241850346,
+        "nonempty_calls": 33
+      },
+      "8:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.004438762553036213,
+        "mean_correction_ratio": 0.0015047233930090443,
+        "nonempty_calls": 33
+      },
+      "9:0": {
+        "calls": 40,
+        "max_correction_ratio": 0.00476398691534996,
+        "mean_correction_ratio": 0.0028787929273676126,
+        "nonempty_calls": 33
+      },
+      "9:1": {
+        "calls": 40,
+        "max_correction_ratio": 0.004481574520468712,
+        "mean_correction_ratio": 0.002628785464912653,
+        "nonempty_calls": 33
+      },
+      "9:2": {
+        "calls": 40,
+        "max_correction_ratio": 0.003854934126138687,
+        "mean_correction_ratio": 0.002314228849718347,
+        "nonempty_calls": 33
+      },
+      "9:3": {
+        "calls": 40,
+        "max_correction_ratio": 0.003279313910752535,
+        "mean_correction_ratio": 0.0020715799764730036,
+        "nonempty_calls": 33
+      }
+    },
+    "maximums": {
+      "archive_size": 12,
+      "correction_ratio": 0.020000003278255463,
+      "selected": 4
+    },
+    "pass": true,
+    "phase": "full",
+    "row_count": 7202,
+    "selector": {
+      "calls_with_real_choice": 780,
+      "mean_boundary_margin": 0.007832660124852111,
+      "mode": "headwise",
+      "scored_calls": 1170
+    },
+    "tolerance": 1e-06,
+    "totals": {
+      "lookup": 4800,
+      "random": 0,
+      "second_attention": 3960
+    },
+    "trace_path": "/apdcephfs_gy2/share_302533218/cedricnie/v223_runs/v223_core32/jobs/ablation32/phase_full/source_042/trace.jsonl",
+    "trace_sha256": "252a0dd0e77f42788d0e11759a97f334219f95c3ad41f1b0ec13a0383804bf4f",
+    "version": 1
+  }
+}
