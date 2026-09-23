@@ -62,7 +62,7 @@ def configure(protocol):
 
 def main():
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219", "v220"), default="v212")
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219", "v220", "v223"), default="v212")
     args, remaining = parser.parse_known_args()
     protocol = p.load_protocol(args.campaign)
     sys.argv[1:] = remaining

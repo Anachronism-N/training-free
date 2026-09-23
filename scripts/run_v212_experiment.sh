@@ -3,7 +3,11 @@ set -euo pipefail
 ACTION="${1:?action required}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CAMPAIGN="${LPHC_CAMPAIGN:-v212}"
-[[ "$CAMPAIGN" == v212 || "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 || "$CAMPAIGN" == v215 || "$CAMPAIGN" == v216 || "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 || "$CAMPAIGN" == v220 ]] || { echo "invalid campaign"; exit 2; }
+[[ "$CAMPAIGN" == v212 || "$CAMPAIGN" == v213 || "$CAMPAIGN" == v214 || "$CAMPAIGN" == v215 || "$CAMPAIGN" == v216 || "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 || "$CAMPAIGN" == v220 || "$CAMPAIGN" == v223 ]] || { echo "invalid campaign"; exit 2; }
+if [[ "$CAMPAIGN" == v223 && ( "$ACTION" == baseline || "$ACTION" == gate0 || "$ACTION" == smoke ) ]]; then
+  echo "v223 reuses validated v219 gates and videos; use prepare then generate32, not $ACTION"
+  exit 2
+fi
 OUT_VAR="${CAMPAIGN^^}_OUT_ROOT"
 PROMPT_VAR="${CAMPAIGN^^}_SOURCE_PROMPTS"
 OUT="${!OUT_VAR:?set the campaign shared output root on all nodes}"
@@ -14,7 +18,7 @@ export PYTHONPATH="$ROOT/scripts:$ROOT/src:$ROOT:${PYTHONPATH:-}"
 NODE_RANK="${NODE_RANK:-0}"
 GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7}"
 NUM_NODES=6
-if [[ "$CAMPAIGN" == v216 || "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 || "$CAMPAIGN" == v220 ]]; then NUM_NODES=8; fi
+if [[ "$CAMPAIGN" == v216 || "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 || "$CAMPAIGN" == v220 || "$CAMPAIGN" == v223 ]]; then NUM_NODES=8; fi
 VBENCH_ROOT="${VBENCH_ROOT:-/apdcephfs_gy2/share_303214315/cedricnie/develop/research_sprint/bench_baselines/VBench}"
 EVAL="$OUT/evaluation"
 COMPARISON="$EVAL/vbench_comparison"
@@ -34,6 +38,10 @@ PY
 esac
 case "$ACTION" in
   freeze)
+    if [[ "$CAMPAIGN" == v223 ]]; then
+      python "$ROOT/scripts/prepare_v223_ablation.py" --v219-root "${V223_V219_ROOT:?set completed v219 root}" --output-root "$OUT"
+      exit 0
+    fi
     if [[ "$CAMPAIGN" == v217 || "$CAMPAIGN" == v219 || "$CAMPAIGN" == v220 ]]; then
       PARENT_VAR="${CAMPAIGN^^}_V216_ROOT"
       FREEZE_SCRIPT=prepare_v217_replication.py
@@ -119,5 +127,5 @@ with tarfile.open(root / f"{sys.argv[2]}_small_artifacts.tar.gz", "w:gz") as arc
 print(root / f"{sys.argv[2]}_small_artifacts.tar.gz")
 PY
     ;;
-  *) echo "freeze(v216/v217/v219/v220) prepare baseline gate0 smoke generate32 generate48 generate64 generate80 generate96 schedule status publish split preflight eval eval-missing collect analyze package"; exit 2 ;;
+  *) echo "freeze(v216/v217/v219/v220/v223) prepare baseline gate0 smoke generate32 generate48 generate64 generate80 generate96 schedule status publish split preflight eval eval-missing collect analyze package"; exit 2 ;;
 esac

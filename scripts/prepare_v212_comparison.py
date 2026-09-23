@@ -63,7 +63,8 @@ def prepare(repo: Path, out: Path, vbench: Path, *, protocol=p) -> dict:
             row = load_done(out, data, screen_stage(p), method, source, protocol=p)
             media = Path(row["media"]["path"])
             validate_media(media, p.FRAMES)
-            done = job_path(out, screen_stage(p), method, source) / "done.json"
+            done = (p.completion_path(screen_stage(p), method, source) if hasattr(p, "completion_path")
+                    else job_path(out, screen_stage(p), method, source) / "done.json")
             jobs.append({"source_index": source, "method": method, "done_path": str(done),
                          "done_sha256": p.sha256(done), "media_path": str(media),
                          "media_sha256": p.sha256(media), **{k: row[k] for k in (
@@ -75,7 +76,7 @@ def prepare(repo: Path, out: Path, vbench: Path, *, protocol=p) -> dict:
         target = comparison / "published" / method
         target.mkdir(parents=True, exist_ok=True)
         for index, source in enumerate(p.SOURCE_INDICES):
-            src = job_path(out, screen_stage(p), method, source) / "media/0-0_ema.mp4"
+            src = Path(next(j["media_path"] for j in jobs if j["method"] == method and j["source_index"] == source))
             dst = target / f"{index:06d}-0.mp4"
             if dst.is_symlink() or dst.exists():
                 if not dst.is_symlink() or dst.resolve() != src.resolve():
@@ -91,6 +92,9 @@ def prepare(repo: Path, out: Path, vbench: Path, *, protocol=p) -> dict:
               "vbench_long_dimensions": list(DIMENSIONS), "jobs": jobs,
               "generation_root": str(out), "input_manifest_sha256": p.sha256(out / "inputs/manifest.json"),
               "vbench_fingerprint": fingerprint, "development_only": True}
+    if hasattr(p, "reference_root"):
+        result["reference_reuse"] = {"root": str(p.reference_root), "methods": ["sf_fifo21", "ours_correct"],
+                                     "timing_boundary": "References were generated in a previous batch; no speedup claim."}
     p.frozen_json(comparison / "comparison_manifest.json", result)
     return result
 
@@ -99,7 +103,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--vbench-root", type=Path, required=True)
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219", "v220"), default="v212")
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219", "v220", "v223"), default="v212")
     args = parser.parse_args()
     p = p.load_protocol(args.campaign, args.run_root)
     result = prepare(Path(__file__).resolve().parents[1], p.output_root(args.run_root), args.vbench_root.resolve(), protocol=p)

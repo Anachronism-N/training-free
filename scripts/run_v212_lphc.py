@@ -40,6 +40,10 @@ def stamp(out: Path, data: dict, stage: str, method: str, source: int, *, protoc
 
 def load_done(out: Path, data: dict, stage: str, method: str, source: int, *, protocol=p) -> dict:
     p = protocol
+    if hasattr(p, "reused_done"):
+        reused = p.reused_done(stage, method, source)
+        if reused is not None:
+            return reused
     job = job_path(out, stage, method, source)
     row = json.loads((job / "done.json").read_text(encoding="utf-8"))
     if not done_matches(row, stamp(out, data, stage, method, source, protocol=p), job / "media/0-0_ema.mp4"):
@@ -93,6 +97,8 @@ def build_command(repo: Path, out: Path, data: dict, stage: str, method: str, so
 
 def run_job(repo: Path, out: Path, data: dict, stage: str, method: str, source: int, gpu: str, *, protocol=p) -> dict:
     p = protocol
+    if hasattr(p, "reused_done") and p.reused_done(stage, method, source) is not None:
+        raise ValueError("reused reference videos must not be regenerated")
     job = job_path(out, stage, method, source)
     with lock(out / "locks" / f"{stage}_{method}_{source}.lock"):
         if (job / "done.json").exists():
@@ -174,6 +180,8 @@ def run_job(repo: Path, out: Path, data: dict, stage: str, method: str, source: 
 
 def require_gate(out: Path, data: dict, *, protocol=p) -> dict:
     p = protocol
+    if hasattr(p, "require_reference_gate"):
+        return p.require_reference_gate(data)
     report = json.loads((out / "decisions/gate0.json").read_text())
     if report.get("input_manifest_sha256") != p.sha256(out / "inputs/manifest.json") or report.get("pass") is not True:
         raise ValueError(f"{p.LABEL} production gate0 is not ready")
@@ -233,6 +241,8 @@ def run_bundle(repo: Path, out: Path, data: dict, sources: list[int], gpu: str, 
         raise RuntimeError("GPU UUID required")
     with lock(out / "locks" / f"device_{uuid}.lock"):
         for source in sources:
+            if hasattr(p, "validate_generation_target"):
+                p.validate_generation_target(source, uuid, platform.node())
             for method in p.method_order(source):
                 run_job(repo, out, data, screen_stage(p), method, source, gpu, protocol=p)
 
@@ -241,7 +251,7 @@ def main() -> None:
     p = load_protocol("v212")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("prepare", "gate0", "smoke", "generate32", "generate48", "generate64", "generate80", "generate96", "status", "schedule"))
-    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219", "v220"), default="v212")
+    parser.add_argument("--campaign", choices=("v212", "v213", "v214", "v215", "v216", "v217", "v219", "v220", "v223"), default="v212")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--source-prompts", type=Path, default=p.DEFAULT_PROMPT_SOURCE)
@@ -251,6 +261,8 @@ def main() -> None:
     parser.add_argument("--node-rank", type=int, default=int(os.environ.get("NODE_RANK", "0")))
     args = parser.parse_args()
     p = load_protocol(args.campaign, args.output_root)
+    if args.campaign == "v223" and args.action in {"gate0", "smoke"}:
+        raise ValueError("v223 reuses source gates; use prepare then generate32")
     repo, out = args.repo_root.resolve(), p.output_root(args.output_root)
     slots = tuple(args.gpu_list.split(","))
     p.assignment(p.SOURCE_INDICES[0], slots)
@@ -266,7 +278,8 @@ def main() -> None:
         for rank in range(getattr(p, "NODE_COUNT", 6)):
             for gpu in slots:
                 sources = [s for s in p.SOURCE_INDICES if p.assignment(s, slots) == (rank, gpu)]
-                print(f"[{p.LABEL}-schedule] rank={rank} gpu={gpu} sources={sources} videos={len(sources)*len(p.METHODS)}")
+                videos = sum(len(p.method_order(s)) for s in sources)
+                print(f"[{p.LABEL}-schedule] rank={rank} gpu={gpu} sources={sources} new_videos={videos}")
         return
     if args.action == "status":
         for method in p.METHODS:
@@ -296,8 +309,9 @@ def main() -> None:
         run_bundle(repo, out, data, [p.SOURCE_INDICES[0]], slots[0], protocol=p)
         return
     # Smoke is the first complete prompt bundle, reused without regeneration.
-    for method in p.METHODS:
-        load_done(out, data, screen_stage(p), method, p.SOURCE_INDICES[0], protocol=p)
+    if getattr(p, "SMOKE_REQUIRED", True):
+        for method in p.METHODS:
+            load_done(out, data, screen_stage(p), method, p.SOURCE_INDICES[0], protocol=p)
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(slots)) as pool:
         futures = []
         for gpu in slots:
