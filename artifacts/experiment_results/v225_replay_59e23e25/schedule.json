@@ -1,0 +1,225 @@
+{
+  "active_gpus": 18,
+  "available_gpus": 64,
+  "groups": [
+    {
+      "conditions": [
+        "reference",
+        "resplit",
+        "repeat"
+      ],
+      "dimension": "subject_consistency",
+      "gpu": "0",
+      "index": 0,
+      "method": "sf_fifo21",
+      "node_rank": 0
+    },
+    {
+      "conditions": [
+        "reference",
+        "repeat",
+        "resplit"
+      ],
+      "dimension": "subject_consistency",
+      "gpu": "0",
+      "index": 1,
+      "method": "ours_correct",
+      "node_rank": 1
+    },
+    {
+      "conditions": [
+        "resplit",
+        "reference",
+        "repeat"
+      ],
+      "dimension": "background_consistency",
+      "gpu": "0",
+      "index": 2,
+      "method": "sf_fifo21",
+      "node_rank": 2
+    },
+    {
+      "conditions": [
+        "resplit",
+        "repeat",
+        "reference"
+      ],
+      "dimension": "background_consistency",
+      "gpu": "0",
+      "index": 3,
+      "method": "ours_correct",
+      "node_rank": 3
+    },
+    {
+      "conditions": [
+        "repeat",
+        "reference",
+        "resplit"
+      ],
+      "dimension": "temporal_flickering",
+      "gpu": "0",
+      "index": 4,
+      "method": "sf_fifo21",
+      "node_rank": 4
+    },
+    {
+      "conditions": [
+        "repeat",
+        "resplit",
+        "reference"
+      ],
+      "dimension": "temporal_flickering",
+      "gpu": "0",
+      "index": 5,
+      "method": "ours_correct",
+      "node_rank": 5
+    },
+    {
+      "conditions": [
+        "reference",
+        "resplit",
+        "repeat"
+      ],
+      "dimension": "motion_smoothness",
+      "gpu": "0",
+      "index": 6,
+      "method": "sf_fifo21",
+      "node_rank": 6
+    },
+    {
+      "conditions": [
+        "reference",
+        "repeat",
+        "resplit"
+      ],
+      "dimension": "motion_smoothness",
+      "gpu": "0",
+      "index": 7,
+      "method": "ours_correct",
+      "node_rank": 7
+    },
+    {
+      "conditions": [
+        "resplit",
+        "reference",
+        "repeat"
+      ],
+      "dimension": "overall_consistency",
+      "gpu": "1",
+      "index": 8,
+      "method": "sf_fifo21",
+      "node_rank": 0
+    },
+    {
+      "conditions": [
+        "resplit",
+        "repeat",
+        "reference"
+      ],
+      "dimension": "overall_consistency",
+      "gpu": "1",
+      "index": 9,
+      "method": "ours_correct",
+      "node_rank": 1
+    },
+    {
+      "conditions": [
+        "repeat",
+        "reference",
+        "resplit"
+      ],
+      "dimension": "dynamic_degree",
+      "gpu": "1",
+      "index": 10,
+      "method": "sf_fifo21",
+      "node_rank": 2
+    },
+    {
+      "conditions": [
+        "repeat",
+        "resplit",
+        "reference"
+      ],
+      "dimension": "dynamic_degree",
+      "gpu": "1",
+      "index": 11,
+      "method": "ours_correct",
+      "node_rank": 3
+    },
+    {
+      "conditions": [
+        "reference",
+        "resplit",
+        "repeat"
+      ],
+      "dimension": "aesthetic_quality",
+      "gpu": "1",
+      "index": 12,
+      "method": "sf_fifo21",
+      "node_rank": 4
+    },
+    {
+      "conditions": [
+        "reference",
+        "repeat",
+        "resplit"
+      ],
+      "dimension": "aesthetic_quality",
+      "gpu": "1",
+      "index": 13,
+      "method": "ours_correct",
+      "node_rank": 5
+    },
+    {
+      "conditions": [
+        "resplit",
+        "reference",
+        "repeat"
+      ],
+      "dimension": "imaging_quality",
+      "gpu": "1",
+      "index": 14,
+      "method": "sf_fifo21",
+      "node_rank": 6
+    },
+    {
+      "conditions": [
+        "resplit",
+        "repeat",
+        "reference"
+      ],
+      "dimension": "imaging_quality",
+      "gpu": "1",
+      "index": 15,
+      "method": "ours_correct",
+      "node_rank": 7
+    },
+    {
+      "conditions": [
+        "repeat",
+        "reference",
+        "resplit"
+      ],
+      "dimension": "temporal_style",
+      "gpu": "2",
+      "index": 16,
+      "method": "sf_fifo21",
+      "node_rank": 0
+    },
+    {
+      "conditions": [
+        "repeat",
+        "resplit",
+        "reference"
+      ],
+      "dimension": "temporal_style",
+      "gpu": "2",
+      "index": 17,
+      "method": "ours_correct",
+      "node_rank": 1
+    }
+  ],
+  "metric_jobs": 54,
+  "new_videos": 0,
+  "nodes": 8
+}

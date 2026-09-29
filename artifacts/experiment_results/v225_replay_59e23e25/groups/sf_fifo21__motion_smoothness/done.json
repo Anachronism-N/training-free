@@ -1,0 +1,37 @@
+{
+  "device": {
+    "gpu_uuid": "GPU-305f1213-85ff-38b5-7295-c6839023bd20",
+    "hostname": "TENCENT64.site",
+    "slot": "0"
+  },
+  "jobs": [
+    {
+      "dimension": "motion_smoothness",
+      "done_sha256": "f7e0c8ca9cc2494aaa16f226b9f79c24abbfdb3d452557ebd9d3bf6056ea1df5",
+      "method": "sf_fifo21__reference"
+    },
+    {
+      "dimension": "motion_smoothness",
+      "done_sha256": "02efc421efe8037d40c40bb2adb1a2a039387ac5dea347fa77bd173dd80f6c65",
+      "method": "sf_fifo21__resplit"
+    },
+    {
+      "dimension": "motion_smoothness",
+      "done_sha256": "8f0f1dd39f51d73120bb58685a8788b9b669283a821327cecb47cb2d81b856b9",
+      "method": "sf_fifo21__repeat"
+    }
+  ],
+  "manifest_sha256": "eb87ebe87eae1c2e41ebec66ab107087eb56bfecb7ea625ed97d8b966f956697",
+  "schedule": {
+    "conditions": [
+      "reference",
+      "resplit",
+      "repeat"
+    ],
+    "dimension": "motion_smoothness",
+    "gpu": "0",
+    "index": 6,
+    "method": "sf_fifo21",
+    "node_rank": 6
+  }
+}
